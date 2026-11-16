@@ -41,13 +41,19 @@ Every demo account uses the password `demo1234`.
 
 These are for demos only. Do not seed a real deployment with them.
 
-## Deploy (Vercel + hosted Postgres)
+## Deploy (Vercel + Neon)
 
-1. Create a Postgres database (Neon and Supabase both work) and copy its connection string.
-2. Import this repository into Vercel.
-3. In Vercel, set two environment variables: `DATABASE_URL` and `AUTH_SECRET`.
-4. From your computer, point `DATABASE_URL` at the hosted database and run `npm run db:migrate`.
-5. Deploy.
+1. In Vercel, choose **Add New → Project** and import this GitHub repository. Leave the build settings as they are.
+2. Before deploying, add these environment variables:
+   - `AUTH_SECRET`: a random string of at least 32 characters
+   - `CRON_SECRET`: another random string of at least 16 characters
+   - `DEMO_PASSWORD` (only for a showcase link): a private password of at least 12 characters. Every demo account uses it. Leave it out for a real business.
+3. In the project's **Storage** tab, add **Neon** from the Marketplace and connect it. It fills in `DATABASE_URL` for you.
+4. Deploy (or redeploy if the first one ran before the database was connected).
+
+Every deploy runs `npm run vercel-build`, which updates the database tables before building. If `DEMO_PASSWORD` is set, the demo company is loaded once. A deploy fails with a plain message if `DATABASE_URL` or a strong `AUTH_SECRET` is missing.
+
+`vercel.json` sends state reports and webhooks once a day, the most the free Hobby plan allows. Use **Send now** on State reporting in between, or a paid plan or outside scheduler for more often.
 
 ## How inventory stays trustworthy
 

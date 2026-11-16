@@ -12,7 +12,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "vercel-build": "tsx scripts/deploy-setup.ts && next build"
   },
   "dependencies": {
     "@zxing/browser": "^0.2.1",

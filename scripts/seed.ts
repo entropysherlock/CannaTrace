@@ -19,12 +19,14 @@ import { createRecipe } from "@/lib/manufacturing";
 import { createDiscount, saveRetailSettings, setMenuItem } from "@/lib/pos";
 import { processQueue } from "@/lib/sync";
 
-const DEMO_PASSWORD = "demo1234";
-
-async function main() {
+/**
+ * Load the demo company. Every demo account gets the given password.
+ * Locally that is "demo1234"; on a public deployment, set DEMO_PASSWORD to something private.
+ */
+export async function seedDemo(DEMO_PASSWORD: string): Promise<boolean> {
   if ((await db.$count(users, eq(users.email, "owner@demo.test"))) > 0) {
     console.log("Demo data is already loaded; skipping seed.");
-    return;
+    return false;
   }
 
   const [org] = await db.insert(organizations).values({ name: "High Desert Demo Co." }).returning();
@@ -278,12 +280,16 @@ async function main() {
   // Both demo facilities are in practice mode, so the opening records show as sent.
   await processQueue();
 
-  console.log(`Seeded "${org.name}". Sign in as owner@demo.test / ${DEMO_PASSWORD}`);
+  console.log(`Seeded "${org.name}". Sign in as owner@demo.test with the demo password.`);
+  return true;
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(() => pool.end());
+// Run directly (npm run db:seed): load the demo with the local password.
+if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/seed.ts")) {
+  seedDemo(process.env.DEMO_PASSWORD || "demo1234")
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    })
+    .finally(() => pool.end());
+}
