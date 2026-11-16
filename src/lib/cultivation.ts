@@ -61,7 +61,7 @@ export async function createPlantBatch(
   actor: Actor,
   input: { name: string; strainId: string; source: string; count: unknown; locationId: string },
 ): Promise<{ id: string }> {
-  const name = requireText(input.name, "Give the batch a name, for example BM-CLONES-1116.");
+  const name = requireText(input.name, "Give the batch a name, for example the strain initials and today's date.");
   if (!["CLONE", "SEED"].includes(input.source)) throw new InventoryError("Choose clones or seeds.");
   const count = parseCount(input.count, "Plant count");
   if (count > 10000) throw new InventoryError("A batch can hold at most 10,000 plants.");
@@ -304,7 +304,7 @@ export async function harvestPlants(
   actor: Actor,
   input: { plantIds: string[]; name: string; wetWeight: unknown; unit: string; locationId: string },
 ): Promise<Harvest> {
-  const name = requireText(input.name, "Give the harvest a name, for example BM-1116.");
+  const name = requireText(input.name, "Give the harvest a name, for example the strain initials and today's date.");
   const wet = toGrams(input.wetWeight, input.unit, "Wet weight");
   return db.transaction(async (tx) => {
     if (!input.locationId) throw new InventoryError("Choose the room where the harvest will dry.");

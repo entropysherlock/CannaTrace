@@ -86,6 +86,16 @@ describe.skipIf(!hasDb)("point of sale engine (database)", () => {
     await pool.end();
   });
 
+  it("will not sell at a store whose limits and tax rates were never entered", async () => {
+    const [bare] = await db
+      .insert(facilities)
+      .values({ orgId: actor.orgId, name: "No Rules Shop", licenseNumber: `${run}-C`, licenseType: "RETAIL", state: "NM" })
+      .returning();
+    const bareActor = { ...actor, facilityId: bare.id };
+    await openDrawer(bareActor, { openingCash: "0" });
+    await expect(checkInCustomer(bareActor, adult)).rejects.toThrow(/have not been entered yet/);
+  });
+
   it("will not serve anyone before the drawer is open, or anyone under age", async () => {
     await expect(checkInCustomer(actor, adult)).rejects.toThrow(/Open the cash drawer/);
     await openDrawer(actor, { openingCash: "200" });

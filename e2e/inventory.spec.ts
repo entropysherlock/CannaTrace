@@ -182,3 +182,9 @@ test("merge two packages, add an item, add a location", async ({ page }) => {
   await expect(page.getByText(`Added Bin ${run}.`)).toBeVisible();
   await page.getByRole("button", { name: "Add location" }).click({ trial: true });
 });
+
+test("the setup screen is closed once accounts exist", async ({ page }) => {
+  await page.goto("/setup");
+  await expect(page).toHaveURL(/\/login/);
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+});

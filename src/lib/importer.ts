@@ -18,11 +18,12 @@ export const IMPORT_KINDS = {
 } as const;
 export type ImportKind = keyof typeof IMPORT_KINDS;
 
+/** Header rows only, so nothing invented ends up in a real business's data. */
 export const TEMPLATES: Record<ImportKind, string> = {
-  items: "name,sku,category,unit,strain\nBlue Mesa 3.5 g Jar,FLW-BM-35,Flower,EACH,Blue Mesa\n",
-  locations: "name,type\nVault B / Rack 1,RACK\n",
-  customers: "name,licenseNumber,licenseType,licenseExpires,paymentTermsDays,contactName,email,phone,address\nMesa Retail,LIC-0001,Retailer,2027-06-30,15,Jo Smith,jo@example.com,505-555-0100,1 Main St\n",
-  packages: "tag,sku,quantity,location,lotNumber,costPerUnit\nCT-100001,FLW-BM-35,48,Vault A,LOT-1101,5.10\n",
+  items: "name,sku,category,unit,strain\n",
+  locations: "name,type\n",
+  customers: "name,licenseNumber,licenseType,licenseExpires,paymentTermsDays,contactName,email,phone,address\n",
+  packages: "tag,sku,quantity,location,lotNumber,costPerUnit\n",
 };
 
 class RowError extends Error {}

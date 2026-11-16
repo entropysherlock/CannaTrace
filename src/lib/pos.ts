@@ -35,13 +35,13 @@ import {
 const store = (value: Decimal) => value.toFixed(4);
 export const SALE_PAYMENT_METHODS = ["CASH", "DEBIT"] as const;
 
-/** Limits used until a store saves its own. Taxes start at zero so nothing is charged by accident. */
-export const DEFAULT_SETTINGS = {
-  flowerLimitGrams: "56.7000",
-  concentrateLimitGrams: "16.0000",
-  edibleLimitMg: "800.0000",
-  exciseTaxPercent: "0.000",
-  salesTaxPercent: "0.000",
+/** Until a manager saves real figures, a store has no limits or tax rates and cannot sell. */
+const UNSET = {
+  flowerLimitGrams: "0",
+  concentrateLimitGrams: "0",
+  edibleLimitMg: "0",
+  exciseTaxPercent: "0",
+  salesTaxPercent: "0",
   medicalTaxExempt: true,
   adultMinAge: 21,
   medicalMinAge: 18,
@@ -52,7 +52,7 @@ export async function getRetailSettings(
   facilityId: string,
 ): Promise<Omit<RetailSettings, "facilityId" | "orgId"> & { saved: boolean }> {
   const [row] = await tx.select().from(retailSettings).where(eq(retailSettings.facilityId, facilityId));
-  return row ? { ...row, saved: true } : { ...DEFAULT_SETTINGS, saved: false };
+  return row ? { ...row, saved: true } : { ...UNSET, saved: false };
 }
 
 export async function saveRetailSettings(
@@ -238,6 +238,9 @@ export async function checkInCustomer(
   const idExpires = parseDate(input.idExpires, "ID expiry date");
   return db.transaction(async (tx) => {
     const settings = await getRetailSettings(tx, actor.facilityId);
+    if (!settings.saved) {
+      throw new InventoryError("This store's purchase limits and tax rates have not been entered yet. A manager must save them under Menu and store rules before anyone can sell.");
+    }
     const problem = checkInProblem({ birthDate, idExpires, customerType }, settings, todayIn());
     if (problem) throw new InventoryError(problem);
     const session = await lockOpenDrawer(tx, actor);
