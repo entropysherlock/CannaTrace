@@ -2,7 +2,7 @@
 
 An original seed-to-sale inventory and compliance app for licensed cannabis operators. Built to be fast on a phone on a warehouse floor, with a permanent audit trail behind every change.
 
-**Status: Phases 1 to 3 of 8 are built (foundation, inventory and warehouse, cultivation).** See the checklist below for exactly what works.
+**Status: Phases 1 to 4 of 8 are built (foundation, inventory and warehouse, cultivation, manufacturing).** See the checklist below for exactly what works.
 
 ## Stack
 
@@ -107,6 +107,18 @@ These are for demos only. Do not seed a real deployment with them.
 - [ ] Mother plants and cloning from a tagged plant
 - [ ] Recurring or assigned tasks
 
+### Phase 4: Manufacturing
+- [x] Recipes (bills of materials): inputs for one batch and how much one batch makes
+- [x] Production runs for any number of batches, including part batches
+- [x] Inputs taken from tagged packages, with a live needed/used/remaining view
+- [x] Removing an input puts the product back in its package
+- [x] Completing a run creates the output package, linked to every input package
+- [x] Yield against plan, and weight loss when everything is measured by weight
+- [x] Cost rollup: input cost plus labor and other cost, spread over what was made
+- [x] Lot number carried over when every input shares one; otherwise the run name
+- [ ] More than one output package or by-product per run (split the output package for now)
+- [ ] Editing a saved recipe (retire it and save a new one for now)
+
 ### Known limits
 - Camera scanning has not been tested on a real phone. It needs HTTPS (or localhost) and camera permission.
 - COA files are stored in the database. That is fine to start; move them to file storage before heavy use.
@@ -115,9 +127,9 @@ These are for demos only. Do not seed a real deployment with them.
 - Locations cannot be renamed or removed yet.
 - Harvests can only be packaged into items tracked by weight. Pre-packaged units (jars, pre-rolls) come in Phase 4.
 - Bulk plant actions handle up to 500 plants at a time.
+- Cost per unit shows as unknown if any input package has no cost on record, rather than showing a partial figure.
 
 ### Not started
-- [ ] Phase 4: Manufacturing
 - [ ] Phase 5: Distribution
 - [ ] Phase 6: Retail POS
 - [ ] Phase 7: Compliance sync (Metrc, BioTrack, Mock)

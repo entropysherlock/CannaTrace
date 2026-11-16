@@ -13,6 +13,7 @@ import {
 } from "@/lib/cultivation";
 import { expandTags } from "@/lib/cultivation-math";
 import { adjustPackage, movePackage, receivePackage, type Actor } from "@/lib/inventory";
+import { createRecipe } from "@/lib/manufacturing";
 
 const DEMO_PASSWORD = "demo1234";
 
@@ -82,7 +83,7 @@ async function main() {
 
   const categoryRows = await db
     .insert(itemCategories)
-    .values(["Flower", "Pre-rolls", "Concentrates", "Edibles", "Trim"].map((name) => ({ orgId: org.id, name })))
+    .values(["Flower", "Pre-rolls", "Concentrates", "Edibles", "Trim", "Packaging"].map((name) => ({ orgId: org.id, name })))
     .returning();
   const categoryId = Object.fromEntries(categoryRows.map((c) => [c.name, c.id]));
 
@@ -94,6 +95,8 @@ async function main() {
     ["Live Resin 1 g", "CON-LR-1", "Concentrates", "EACH", null],
     ["Prickly Pear Gummies 10-pack", "EDI-PP-10", "Edibles", "EACH", null],
     ["Mixed Trim", "TRM-MIX", "Trim", "KG", null],
+    ["Empty 3.5 g Jar with Lid", "PKG-JAR", "Packaging", "EACH", null],
+    ["Pre-roll Cone", "PKG-CONE", "Packaging", "EACH", null],
   ] as const;
   const createdItems = await db
     .insert(items)
@@ -125,10 +128,24 @@ async function main() {
     [grow.id, "CT-000005", "CON-LR-1", "300", "Vault A", "LOT-LR-1028"],
     [grow.id, "CT-000006", "TRM-MIX", "18.5", "Dry Room", null],
     [grow.id, "CT-000007", "EDI-PP-10", "240", "Vault A / Rack 2", "LOT-PP-1030"],
+    [grow.id, "CT-000008", "PKG-JAR", "2000", "Packaging Line", null],
+    [grow.id, "CT-000009", "PKG-CONE", "5000", "Packaging Line", null],
     [shop.id, "CT-000101", "FLW-BM-35", "96", "Back Stock", "LOT-BM-1101"],
     [shop.id, "CT-000102", "PR-DH-1", "200", "Sales Floor", "LOT-DH-1102"],
     [shop.id, "CT-000103", "EDI-PP-10", "60", "Sales Floor", "LOT-PP-1030"],
   ] as const;
+  // Rough demo costs per unit (dollars), so production runs can show a cost rollup.
+  const demoCost: Record<string, string> = {
+    "FLW-BM-BULK": "1.20",
+    "FLW-DH-BULK": "1.05",
+    "FLW-BM-35": "5.10",
+    "PR-DH-1": "1.60",
+    "CON-LR-1": "9.50",
+    "EDI-PP-10": "4.25",
+    "TRM-MIX": "90",
+    "PKG-JAR": "0.35",
+    "PKG-CONE": "0.08",
+  };
   const packageId: Record<string, string> = {};
   for (const [facilityId, tag, sku, quantity, location, lotNumber] of receipts) {
     const pkg = await receivePackage(actor(facilityId), {
@@ -137,6 +154,7 @@ async function main() {
       quantity,
       locationId: locationId[`${facilityId}:${location}`],
       lotNumber,
+      costPerUnit: demoCost[sku],
       note: "Opening inventory",
     });
     packageId[tag] = pkg.id;
@@ -179,6 +197,26 @@ async function main() {
   await logHarvestWaste(growActor, { harvestId: harvest.id, weight: "850", unit: "G", reason: "Fan leaves and stems" });
   await createTask(growActor, { title: "Defoliate Flower Room 1", locationId: room("Flower Room 1") });
   await createTask(growActor, { title: "Check dry room humidity", locationId: room("Dry Room") });
+
+  // Manufacturing: two recipes ready to run.
+  await createRecipe(actor(grow.id), {
+    name: "Blue Mesa 3.5 g jars (100)",
+    outputItemId: itemId["FLW-BM-35"],
+    outputQuantity: "100",
+    lines: [
+      { itemId: itemId["FLW-BM-BULK"], quantity: "350" },
+      { itemId: itemId["PKG-JAR"], quantity: "100" },
+    ],
+  });
+  await createRecipe(actor(grow.id), {
+    name: "Desert Haze 1 g pre-rolls (500)",
+    outputItemId: itemId["PR-DH-1"],
+    outputQuantity: "500",
+    lines: [
+      { itemId: itemId["FLW-DH-BULK"], quantity: "500" },
+      { itemId: itemId["PKG-CONE"], quantity: "500" },
+    ],
+  });
 
   console.log(`Seeded "${org.name}". Sign in as owner@demo.test / ${DEMO_PASSWORD}`);
 }

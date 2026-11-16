@@ -73,7 +73,7 @@ export async function audit(
 }
 
 /** Lock the package row for the rest of the transaction so two edits cannot interleave. */
-async function lockPackage(tx: Tx, actor: Actor, packageId: string): Promise<Package> {
+export async function lockPackage(tx: Tx, actor: Actor, packageId: string): Promise<Package> {
   const [pkg] = await tx
     .select()
     .from(packages)
@@ -167,6 +167,85 @@ export async function createPackageInTx(
     reason: input.note,
   });
   return pkg;
+}
+
+/** Take quantity out of an active package for production. Empties are marked finished. */
+export async function consumeFromPackageInTx(
+  tx: Tx,
+  actor: Actor,
+  input: { packageId: string; quantity: unknown; note: string },
+): Promise<{ before: Package; after: Package; quantity: Decimal }> {
+  const quantity = parsePositiveQty(input.quantity);
+  const pkg = await lockPackage(tx, actor, input.packageId);
+  if (pkg.status !== "ACTIVE") {
+    throw new InventoryError(
+      `Package ${pkg.tag} is ${pkg.status.replace("_", " ").toLowerCase()} and cannot be used in production.`,
+    );
+  }
+  const change = applyDelta(pkg.quantity, quantity.neg());
+  const [updated] = await tx
+    .update(packages)
+    .set({ quantity: store(change.after), status: change.after.isZero() ? "FINISHED" : "ACTIVE" })
+    .where(eq(packages.id, pkg.id))
+    .returning();
+  await tx.insert(inventoryTransactions).values({
+    orgId: actor.orgId,
+    facilityId: actor.facilityId,
+    packageId: pkg.id,
+    type: "CONVERT_OUT",
+    quantityDelta: store(change.delta),
+    quantityBefore: store(change.before),
+    quantityAfter: store(change.after),
+    unit: pkg.unit,
+    note: input.note,
+    userId: actor.userId,
+  });
+  await audit(tx, actor, {
+    entityType: "Package",
+    entityId: pkg.id,
+    action: "USED_IN_PRODUCTION",
+    before: snapshot(pkg),
+    after: snapshot(updated),
+    reason: input.note,
+  });
+  return { before: pkg, after: updated, quantity };
+}
+
+/** Put back quantity that was taken for production but not used. Reopens a package emptied by that use. */
+export async function returnToPackageInTx(
+  tx: Tx,
+  actor: Actor,
+  input: { packageId: string; quantity: Decimal; note: string },
+): Promise<Package> {
+  const pkg = await lockPackage(tx, actor, input.packageId);
+  if (pkg.status === "DESTROYED") throw new InventoryError(`Package ${pkg.tag} was destroyed, so nothing can be returned to it.`);
+  const change = applyDelta(pkg.quantity, input.quantity);
+  const [updated] = await tx
+    .update(packages)
+    .set({ quantity: store(change.after), status: pkg.status === "FINISHED" ? "ACTIVE" : pkg.status })
+    .where(eq(packages.id, pkg.id))
+    .returning();
+  await tx.insert(inventoryTransactions).values({
+    orgId: actor.orgId,
+    facilityId: actor.facilityId,
+    packageId: pkg.id,
+    type: "CONVERT_IN",
+    quantityDelta: store(change.delta),
+    quantityBefore: store(change.before),
+    quantityAfter: store(change.after),
+    unit: pkg.unit,
+    note: input.note,
+    userId: actor.userId,
+  });
+  await audit(tx, actor, {
+    entityType: "Package",
+    entityId: pkg.id,
+    action: "RETURNED_FROM_PRODUCTION",
+    before: snapshot(pkg),
+    after: snapshot(updated),
+    reason: input.note,
+  });
+  return updated;
 }
 
 export async function receivePackage(
