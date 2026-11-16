@@ -69,6 +69,8 @@ export const transactionTypeEnum = pgEnum("transaction_type", [
   "STATUS_CHANGE",
 ]);
 
+export const limitCategoryEnum = pgEnum("limit_category", ["NONE", "FLOWER", "CONCENTRATE", "EDIBLE"]);
+
 export const organizations = pgTable("organizations", {
   id: id(),
   name: text("name").notNull(),
@@ -153,6 +155,10 @@ export const items = pgTable(
     unit: unitEnum("unit").notNull(),
     strain: text("strain"),
     active: boolean("active").notNull().default(true),
+    // How one unit of this item counts toward retail purchase limits:
+    // grams for FLOWER and CONCENTRATE, milligrams of THC for EDIBLE.
+    limitCategory: limitCategoryEnum("limit_category").notNull().default("NONE"),
+    limitPerUnit: qty("limit_per_unit"),
   },
   (t) => [uniqueIndex("items_org_sku_key").on(t.orgId, t.sku)],
 );
@@ -762,11 +768,148 @@ export const payments = pgTable(
   (t) => [index("payments_invoice_idx").on(t.invoiceId)],
 );
 
+export const saleStatusEnum = pgEnum("sale_status", ["OPEN", "COMPLETED", "CANCELLED", "VOIDED"]);
+export const customerTypeEnum = pgEnum("customer_type", ["ADULT_USE", "MEDICAL"]);
+export const drawerStatusEnum = pgEnum("drawer_status", ["OPEN", "CLOSED"]);
+const percent = (name: string) => numeric(name, { precision: 6, scale: 3 });
+
+/** Per-store retail rules. Rates and limits differ by state and city, so each store sets its own. */
+export const retailSettings = pgTable("retail_settings", {
+  facilityId: text("facility_id")
+    .primaryKey()
+    .references(() => facilities.id),
+  orgId: text("org_id").notNull(),
+  flowerLimitGrams: qty("flower_limit_grams").notNull(),
+  concentrateLimitGrams: qty("concentrate_limit_grams").notNull(),
+  edibleLimitMg: qty("edible_limit_mg").notNull(),
+  exciseTaxPercent: percent("excise_tax_percent").notNull(),
+  salesTaxPercent: percent("sales_tax_percent").notNull(),
+  medicalTaxExempt: boolean("medical_tax_exempt").notNull().default(true),
+  adultMinAge: integer("adult_min_age").notNull().default(21),
+  medicalMinAge: integer("medical_min_age").notNull().default(18),
+});
+
+export const retailPrices = pgTable(
+  "retail_prices",
+  {
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id),
+    price: qty("price").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.facilityId, t.itemId] })],
+);
+
+export const discountPresets = pgTable(
+  "discount_presets",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    percent: percent("percent").notNull(),
+    active: boolean("active").notNull().default(true),
+  },
+  (t) => [uniqueIndex("discount_presets_org_name_key").on(t.orgId, t.name)],
+);
+
+/** One till shift: opened with a float, closed with a count. */
+export const drawerSessions = pgTable(
+  "drawer_sessions",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    status: drawerStatusEnum("status").notNull().default("OPEN"),
+    openingCash: money("opening_cash").notNull(),
+    openedByName: text("opened_by_name").notNull(),
+    openedAt: createdAt(),
+    countedCash: money("counted_cash"),
+    expectedCash: money("expected_cash"),
+    closedByName: text("closed_by_name"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (t) => [index("drawer_sessions_scope_idx").on(t.orgId, t.facilityId, t.status)],
+);
+
+export const sales = pgTable(
+  "sales",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    drawerSessionId: text("drawer_session_id")
+      .notNull()
+      .references(() => drawerSessions.id),
+    number: text("number").notNull(),
+    status: saleStatusEnum("status").notNull().default("OPEN"),
+    customerType: customerTypeEnum("customer_type").notNull(),
+    discountName: text("discount_name"),
+    discountPercent: percent("discount_percent").notNull().default("0"),
+    subtotal: money("subtotal"),
+    discountTotal: money("discount_total"),
+    exciseTax: money("excise_tax"),
+    salesTax: money("sales_tax"),
+    total: money("total"),
+    paymentMethod: text("payment_method"),
+    cashTendered: money("cash_tendered"),
+    changeDue: money("change_due"),
+    voidReason: text("void_reason"),
+    userId: text("user_id").notNull(),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("sales_facility_number_key").on(t.facilityId, t.number), index("sales_session_idx").on(t.drawerSessionId, t.status)],
+);
+
+export const saleLines = pgTable(
+  "sale_lines",
+  {
+    id: id(),
+    saleId: text("sale_id")
+      .notNull()
+      .references(() => sales.id),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id),
+    quantity: qty("quantity").notNull(),
+    unitPrice: qty("unit_price").notNull(),
+  },
+  (t) => [uniqueIndex("sale_lines_sale_item_key").on(t.saleId, t.itemId)],
+);
+
+/** Which packages a completed sale line was taken from, for traceability. */
+export const saleLinePackages = pgTable(
+  "sale_line_packages",
+  {
+    saleLineId: text("sale_line_id")
+      .notNull()
+      .references(() => saleLines.id),
+    packageId: text("package_id")
+      .notNull()
+      .references(() => packages.id),
+    quantity: qty("quantity").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.saleLineId, t.packageId] })],
+);
+
 export const packagesRelations = relations(packages, ({ one }) => ({
   item: one(items, { fields: [packages.itemId], references: [items.id] }),
   location: one(locations, { fields: [packages.locationId], references: [locations.id] }),
 }));
 
+export type Sale = typeof sales.$inferSelect;
+export type RetailSettings = typeof retailSettings.$inferSelect;
+export type DrawerSession = typeof drawerSessions.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type ProductionRun = typeof productionRuns.$inferSelect;
 export type Harvest = typeof harvests.$inferSelect;

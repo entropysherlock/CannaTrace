@@ -1,7 +1,6 @@
 import Decimal from "decimal.js";
 import { and, eq, sql } from "drizzle-orm";
 import {
-  counters,
   customers,
   drivers,
   invoices,
@@ -21,7 +20,6 @@ import { db, type Tx } from "./db";
 import {
   PAYMENT_METHODS,
   addDays,
-  formatNumber,
   invoiceBalance,
   licenseProblem,
   lineTotal,
@@ -40,6 +38,7 @@ import {
   type Actor,
 } from "./inventory";
 import { normalizeTag, parsePositiveQty } from "./inventory-math";
+import { nextNumber } from "./numbering";
 
 const store = (value: Decimal) => value.toFixed(4);
 
@@ -51,15 +50,6 @@ function required(value: string | null | undefined, message: string, max = 200):
   const trimmed = text(value, max);
   if (!trimmed) throw new InventoryError(message);
   return trimmed;
-}
-
-async function nextNumber(tx: Tx, facilityId: string, kind: "SO" | "MAN" | "INV"): Promise<string> {
-  const [row] = await tx
-    .insert(counters)
-    .values({ facilityId, kind, value: 1 })
-    .onConflictDoUpdate({ target: [counters.facilityId, counters.kind], set: { value: sql`${counters.value} + 1` } })
-    .returning({ value: counters.value });
-  return formatNumber(kind, row.value);
 }
 
 // ---------- Customers, price lists, fleet ----------

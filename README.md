@@ -2,7 +2,7 @@
 
 An original seed-to-sale inventory and compliance app for licensed cannabis operators. Built to be fast on a phone on a warehouse floor, with a permanent audit trail behind every change.
 
-**Status: Phases 1 to 5 of 8 are built (foundation, inventory and warehouse, cultivation, manufacturing, distribution).** See the checklist below for exactly what works.
+**Status: Phases 1 to 6 of 8 are built (foundation, inventory and warehouse, cultivation, manufacturing, distribution, retail POS).** See the checklist below for exactly what works.
 
 ## Stack
 
@@ -134,6 +134,22 @@ These are for demos only. Do not seed a real deployment with them.
 - [ ] Returns and credit memos
 - [ ] Multi-stop routes (one order per manifest for now)
 
+### Phase 6: Retail POS
+- [x] Per-store menu with shelf prices and live stock
+- [x] Customer check-in with an age and ID-expiry check; the birth date is not stored
+- [x] Purchase limits for flower, concentrate, and edible THC, enforced when adding to the cart and again at payment
+- [x] Discounts from a preset list
+- [x] Cannabis excise tax and sales tax, with an optional medical exemption
+- [x] Cash (with change) and debit payments
+- [x] Stock sold oldest package first, with every package tag on the receipt
+- [x] Cash drawer: opening float, expected cash, counted cash, and the difference
+- [x] Printable receipt and end-of-day report
+- [x] Voiding a sale during the same shift puts the product back in stock
+- [ ] Returns after the shift has closed, and refunds to a card
+- [ ] More than one register per store
+- [ ] Limits tracked per customer per day (limits apply per purchase)
+- [ ] Loyalty and customer profiles
+
 ### Known limits
 - Camera scanning has not been tested on a real phone. It needs HTTPS (or localhost) and camera permission.
 - COA files are stored in the database. That is fine to start; move them to file storage before heavy use.
@@ -142,11 +158,13 @@ These are for demos only. Do not seed a real deployment with them.
 - Locations cannot be renamed or removed yet.
 - Harvests can only be packaged into items tracked by weight. Pre-packaged units (jars, pre-rolls) come in Phase 4.
 - Bulk plant actions handle up to 500 plants at a time.
+- Tax rates and purchase limits are whatever each store enters under Menu and store rules. The demo values are placeholders, not current rates for any state or city.
+- Both taxes are charged on the discounted subtotal. If your state taxes differently (for example tax on tax), the totals will not match.
+- Receipts do not include state-required warning text.
 - The printed manifest is an internal document. It does not replace the manifest issued by the state track-and-trace system.
 - License verification records that a person checked the state lookup; it does not query the state automatically.
 - Cost per unit shows as unknown if any input package has no cost on record, rather than showing a partial figure.
 
 ### Not started
-- [ ] Phase 6: Retail POS
 - [ ] Phase 7: Compliance sync (Metrc, BioTrack, Mock)
 - [ ] Phase 8: Reporting, CSV import and export, REST API, webhooks

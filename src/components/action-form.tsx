@@ -8,11 +8,14 @@ export function ActionForm({
   children,
   submitLabel,
   className,
+  quiet,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   children: ReactNode;
   submitLabel: string;
   className?: string;
+  /** A plain outlined button, for undoing or cancelling rather than moving forward. */
+  quiet?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -48,7 +51,9 @@ export function ActionForm({
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex min-h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
+        className={`inline-flex min-h-11 items-center justify-center rounded-md px-4 text-sm font-semibold disabled:opacity-60 ${
+          quiet ? "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50" : "bg-emerald-700 text-white hover:bg-emerald-800"
+        }`}
       >
         {pending ? "Working…" : submitLabel}
       </button>
