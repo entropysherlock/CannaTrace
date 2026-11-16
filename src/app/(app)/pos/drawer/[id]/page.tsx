@@ -35,7 +35,7 @@ export default async function DrawerReportPage({ params }: { params: Promise<{ i
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
-        <Link href="/pos/drawer" className="text-sm font-semibold text-emerald-700 hover:underline">
+        <Link href="/pos/drawer" className="text-sm font-semibold text-brand-700 hover:underline">
           Back to cash drawer
         </Link>
         <PrintButton label="Print report" />
@@ -95,7 +95,7 @@ export default async function DrawerReportPage({ params }: { params: Promise<{ i
             {rows.map((sale) => (
               <tr key={sale.id} className="border-b border-slate-200">
                 <td className="py-2 pr-2">
-                  <Link href={`/pos/sales/${sale.id}/receipt`} className="font-semibold text-emerald-700 hover:underline print:text-slate-900">
+                  <Link href={`/pos/sales/${sale.id}/receipt`} className="font-semibold text-brand-700 hover:underline print:text-slate-900">
                     {sale.number}
                   </Link>{" "}
                   {sale.status !== "COMPLETED" ? <Pill status={sale.status} /> : null}

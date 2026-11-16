@@ -153,7 +153,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
                 {made.map((pkg) => (
                   <li key={pkg.id} className="flex items-center justify-between gap-3 py-2">
                     <span>
-                      <Link href={`/inventory/${pkg.id}`} className="font-mono font-semibold text-emerald-700 hover:underline">
+                      <Link href={`/inventory/${pkg.id}`} className="font-mono font-semibold text-brand-700 hover:underline">
                         {pkg.tag}
                       </Link>{" "}
                       <span className="text-slate-600">· {pkg.itemName}</span>

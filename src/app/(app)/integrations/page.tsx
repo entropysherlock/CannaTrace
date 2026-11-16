@@ -68,7 +68,7 @@ export default async function IntegrationsPage() {
                 <input name="name" required maxLength={60} className={inputClass} />
               </Field>
               <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" name="canWrite" className="h-5 w-5 accent-emerald-700" />
+                <input type="checkbox" name="canWrite" className="h-5 w-5 accent-brand-700" />
                 Allow changes (inventory adjustments), not just reading
               </label>
               <p className="text-sm text-slate-600">The key works only for this facility. Changes it makes appear in the audit trail under the key&apos;s name.</p>
@@ -125,7 +125,7 @@ export default async function IntegrationsPage() {
                 <div className="grid gap-1 sm:grid-cols-2">
                   {WEBHOOK_EVENTS.map((event) => (
                     <label key={event} className="flex items-center gap-2 text-sm text-slate-700">
-                      <input type="checkbox" name="events" value={event} className="h-4 w-4 accent-emerald-700" />
+                      <input type="checkbox" name="events" value={event} className="h-4 w-4 accent-brand-700" />
                       {event.replaceAll("_", " ").toLowerCase()}
                     </label>
                   ))}
@@ -148,7 +148,7 @@ export default async function IntegrationsPage() {
                     <div className="flex flex-wrap justify-between gap-2">
                       <span className="font-medium text-slate-900">{d.event.replaceAll("_", " ").toLowerCase()}</span>
                       <span
-                        className={`font-semibold ${d.status === "DELIVERED" ? "text-emerald-700" : d.status === "FAILED" ? "text-red-700" : "text-amber-700"}`}
+                        className={`font-semibold ${d.status === "DELIVERED" ? "text-brand-700" : d.status === "FAILED" ? "text-red-700" : "text-amber-700"}`}
                       >
                         {d.status.toLowerCase()}
                         {d.attempts > 1 ? ` after ${d.attempts} tries` : ""}

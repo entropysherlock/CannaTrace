@@ -52,7 +52,7 @@ export function ActionForm({
         type="submit"
         disabled={pending}
         className={`inline-flex min-h-11 items-center justify-center rounded-md px-4 text-sm font-semibold disabled:opacity-60 ${
-          quiet ? "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50" : "bg-emerald-700 text-white hover:bg-emerald-800"
+          quiet ? "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50" : "bg-brand-700 text-white hover:bg-brand-800"
         }`}
       >
         {pending ? "Working…" : submitLabel}

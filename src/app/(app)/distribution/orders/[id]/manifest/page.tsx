@@ -34,7 +34,7 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
-        <Link href={`/distribution/orders/${order.id}`} className="text-sm font-semibold text-emerald-700 hover:underline">
+        <Link href={`/distribution/orders/${order.id}`} className="text-sm font-semibold text-brand-700 hover:underline">
           Back to order
         </Link>
         <PrintButton label="Print manifest" />

@@ -47,7 +47,7 @@ export default async function CountsPage() {
             {rows.map((row) => (
               <li key={row.id}>
                 {row.packageCount > 0 ? (
-                  <Link href={`/counts/${row.id}`} className="flex min-h-12 items-center justify-between gap-3 py-2 hover:text-emerald-700">
+                  <Link href={`/counts/${row.id}`} className="flex min-h-12 items-center justify-between gap-3 py-2 hover:text-brand-700">
                     <span className="font-medium">{row.name}</span>
                     <span className="text-slate-600">
                       {row.packageCount} package{row.packageCount === 1 ? "" : "s"} ›

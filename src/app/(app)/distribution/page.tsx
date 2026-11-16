@@ -47,7 +47,7 @@ export default async function OrdersPage() {
             <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
               {rows.map((order) => (
                 <li key={order.id}>
-                  <Link href={`/distribution/orders/${order.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-emerald-50">
+                  <Link href={`/distribution/orders/${order.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
                     <div>
                       <p className="font-semibold text-slate-900">
                         {order.number} <Pill status={order.status} />
@@ -68,7 +68,7 @@ export default async function OrdersPage() {
             {customerRows.length === 0 ? (
               <p className="text-sm text-slate-600">
                 Add a customer first on the{" "}
-                <Link href="/distribution/customers" className="font-semibold text-emerald-700 hover:underline">
+                <Link href="/distribution/customers" className="font-semibold text-brand-700 hover:underline">
                   Customers
                 </Link>{" "}
                 tab.

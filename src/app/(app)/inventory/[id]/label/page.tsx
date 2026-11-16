@@ -41,7 +41,7 @@ export default async function LabelPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="max-w-md">
       <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
-        <Link href={`/inventory/${pkg.id}`} className="text-sm font-semibold text-emerald-700 hover:underline">
+        <Link href={`/inventory/${pkg.id}`} className="text-sm font-semibold text-brand-700 hover:underline">
           Back to package
         </Link>
         <PrintButton />

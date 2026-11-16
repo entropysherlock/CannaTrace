@@ -55,7 +55,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         title={batch.name}
         subtitle={`${batch.strainName} · started from ${batch.source.toLowerCase()}s on ${batch.createdAt.toLocaleDateString("en-US")}`}
         action={
-          <Link href={`/cultivation/plants?batch=${batch.id}`} className="text-sm font-semibold text-emerald-700 hover:underline">
+          <Link href={`/cultivation/plants?batch=${batch.id}`} className="text-sm font-semibold text-brand-700 hover:underline">
             See this batch&apos;s tagged plants
           </Link>
         }

@@ -45,7 +45,7 @@ export default async function CountLocationPage({ params }: { params: Promise<{ 
         title={`Count: ${location.name}`}
         subtitle="Enter what you find for every package. Enter 0 for a package that is missing."
         action={
-          <Link href="/counts" className="text-sm font-semibold text-emerald-700 hover:underline">
+          <Link href="/counts" className="text-sm font-semibold text-brand-700 hover:underline">
             Back to counts
           </Link>
         }

@@ -51,7 +51,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
     <div className="mx-auto grid max-w-5xl gap-5 lg:grid-cols-3">
       <div className="lg:col-span-2">
         <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
-          <Link href={`/distribution/orders/${order.id}`} className="text-sm font-semibold text-emerald-700 hover:underline">
+          <Link href={`/distribution/orders/${order.id}`} className="text-sm font-semibold text-brand-700 hover:underline">
             Back to order
           </Link>
           <PrintButton label="Print invoice" />

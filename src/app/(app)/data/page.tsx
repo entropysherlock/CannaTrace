@@ -28,7 +28,7 @@ export default async function DataPage() {
             {EXPORTS.filter((e) => can(session.role, e.permission)).map((e) => (
               <li key={e.table} className="flex items-center justify-between gap-3 py-2">
                 <span className="text-slate-900">{e.label}</span>
-                <a href={`/export/${e.table}`} className="font-semibold text-emerald-700 hover:underline">
+                <a href={`/export/${e.table}`} className="font-semibold text-brand-700 hover:underline">
                   Download CSV
                 </a>
               </li>
@@ -63,7 +63,7 @@ export default async function DataPage() {
               <ul className="mt-1 space-y-1">
                 {Object.entries(IMPORT_KINDS).map(([kind, spec]) => (
                   <li key={kind}>
-                    <a href={`/export/template/${kind}`} className="text-emerald-700 hover:underline">
+                    <a href={`/export/template/${kind}`} className="text-brand-700 hover:underline">
                       {spec.label}
                     </a>{" "}
                     <span className="text-slate-500">· needs {spec.required.join(", ")}</span>

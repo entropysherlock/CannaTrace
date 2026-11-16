@@ -37,7 +37,7 @@ test("state reporting: practice mode sends, NMS2S lists records for hand entry",
 
   // The dashboard warns about it
   await page.goto("/dashboard");
-  await expect(seen(page, /1 state report needs attention/)).toBeVisible();
+  await expect(seen(page, "1 to enter by hand")).toBeVisible();
 
   // Mark it entered
   await page.goto("/compliance");

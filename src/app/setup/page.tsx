@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
+import { Logo } from "@/components/logo";
 import { Field, inputClass } from "@/components/ui";
 import { licenseTypeEnum } from "@/db/schema";
 import { needsSetup } from "@/lib/setup";
@@ -11,10 +12,12 @@ export const instant = false;
 export default async function SetupPage() {
   if (!(await needsSetup())) redirect("/login");
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-widest text-emerald-700">CannaTrace</p>
-        <h1 className="mt-1 text-2xl font-bold text-slate-900">Set up your business</h1>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-brand-50 via-white to-brand-50 px-4 py-10">
+      <div className="mb-6">
+        <Logo size="lg" />
+      </div>
+      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-brand-900/5">
+        <h1 className="text-2xl font-bold text-slate-900">Set up your business</h1>
         <p className="mb-5 mt-1 text-sm text-slate-600">
           This screen appears once, before anyone has an account. You become the owner and can add staff, more licenses, and everything else after.
         </p>

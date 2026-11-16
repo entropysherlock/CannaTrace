@@ -41,7 +41,7 @@ export default async function InvoicesPage() {
         <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           {withState.map((invoice) => (
             <li key={invoice.id}>
-              <Link href={`/distribution/orders/${invoice.orderId}/invoice`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-emerald-50">
+              <Link href={`/distribution/orders/${invoice.orderId}/invoice`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
                 <div>
                   <p className="font-semibold text-slate-900">
                     {invoice.number} <Pill status={invoice.state !== "PAID" && invoice.dueDate < today ? "OVERDUE" : invoice.state} />

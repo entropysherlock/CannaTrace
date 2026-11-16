@@ -89,7 +89,7 @@ export default async function InventoryPage({
         <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           {rows.map((pkg) => (
             <li key={pkg.id}>
-              <Link href={`/inventory/${pkg.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-emerald-50">
+              <Link href={`/inventory/${pkg.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
                 <div className="min-w-0">
                   <p className="font-mono text-sm font-semibold text-slate-900">{pkg.tag}</p>
                   <p className="truncate text-sm text-slate-600">
