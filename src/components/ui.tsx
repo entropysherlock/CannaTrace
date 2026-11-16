@@ -45,6 +45,7 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
 
 const STATUS_STYLES: Record<string, string> = {
   ACTIVE: "bg-emerald-100 text-emerald-800",
+  ALLOCATED: "bg-sky-100 text-sky-800",
   ON_HOLD: "bg-amber-100 text-amber-800",
   QUARANTINE: "bg-red-100 text-red-800",
   FINISHED: "bg-slate-200 text-slate-700",

@@ -2,7 +2,7 @@
 
 An original seed-to-sale inventory and compliance app for licensed cannabis operators. Built to be fast on a phone on a warehouse floor, with a permanent audit trail behind every change.
 
-**Status: Phases 1 to 4 of 8 are built (foundation, inventory and warehouse, cultivation, manufacturing).** See the checklist below for exactly what works.
+**Status: Phases 1 to 5 of 8 are built (foundation, inventory and warehouse, cultivation, manufacturing, distribution).** See the checklist below for exactly what works.
 
 ## Stack
 
@@ -119,6 +119,21 @@ These are for demos only. Do not seed a real deployment with them.
 - [ ] More than one output package or by-product per run (split the output package for now)
 - [ ] Editing a saved recipe (retire it and save a new one for now)
 
+### Phase 5: Distribution
+- [x] Customers with license number, type, expiry, and a recorded verification (who and when)
+- [x] Orders cannot be confirmed or shipped to an unverified, expired, or inactive license
+- [x] Price lists: a default list plus per-customer lists
+- [x] Wholesale orders: draft, confirmed, packed, shipped, delivered, cancelled
+- [x] Picking: take a whole package, or part of one into a new tagged package
+- [x] Picked packages are set aside so nothing else can use, adjust, or destroy them
+- [x] Short shipments: the invoice bills only what shipped
+- [x] Drivers and vehicles, and a printable transfer manifest
+- [x] Invoices with due dates from payment terms, and a printable invoice
+- [x] Payments (cash, check, ACH, wire) with balance and overdue status
+- [ ] Taxes on invoices
+- [ ] Returns and credit memos
+- [ ] Multi-stop routes (one order per manifest for now)
+
 ### Known limits
 - Camera scanning has not been tested on a real phone. It needs HTTPS (or localhost) and camera permission.
 - COA files are stored in the database. That is fine to start; move them to file storage before heavy use.
@@ -127,10 +142,11 @@ These are for demos only. Do not seed a real deployment with them.
 - Locations cannot be renamed or removed yet.
 - Harvests can only be packaged into items tracked by weight. Pre-packaged units (jars, pre-rolls) come in Phase 4.
 - Bulk plant actions handle up to 500 plants at a time.
+- The printed manifest is an internal document. It does not replace the manifest issued by the state track-and-trace system.
+- License verification records that a person checked the state lookup; it does not query the state automatically.
 - Cost per unit shows as unknown if any input package has no cost on record, rather than showing a partial figure.
 
 ### Not started
-- [ ] Phase 5: Distribution
 - [ ] Phase 6: Retail POS
 - [ ] Phase 7: Compliance sync (Metrc, BioTrack, Mock)
 - [ ] Phase 8: Reporting, CSV import and export, REST API, webhooks

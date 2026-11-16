@@ -36,6 +36,13 @@
       "when": 1794849603429,
       "tag": "0004_manufacturing",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794850349565,
+      "tag": "0005_distribution",
+      "breakpoints": true
     }
   ]
 }
