@@ -2,6 +2,16 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { facilities, itemCategories, items, locations, organizations, packages, users } from "@/db/schema";
 import { db, pool } from "@/lib/db";
+import {
+  changePlantPhase,
+  createPlantBatch,
+  createStrain,
+  createTask,
+  harvestPlants,
+  logHarvestWaste,
+  tagPlants,
+} from "@/lib/cultivation";
+import { expandTags } from "@/lib/cultivation-math";
 import { adjustPackage, movePackage, receivePackage, type Actor } from "@/lib/inventory";
 
 const DEMO_PASSWORD = "demo1234";
@@ -51,7 +61,7 @@ async function main() {
   const inventoryUser = createdUsers.find((u) => u.role === "INVENTORY")!;
 
   const locationNames: [string, string[]][] = [
-    [grow.id, ["Vault A", "Vault A / Rack 1", "Vault A / Rack 2", "Dry Room", "Packaging Line", "Quarantine Cage"]],
+    [grow.id, ["Vault A", "Vault A / Rack 1", "Vault A / Rack 2", "Dry Room", "Packaging Line", "Quarantine Cage", "Clone Room", "Veg Room", "Flower Room 1"]],
     [shop.id, ["Back Stock", "Sales Floor", "Returns Shelf"]],
   ];
   const locationId: Record<string, string> = {};
@@ -145,6 +155,30 @@ async function main() {
   });
   // Demo only: holds get their own audited action in Phase 2.
   await db.update(packages).set({ status: "ON_HOLD" }).where(eq(packages.id, packageId["CT-000005"]));
+
+  // Cultivation: two strains, plants at each stage, and one harvest hanging to dry.
+  const grower = createdUsers.find((u) => u.role === "CULTIVATION")!;
+  const growActor: Actor = { userId: grower.id, userName: grower.name, orgId: org.id, facilityId: grow.id };
+  const room = (name: string) => locationId[`${grow.id}:${name}`];
+  const blueMesa = await createStrain(growActor, { name: "Blue Mesa", type: "HYBRID", floweringDays: "63" });
+  const desertHaze = await createStrain(growActor, { name: "Desert Haze", type: "SATIVA", floweringDays: "70" });
+
+  await createPlantBatch(growActor, { name: "BM-CLONES-03", strainId: blueMesa.id, source: "CLONE", count: "48", locationId: room("Clone Room") });
+  const vegBatch = await createPlantBatch(growActor, { name: "DH-CLONES-02", strainId: desertHaze.id, source: "CLONE", count: "24", locationId: room("Clone Room") });
+  await tagPlants(growActor, { batchId: vegBatch.id, tags: expandTags("PL-000201", 20), locationId: room("Veg Room") });
+  const flowerBatch = await createPlantBatch(growActor, { name: "BM-CLONES-02", strainId: blueMesa.id, source: "CLONE", count: "16", locationId: room("Clone Room") });
+  const flowering = await tagPlants(growActor, { batchId: flowerBatch.id, tags: expandTags("PL-000101", 16), locationId: room("Flower Room 1") });
+  await changePlantPhase(growActor, { plantIds: flowering.map((p) => p.id), phase: "FLOWERING" });
+  const harvest = await harvestPlants(growActor, {
+    plantIds: flowering.slice(0, 6).map((p) => p.id),
+    name: "BM-1112",
+    wetWeight: "9.6",
+    unit: "KG",
+    locationId: room("Dry Room"),
+  });
+  await logHarvestWaste(growActor, { harvestId: harvest.id, weight: "850", unit: "G", reason: "Fan leaves and stems" });
+  await createTask(growActor, { title: "Defoliate Flower Room 1", locationId: room("Flower Room 1") });
+  await createTask(growActor, { title: "Check dry room humidity", locationId: room("Dry Room") });
 
   console.log(`Seeded "${org.name}". Sign in as owner@demo.test / ${DEMO_PASSWORD}`);
 }

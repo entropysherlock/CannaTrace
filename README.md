@@ -2,7 +2,7 @@
 
 An original seed-to-sale inventory and compliance app for licensed cannabis operators. Built to be fast on a phone on a warehouse floor, with a permanent audit trail behind every change.
 
-**Status: Phases 1 and 2 of 8 are built (foundation, inventory and warehouse).** See the checklist below for exactly what works.
+**Status: Phases 1 to 3 of 8 are built (foundation, inventory and warehouse, cultivation).** See the checklist below for exactly what works.
 
 ## Stack
 
@@ -93,15 +93,30 @@ These are for demos only. Do not seed a real deployment with them.
 - [x] Printable Code 128 package labels
 - [x] Per-package history and audit trail
 
+### Phase 3: Cultivation
+- [x] Strains
+- [x] Plant batches of untagged clones or seeds
+- [x] Tagging plants from a batch, by tag run (first tag and count) or scanned list
+- [x] Growth phases (vegetative, flowering) with day counts, changed in bulk
+- [x] Moving plants between rooms and destroying plants, in bulk, with reasons
+- [x] Harvests: one strain each, wet weight, dry weight, moisture loss
+- [x] Waste log for harvests, plants, and batches
+- [x] Packaging a harvest into inventory; the harvest name becomes the lot number
+- [x] Finishing a harvest only when every dried gram is packaged or logged as waste
+- [x] Simple task list with due dates and rooms
+- [ ] Mother plants and cloning from a tagged plant
+- [ ] Recurring or assigned tasks
+
 ### Known limits
 - Camera scanning has not been tested on a real phone. It needs HTTPS (or localhost) and camera permission.
 - COA files are stored in the database. That is fine to start; move them to file storage before heavy use.
 - Labels are internal inventory labels. State-required consumer warnings and symbols are not included.
 - Merging refuses packages from different lots. Some states allow it under conditions; that rule is not modelled.
 - Locations cannot be renamed or removed yet.
+- Harvests can only be packaged into items tracked by weight. Pre-packaged units (jars, pre-rolls) come in Phase 4.
+- Bulk plant actions handle up to 500 plants at a time.
 
 ### Not started
-- [ ] Phase 3: Cultivation
 - [ ] Phase 4: Manufacturing
 - [ ] Phase 5: Distribution
 - [ ] Phase 6: Retail POS

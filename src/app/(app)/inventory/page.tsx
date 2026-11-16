@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { ScanInput } from "@/components/scan-input";
-import { PageHeader, StatusBadge, buttonLinkClass, inputClass } from "@/components/ui";
+import { buttonLinkClass, inputBase, PageHeader, StatusBadge } from "@/components/ui";
 import { items, locations, packages, type PackageStatus } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
@@ -68,7 +68,7 @@ export default async function InventoryPage({
         <div className="max-w-md flex-1">
           <ScanInput name="q" defaultValue={query} placeholder="Scan or search tag, item, SKU, lot" autoFocus submitOnScan />
         </div>
-        <select name="status" defaultValue={status} className={`${inputClass} w-auto`}>
+        <select name="status" defaultValue={status} className={`${inputBase} w-auto`}>
           <option value="">Any status</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>

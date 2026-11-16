@@ -3,7 +3,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
-import { PageHeader, StatusBadge, inputClass } from "@/components/ui";
+import { inputBase, PageHeader, StatusBadge } from "@/components/ui";
 import { items, locations, packages } from "@/db/schema";
 import { db } from "@/lib/db";
 import { requirePagePermission } from "@/lib/session";
@@ -76,7 +76,7 @@ export default async function CountLocationPage({ params }: { params: Promise<{ 
                     inputMode="decimal"
                     required
                     placeholder="Counted"
-                    className={`${inputClass} w-32`}
+                    className={`${inputBase} w-32`}
                   />
                   {unitLabel(pkg.unit)}
                 </label>
