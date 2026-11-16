@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import {
+  bigserial,
   boolean,
   customType,
   index,
@@ -42,7 +43,7 @@ export const licenseTypeEnum = pgEnum("license_type", [
   "RETAIL",
   "MICROBUSINESS",
 ]);
-export const trackTraceEnum = pgEnum("track_trace_system", ["MOCK", "METRC", "BIOTRACK"]);
+export const trackTraceEnum = pgEnum("track_trace_system", ["MOCK", "METRC", "BIOTRACK", "NMS2S"]);
 export const locationTypeEnum = pgEnum("location_type", ["ROOM", "RACK", "BIN"]);
 export const unitEnum = pgEnum("unit", ["MG", "G", "KG", "OZ", "LB", "ML", "L", "EACH"]);
 export const packageStatusEnum = pgEnum("package_status", [
@@ -902,11 +903,52 @@ export const saleLinePackages = pgTable(
   (t) => [primaryKey({ columns: [t.saleLineId, t.packageId] })],
 );
 
+export const syncStatusEnum = pgEnum("sync_status", ["PENDING", "SENT", "FAILED", "MANUAL", "RESOLVED"]);
+
+/**
+ * Outbox of records owed to the state track-and-trace system. A row is written in the same
+ * database transaction as the change it describes, so a change can never be saved without it.
+ */
+export const syncEvents = pgTable(
+  "sync_events",
+  {
+    id: id(),
+    // Strict sending order within a facility.
+    seq: bigserial("seq", { mode: "number" }).notNull(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    system: trackTraceEnum("system").notNull(),
+    type: text("type").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id").notNull(),
+    summary: text("summary").notNull(),
+    payload: jsonb("payload").notNull(),
+    status: syncStatusEnum("status").notNull().default("PENDING"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    lastErrorCode: text("last_error_code"),
+    lastErrorDetail: text("last_error_detail"),
+    externalId: text("external_id"),
+    resolvedBy: text("resolved_by"),
+    resolvedNote: text("resolved_note"),
+    createdAt: createdAt(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("sync_events_queue_idx").on(t.facilityId, t.status, t.seq),
+    index("sync_events_scope_idx").on(t.orgId, t.facilityId, t.createdAt),
+  ],
+);
+
 export const packagesRelations = relations(packages, ({ one }) => ({
   item: one(items, { fields: [packages.itemId], references: [items.id] }),
   location: one(locations, { fields: [packages.locationId], references: [locations.id] }),
 }));
 
+export type SyncEvent = typeof syncEvents.$inferSelect;
+export type TrackTraceSystem = (typeof trackTraceEnum.enumValues)[number];
 export type Sale = typeof sales.$inferSelect;
 export type RetailSettings = typeof retailSettings.$inferSelect;
 export type DrawerSession = typeof drawerSessions.$inferSelect;

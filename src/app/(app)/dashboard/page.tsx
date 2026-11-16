@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { Card, PageHeader } from "@/components/ui";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { auditLogs, facilities, locations as locationsTable, packages } from "@/db/schema";
+import { auditLogs, facilities, locations as locationsTable, packages, syncEvents } from "@/db/schema";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 
 export default async function DashboardPage() {
   const session = await requireSession();
   const packageScope = and(eq(packages.orgId, session.orgId), eq(packages.facilityId, session.facilityId));
-  const [[facility], active, held, locations, recent] = await Promise.all([
+  const [[facility], active, held, locations, recent, needsAttention] = await Promise.all([
     db.select().from(facilities).where(eq(facilities.id, session.facilityId)),
     db.$count(packages, and(packageScope, eq(packages.status, "ACTIVE"))),
     db.$count(packages, and(packageScope, inArray(packages.status, ["ON_HOLD", "QUARANTINE"]))),
@@ -22,6 +22,10 @@ export default async function DashboardPage() {
       .where(and(eq(auditLogs.orgId, session.orgId), eq(auditLogs.facilityId, session.facilityId)))
       .orderBy(desc(auditLogs.createdAt))
       .limit(8),
+    db.$count(
+      syncEvents,
+      and(eq(syncEvents.orgId, session.orgId), eq(syncEvents.facilityId, session.facilityId), inArray(syncEvents.status, ["FAILED", "MANUAL"])),
+    ),
   ]);
 
   const tiles = [
@@ -33,6 +37,11 @@ export default async function DashboardPage() {
   return (
     <>
       <PageHeader title={`Hello, ${session.name.split(" ")[0]}`} subtitle={facility ? `${facility.name} · license ${facility.licenseNumber}` : undefined} />
+      {needsAttention > 0 ? (
+        <Link href="/compliance" className="mb-4 block rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm font-medium text-amber-900 hover:border-amber-500">
+          {needsAttention} state report{needsAttention === 1 ? " needs" : "s need"} attention. Open State reporting ›
+        </Link>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-3">
         {tiles.map((tile) => (
           <Link key={tile.label} href={tile.href} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-emerald-500">
