@@ -53,7 +53,7 @@ function snapshot(pkg: Package) {
   };
 }
 
-async function audit(
+export async function audit(
   tx: Tx,
   actor: Actor,
   entry: { entityType: string; entityId: string; action: string; before?: unknown; after?: unknown; reason?: string | null },
@@ -89,12 +89,84 @@ function assertEditable(status: PackageStatus) {
   }
 }
 
-async function assertLocation(tx: Tx, actor: Actor, locationId: string) {
+export async function assertLocation(tx: Tx, actor: Actor, locationId: string) {
   const [location] = await tx
     .select({ id: locations.id })
     .from(locations)
     .where(and(eq(locations.id, locationId), eq(locations.orgId, actor.orgId), eq(locations.facilityId, actor.facilityId)));
   if (!location) throw new InventoryError("That location does not exist at this facility.");
+}
+
+/**
+ * Create a package inside an existing transaction, with its ledger row and audit entry.
+ * Used by receiving and by anything else that brings new product into inventory.
+ */
+export async function createPackageInTx(
+  tx: Tx,
+  actor: Actor,
+  input: {
+    tag: string;
+    itemId: string;
+    quantity: unknown;
+    locationId: string;
+    lotNumber?: string | null;
+    costPerUnit?: unknown;
+    note?: string | null;
+    type: "RECEIVE" | "CONVERT_IN";
+    auditAction: string;
+    auditExtra?: Record<string, unknown>;
+  },
+): Promise<Package> {
+  const tag = normalizeTag(input.tag);
+  const quantity = parsePositiveQty(input.quantity);
+  const costText = input.costPerUnit == null ? "" : String(input.costPerUnit).trim();
+  const cost = costText === "" ? null : parsePositiveQty(costText, "Cost per unit");
+
+  const [item] = await tx
+    .select()
+    .from(items)
+    .where(and(eq(items.id, input.itemId), eq(items.orgId, actor.orgId), eq(items.active, true)));
+  if (!item) throw new InventoryError("Pick an item from the list.");
+  await assertLocation(tx, actor, input.locationId);
+
+  const [pkg] = await tx
+    .insert(packages)
+    .values({
+      orgId: actor.orgId,
+      facilityId: actor.facilityId,
+      tag,
+      itemId: item.id,
+      quantity: store(quantity),
+      unit: item.unit,
+      locationId: input.locationId,
+      lotNumber: input.lotNumber?.trim() || null,
+      costPerUnit: cost ? store(cost) : null,
+    })
+    .onConflictDoNothing({ target: [packages.orgId, packages.tag] })
+    .returning();
+  if (!pkg) throw new InventoryError(`Tag ${tag} is already in use. Every package needs its own tag.`);
+
+  await tx.insert(inventoryTransactions).values({
+    orgId: actor.orgId,
+    facilityId: actor.facilityId,
+    packageId: pkg.id,
+    type: input.type,
+    quantityDelta: store(quantity),
+    quantityBefore: "0",
+    quantityAfter: store(quantity),
+    unit: item.unit,
+    toLocationId: input.locationId,
+    note: input.note?.trim() || null,
+    userId: actor.userId,
+  });
+  await audit(tx, actor, {
+    entityType: "Package",
+    entityId: pkg.id,
+    action: input.auditAction,
+    after: { ...snapshot(pkg), ...input.auditExtra },
+    reason: input.note,
+  });
+  return pkg;
 }
 
 export async function receivePackage(
@@ -109,52 +181,7 @@ export async function receivePackage(
     note?: string | null;
   },
 ): Promise<Package> {
-  const tag = normalizeTag(input.tag);
-  const quantity = parsePositiveQty(input.quantity);
-  const costText = input.costPerUnit == null ? "" : String(input.costPerUnit).trim();
-  const cost = costText === "" ? null : parsePositiveQty(costText, "Cost per unit");
-
-  return db.transaction(async (tx) => {
-    const [item] = await tx
-      .select()
-      .from(items)
-      .where(and(eq(items.id, input.itemId), eq(items.orgId, actor.orgId), eq(items.active, true)));
-    if (!item) throw new InventoryError("Pick an item from the list.");
-    await assertLocation(tx, actor, input.locationId);
-
-    const [pkg] = await tx
-      .insert(packages)
-      .values({
-        orgId: actor.orgId,
-        facilityId: actor.facilityId,
-        tag,
-        itemId: item.id,
-        quantity: store(quantity),
-        unit: item.unit,
-        locationId: input.locationId,
-        lotNumber: input.lotNumber?.trim() || null,
-        costPerUnit: cost ? store(cost) : null,
-      })
-      .onConflictDoNothing({ target: [packages.orgId, packages.tag] })
-      .returning();
-    if (!pkg) throw new InventoryError(`Tag ${tag} is already in use. Every package needs its own tag.`);
-
-    await tx.insert(inventoryTransactions).values({
-      orgId: actor.orgId,
-      facilityId: actor.facilityId,
-      packageId: pkg.id,
-      type: "RECEIVE",
-      quantityDelta: store(quantity),
-      quantityBefore: "0",
-      quantityAfter: store(quantity),
-      unit: item.unit,
-      toLocationId: input.locationId,
-      note: input.note?.trim() || null,
-      userId: actor.userId,
-    });
-    await audit(tx, actor, { entityType: "Package", entityId: pkg.id, action: "RECEIVE", after: snapshot(pkg), reason: input.note });
-    return pkg;
-  });
+  return db.transaction((tx) => createPackageInTx(tx, actor, { ...input, type: "RECEIVE", auditAction: "RECEIVE" }));
 }
 
 export async function movePackage(

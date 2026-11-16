@@ -1,7 +1,11 @@
 import type { ReactNode } from "react";
 
-export const inputClass =
-  "block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-base text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600";
+/** Field styling without a width, for boxes that sit side by side. */
+export const inputBase =
+  "min-h-11 min-w-0 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600";
+
+/** Full-width field styling. */
+export const inputClass = `block w-full ${inputBase}`;
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (

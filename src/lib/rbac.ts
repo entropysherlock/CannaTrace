@@ -12,6 +12,7 @@ export type Permission =
   | "inventory.write"
   | "inventory.adjust"
   | "catalog.manage"
+  | "cultivation.view"
   | "cultivation.write"
   | "sales.write"
   | "pos.use"
@@ -24,6 +25,7 @@ const ALL: Permission[] = [
   "inventory.write",
   "inventory.adjust",
   "catalog.manage",
+  "cultivation.view",
   "cultivation.write",
   "sales.write",
   "pos.use",
@@ -35,11 +37,11 @@ const ALL: Permission[] = [
 const MATRIX: Record<Role, Permission[]> = {
   OWNER: ALL,
   MANAGER: ALL.filter((p) => p !== "users.manage"),
-  INVENTORY: ["inventory.view", "inventory.write", "inventory.adjust", "catalog.manage", "audit.view"],
-  CULTIVATION: ["inventory.view", "cultivation.write"],
+  INVENTORY: ["inventory.view", "inventory.write", "inventory.adjust", "catalog.manage", "cultivation.view", "audit.view"],
+  CULTIVATION: ["inventory.view", "cultivation.view", "cultivation.write"],
   SALES: ["inventory.view", "sales.write"],
   BUDTENDER: ["inventory.view", "pos.use"],
-  READ_ONLY: ["inventory.view", "audit.view"],
+  READ_ONLY: ["inventory.view", "cultivation.view", "audit.view"],
 };
 
 export const ROLES = Object.keys(MATRIX) as Role[];
