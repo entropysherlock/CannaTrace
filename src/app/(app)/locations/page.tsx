@@ -18,7 +18,7 @@ export default async function LocationsPage() {
     .from(locations)
     .leftJoin(
       packages,
-      and(eq(packages.locationId, locations.id), inArray(packages.status, ["ACTIVE", "ON_HOLD", "QUARANTINE"])),
+      and(eq(packages.locationId, locations.id), inArray(packages.status, ["ACTIVE", "ON_HOLD", "QUARANTINE", "ALLOCATED"])),
     )
     .where(and(eq(locations.orgId, session.orgId), eq(locations.facilityId, session.facilityId)))
     .groupBy(locations.id)

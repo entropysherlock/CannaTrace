@@ -13,6 +13,8 @@ import {
 } from "@/lib/cultivation";
 import { expandTags } from "@/lib/cultivation-math";
 import { adjustPackage, movePackage, receivePackage, type Actor } from "@/lib/inventory";
+import { createCustomer, createDriver, createPriceList, createVehicle, setPrice, verifyCustomerLicense } from "@/lib/distribution";
+import { addDays, todayIn } from "@/lib/distribution-math";
 import { createRecipe } from "@/lib/manufacturing";
 
 const DEMO_PASSWORD = "demo1234";
@@ -217,6 +219,41 @@ async function main() {
       { itemId: itemId["PKG-CONE"], quantity: "500" },
     ],
   });
+
+  // Distribution: wholesale prices, two customers (one not yet verified), a driver, and a van.
+  const seller = createdUsers.find((u) => u.role === "SALES")!;
+  const salesActor: Actor = { userId: seller.id, userName: seller.name, orgId: org.id, facilityId: grow.id };
+  const wholesale = await createPriceList(salesActor, { name: "Standard wholesale" });
+  const wholesalePrices: Record<string, string> = {
+    "FLW-BM-BULK": "2.40",
+    "FLW-DH-BULK": "2.10",
+    "FLW-BM-35": "12.50",
+    "PR-DH-1": "2.75",
+    "CON-LR-1": "18",
+    "EDI-PP-10": "8.50",
+  };
+  for (const [sku, price] of Object.entries(wholesalePrices)) {
+    await setPrice(salesActor, { priceListId: wholesale.id, itemId: itemId[sku], price });
+  }
+  const verified = await createCustomer(salesActor, {
+    name: "Turquoise Trail Dispensary",
+    licenseNumber: "DEMO-RET-0417",
+    licenseType: "Retailer",
+    licenseExpires: addDays(todayIn(), 240),
+    contactName: "Jo Martinez",
+    address: "2810 Cerrillos Rd, Santa Fe, NM",
+    paymentTermsDays: "15",
+  });
+  await verifyCustomerLicense(salesActor, { customerId: verified.id });
+  await createCustomer(salesActor, {
+    name: "Bosque Wellness",
+    licenseNumber: "DEMO-RET-0533",
+    licenseType: "Retailer",
+    licenseExpires: addDays(todayIn(), 90),
+    address: "415 Rio Grande Blvd NW, Albuquerque, NM",
+  });
+  await createDriver(salesActor, { name: "Dana Ortiz", licenseNumber: "DEMO-DL-0001", phone: "505-555-0142" });
+  await createVehicle(salesActor, { make: "Ford", model: "Transit Connect", plate: "DEMO-123" });
 
   console.log(`Seeded "${org.name}". Sign in as owner@demo.test / ${DEMO_PASSWORD}`);
 }

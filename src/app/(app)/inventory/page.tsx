@@ -8,7 +8,7 @@ import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { formatQty } from "@/lib/units";
 
-const STATUSES: PackageStatus[] = ["ACTIVE", "ON_HOLD", "QUARANTINE", "FINISHED", "DESTROYED"];
+const STATUSES: PackageStatus[] = ["ACTIVE", "ALLOCATED", "ON_HOLD", "QUARANTINE", "FINISHED", "DESTROYED"];
 
 export default async function InventoryPage({
   searchParams,

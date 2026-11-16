@@ -324,6 +324,7 @@ export async function adjustPackage(
   return db.transaction(async (tx) => {
     const pkg = await lockPackage(tx, actor, input.packageId);
     assertEditable(pkg.status);
+    assertNotAllocated(pkg);
     const change = applyDelta(pkg.quantity, target.sub(pkg.quantity));
     if (change.delta.isZero()) throw new InventoryError("The new quantity is the same as the current one.");
 
@@ -366,7 +367,8 @@ function assertActive(pkg: Package, verb: string) {
 }
 
 /** Carve new packages out of one package. The source keeps whatever is left. */
-export async function splitPackage(
+export async function splitPackageInTx(
+  tx: Tx,
   actor: Actor,
   input: { packageId: string; parts: { tag: string; quantity: unknown }[]; note?: string | null },
 ): Promise<{ source: Package; children: Package[] }> {
@@ -375,7 +377,7 @@ export async function splitPackage(
   const tags = parts.map((p) => p.tag);
   if (new Set(tags).size !== tags.length) throw new InventoryError("Each new package needs a different tag.");
 
-  return db.transaction(async (tx) => {
+  {
     const source = await lockPackage(tx, actor, input.packageId);
     assertActive(source, "split");
     const plan = planSplit(source.quantity, parts.map((p) => p.quantity as Decimal.Value));
@@ -448,7 +450,14 @@ export async function splitPackage(
       });
     }
     return { source: updatedSource, children };
-  });
+  }
+}
+
+export async function splitPackage(
+  actor: Actor,
+  input: { packageId: string; parts: { tag: string; quantity: unknown }[]; note?: string | null },
+): Promise<{ source: Package; children: Package[] }> {
+  return db.transaction((tx) => splitPackageInTx(tx, actor, input));
 }
 
 /** Combine whole packages of the same item into one new package. */
@@ -539,6 +548,73 @@ export async function mergePackages(
   });
 }
 
+function assertNotAllocated(pkg: Package) {
+  if (pkg.status === "ALLOCATED") {
+    throw new InventoryError(`Package ${pkg.tag} is set aside for a wholesale order. Release it from the order first.`);
+  }
+}
+
+/** Set an active package aside for an order, or release it back to active stock. */
+export async function setAllocatedInTx(tx: Tx, actor: Actor, pkg: Package, allocated: boolean, note: string): Promise<Package> {
+  const status = allocated ? "ALLOCATED" : "ACTIVE";
+  if (allocated && pkg.status !== "ACTIVE") {
+    throw new InventoryError(`Package ${pkg.tag} is ${pkg.status.replace("_", " ").toLowerCase()} and cannot be put on an order.`);
+  }
+  if (!allocated && pkg.status !== "ALLOCATED") return pkg;
+  const [updated] = await tx.update(packages).set({ status }).where(eq(packages.id, pkg.id)).returning();
+  await tx.insert(inventoryTransactions).values({
+    orgId: actor.orgId,
+    facilityId: actor.facilityId,
+    packageId: pkg.id,
+    type: "STATUS_CHANGE",
+    quantityDelta: "0",
+    quantityBefore: pkg.quantity,
+    quantityAfter: pkg.quantity,
+    unit: pkg.unit,
+    note,
+    userId: actor.userId,
+  });
+  await audit(tx, actor, {
+    entityType: "Package",
+    entityId: pkg.id,
+    action: allocated ? "ALLOCATE" : "RELEASE_ALLOCATION",
+    before: snapshot(pkg),
+    after: snapshot(updated),
+    reason: note,
+  });
+  return updated;
+}
+
+/** An allocated package leaves the building: its whole quantity is recorded as sold. */
+export async function shipPackageInTx(tx: Tx, actor: Actor, packageId: string, note: string): Promise<Package> {
+  const pkg = await lockPackage(tx, actor, packageId);
+  if (pkg.status !== "ALLOCATED") {
+    throw new InventoryError(`Package ${pkg.tag} is no longer set aside for this order. Check the order's packages and try again.`);
+  }
+  const [updated] = await tx.update(packages).set({ quantity: "0", status: "FINISHED" }).where(eq(packages.id, pkg.id)).returning();
+  await tx.insert(inventoryTransactions).values({
+    orgId: actor.orgId,
+    facilityId: actor.facilityId,
+    packageId: pkg.id,
+    type: "SELL",
+    quantityDelta: store(new Decimal(pkg.quantity).neg()),
+    quantityBefore: pkg.quantity,
+    quantityAfter: "0",
+    unit: pkg.unit,
+    note,
+    userId: actor.userId,
+  });
+  await audit(tx, actor, {
+    entityType: "Package",
+    entityId: pkg.id,
+    action: "SHIP",
+    before: snapshot(pkg),
+    after: snapshot(updated),
+    reason: note,
+  });
+  return updated;
+}
+
 const HOLD_STATUSES = ["ACTIVE", "ON_HOLD", "QUARANTINE"] as const;
 export type HoldStatus = (typeof HOLD_STATUSES)[number];
 
@@ -579,6 +655,7 @@ export async function setPackageStatus(
   return db.transaction(async (tx) => {
     const pkg = await lockPackage(tx, actor, input.packageId);
     assertEditable(pkg.status);
+    assertNotAllocated(pkg);
     if (pkg.status === status) throw new InventoryError("The package already has that status.");
     return changeStatus(tx, actor, pkg, status, reason);
   });
@@ -594,6 +671,7 @@ export async function destroyPackage(
   return db.transaction(async (tx) => {
     const pkg = await lockPackage(tx, actor, input.packageId);
     assertEditable(pkg.status);
+    assertNotAllocated(pkg);
     const [updated] = await tx
       .update(packages)
       .set({ quantity: "0", status: "DESTROYED" })
@@ -671,6 +749,7 @@ export async function recordCycleCount(
       const change = applyDelta(pkg.quantity, line.counted.sub(pkg.quantity));
       lines.push({ packageId: pkg.id, expected: store(change.before), counted: store(change.after) });
       if (change.delta.isZero()) continue;
+      assertNotAllocated(pkg);
       variances += 1;
       const [updated] = await tx
         .update(packages)

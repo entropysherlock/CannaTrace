@@ -34,7 +34,7 @@ export default async function CountLocationPage({ params }: { params: Promise<{ 
       and(
         eq(packages.locationId, location.id),
         eq(packages.facilityId, session.facilityId),
-        inArray(packages.status, ["ACTIVE", "ON_HOLD", "QUARANTINE"]),
+        inArray(packages.status, ["ACTIVE", "ON_HOLD", "QUARANTINE", "ALLOCATED"]),
       ),
     )
     .orderBy(asc(packages.tag));

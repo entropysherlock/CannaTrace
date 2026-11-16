@@ -51,6 +51,8 @@ export const packageStatusEnum = pgEnum("package_status", [
   "QUARANTINE",
   "FINISHED",
   "DESTROYED",
+  // Set aside for a wholesale order; nothing else may use it until it ships or is released.
+  "ALLOCATED",
 ]);
 export const transactionTypeEnum = pgEnum("transaction_type", [
   "RECEIVE",
@@ -558,11 +560,214 @@ export const productionInputs = pgTable(
   (t) => [index("production_inputs_run_idx").on(t.runId)],
 );
 
+export const orderStatusEnum = pgEnum("order_status", ["DRAFT", "CONFIRMED", "PACKED", "SHIPPED", "DELIVERED", "CANCELLED"]);
+const money = (name: string) => numeric(name, { precision: 18, scale: 2 });
+
+export const priceLists = pgTable(
+  "price_lists",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+  },
+  (t) => [uniqueIndex("price_lists_org_name_key").on(t.orgId, t.name)],
+);
+
+export const priceListItems = pgTable(
+  "price_list_items",
+  {
+    priceListId: text("price_list_id")
+      .notNull()
+      .references(() => priceLists.id),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id),
+    price: qty("price").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.priceListId, t.itemId] })],
+);
+
+export const customers = pgTable(
+  "customers",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    licenseNumber: text("license_number").notNull(),
+    licenseType: text("license_type").notNull(),
+    licenseExpires: text("license_expires").notNull(), // YYYY-MM-DD
+    licenseVerifiedAt: timestamp("license_verified_at", { withTimezone: true }),
+    licenseVerifiedBy: text("license_verified_by"),
+    contactName: text("contact_name"),
+    email: text("email"),
+    phone: text("phone"),
+    address: text("address"),
+    priceListId: text("price_list_id").references(() => priceLists.id),
+    paymentTermsDays: integer("payment_terms_days").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("customers_org_license_key").on(t.orgId, t.licenseNumber)],
+);
+
+export const drivers = pgTable("drivers", {
+  id: id(),
+  orgId: text("org_id")
+    .notNull()
+    .references(() => organizations.id),
+  name: text("name").notNull(),
+  licenseNumber: text("license_number").notNull(),
+  phone: text("phone"),
+  active: boolean("active").notNull().default(true),
+});
+
+export const vehicles = pgTable(
+  "vehicles",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    make: text("make").notNull(),
+    model: text("model").notNull(),
+    plate: text("plate").notNull(),
+    active: boolean("active").notNull().default(true),
+  },
+  (t) => [uniqueIndex("vehicles_org_plate_key").on(t.orgId, t.plate)],
+);
+
+/** Running numbers for orders, manifests, and invoices, one row per facility and kind. */
+export const counters = pgTable(
+  "counters",
+  {
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    kind: text("kind").notNull(),
+    value: integer("value").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.facilityId, t.kind] })],
+);
+
+export const orders = pgTable(
+  "orders",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    number: text("number").notNull(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    status: orderStatusEnum("status").notNull().default("DRAFT"),
+    notes: text("notes"),
+    userName: text("user_name").notNull(),
+    manifestNumber: text("manifest_number"),
+    driverId: text("driver_id").references(() => drivers.id),
+    vehicleId: text("vehicle_id").references(() => vehicles.id),
+    departAt: text("depart_at"),
+    routeNotes: text("route_notes"),
+    receivedBy: text("received_by"),
+    createdAt: createdAt(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    packedAt: timestamp("packed_at", { withTimezone: true }),
+    shippedAt: timestamp("shipped_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("orders_facility_number_key").on(t.facilityId, t.number),
+    index("orders_scope_idx").on(t.orgId, t.facilityId, t.status),
+  ],
+);
+
+export const orderLines = pgTable(
+  "order_lines",
+  {
+    id: id(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id),
+    quantity: qty("quantity").notNull(),
+    unitPrice: qty("unit_price").notNull(),
+  },
+  (t) => [uniqueIndex("order_lines_order_item_key").on(t.orderId, t.itemId)],
+);
+
+export const orderAllocations = pgTable(
+  "order_allocations",
+  {
+    id: id(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id),
+    orderLineId: text("order_line_id")
+      .notNull()
+      .references(() => orderLines.id),
+    packageId: text("package_id")
+      .notNull()
+      .references(() => packages.id),
+    quantity: qty("quantity").notNull(),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("order_allocations_package_key").on(t.packageId), index("order_allocations_order_idx").on(t.orderId)],
+);
+
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    number: text("number").notNull(),
+    total: money("total").notNull(),
+    dueDate: text("due_date").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("invoices_facility_number_key").on(t.facilityId, t.number), uniqueIndex("invoices_order_key").on(t.orderId)],
+);
+
+export const payments = pgTable(
+  "payments",
+  {
+    id: id(),
+    invoiceId: text("invoice_id")
+      .notNull()
+      .references(() => invoices.id),
+    amount: money("amount").notNull(),
+    method: text("method").notNull(),
+    reference: text("reference"),
+    paidOn: text("paid_on").notNull(),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("payments_invoice_idx").on(t.invoiceId)],
+);
+
 export const packagesRelations = relations(packages, ({ one }) => ({
   item: one(items, { fields: [packages.itemId], references: [items.id] }),
   location: one(locations, { fields: [packages.locationId], references: [locations.id] }),
 }));
 
+export type Order = typeof orders.$inferSelect;
 export type ProductionRun = typeof productionRuns.$inferSelect;
 export type Harvest = typeof harvests.$inferSelect;
 export type Plant = typeof plants.$inferSelect;
