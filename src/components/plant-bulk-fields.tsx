@@ -60,7 +60,7 @@ export function PlantBulkFields({ locations }: { locations: Option[] }) {
 
       {action === "HARVEST" ? (
         <>
-          <Field label="Harvest name" hint="For example BM-1116. It becomes the lot number on every package made from this harvest.">
+          <Field label="Harvest name" hint="For example the strain initials and today's date. It becomes the lot number on every package made from this harvest.">
             <input name="harvestName" required className={inputClass} />
           </Field>
           <Field label="Total wet weight of the ticked plants">

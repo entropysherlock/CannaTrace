@@ -25,33 +25,26 @@ npm run dev                 # open http://localhost:3000
 
 Generate an `AUTH_SECRET` with `openssl rand -base64 32`.
 
-## Demo sign-ins
+## First sign-in
 
-Every demo account uses the password `demo1234`.
+A new deployment starts empty. The first visitor is sent to **/setup** to enter the business name, the first licensed facility, and the owner account. That screen closes for good once any account exists. The owner then adds staff under Settings.
 
-| Email | Role |
-| --- | --- |
-| owner@demo.test | Owner (everything) |
-| manager@demo.test | Manager |
-| inventory@demo.test | Inventory |
-| cultivation@demo.test | Cultivation |
-| sales@demo.test | Sales |
-| budtender@demo.test | Budtender |
-| readonly@demo.test | Read-only |
+Before the register can sell, a manager must enter the store's real purchase limits and tax rates under **Register → Menu and store rules**. The register stays locked until then.
 
-These are for demos only. Do not seed a real deployment with them.
+## Demo data (local testing only)
+
+`npm run db:seed` loads a made-up company, "High Desert Demo Co.", for development and the automated tests. Every demo account (`owner@demo.test`, `manager@demo.test`, and so on) uses the password `demo1234`. Production never loads it, and a deploy removes it automatically if an older deploy did.
 
 ## Deploy (Vercel + Neon)
 
 1. In Vercel, choose **Add New → Project** and import this GitHub repository. Leave the build settings as they are.
-2. Before deploying, add these environment variables:
+2. Add these environment variables:
    - `AUTH_SECRET`: a random string of at least 32 characters
    - `CRON_SECRET`: another random string of at least 16 characters
-   - `DEMO_PASSWORD` (only for a showcase link): a private password of at least 12 characters. Every demo account uses it. Leave it out for a real business.
 3. In the project's **Storage** tab, add **Neon** from the Marketplace and connect it. It fills in `DATABASE_URL` for you.
-4. Deploy (or redeploy if the first one ran before the database was connected).
+4. Deploy (or redeploy if the first one ran before the database was connected), then open the site and complete **/setup**.
 
-Every deploy runs `npm run vercel-build`, which updates the database tables before building. If `DEMO_PASSWORD` is set, the demo company is loaded once. A deploy fails with a plain message if `DATABASE_URL` or a strong `AUTH_SECRET` is missing.
+Every deploy runs `npm run vercel-build`, which updates the database tables before building. A deploy fails with a plain message if `DATABASE_URL` or a strong `AUTH_SECRET` is missing.
 
 `vercel.json` sends state reports and webhooks once a day, the most the free Hobby plan allows. Use **Send now** on State reporting in between, or a paid plan or outside scheduler for more often.
 
@@ -207,7 +200,7 @@ State reports and webhooks are sent by calling `GET /api/sync/run` with `Authori
 - Locations cannot be renamed or removed yet.
 - Harvests can only be packaged into items tracked by weight. Pre-packaged units (jars, pre-rolls) come in Phase 4.
 - Bulk plant actions handle up to 500 plants at a time.
-- Tax rates and purchase limits are whatever each store enters under Menu and store rules. The demo values are placeholders, not current rates for any state or city.
+- Tax rates and purchase limits are whatever each store enters under Menu and store rules. CannaTrace ships with none and does not look them up.
 - Both taxes are charged on the discounted subtotal. If your state taxes differently (for example tax on tax), the totals will not match.
 - Receipts do not include state-required warning text.
 - The printed manifest is an internal document. It does not replace the manifest issued by the state track-and-trace system.
@@ -217,7 +210,7 @@ State reports and webhooks are sent by calling `GET /api/sync/run` with `Authori
 
 ## Before real use
 
-1. **Deploy** with a hosted Postgres and set `AUTH_SECRET`, `DATABASE_URL`, and `CRON_SECRET`. Do not load the demo data.
+1. **Deploy** with a hosted Postgres and set `AUTH_SECRET`, `DATABASE_URL`, and `CRON_SECRET`, then complete /setup.
 2. **Have a lawyer and the state rules checked**: tax rates, purchase limits, label and receipt wording, manifests, and record retention all depend on the state and city.
 3. **State reporting**: Metrc requires applying as an integrator and getting a vendor key. New Mexico (NMS2S) has not published the API software needs, so records there are entered by hand for now.
 4. **Security review**: there is no password reset, two-factor sign-in, or API rate limiting yet.

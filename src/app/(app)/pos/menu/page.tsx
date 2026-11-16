@@ -110,22 +110,22 @@ export default async function MenuPage() {
           <Card title="Store rules">
             <ActionForm action={retailSettingsAction} submitLabel="Save store rules">
               <p className="text-sm text-slate-600">
-                Limits and tax rates are set by your state and city and they change. Enter the current figures for this store; CannaTrace does not look them up.
+                Limits and tax rates are set by your state and city and they change. Enter the current figures for this store; CannaTrace does not look them up. The register stays locked until these are saved.
               </p>
               <Field label="Flower limit per purchase, in grams">
-                <input name="flowerLimitGrams" inputMode="decimal" required defaultValue={num(settings.flowerLimitGrams)} className={inputClass} />
+                <input name="flowerLimitGrams" inputMode="decimal" required defaultValue={settings.saved ? num(settings.flowerLimitGrams) : ""} className={inputClass} />
               </Field>
               <Field label="Concentrate limit per purchase, in grams">
-                <input name="concentrateLimitGrams" inputMode="decimal" required defaultValue={num(settings.concentrateLimitGrams)} className={inputClass} />
+                <input name="concentrateLimitGrams" inputMode="decimal" required defaultValue={settings.saved ? num(settings.concentrateLimitGrams) : ""} className={inputClass} />
               </Field>
               <Field label="Edible limit per purchase, in milligrams of THC">
-                <input name="edibleLimitMg" inputMode="decimal" required defaultValue={num(settings.edibleLimitMg)} className={inputClass} />
+                <input name="edibleLimitMg" inputMode="decimal" required defaultValue={settings.saved ? num(settings.edibleLimitMg) : ""} className={inputClass} />
               </Field>
               <Field label="Cannabis excise tax, percent">
-                <input name="exciseTaxPercent" inputMode="decimal" required defaultValue={num(settings.exciseTaxPercent)} className={inputClass} />
+                <input name="exciseTaxPercent" inputMode="decimal" required defaultValue={settings.saved ? num(settings.exciseTaxPercent) : ""} className={inputClass} />
               </Field>
               <Field label="Sales tax, percent">
-                <input name="salesTaxPercent" inputMode="decimal" required defaultValue={num(settings.salesTaxPercent)} className={inputClass} />
+                <input name="salesTaxPercent" inputMode="decimal" required defaultValue={settings.saved ? num(settings.salesTaxPercent) : ""} className={inputClass} />
               </Field>
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" name="medicalTaxExempt" defaultChecked={settings.medicalTaxExempt} className="h-5 w-5 accent-emerald-700" />

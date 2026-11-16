@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/setup"];
 
 async function isSignedIn(request: NextRequest): Promise<boolean> {
   const token = request.cookies.get("ct_session")?.value;

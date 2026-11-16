@@ -45,7 +45,7 @@ export default async function RegisterPage() {
       <PosTabs current="/pos" canManage={canManage} />
       {!settings.saved ? (
         <p className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900">
-          Tax rates and purchase limits have not been set for this store, so no tax is being charged.{" "}
+          This store&apos;s purchase limits and tax rates have not been entered, so the register is locked.{" "}
           {canManage ? (
             <Link href="/pos/menu" className="underline">
               Set store rules

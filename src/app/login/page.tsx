@@ -1,8 +1,14 @@
 import { ActionForm } from "@/components/action-form";
 import { Field, inputClass } from "@/components/ui";
+import { redirect } from "next/navigation";
+import { needsSetup } from "@/lib/setup";
 import { signIn } from "./actions";
 
-export default function LoginPage() {
+// Checks the database on every visit (is the system set up yet?), so it cannot be built ahead of time.
+export const instant = false;
+
+export default async function LoginPage() {
+  if (await needsSetup()) redirect("/setup");
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
