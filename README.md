@@ -2,14 +2,14 @@
 
 An original seed-to-sale inventory and compliance app for licensed cannabis operators. Built to be fast on a phone on a warehouse floor, with a permanent audit trail behind every change.
 
-**Status: Phase 1 of 8 (foundation) plus the first slice of Phase 2 (inventory).** See the checklist below for exactly what works.
+**Status: Phases 1 and 2 of 8 are built (foundation, inventory and warehouse).** See the checklist below for exactly what works.
 
 ## Stack
 
 - Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4
 - PostgreSQL 16 with Drizzle ORM (SQL migrations in `drizzle/`)
 - Email and password sign-in, signed session cookie, seven roles
-- Vitest for unit tests, GitHub Actions for CI
+- Vitest for unit and database tests, Playwright for browser tests, GitHub Actions for CI
 
 ## Run it on your computer
 
@@ -63,7 +63,8 @@ These are for demos only. Do not seed a real deployment with them.
 | --- | --- |
 | `npm run dev` | Start the app for development |
 | `npm run build` | Production build |
-| `npm test` | Unit tests |
+| `npm test` | Unit tests, plus inventory engine tests when `DATABASE_URL` points at a migrated database |
+| `npm run test:e2e` | Browser tests. Needs a build and a seeded database. Use `PW_CHANNEL=chrome` to run in an installed Chrome |
 | `npm run lint` / `npm run typecheck` | Code checks |
 | `npm run db:generate` | Create a migration after changing `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations |
@@ -76,20 +77,28 @@ These are for demos only. Do not seed a real deployment with them.
 - [x] Sign-in, sign-out, protected routes, facility switcher
 - [x] App shell with desktop sidebar and phone bottom navigation
 - [x] Demo seed data
-- [x] CI: lint, typecheck, tests, migrate, seed, build
+- [x] CI: lint, typecheck, tests, migrate, seed, build, browser tests
 - [ ] Password reset and user deactivation screens
-- [ ] End-to-end browser tests (Playwright)
 
 ### Phase 2: Inventory and warehouse
-- [x] Items, categories, packages with unique tags, lots, locations
+- [x] Items, categories, and locations, with screens to add them and retire items
+- [x] Packages with unique tags, lots, cost, and parent/child lineage
 - [x] Receive, move, adjust with required reason codes
-- [x] Search by tag, item, SKU, or lot (works with a keyboard-style barcode scanner)
+- [x] Split into new packages and merge same-lot packages (weighted average cost)
+- [x] Hold, quarantine, release, and destroy, each with a required reason
+- [x] Cycle counts by location, with automatic corrections
+- [x] Lab results with COA upload (PDF, PNG, JPEG up to 4 MB); a failing result quarantines the package
+- [x] Search by tag, item, SKU, or lot; works with keyboard-style barcode scanners
+- [x] Phone camera scanning (see "Known limits")
+- [x] Printable Code 128 package labels
 - [x] Per-package history and audit trail
-- [ ] Split and merge packages (math is written and tested; screens are not)
-- [ ] Holds and quarantine actions, cycle counts
-- [ ] Lab results and COA upload
-- [ ] Phone camera scanning, printable labels
-- [ ] Screens to manage items, categories, and locations
+
+### Known limits
+- Camera scanning has not been tested on a real phone. It needs HTTPS (or localhost) and camera permission.
+- COA files are stored in the database. That is fine to start; move them to file storage before heavy use.
+- Labels are internal inventory labels. State-required consumer warnings and symbols are not included.
+- Merging refuses packages from different lots. Some states allow it under conditions; that rule is not modelled.
+- Locations cannot be renamed or removed yet.
 
 ### Not started
 - [ ] Phase 3: Cultivation

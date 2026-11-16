@@ -40,3 +40,25 @@ describe("planSplit", () => {
     expect(() => planSplit("7", ["0"])).toThrow(InventoryError);
   });
 });
+
+describe("weightedAverageCost", () => {
+  it("weights by quantity", async () => {
+    const { weightedAverageCost } = await import("../src/lib/inventory-math");
+    expect(weightedAverageCost([{ quantity: "100", costPerUnit: "2" }, { quantity: "300", costPerUnit: "4" }])?.toString()).toBe("3.5");
+  });
+  it("is unknown when any source has no cost", async () => {
+    const { weightedAverageCost } = await import("../src/lib/inventory-math");
+    expect(weightedAverageCost([{ quantity: "1", costPerUnit: "2" }, { quantity: "1", costPerUnit: null }])).toBeNull();
+  });
+});
+
+describe("normalizeTag", () => {
+  it("upper-cases and trims", async () => {
+    const { normalizeTag } = await import("../src/lib/inventory-math");
+    expect(normalizeTag(" ct-000123 ")).toBe("CT-000123");
+  });
+  it.each(["", "ab", "has space", "<svg>", "tag\u00e9", "x".repeat(41), "-LEAD"])("rejects %j", async (input) => {
+    const { normalizeTag } = await import("../src/lib/inventory-math");
+    expect(() => normalizeTag(input)).toThrow(InventoryError);
+  });
+});

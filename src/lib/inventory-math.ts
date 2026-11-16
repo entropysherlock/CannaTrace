@@ -48,3 +48,30 @@ export function planSplit(
   }
   return { parts: rounded, total, remaining: avail.sub(total) };
 }
+
+/** Cost per unit of a merged package. Null when any source has no cost recorded. */
+export function weightedAverageCost(
+  sources: { quantity: Decimal.Value; costPerUnit: Decimal.Value | null }[],
+): Decimal | null {
+  let totalQty = new Decimal(0);
+  let totalCost = new Decimal(0);
+  for (const source of sources) {
+    if (source.costPerUnit === null) return null;
+    totalQty = totalQty.add(source.quantity);
+    totalCost = totalCost.add(new Decimal(source.quantity).mul(source.costPerUnit));
+  }
+  if (totalQty.isZero()) return null;
+  return roundQty(totalCost.div(totalQty));
+}
+
+/** Tags are upper-case letters, digits, dashes, dots, or underscores: safe to print as a barcode and to scan. */
+export function normalizeTag(raw: unknown): string {
+  const tag = String(raw ?? "").trim().toUpperCase();
+  if (!tag) throw new InventoryError("Scan or type a package tag.");
+  if (!/^[A-Z0-9][A-Z0-9._-]{2,39}$/.test(tag)) {
+    throw new InventoryError(
+      `"${tag.slice(0, 40)}" is not a valid tag. Use 3 to 40 letters, digits, dashes, dots, or underscores.`,
+    );
+  }
+  return tag;
+}

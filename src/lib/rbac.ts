@@ -11,6 +11,7 @@ export type Permission =
   | "inventory.view"
   | "inventory.write"
   | "inventory.adjust"
+  | "catalog.manage"
   | "cultivation.write"
   | "sales.write"
   | "pos.use"
@@ -22,6 +23,7 @@ const ALL: Permission[] = [
   "inventory.view",
   "inventory.write",
   "inventory.adjust",
+  "catalog.manage",
   "cultivation.write",
   "sales.write",
   "pos.use",
@@ -33,7 +35,7 @@ const ALL: Permission[] = [
 const MATRIX: Record<Role, Permission[]> = {
   OWNER: ALL,
   MANAGER: ALL.filter((p) => p !== "users.manage"),
-  INVENTORY: ["inventory.view", "inventory.write", "inventory.adjust", "audit.view"],
+  INVENTORY: ["inventory.view", "inventory.write", "inventory.adjust", "catalog.manage", "audit.view"],
   CULTIVATION: ["inventory.view", "cultivation.write"],
   SALES: ["inventory.view", "sales.write"],
   BUDTENDER: ["inventory.view", "pos.use"],

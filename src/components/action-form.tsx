@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, type ReactNode } from "react";
+import { startTransition, useActionState, useEffect, useRef, type ReactNode } from "react";
 import type { FormState } from "@/lib/form";
 
 export function ActionForm({
@@ -15,8 +15,25 @@ export function ActionForm({
   className?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Clear the form only after a success, so nobody has to retype after an error.
+  useEffect(() => {
+    if (state?.ok) formRef.current?.reset();
+  }, [state]);
+
   return (
-    <form action={formAction} className={className ?? "space-y-4"}>
+    <form
+      ref={formRef}
+      action={formAction}
+      onSubmit={(event) => {
+        // Submitting by hand keeps what was typed when the server reports a problem.
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
+        startTransition(() => formAction(data));
+      }}
+      className={className ?? "space-y-4"}
+    >
       {children}
       {state?.error ? (
         <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">

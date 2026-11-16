@@ -7,8 +7,8 @@ import { adjustPackage, movePackage, receivePackage, type Actor } from "@/lib/in
 const DEMO_PASSWORD = "demo1234";
 
 async function main() {
-  if ((await db.$count(organizations)) > 0) {
-    console.log("Database already has data; skipping seed.");
+  if ((await db.$count(users, eq(users.email, "owner@demo.test"))) > 0) {
+    console.log("Demo data is already loaded; skipping seed.");
     return;
   }
 

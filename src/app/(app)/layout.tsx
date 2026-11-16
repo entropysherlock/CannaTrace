@@ -22,13 +22,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/dashboard", label: "Dashboard", show: true },
     { href: "/inventory", label: "Inventory", show: can(session.role, "inventory.view") },
     { href: "/inventory/receive", label: "Receive", show: can(session.role, "inventory.write") },
+    { href: "/counts", label: "Counts", show: can(session.role, "inventory.adjust") },
+    { href: "/catalog", label: "Items", show: can(session.role, "catalog.manage") },
+    { href: "/locations", label: "Locations", show: can(session.role, "catalog.manage") },
     { href: "/audit", label: "Audit trail", show: can(session.role, "audit.view") },
     { href: "/settings", label: "Settings", show: can(session.role, "settings.manage") },
   ].filter((item) => item.show);
 
   return (
     <div className="min-h-screen md:flex">
-      <aside className="hidden w-60 shrink-0 flex-col bg-slate-900 p-4 text-slate-100 md:flex">
+      <aside className="hidden w-60 print:!hidden shrink-0 flex-col bg-slate-900 p-4 text-slate-100 md:flex">
         <p className="mb-6 text-lg font-bold tracking-tight">
           Canna<span className="text-emerald-400">Trace</span>
         </p>
@@ -51,11 +54,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3">
+        <header className="flex flex-wrap print:hidden items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3">
           <p className="text-base font-bold md:hidden">
             Canna<span className="text-emerald-600">Trace</span>
           </p>
-          <form action={switchFacility} className="flex items-center gap-2">
+          <form action={switchFacility} className="order-last flex w-full min-w-0 items-center gap-2 md:order-none md:w-auto">
             <label htmlFor="facilityId" className="sr-only">
               Facility
             </label>
@@ -63,7 +66,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               id="facilityId"
               name="facilityId"
               defaultValue={session.facilityId}
-              className="min-h-10 rounded-md border border-slate-300 bg-white px-2 text-sm"
+              className="min-h-10 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 text-sm md:flex-none"
             >
               {facilities.map((f) => (
                 <option key={f.id} value={f.id}>
@@ -84,9 +87,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-slate-200 bg-white md:hidden">
-        {nav.slice(0, 4).map((item) => (
-          <Link key={item.href} href={item.href} className="flex min-h-14 flex-1 items-center justify-center px-1 text-center text-xs font-semibold text-slate-700">
+      <nav className="fixed inset-x-0 print:hidden bottom-0 z-10 flex overflow-x-auto border-t border-slate-200 bg-white md:hidden">
+        {nav.map((item) => (
+          <Link key={item.href} href={item.href} className="flex min-h-14 shrink-0 grow basis-20 items-center justify-center px-1 text-center text-xs font-semibold text-slate-700">
             {item.label}
           </Link>
         ))}
