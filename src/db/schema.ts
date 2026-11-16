@@ -942,11 +942,75 @@ export const syncEvents = pgTable(
   ],
 );
 
+/** Keys for the REST API. Only a hash is stored; the key itself is shown once when created. */
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(),
+    keyHash: text("key_hash").notNull().unique(),
+    canWrite: boolean("can_write").notNull().default(false),
+    createdByName: text("created_by_name").notNull(),
+    createdAt: createdAt(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [index("api_keys_org_idx").on(t.orgId)],
+);
+
+export const webhooks = pgTable(
+  "webhooks",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    url: text("url").notNull(),
+    secret: text("secret").notNull(),
+    events: jsonb("events").$type<string[]>().notNull(),
+    active: boolean("active").notNull().default(true),
+    createdByName: text("created_by_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("webhooks_facility_idx").on(t.facilityId)],
+);
+
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: id(),
+    webhookId: text("webhook_id")
+      .notNull()
+      .references(() => webhooks.id),
+    event: text("event").notNull(),
+    payload: jsonb("payload").notNull(),
+    status: text("status").notNull().default("PENDING"), // PENDING | DELIVERED | FAILED
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    lastResponse: text("last_response"),
+    createdAt: createdAt(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  },
+  (t) => [index("webhook_deliveries_queue_idx").on(t.status, t.nextAttemptAt), index("webhook_deliveries_hook_idx").on(t.webhookId, t.createdAt)],
+);
+
 export const packagesRelations = relations(packages, ({ one }) => ({
   item: one(items, { fields: [packages.itemId], references: [items.id] }),
   location: one(locations, { fields: [packages.locationId], references: [locations.id] }),
 }));
 
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type Webhook = typeof webhooks.$inferSelect;
 export type SyncEvent = typeof syncEvents.$inferSelect;
 export type TrackTraceSystem = (typeof trackTraceEnum.enumValues)[number];
 export type Sale = typeof sales.$inferSelect;

@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
 import { facilities, syncEvents, type SyncEvent } from "@/db/schema";
 import { db, type Tx } from "./db";
 import { todayIn } from "./distribution-math";
+import { enqueueWebhooks } from "./integrations";
 import { InventoryError } from "./inventory-math";
 import {
   SYSTEM_LABELS,
@@ -147,6 +148,14 @@ export async function enqueueSyncEvent(
   if (!facility) return;
   const before = (entry.before ?? null) as Snapshot;
   const after = (entry.after ?? null) as Snapshot;
+  await enqueueWebhooks(tx, actor.facilityId, type, {
+    entityType: entry.entityType,
+    entityId: entry.entityId,
+    summary: describeEvent(type, before, after),
+    before,
+    after,
+    by: actor.userName,
+  });
   await tx.insert(syncEvents).values({
     orgId: actor.orgId,
     facilityId: actor.facilityId,

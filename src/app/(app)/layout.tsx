@@ -29,8 +29,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/counts", label: "Counts", show: can(session.role, "inventory.adjust") },
     { href: "/catalog", label: "Items", show: can(session.role, "catalog.manage") },
     { href: "/locations", label: "Locations", show: can(session.role, "catalog.manage") },
+    { href: "/reports", label: "Reports", show: can(session.role, "reports.view") },
+    { href: "/data", label: "Import and export", show: can(session.role, "inventory.view") },
     { href: "/compliance", label: "State reporting", show: can(session.role, "compliance.view") },
     { href: "/audit", label: "Audit trail", show: can(session.role, "audit.view") },
+    { href: "/integrations", label: "Integrations", show: can(session.role, "integrations.manage") },
     { href: "/settings", label: "Settings", show: can(session.role, "settings.manage") },
   ].filter((item) => item.show);
 

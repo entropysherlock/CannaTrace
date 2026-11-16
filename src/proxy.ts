@@ -19,6 +19,8 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   // Scheduled sync runs authenticate with their own secret, not a sign-in cookie.
   if (pathname.startsWith("/api/sync/")) return NextResponse.next();
+  // The REST API authenticates with API keys, not a sign-in cookie.
+  if (pathname.startsWith("/api/v1/")) return NextResponse.next();
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const signedIn = await isSignedIn(request);
   if (!signedIn && !isPublic) return NextResponse.redirect(new URL("/login", request.url));

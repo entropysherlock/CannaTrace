@@ -16,3 +16,11 @@ describe("role permissions", () => {
     expect(can("BUDTENDER", "inventory.adjust")).toBe(false);
   });
 });
+
+describe("integrations", () => {
+  it("lets only owners create API keys and webhooks", () => {
+    expect(can("OWNER", "integrations.manage")).toBe(true);
+    expect(can("MANAGER", "integrations.manage")).toBe(false);
+    expect(can("INVENTORY", "integrations.manage")).toBe(false);
+  });
+});
