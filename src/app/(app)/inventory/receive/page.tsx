@@ -1,0 +1,75 @@
+import { ActionForm } from "@/components/action-form";
+import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { and, asc, eq } from "drizzle-orm";
+import { items as itemsTable, locations as locationsTable } from "@/db/schema";
+import { db } from "@/lib/db";
+import { requirePagePermission } from "@/lib/session";
+import { unitLabel } from "@/lib/units";
+import { receiveAction } from "../actions";
+
+export default async function ReceivePage() {
+  const session = await requirePagePermission("inventory.write");
+  const [items, locations] = await Promise.all([
+    db
+      .select()
+      .from(itemsTable)
+      .where(and(eq(itemsTable.orgId, session.orgId), eq(itemsTable.active, true)))
+      .orderBy(asc(itemsTable.name)),
+    db
+      .select()
+      .from(locationsTable)
+      .where(and(eq(locationsTable.orgId, session.orgId), eq(locationsTable.facilityId, session.facilityId)))
+      .orderBy(asc(locationsTable.name)),
+  ]);
+
+  return (
+    <>
+      <PageHeader title="Receive package" subtitle="Scan the tag, pick the item, enter what arrived." />
+      <div className="max-w-xl">
+        <Card>
+          <ActionForm action={receiveAction} submitLabel="Receive">
+            <Field label="Package tag" hint="Scan with a barcode scanner or type it in.">
+              <input name="tag" required autoFocus autoCapitalize="characters" className={`${inputClass} font-mono`} />
+            </Field>
+            <Field label="Item">
+              <select name="itemId" required className={inputClass} defaultValue="">
+                <option value="" disabled>
+                  Choose an item
+                </option>
+                {items.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} ({unitLabel(item.unit)})
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Quantity" hint="In the item's unit of measure.">
+              <input name="quantity" inputMode="decimal" required className={inputClass} />
+            </Field>
+            <Field label="Put away to">
+              <select name="locationId" required className={inputClass} defaultValue="">
+                <option value="" disabled>
+                  Choose a location
+                </option>
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Lot number (optional)">
+              <input name="lotNumber" className={inputClass} />
+            </Field>
+            <Field label="Cost per unit (optional)">
+              <input name="costPerUnit" inputMode="decimal" className={inputClass} />
+            </Field>
+            <Field label="Note (optional)">
+              <input name="note" className={inputClass} />
+            </Field>
+          </ActionForm>
+        </Card>
+      </div>
+    </>
+  );
+}
