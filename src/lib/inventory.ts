@@ -14,6 +14,7 @@ import {
   type PackageStatus,
 } from "@/db/schema";
 import { db, type Tx } from "./db";
+import { enqueueSyncEvent } from "./sync";
 import { InventoryError, applyDelta, normalizeTag, parsePositiveQty, planSplit, weightedAverageCost } from "./inventory-math";
 import { roundQty } from "./units";
 
@@ -70,6 +71,7 @@ export async function audit(
     after: entry.after ?? null,
     reason: entry.reason?.trim() || null,
   });
+  await enqueueSyncEvent(tx, actor, entry);
 }
 
 /** Lock the package row for the rest of the transaction so two edits cannot interleave. */

@@ -17,6 +17,7 @@ import { createCustomer, createDriver, createPriceList, createVehicle, setPrice,
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { createRecipe } from "@/lib/manufacturing";
 import { createDiscount, saveRetailSettings, setMenuItem } from "@/lib/pos";
+import { processQueue } from "@/lib/sync";
 
 const DEMO_PASSWORD = "demo1234";
 
@@ -273,6 +274,9 @@ async function main() {
   await setMenuItem(shopActor, { itemId: itemId["EDI-PP-10"], price: "22", limitCategory: "EDIBLE", limitPerUnit: "100" });
   await createDiscount(shopActor, { name: "Veteran", percent: "10" });
   await createDiscount(shopActor, { name: "Staff", percent: "20" });
+
+  // Both demo facilities are in practice mode, so the opening records show as sent.
+  await processQueue();
 
   console.log(`Seeded "${org.name}". Sign in as owner@demo.test / ${DEMO_PASSWORD}`);
 }

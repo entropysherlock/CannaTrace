@@ -2,7 +2,7 @@
 
 An original seed-to-sale inventory and compliance app for licensed cannabis operators. Built to be fast on a phone on a warehouse floor, with a permanent audit trail behind every change.
 
-**Status: Phases 1 to 6 of 8 are built (foundation, inventory and warehouse, cultivation, manufacturing, distribution, retail POS).** See the checklist below for exactly what works.
+**Status: Phases 1 to 7 of 8 are built (foundation, inventory and warehouse, cultivation, manufacturing, distribution, retail POS, compliance sync).** See the checklist below for exactly what works.
 
 ## Stack
 
@@ -150,6 +150,32 @@ These are for demos only. Do not seed a real deployment with them.
 - [ ] Limits tracked per customer per day (limits apply per purchase)
 - [ ] Loyalty and customer profiles
 
+### Phase 7: Compliance sync (state reporting)
+- [x] Every change the state needs to hear about is queued in the same database transaction as the change itself, so none can be lost
+- [x] Records are sent oldest first per facility; a failure holds back the records behind it
+- [x] Automatic retries with backoff (1, 5, 30, 120, 720 minutes) for errors that can fix themselves
+- [x] Plain-English explanation and next step for every kind of error, plus the state system's own message
+- [x] Records a system cannot take automatically are listed for hand entry, with who marked them done
+- [x] State reporting page, Send now button, dashboard warning, and a scheduled route for automatic sending
+- [x] Practice mode (default): records are marked sent and nothing leaves CannaTrace
+- [x] Metrc: sign-in with vendor and user keys, and package adjustments. **Not tested against a live Metrc account.**
+- [ ] Metrc: every other record type (they are listed for hand entry for now)
+- [ ] NMS2S (New Mexico): waiting on the state to publish the API software needs
+- [ ] BioTrack: not built; New Mexico stopped using it in September 2026
+- [ ] Pulling records back from the state to compare against CannaTrace
+
+### Connecting a state system
+Set these in your hosting settings (never in the code):
+
+| Setting | What it is |
+| --- | --- |
+| `METRC_API_URL` | Your state's Metrc address, for example `https://api-mi.metrc.com` |
+| `METRC_VENDOR_KEY` | CannaTrace's software key. Metrc issues it only after you apply and pass their integrator review |
+| `METRC_USER_KEY` | The key a user at the licensed business creates in Metrc |
+| `CRON_SECRET` | Any long random string. Call `/api/sync/run` with `Authorization: Bearer <CRON_SECRET>` every few minutes to send automatically |
+
+Metrc adjustment reasons must match the names on your state's list in Metrc. CannaTrace sends its own reason names, so a state may reject them until they are matched.
+
 ### Known limits
 - Camera scanning has not been tested on a real phone. It needs HTTPS (or localhost) and camera permission.
 - COA files are stored in the database. That is fine to start; move them to file storage before heavy use.
@@ -166,5 +192,4 @@ These are for demos only. Do not seed a real deployment with them.
 - Cost per unit shows as unknown if any input package has no cost on record, rather than showing a partial figure.
 
 ### Not started
-- [ ] Phase 7: Compliance sync (Metrc, BioTrack, Mock)
 - [ ] Phase 8: Reporting, CSV import and export, REST API, webhooks
