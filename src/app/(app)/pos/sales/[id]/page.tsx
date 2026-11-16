@@ -59,7 +59,7 @@ export default async function CartPage({ params }: { params: Promise<{ id: strin
         title={`Cart ${sale.number}`}
         subtitle={`${sale.customerType === "MEDICAL" ? "Medical patient" : "Adult use"} · ID checked by ${sale.userName}`}
         action={
-          <Link href="/pos" className="text-sm font-semibold text-emerald-700 hover:underline">
+          <Link href="/pos" className="text-sm font-semibold text-brand-700 hover:underline">
             Back to register
           </Link>
         }

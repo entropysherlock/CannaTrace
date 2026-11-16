@@ -61,8 +61,8 @@ export default async function PlantsPage({
     <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       {rows.map((plant) => (
         <li key={plant.id}>
-          <label className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-2 hover:bg-emerald-50">
-            {canWrite ? <input type="checkbox" name="plantId" value={plant.id} className="h-5 w-5 accent-emerald-700" /> : null}
+          <label className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-2 hover:bg-brand-50">
+            {canWrite ? <input type="checkbox" name="plantId" value={plant.id} className="h-5 w-5 accent-brand-700" /> : null}
             <span className="min-w-0 flex-1">
               <span className="block font-mono text-sm font-semibold text-slate-900">{plant.tag}</span>
               <span className="block truncate text-sm text-slate-600">
@@ -70,7 +70,7 @@ export default async function PlantsPage({
               </span>
             </span>
             <span className="shrink-0 text-right text-sm">
-              <span className={`block font-semibold ${plant.phase === "FLOWERING" ? "text-fuchsia-700" : "text-emerald-700"}`}>
+              <span className={`block font-semibold ${plant.phase === "FLOWERING" ? "text-fuchsia-700" : "text-brand-700"}`}>
                 {plant.phase.toLowerCase()}
               </span>
               <span className="block text-slate-500">day {daysSince(plant.phaseChangedAt) + 1}</span>
@@ -115,7 +115,7 @@ export default async function PlantsPage({
           Filter
         </button>
         {batch ? (
-          <Link href="/cultivation/plants" className="flex min-h-11 items-center px-2 text-sm font-semibold text-emerald-700 hover:underline">
+          <Link href="/cultivation/plants" className="flex min-h-11 items-center px-2 text-sm font-semibold text-brand-700 hover:underline">
             Show all batches
           </Link>
         ) : null}

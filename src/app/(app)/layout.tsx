@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Logo } from "@/components/logo";
+import { BottomNav, SideNav } from "@/components/side-nav";
 import { asc, eq } from "drizzle-orm";
 import { facilities as facilitiesTable } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -37,24 +39,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/settings", label: "Settings", show: can(session.role, "settings.manage") },
   ].filter((item) => item.show);
 
+  const items = nav.map(({ href, label }) => ({ href, label }));
+
   return (
     <div className="min-h-screen md:flex">
-      <aside className="hidden w-60 print:!hidden shrink-0 flex-col bg-slate-900 p-4 text-slate-100 md:flex">
-        <p className="mb-6 text-lg font-bold tracking-tight">
-          Canna<span className="text-emerald-400">Trace</span>
-        </p>
-        <nav className="flex flex-col gap-1">
-          {nav.map((item) => (
-            <Link key={item.href} href={item.href} className="rounded-md px-3 py-2 text-sm font-medium hover:bg-slate-800">
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="mt-auto border-t border-slate-700 pt-4 text-sm">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-brand-950 p-4 text-white md:flex print:!hidden">
+        <Link href="/dashboard" className="mb-6 px-2">
+          <Logo tone="light" />
+        </Link>
+        <div className="-mx-1 flex-1 overflow-y-auto px-1">
+          <SideNav items={items} />
+        </div>
+        <div className="mt-4 border-t border-brand-800 px-2 pt-4 text-sm">
           <p className="font-medium">{session.name}</p>
-          <p className="text-slate-400">{ROLE_LABELS[session.role]}</p>
+          <p className="text-brand-200">{ROLE_LABELS[session.role]}</p>
           <form action={signOut}>
-            <button type="submit" className="mt-2 text-emerald-400 hover:underline">
+            <button type="submit" className="mt-2 font-medium text-brand-200 hover:text-white hover:underline">
               Sign out
             </button>
           </form>
@@ -62,10 +62,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
-        <header className="flex flex-wrap print:hidden items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3">
-          <p className="text-base font-bold md:hidden">
-            Canna<span className="text-emerald-600">Trace</span>
-          </p>
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur print:hidden">
+          <Link href="/dashboard" className="md:hidden">
+            <Logo />
+          </Link>
           <form action={switchFacility} className="order-last flex w-full min-w-0 items-center gap-2 md:order-none md:w-auto">
             <label htmlFor="facilityId" className="sr-only">
               Facility
@@ -74,7 +74,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               id="facilityId"
               name="facilityId"
               defaultValue={session.facilityId}
-              className="min-h-10 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 text-sm md:flex-none"
+              className="min-h-10 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 text-sm md:flex-none"
             >
               {facilities.map((f) => (
                 <option key={f.id} value={f.id}>
@@ -82,26 +82,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 </option>
               ))}
             </select>
-            <button type="submit" className="min-h-10 rounded-md border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50">
+            <button type="submit" className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50">
               Switch
             </button>
           </form>
           <form action={signOut} className="md:hidden">
-            <button type="submit" className="text-sm font-medium text-emerald-700">
+            <button type="submit" className="text-sm font-medium text-brand-700">
               Sign out
             </button>
           </form>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
       </div>
 
-      <nav className="fixed inset-x-0 print:hidden bottom-0 z-10 flex overflow-x-auto border-t border-slate-200 bg-white md:hidden">
-        {nav.map((item) => (
-          <Link key={item.href} href={item.href} className="flex min-h-14 shrink-0 grow basis-20 items-center justify-center px-1 text-center text-xs font-semibold text-slate-700">
-            {item.label}
-          </Link>
-        ))}
-      </nav>
+      <BottomNav items={items} />
     </div>
   );
 }

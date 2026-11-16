@@ -29,14 +29,14 @@ export default async function CustomersPage() {
                 const problem = licenseProblem(customer, today);
                 return (
                   <li key={customer.id}>
-                    <Link href={`/distribution/customers/${customer.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-emerald-50">
+                    <Link href={`/distribution/customers/${customer.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
                       <div>
                         <p className="font-semibold text-slate-900">{customer.name}</p>
                         <p className="text-sm text-slate-600">
                           {customer.licenseType} · {customer.licenseNumber} · expires {customer.licenseExpires}
                         </p>
                       </div>
-                      <span className={`text-sm font-semibold ${problem ? "text-red-700" : "text-emerald-700"}`}>
+                      <span className={`text-sm font-semibold ${problem ? "text-red-700" : "text-brand-700"}`}>
                         {problem ? "cannot sell yet" : "license verified"}
                       </span>
                     </Link>

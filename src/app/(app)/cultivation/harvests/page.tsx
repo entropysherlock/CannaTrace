@@ -30,7 +30,7 @@ export default async function HarvestsPage() {
         <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           {rows.map(({ harvest, strainName, roomName }) => (
             <li key={harvest.id}>
-              <Link href={`/cultivation/harvests/${harvest.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-emerald-50">
+              <Link href={`/cultivation/harvests/${harvest.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
                 <div>
                   <p className="font-semibold text-slate-900">{harvest.name}</p>
                   <p className="text-sm text-slate-600">

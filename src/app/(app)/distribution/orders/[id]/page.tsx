@@ -133,7 +133,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                             <input type="hidden" name="lineId" value={line.id} />
                           </ActionForm>
                         ) : order.status !== "DRAFT" ? (
-                          <span className={`font-semibold ${done ? "text-emerald-700" : "text-amber-700"}`}>
+                          <span className={`font-semibold ${done ? "text-brand-700" : "text-amber-700"}`}>
                             picked {num(picked)} of {num(line.quantity)}
                           </span>
                         ) : null}
@@ -143,7 +143,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                         .map((allocation) => (
                           <div key={allocation.id} className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2">
                             <span>
-                              <Link href={`/inventory/${allocation.packageId}`} className="font-mono font-semibold text-emerald-700 hover:underline">
+                              <Link href={`/inventory/${allocation.packageId}`} className="font-mono font-semibold text-brand-700 hover:underline">
                                 {allocation.tag}
                               </Link>{" "}
                               <span className="text-slate-600">
@@ -169,14 +169,14 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               <dl className="grid grid-cols-2 gap-y-2 text-sm">
                 <dt className="text-slate-600">Manifest</dt>
                 <dd className="text-right">
-                  <Link href={`/distribution/orders/${order.id}/manifest`} className="font-semibold text-emerald-700 hover:underline">
+                  <Link href={`/distribution/orders/${order.id}/manifest`} className="font-semibold text-brand-700 hover:underline">
                     {order.manifestNumber} (print)
                   </Link>
                 </dd>
                 <dt className="text-slate-600">Invoice</dt>
                 <dd className="text-right">
                   {invoice ? (
-                    <Link href={`/distribution/orders/${order.id}/invoice`} className="font-semibold text-emerald-700 hover:underline">
+                    <Link href={`/distribution/orders/${order.id}/invoice`} className="font-semibold text-brand-700 hover:underline">
                       {invoice.number} (view and record payments)
                     </Link>
                   ) : (
@@ -267,7 +267,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 {driverRows.length === 0 || vehicleRows.length === 0 ? (
                   <p className="text-sm text-slate-600">
                     Add a driver and a vehicle first on the{" "}
-                    <Link href="/distribution/fleet" className="font-semibold text-emerald-700 hover:underline">
+                    <Link href="/distribution/fleet" className="font-semibold text-brand-700 hover:underline">
                       Drivers and vehicles
                     </Link>{" "}
                     tab.

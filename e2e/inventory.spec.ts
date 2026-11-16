@@ -201,3 +201,11 @@ test("a sign-in for an account that no longer exists is cleared instead of loopi
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
   expect((await context.cookies()).find((c) => c.name === "ct_session")).toBeUndefined();
 });
+
+test("the public homepage shows the product and leads to sign in", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /From Seed to Sale/ })).toBeVisible();
+  await expect(page.getByText("Example view. Figures are for illustration.")).toBeVisible();
+  await page.getByRole("link", { name: "Get started" }).first().click();
+  await expect(page).toHaveURL(/\/login/);
+});

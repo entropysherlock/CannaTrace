@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /** Field styling without a width, for boxes that sit side by side. */
 export const inputBase =
-  "min-h-11 min-w-0 rounded-md border border-slate-300 bg-white px-3 text-base text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600";
+  "min-h-11 min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-base text-slate-900 shadow-sm focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600";
 
 /** Full-width field styling. */
 export const inputClass = `block w-full ${inputBase}`;
@@ -19,7 +19,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 
 export function Card({ title, children, action }: { title?: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       {title ? (
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold text-slate-900">{title}</h2>
@@ -61,4 +61,4 @@ export function StatusBadge({ status }: { status: string }) {
 }
 
 export const buttonLinkClass =
-  "inline-flex min-h-11 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800";
+  "inline-flex min-h-11 items-center justify-center rounded-md bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800";

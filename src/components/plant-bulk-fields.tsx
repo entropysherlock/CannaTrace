@@ -22,7 +22,7 @@ export function PlantBulkFields({ locations }: { locations: Option[] }) {
         <p className="text-base font-semibold text-slate-900">With the ticked plants</p>
         <button
           type="button"
-          className="text-sm font-semibold text-emerald-700 hover:underline"
+          className="text-sm font-semibold text-brand-700 hover:underline"
           onClick={(event) => {
             const boxes = event.currentTarget.form?.querySelectorAll<HTMLInputElement>('input[name="plantId"]') ?? [];
             const allTicked = Array.from(boxes).every((box) => box.checked);

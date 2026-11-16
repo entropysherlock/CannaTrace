@@ -79,7 +79,7 @@ export default async function CultivationPage() {
       <CultivationTabs current="/cultivation" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {tiles.map((tile) => (
-          <Link key={tile.label} href={tile.href} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-emerald-500">
+          <Link key={tile.label} href={tile.href} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-brand-500">
             <p className="text-sm text-slate-600">{tile.label}</p>
             <p className="mt-1 text-3xl font-bold text-slate-900">{tile.value}</p>
           </Link>
@@ -95,7 +95,7 @@ export default async function CultivationPage() {
               <ul className="divide-y divide-slate-100 text-sm">
                 {batches.map((batch) => (
                   <li key={batch.id}>
-                    <Link href={`/cultivation/batches/${batch.id}`} className="flex min-h-12 flex-wrap items-center justify-between gap-2 py-2 hover:text-emerald-700">
+                    <Link href={`/cultivation/batches/${batch.id}`} className="flex min-h-12 flex-wrap items-center justify-between gap-2 py-2 hover:text-brand-700">
                       <span>
                         <span className="font-semibold">{batch.name}</span>{" "}
                         <span className="text-slate-600">
@@ -147,7 +147,7 @@ export default async function CultivationPage() {
               {strainRows.length === 0 ? (
                 <p className="text-sm text-slate-600">
                   Add a strain first on the{" "}
-                  <Link href="/cultivation/strains" className="font-semibold text-emerald-700 hover:underline">
+                  <Link href="/cultivation/strains" className="font-semibold text-brand-700 hover:underline">
                     Strains
                   </Link>{" "}
                   tab.

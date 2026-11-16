@@ -12,7 +12,7 @@ import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 import { startRunAction } from "./actions";
 
-const STATUS_STYLE = { IN_PROGRESS: "text-amber-700", COMPLETED: "text-emerald-700", CANCELLED: "text-slate-400" };
+const STATUS_STYLE = { IN_PROGRESS: "text-amber-700", COMPLETED: "text-brand-700", CANCELLED: "text-slate-400" };
 
 export default async function ManufacturingPage() {
   const session = await requirePagePermission("inventory.view");
@@ -49,7 +49,7 @@ export default async function ManufacturingPage() {
                 const yieldPct = run.actualOutput ? yieldPercent(run.actualOutput, run.plannedOutput) : null;
                 return (
                   <li key={run.id}>
-                    <Link href={`/manufacturing/runs/${run.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-emerald-50">
+                    <Link href={`/manufacturing/runs/${run.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
                       <div>
                         <p className="font-semibold text-slate-900">{run.name}</p>
                         <p className="text-sm text-slate-600">
@@ -76,7 +76,7 @@ export default async function ManufacturingPage() {
             {recipes.length === 0 ? (
               <p className="text-sm text-slate-600">
                 Save a recipe first on the{" "}
-                <Link href="/manufacturing/recipes" className="font-semibold text-emerald-700 hover:underline">
+                <Link href="/manufacturing/recipes" className="font-semibold text-brand-700 hover:underline">
                   Recipes
                 </Link>{" "}
                 tab.

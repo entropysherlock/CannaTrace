@@ -30,7 +30,7 @@ export default async function AuditPage() {
                 <span className="font-semibold text-slate-900">{entry.userName}</span>{" "}
                 <span className="text-slate-600">{entry.action.toLowerCase()}</span>{" "}
                 {entry.entityType === "Package" ? (
-                  <Link href={`/inventory/${entry.entityId}`} className="font-medium text-emerald-700 hover:underline">
+                  <Link href={`/inventory/${entry.entityId}`} className="font-medium text-brand-700 hover:underline">
                     package
                   </Link>
                 ) : (

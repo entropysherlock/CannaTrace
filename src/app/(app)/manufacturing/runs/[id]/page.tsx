@@ -99,7 +99,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
               </>
             );
             return tile.href ? (
-              <Link key={tile.label} href={tile.href} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-emerald-500">
+              <Link key={tile.label} href={tile.href} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-brand-500">
                 {body}
               </Link>
             ) : (
@@ -130,7 +130,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
                       <span className="font-semibold">
                         {num(have)} of {num(need)} {unitLabel(line.unit)}
                       </span>{" "}
-                      <span className={short.gt(0) ? "text-amber-700" : short.lt(0) ? "text-fuchsia-700" : "text-emerald-700"}>
+                      <span className={short.gt(0) ? "text-amber-700" : short.lt(0) ? "text-fuchsia-700" : "text-brand-700"}>
                         {short.gt(0) ? `· ${num(short)} to go` : short.lt(0) ? `· ${num(short.abs())} over` : "· done"}
                       </span>
                     </span>
@@ -148,7 +148,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
                 {inputs.map((input) => (
                   <li key={input.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
                     <div>
-                      <Link href={`/inventory/${input.packageId}`} className="font-mono font-semibold text-emerald-700 hover:underline">
+                      <Link href={`/inventory/${input.packageId}`} className="font-mono font-semibold text-brand-700 hover:underline">
                         {input.tag}
                       </Link>{" "}
                       <span className="text-slate-600">

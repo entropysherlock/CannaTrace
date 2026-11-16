@@ -122,7 +122,7 @@ export default async function ReportsPage() {
             </>
           );
           return t.href ? (
-            <Link key={t.label} href={t.href} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-emerald-500">
+            <Link key={t.label} href={t.href} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-brand-500">
               {body}
             </Link>
           ) : (
@@ -164,7 +164,7 @@ export default async function ReportsPage() {
             <dt className="text-slate-600">Overdue</dt>
             <dd className={`text-right font-semibold ${dec(w?.overdue).gt(0) ? "text-red-700" : ""}`}>{usd(dec(w?.overdue))}</dd>
           </dl>
-          <Link href="/distribution/invoices" className="mt-3 inline-block text-sm font-semibold text-emerald-700 hover:underline">
+          <Link href="/distribution/invoices" className="mt-3 inline-block text-sm font-semibold text-brand-700 hover:underline">
             Open invoices
           </Link>
         </Card>
@@ -196,7 +196,7 @@ export default async function ReportsPage() {
       </div>
       <p className="mt-5 text-sm text-slate-600">
         Need the raw numbers? Download them as spreadsheets from{" "}
-        <Link href="/data" className="font-semibold text-emerald-700 hover:underline">
+        <Link href="/data" className="font-semibold text-brand-700 hover:underline">
           Import and export
         </Link>
         .

@@ -61,7 +61,7 @@ export default async function DrawerPage() {
             <Card title="Drawer closed">
               <p className="text-sm text-slate-600">
                 Open the drawer from the{" "}
-                <Link href="/pos" className="font-semibold text-emerald-700 hover:underline">
+                <Link href="/pos" className="font-semibold text-brand-700 hover:underline">
                   Register
                 </Link>{" "}
                 to start selling.
@@ -81,7 +81,7 @@ export default async function DrawerPage() {
                     const variance = new Decimal(s.countedCash ?? 0).sub(s.expectedCash ?? 0);
                     return (
                       <li key={s.id}>
-                        <Link href={`/pos/drawer/${s.id}`} className="flex min-h-12 flex-wrap items-center justify-between gap-3 py-2 hover:text-emerald-700">
+                        <Link href={`/pos/drawer/${s.id}`} className="flex min-h-12 flex-wrap items-center justify-between gap-3 py-2 hover:text-brand-700">
                           <span className="font-semibold">
                             {s.openedAt.toLocaleDateString("en-US")} · {s.openedAt.toLocaleTimeString("en-US")}
                           </span>

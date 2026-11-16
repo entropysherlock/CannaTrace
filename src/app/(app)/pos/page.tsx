@@ -94,7 +94,7 @@ export default async function RegisterPage() {
                 <ul className="divide-y divide-slate-100 text-sm">
                   {openCarts.map((cart) => (
                     <li key={cart.id}>
-                      <Link href={`/pos/sales/${cart.id}`} className="flex min-h-12 items-center justify-between gap-3 py-2 hover:text-emerald-700">
+                      <Link href={`/pos/sales/${cart.id}`} className="flex min-h-12 items-center justify-between gap-3 py-2 hover:text-brand-700">
                         <span className="font-semibold">{cart.number}</span>
                         <span className="text-slate-600">
                           {cart.lineCount} item{cart.lineCount === 1 ? "" : "s"} · {cart.userName} ›
@@ -114,7 +114,7 @@ export default async function RegisterPage() {
                     .filter((s) => s.status !== "OPEN")
                     .map((sale) => (
                       <li key={sale.id}>
-                        <Link href={`/pos/sales/${sale.id}/receipt`} className="flex min-h-12 items-center justify-between gap-3 py-2 hover:text-emerald-700">
+                        <Link href={`/pos/sales/${sale.id}/receipt`} className="flex min-h-12 items-center justify-between gap-3 py-2 hover:text-brand-700">
                           <span>
                             <span className="font-semibold">{sale.number}</span> <Pill status={sale.status} />
                           </span>

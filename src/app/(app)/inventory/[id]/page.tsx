@@ -37,7 +37,7 @@ function Fold({ title, children }: { title: string; children: ReactNode }) {
 }
 
 const LAB_STYLES: Record<string, string> = {
-  PASS: "text-emerald-700",
+  PASS: "text-brand-700",
   FAIL: "text-red-700",
   PENDING: "text-amber-700",
 };
@@ -127,7 +127,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
         title={pkg.tag}
         subtitle={`${pkg.itemName} · ${pkg.categoryName}`}
         action={
-          <div className="flex items-center gap-4 text-sm font-semibold text-emerald-700">
+          <div className="flex items-center gap-4 text-sm font-semibold text-brand-700">
             <Link href={`/inventory/${pkg.id}/label`} className="hover:underline">
               Print label
             </Link>
@@ -164,7 +164,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                   <p className="text-slate-600">
                     Made from:{" "}
                     {parents.map((p) => (
-                      <Link key={p.id} href={`/inventory/${p.id}`} className="mr-2 font-mono font-semibold text-emerald-700 hover:underline">
+                      <Link key={p.id} href={`/inventory/${p.id}`} className="mr-2 font-mono font-semibold text-brand-700 hover:underline">
                         {p.tag}
                       </Link>
                     ))}
@@ -174,7 +174,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                   <p className="mt-1 text-slate-600">
                     Went into:{" "}
                     {children.map((c) => (
-                      <Link key={c.id} href={`/inventory/${c.id}`} className="mr-2 font-mono font-semibold text-emerald-700 hover:underline">
+                      <Link key={c.id} href={`/inventory/${c.id}`} className="mr-2 font-mono font-semibold text-brand-700 hover:underline">
                         {c.tag}
                       </Link>
                     ))}
@@ -345,7 +345,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                       {lab.notes ? ` · ${lab.notes}` : ""}
                     </p>
                     {lab.coaFileName ? (
-                      <a href={`/api/coa/${lab.id}`} target="_blank" rel="noreferrer" className="font-semibold text-emerald-700 hover:underline">
+                      <a href={`/api/coa/${lab.id}`} target="_blank" rel="noreferrer" className="font-semibold text-brand-700 hover:underline">
                         View COA ({lab.coaFileName})
                       </a>
                     ) : null}

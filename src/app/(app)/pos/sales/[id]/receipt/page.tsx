@@ -46,7 +46,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
     <div className="mx-auto grid max-w-3xl gap-5 md:grid-cols-5">
       <div className="md:col-span-3">
         <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
-          <Link href="/pos" className="text-sm font-semibold text-emerald-700 hover:underline">
+          <Link href="/pos" className="text-sm font-semibold text-brand-700 hover:underline">
             Back to register
           </Link>
           {sale.status === "COMPLETED" ? <PrintButton label="Print receipt" /> : null}

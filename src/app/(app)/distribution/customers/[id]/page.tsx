@@ -99,7 +99,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             <ul className="divide-y divide-slate-100 text-sm">
               {history.map((order) => (
                 <li key={order.id} className="flex items-center justify-between gap-3 py-2">
-                  <Link href={`/distribution/orders/${order.id}`} className="font-semibold text-emerald-700 hover:underline">
+                  <Link href={`/distribution/orders/${order.id}`} className="font-semibold text-brand-700 hover:underline">
                     {order.number}
                   </Link>
                   <span className="flex items-center gap-2 text-slate-600">

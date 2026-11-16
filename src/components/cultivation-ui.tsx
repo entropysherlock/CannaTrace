@@ -17,7 +17,7 @@ export function CultivationTabs({ current }: { current: string }) {
           href={tab.href}
           aria-current={tab.href === current ? "page" : undefined}
           className={`min-h-11 shrink-0 border-b-2 px-3 py-2 text-sm font-semibold ${
-            tab.href === current ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-600 hover:text-slate-900"
+            tab.href === current ? "border-brand-700 text-brand-800" : "border-transparent text-slate-600 hover:text-slate-900"
           }`}
         >
           {tab.label}

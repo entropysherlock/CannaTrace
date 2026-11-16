@@ -128,7 +128,7 @@ export default async function MenuPage() {
                 <input name="salesTaxPercent" inputMode="decimal" required defaultValue={settings.saved ? num(settings.salesTaxPercent) : ""} className={inputClass} />
               </Field>
               <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" name="medicalTaxExempt" defaultChecked={settings.medicalTaxExempt} className="h-5 w-5 accent-emerald-700" />
+                <input type="checkbox" name="medicalTaxExempt" defaultChecked={settings.medicalTaxExempt} className="h-5 w-5 accent-brand-700" />
                 Medical patients pay no tax
               </label>
             </ActionForm>
