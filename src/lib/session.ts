@@ -72,7 +72,9 @@ export async function requireSession(): Promise<Session> {
     .select({ role: users.role, name: users.name })
     .from(users)
     .where(and(eq(users.id, session.userId), eq(users.orgId, session.orgId), eq(users.active, true)));
-  if (!user) redirect("/login");
+  // The cookie is genuine but its account is gone or switched off: clear it, or sign-in and the
+  // dashboard would keep sending the visitor to each other.
+  if (!user) redirect("/signout");
   return { ...session, role: user.role, name: user.name };
 }
 

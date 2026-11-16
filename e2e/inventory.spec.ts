@@ -188,3 +188,16 @@ test("the setup screen is closed once accounts exist", async ({ page }) => {
   await expect(page).toHaveURL(/\/login/);
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });
+
+test("a sign-in for an account that no longer exists is cleared instead of looping", async ({ page, context, baseURL }) => {
+  const { SignJWT } = await import("jose");
+  const token = await new SignJWT({ userId: "gone", orgId: "gone", facilityId: "gone", role: "OWNER", name: "Gone" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("1h")
+    .sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+  await context.addCookies([{ name: "ct_session", value: token, url: baseURL! }]);
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  expect((await context.cookies()).find((c) => c.name === "ct_session")).toBeUndefined();
+});
