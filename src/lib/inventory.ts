@@ -173,13 +173,14 @@ export async function createPackageInTx(
 export async function consumeFromPackageInTx(
   tx: Tx,
   actor: Actor,
-  input: { packageId: string; quantity: unknown; note: string },
+  input: { packageId: string; quantity: unknown; note: string; kind?: "PRODUCTION" | "RETAIL_SALE" },
 ): Promise<{ before: Package; after: Package; quantity: Decimal }> {
+  const sale = input.kind === "RETAIL_SALE";
   const quantity = parsePositiveQty(input.quantity);
   const pkg = await lockPackage(tx, actor, input.packageId);
   if (pkg.status !== "ACTIVE") {
     throw new InventoryError(
-      `Package ${pkg.tag} is ${pkg.status.replace("_", " ").toLowerCase()} and cannot be used in production.`,
+      `Package ${pkg.tag} is ${pkg.status.replace("_", " ").toLowerCase()} and cannot be ${sale ? "sold" : "used in production"}.`,
     );
   }
   const change = applyDelta(pkg.quantity, quantity.neg());
@@ -192,7 +193,7 @@ export async function consumeFromPackageInTx(
     orgId: actor.orgId,
     facilityId: actor.facilityId,
     packageId: pkg.id,
-    type: "CONVERT_OUT",
+    type: sale ? "SELL" : "CONVERT_OUT",
     quantityDelta: store(change.delta),
     quantityBefore: store(change.before),
     quantityAfter: store(change.after),
@@ -203,7 +204,7 @@ export async function consumeFromPackageInTx(
   await audit(tx, actor, {
     entityType: "Package",
     entityId: pkg.id,
-    action: "USED_IN_PRODUCTION",
+    action: sale ? "RETAIL_SALE" : "USED_IN_PRODUCTION",
     before: snapshot(pkg),
     after: snapshot(updated),
     reason: input.note,
@@ -215,7 +216,7 @@ export async function consumeFromPackageInTx(
 export async function returnToPackageInTx(
   tx: Tx,
   actor: Actor,
-  input: { packageId: string; quantity: Decimal; note: string },
+  input: { packageId: string; quantity: Decimal; note: string; auditAction?: string },
 ): Promise<Package> {
   const pkg = await lockPackage(tx, actor, input.packageId);
   if (pkg.status === "DESTROYED") throw new InventoryError(`Package ${pkg.tag} was destroyed, so nothing can be returned to it.`);
@@ -240,7 +241,7 @@ export async function returnToPackageInTx(
   await audit(tx, actor, {
     entityType: "Package",
     entityId: pkg.id,
-    action: "RETURNED_FROM_PRODUCTION",
+    action: input.auditAction ?? "RETURNED_FROM_PRODUCTION",
     before: snapshot(pkg),
     after: snapshot(updated),
     reason: input.note,

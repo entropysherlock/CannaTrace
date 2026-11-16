@@ -44,6 +44,8 @@ const ORDER_STYLES: Record<string, string> = {
   SHIPPED: "bg-fuchsia-100 text-fuchsia-800",
   DELIVERED: "bg-emerald-100 text-emerald-800",
   CANCELLED: "bg-slate-800 text-white",
+  COMPLETED: "bg-emerald-100 text-emerald-800",
+  VOIDED: "bg-red-100 text-red-800",
   OPEN: "bg-amber-100 text-amber-800",
   PARTIAL: "bg-sky-100 text-sky-800",
   PAID: "bg-emerald-100 text-emerald-800",

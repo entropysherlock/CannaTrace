@@ -76,7 +76,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const shortLines = lines.filter((l) => pickedFor(l.id).lt(l.quantity));
   const num = (value: Decimal.Value) => new Decimal(value).toString();
   const step = (name: string, label: string) => (
-    <ActionForm action={orderStepAction} submitLabel={label}>
+    <ActionForm action={orderStepAction} submitLabel={label} quiet={name === "cancel" || name === "reopen"}>
       {hidden}
       <input type="hidden" name="step" value={name} />
     </ActionForm>
@@ -129,7 +129,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                           </p>
                         </div>
                         {order.status === "DRAFT" && canSell ? (
-                          <ActionForm action={removeLineAction} submitLabel="Remove" className="flex flex-col items-end gap-1">
+                          <ActionForm action={removeLineAction} submitLabel="Remove" quiet className="flex flex-col items-end gap-1">
                             <input type="hidden" name="lineId" value={line.id} />
                           </ActionForm>
                         ) : order.status !== "DRAFT" ? (
@@ -151,7 +151,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                               </span>
                             </span>
                             {order.status === "CONFIRMED" && canFulfil ? (
-                              <ActionForm action={unallocateAction} submitLabel="Take off order" className="flex flex-col items-end gap-1">
+                              <ActionForm action={unallocateAction} submitLabel="Take off order" quiet className="flex flex-col items-end gap-1">
                                 <input type="hidden" name="allocationId" value={allocation.id} />
                               </ActionForm>
                             ) : null}

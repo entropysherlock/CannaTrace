@@ -165,7 +165,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
                         </span>
                       </span>
                       {canWrite ? (
-                        <ActionForm action={removeInputAction} submitLabel="Remove" className="flex flex-col items-end gap-1">
+                        <ActionForm action={removeInputAction} submitLabel="Remove" quiet className="flex flex-col items-end gap-1">
                           <input type="hidden" name="inputId" value={input.id} />
                         </ActionForm>
                       ) : null}
@@ -220,7 +220,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
               </ActionForm>
             </Card>
             <Card title="Cancel the run">
-              <ActionForm action={cancelRunAction} submitLabel="Cancel run">
+              <ActionForm action={cancelRunAction} submitLabel="Cancel run" quiet>
                 {hidden}
                 <p className="text-sm text-slate-600">Only an empty run can be cancelled. Remove its inputs first so the product goes back.</p>
               </ActionForm>

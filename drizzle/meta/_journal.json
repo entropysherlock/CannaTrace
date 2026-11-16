@@ -43,6 +43,13 @@
       "when": 1794850349565,
       "tag": "0005_distribution",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794851279982,
+      "tag": "0006_retail_pos",
+      "breakpoints": true
     }
   ]
 }

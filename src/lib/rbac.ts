@@ -18,6 +18,7 @@ export type Permission =
   | "sales.view"
   | "sales.write"
   | "pos.use"
+  | "pos.manage"
   | "settings.manage"
   | "users.manage"
   | "audit.view";
@@ -33,6 +34,7 @@ const ALL: Permission[] = [
   "sales.view",
   "sales.write",
   "pos.use",
+  "pos.manage",
   "settings.manage",
   "users.manage",
   "audit.view",

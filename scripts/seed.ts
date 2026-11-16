@@ -16,6 +16,7 @@ import { adjustPackage, movePackage, receivePackage, type Actor } from "@/lib/in
 import { createCustomer, createDriver, createPriceList, createVehicle, setPrice, verifyCustomerLicense } from "@/lib/distribution";
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { createRecipe } from "@/lib/manufacturing";
+import { createDiscount, saveRetailSettings, setMenuItem } from "@/lib/pos";
 
 const DEMO_PASSWORD = "demo1234";
 
@@ -254,6 +255,24 @@ async function main() {
   });
   await createDriver(salesActor, { name: "Dana Ortiz", licenseNumber: "DEMO-DL-0001", phone: "505-555-0142" });
   await createVehicle(salesActor, { make: "Ford", model: "Transit Connect", plate: "DEMO-123" });
+
+  // Retail: the storefront's menu, demo store rules, and two discounts.
+  // The tax rates below are placeholders for the demo. A real store must enter its own.
+  const shopManager = createdUsers.find((u) => u.role === "MANAGER")!;
+  const shopActor: Actor = { userId: shopManager.id, userName: shopManager.name, orgId: org.id, facilityId: shop.id };
+  await saveRetailSettings(shopActor, {
+    flowerLimitGrams: "56.7",
+    concentrateLimitGrams: "16",
+    edibleLimitMg: "800",
+    exciseTaxPercent: "12",
+    salesTaxPercent: "7.5",
+    medicalTaxExempt: true,
+  });
+  await setMenuItem(shopActor, { itemId: itemId["FLW-BM-35"], price: "35", limitCategory: "FLOWER", limitPerUnit: "3.5" });
+  await setMenuItem(shopActor, { itemId: itemId["PR-DH-1"], price: "8", limitCategory: "FLOWER", limitPerUnit: "1" });
+  await setMenuItem(shopActor, { itemId: itemId["EDI-PP-10"], price: "22", limitCategory: "EDIBLE", limitPerUnit: "100" });
+  await createDiscount(shopActor, { name: "Veteran", percent: "10" });
+  await createDiscount(shopActor, { name: "Staff", percent: "20" });
 
   console.log(`Seeded "${org.name}". Sign in as owner@demo.test / ${DEMO_PASSWORD}`);
 }
