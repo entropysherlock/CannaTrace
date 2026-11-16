@@ -1,7 +1,9 @@
 import { relations } from "drizzle-orm";
 import {
   boolean,
+  customType,
   index,
+  integer,
   jsonb,
   numeric,
   pgEnum,
@@ -17,6 +19,11 @@ const id = () =>
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID());
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 const qty = (name: string) => numeric(name, { precision: 18, scale: 4 });
 
 export const roleEnum = pgEnum("role", [
@@ -238,6 +245,66 @@ export const auditLogs = pgTable(
     index("audit_logs_entity_idx").on(t.orgId, t.entityType, t.entityId),
     index("audit_logs_time_idx").on(t.orgId, t.createdAt),
   ],
+);
+
+export const labStatusEnum = pgEnum("lab_status", ["PENDING", "PASS", "FAIL"]);
+
+export const labResults = pgTable(
+  "lab_results",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id").notNull(),
+    packageId: text("package_id")
+      .notNull()
+      .references(() => packages.id),
+    labName: text("lab_name").notNull(),
+    sampleDate: text("sample_date"),
+    status: labStatusEnum("status").notNull(),
+    thcPercent: numeric("thc_percent", { precision: 6, scale: 3 }),
+    cbdPercent: numeric("cbd_percent", { precision: 6, scale: 3 }),
+    notes: text("notes"),
+    coaFileName: text("coa_file_name"),
+    coaMimeType: text("coa_mime_type"),
+    coaSize: integer("coa_size"),
+    coaData: bytea("coa_data"),
+    userId: text("user_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("lab_results_package_idx").on(t.packageId)],
+);
+
+export const cycleCounts = pgTable(
+  "cycle_counts",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id").notNull(),
+    locationId: text("location_id")
+      .notNull()
+      .references(() => locations.id),
+    userId: text("user_id").notNull(),
+    userName: text("user_name").notNull(),
+    packagesCounted: integer("packages_counted").notNull(),
+    variances: integer("variances").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("cycle_counts_scope_idx").on(t.orgId, t.facilityId, t.createdAt)],
+);
+
+export const cycleCountLines = pgTable(
+  "cycle_count_lines",
+  {
+    countId: text("count_id")
+      .notNull()
+      .references(() => cycleCounts.id),
+    packageId: text("package_id")
+      .notNull()
+      .references(() => packages.id),
+    expected: qty("expected").notNull(),
+    counted: qty("counted").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.countId, t.packageId] })],
 );
 
 export const packagesRelations = relations(packages, ({ one }) => ({

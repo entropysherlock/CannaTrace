@@ -15,6 +15,13 @@
       "when": 1794846711729,
       "tag": "0001_immutable_history",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794847189467,
+      "tag": "0002_lab_results_cycle_counts",
+      "breakpoints": true
     }
   ]
 }

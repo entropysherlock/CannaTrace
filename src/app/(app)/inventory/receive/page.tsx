@@ -1,4 +1,5 @@
 import { ActionForm } from "@/components/action-form";
+import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { and, asc, eq } from "drizzle-orm";
 import { items as itemsTable, locations as locationsTable } from "@/db/schema";
@@ -28,8 +29,8 @@ export default async function ReceivePage() {
       <div className="max-w-xl">
         <Card>
           <ActionForm action={receiveAction} submitLabel="Receive">
-            <Field label="Package tag" hint="Scan with a barcode scanner or type it in.">
-              <input name="tag" required autoFocus autoCapitalize="characters" className={`${inputClass} font-mono`} />
+            <Field label="Package tag" hint="Scan with a barcode scanner, tap Scan to use the camera, or type it in.">
+              <ScanInput name="tag" required autoFocus />
             </Field>
             <Field label="Item">
               <select name="itemId" required className={inputClass} defaultValue="">
