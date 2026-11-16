@@ -465,11 +465,105 @@ export const cultivationTasks = pgTable(
   (t) => [index("cultivation_tasks_scope_idx").on(t.orgId, t.facilityId, t.done)],
 );
 
+export const runStatusEnum = pgEnum("run_status", ["IN_PROGRESS", "COMPLETED", "CANCELLED"]);
+
+/** A recipe: what goes in and how much comes out of one batch. */
+export const boms = pgTable(
+  "boms",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    outputItemId: text("output_item_id")
+      .notNull()
+      .references(() => items.id),
+    outputQuantity: qty("output_quantity").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("boms_org_name_key").on(t.orgId, t.name)],
+);
+
+export const bomLines = pgTable(
+  "bom_lines",
+  {
+    bomId: text("bom_id")
+      .notNull()
+      .references(() => boms.id),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id),
+    quantity: qty("quantity").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.bomId, t.itemId] })],
+);
+
+export const productionRuns = pgTable(
+  "production_runs",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    name: text("name").notNull(),
+    bomId: text("bom_id")
+      .notNull()
+      .references(() => boms.id),
+    outputItemId: text("output_item_id")
+      .notNull()
+      .references(() => items.id),
+    batches: qty("batches").notNull(),
+    plannedOutput: qty("planned_output").notNull(),
+    actualOutput: qty("actual_output"),
+    outputPackageId: text("output_package_id").references(() => packages.id),
+    inputCost: qty("input_cost"),
+    extraCost: qty("extra_cost"),
+    costPerUnit: qty("cost_per_unit"),
+    lossNote: text("loss_note"),
+    status: runStatusEnum("status").notNull().default("IN_PROGRESS"),
+    userId: text("user_id").notNull(),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("production_runs_facility_name_key").on(t.facilityId, t.name),
+    index("production_runs_scope_idx").on(t.orgId, t.facilityId, t.status),
+  ],
+);
+
+export const productionInputs = pgTable(
+  "production_inputs",
+  {
+    id: id(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => productionRuns.id),
+    packageId: text("package_id")
+      .notNull()
+      .references(() => packages.id),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id),
+    quantity: qty("quantity").notNull(),
+    unit: unitEnum("unit").notNull(),
+    // Cost per unit of the source package when it was consumed; null when the package had no cost.
+    costPerUnit: qty("cost_per_unit"),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("production_inputs_run_idx").on(t.runId)],
+);
+
 export const packagesRelations = relations(packages, ({ one }) => ({
   item: one(items, { fields: [packages.itemId], references: [items.id] }),
   location: one(locations, { fields: [packages.locationId], references: [locations.id] }),
 }));
 
+export type ProductionRun = typeof productionRuns.$inferSelect;
 export type Harvest = typeof harvests.$inferSelect;
 export type Plant = typeof plants.$inferSelect;
 export type Package = typeof packages.$inferSelect;

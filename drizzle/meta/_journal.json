@@ -29,6 +29,13 @@
       "when": 1794848533173,
       "tag": "0003_cultivation",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794849603429,
+      "tag": "0004_manufacturing",
+      "breakpoints": true
     }
   ]
 }

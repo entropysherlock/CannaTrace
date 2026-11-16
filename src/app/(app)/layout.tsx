@@ -23,6 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/inventory", label: "Inventory", show: can(session.role, "inventory.view") },
     { href: "/inventory/receive", label: "Receive", show: can(session.role, "inventory.write") },
     { href: "/cultivation", label: "Cultivation", show: can(session.role, "cultivation.view") },
+    { href: "/manufacturing", label: "Manufacturing", show: can(session.role, "inventory.view") },
     { href: "/counts", label: "Counts", show: can(session.role, "inventory.adjust") },
     { href: "/catalog", label: "Items", show: can(session.role, "catalog.manage") },
     { href: "/locations", label: "Locations", show: can(session.role, "catalog.manage") },
