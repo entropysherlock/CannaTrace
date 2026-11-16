@@ -2,7 +2,7 @@
 
 An original seed-to-sale inventory and compliance app for licensed cannabis operators. Built to be fast on a phone on a warehouse floor, with a permanent audit trail behind every change.
 
-**Status: Phases 1 to 7 of 8 are built (foundation, inventory and warehouse, cultivation, manufacturing, distribution, retail POS, compliance sync).** See the checklist below for exactly what works.
+**Status: all 8 planned phases are built.** It has not been deployed or used by a real business yet. See "Before real use" below. See the checklist below for exactly what works.
 
 ## Stack
 
@@ -176,6 +176,23 @@ Set these in your hosting settings (never in the code):
 
 Metrc adjustment reasons must match the names on your state's list in Metrc. CannaTrace sends its own reason names, so a state may reject them until they are matched.
 
+### Phase 8: Reporting and integrations
+- [x] Reports: inventory value at cost by category, inventory age, retail sales by day, wholesale owed and overdue, harvest and production yields, state reporting health
+- [x] CSV download for packages, items, locations, customers, invoices, retail sales, and the audit trail (spreadsheet formulas in text are neutralised)
+- [x] CSV import for items, locations, customers, and opening inventory, with templates; all rows or none, with every problem listed by line
+- [x] REST API with per-facility keys (read-only or read and write); only a hash of each key is stored
+- [x] Webhooks for 13 kinds of event, signed with HMAC-SHA256, retried for about 15 hours, public https addresses only
+- [ ] API rate limiting
+- [ ] More write endpoints (only package adjustments for now)
+
+### Using the API and webhooks
+Owners create keys and webhooks under **Integrations**, which also documents every endpoint. Send keys as `Authorization: Bearer ct_...`.
+
+To check a webhook came from CannaTrace, read the `CannaTrace-Signature` header (`t=<seconds>,v1=<hex>`), compute HMAC-SHA256 of `"<t>.<raw body>"` with the webhook's secret, compare, and reject anything older than five minutes. `verifySignature` in `src/lib/integrations.ts` does exactly this.
+
+### Sending on a schedule
+State reports and webhooks are sent by calling `GET /api/sync/run` with `Authorization: Bearer <CRON_SECRET>`. On Vercel, set `CRON_SECRET` and add a cron job for that path; Vercel sends the header for you. Vercel's free plan only allows a daily cron, so use a paid plan or an outside scheduler for every few minutes. Without a schedule, records wait until someone presses **Send now** on State reporting.
+
 ### Known limits
 - Camera scanning has not been tested on a real phone. It needs HTTPS (or localhost) and camera permission.
 - COA files are stored in the database. That is fine to start; move them to file storage before heavy use.
@@ -191,5 +208,11 @@ Metrc adjustment reasons must match the names on your state's list in Metrc. Can
 - License verification records that a person checked the state lookup; it does not query the state automatically.
 - Cost per unit shows as unknown if any input package has no cost on record, rather than showing a partial figure.
 
-### Not started
-- [ ] Phase 8: Reporting, CSV import and export, REST API, webhooks
+
+## Before real use
+
+1. **Deploy** with a hosted Postgres and set `AUTH_SECRET`, `DATABASE_URL`, and `CRON_SECRET`. Do not load the demo data.
+2. **Have a lawyer and the state rules checked**: tax rates, purchase limits, label and receipt wording, manifests, and record retention all depend on the state and city.
+3. **State reporting**: Metrc requires applying as an integrator and getting a vendor key. New Mexico (NMS2S) has not published the API software needs, so records there are entered by hand for now.
+4. **Security review**: there is no password reset, two-factor sign-in, or API rate limiting yet.
+5. **Pilot** with one friendly operator before selling to anyone else.

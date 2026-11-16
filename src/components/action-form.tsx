@@ -39,12 +39,12 @@ export function ActionForm({
     >
       {children}
       {state?.error ? (
-        <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p role="alert" className="whitespace-pre-line rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {state.error}
         </p>
       ) : null}
       {state?.ok ? (
-        <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <p role="status" className="whitespace-pre-line break-all rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           {state.ok}
         </p>
       ) : null}
