@@ -35,7 +35,7 @@ describe.skipIf(!hasDb)("first-run setup and demo removal (throwaway database)",
       // Setup: validates, creates one owner, then refuses a second time.
       const good = `{ businessName: "Real Co", facilityName: "Main St", licenseNumber: "lic-1", licenseType: "RETAIL", state: "nm", ownerName: "Pat", email: "Pat@Example.com", password: "a-long-real-password" }`;
       expect(run(`${prelude} createFirstOwner({ ...${good}, password: "short" }).catch((e) => console.log(e.message)).finally(() => pool.end());`)).toMatch(/at least 12 characters/);
-      expect(run(`${prelude} createFirstOwner({ ...${good}, state: "New Mexico" }).catch((e) => console.log(e.message)).finally(() => pool.end());`)).toMatch(/two-letter state code/);
+      expect(run(`${prelude} createFirstOwner({ ...${good}, state: "New Mexico" }).catch((e) => console.log(e.message)).finally(() => pool.end());`)).toMatch(/Choose one of the listed states/);
       run(`${prelude} createFirstOwner(${good}).then(() => pool.end());`);
       expect(psql(name, "select email || ' ' || role from users")).toBe("pat@example.com OWNER");
       expect(psql(name, "select license_number || ' ' || state from facilities")).toBe("LIC-1 NM");
