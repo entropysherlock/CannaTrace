@@ -89,7 +89,7 @@ export function SectionTabs({ groups }: { groups: NavGroup[] }) {
   if (!item?.tabs || item.tabs.length < 2) return null;
   const current = best(item.tabs, pathname);
   return (
-    <nav aria-label={`${item.label} sections`} className="-mt-2 mb-5 overflow-x-auto border-b border-slate-200">
+    <nav aria-label={`${item.label} sections`} className="-mt-2 mb-5 overflow-x-auto overflow-y-hidden border-b border-slate-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <ul className="flex min-w-max gap-1">
         {item.tabs.map((tab) => {
           const on = tab.href === current?.href;
