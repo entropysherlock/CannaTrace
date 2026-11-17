@@ -9,7 +9,8 @@ import { db } from "@/lib/db";
 import { OWNER_ONLY, ROLES, ROLE_LABELS, cleanPermissions, permissionsFor } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { isOwner } from "@/lib/team";
-import { changeRoleAction, inviteAction, revokeInviteAction, setActiveAction } from "./actions";
+import { ResetLinkButton } from "@/components/reset-link-button";
+import { changeRoleAction, inviteAction, resetLinkAction, revokeInviteAction, setActiveAction } from "./actions";
 
 const BUILT_IN_HINTS: Record<string, string> = {
   OWNER: "Everything, including the team and API keys.",
@@ -76,7 +77,7 @@ export default async function TeamPage() {
                         {p.name} {self ? <span className="font-normal text-slate-500">(you)</span> : null}
                       </p>
                       <p className="truncate text-slate-600">{p.email}</p>
-                      {!p.active ? <p className="text-xs font-semibold text-amber-700">Switched off</p> : null}
+                      {!p.active ? <p className="text-xs font-semibold text-amber-700">Deactivated: can&apos;t sign in</p> : null}
                     </div>
                     {self || lockedForMe ? (
                       <span className="text-slate-700">{roleName}</span>
@@ -104,10 +105,11 @@ export default async function TeamPage() {
                             ) : null}
                           </select>
                         </ActionForm>
-                        <ActionForm action={setActiveAction} submitLabel={p.active ? "Switch off" : "Switch on"} quiet className="flex items-start">
+                        <ActionForm action={setActiveAction} submitLabel={p.active ? "Deactivate" : "Reactivate"} quiet className="flex items-start">
                           <input type="hidden" name="userId" value={p.id} />
                           <input type="hidden" name="active" value={p.active ? "false" : "true"} />
                         </ActionForm>
+                        {p.active ? <ResetLinkButton userId={p.id} name={p.name} action={resetLinkAction} /> : null}
                       </div>
                     )}
                   </li>

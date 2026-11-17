@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import Decimal from "decimal.js";
 import { and, asc, eq, sql } from "drizzle-orm";
 import {
@@ -10,14 +11,16 @@ import {
   retailSettings,
   saleLinePackages,
   saleLines,
+  saleReturnLines,
+  saleReturns,
   sales,
   type DrawerSession,
   type RetailSettings,
   type Sale,
 } from "@/db/schema";
-import { db, type Tx } from "./db";
+import { atomically, db, type Tx } from "./db";
 import { parseDate, parseMoney, parsePrice, todayIn } from "./distribution-math";
-import { InventoryError, audit, consumeFromPackageInTx, returnToPackageInTx, type Actor } from "./inventory";
+import { InventoryError, adjustPackage, audit, consumeFromPackageInTx, lockPackage, returnToPackageInTx, type Actor } from "./inventory";
 import { parsePositiveQty } from "./inventory-math";
 import { nextNumber } from "./numbering";
 import { combinedCap, effectiveLimits, minimumAge, packFor, requiresLabBeforeRetail, type StatePack } from "./rules";
@@ -48,6 +51,9 @@ const UNSET = {
   medicalTaxExempt: true,
   adultMinAge: 21,
   medicalMinAge: 18,
+  dailyLimits: false,
+  receiptWarning: null as string | null,
+  labelWarning: null as string | null,
 };
 
 export async function getRetailSettings(
@@ -67,8 +73,16 @@ export async function saveRetailSettings(
     exciseTaxPercent: unknown;
     salesTaxPercent: unknown;
     medicalTaxExempt: boolean;
+    dailyLimits?: boolean;
+    receiptWarning?: string | null;
+    labelWarning?: string | null;
   },
 ): Promise<void> {
+  const words = (v: string | null | undefined, what: string) => {
+    const t = (v ?? "").replace(/\r\n/g, "\n").trim();
+    if (t.length > 1500) throw new InventoryError(`${what} is too long (1,500 characters at most).`);
+    return t || null;
+  };
   const values = {
     flowerLimitGrams: store(parsePositiveQty(input.flowerLimitGrams, "Flower limit")),
     concentrateLimitGrams: store(parsePositiveQty(input.concentrateLimitGrams, "Concentrate limit")),
@@ -76,6 +90,9 @@ export async function saveRetailSettings(
     exciseTaxPercent: parsePercent(input.exciseTaxPercent, "Cannabis excise tax", 50).toFixed(3),
     salesTaxPercent: parsePercent(input.salesTaxPercent, "Sales tax", 50).toFixed(3),
     medicalTaxExempt: input.medicalTaxExempt,
+    ...(input.dailyLimits !== undefined ? { dailyLimits: input.dailyLimits } : {}),
+    ...(input.receiptWarning !== undefined ? { receiptWarning: words(input.receiptWarning, "The receipt warning") } : {}),
+    ...(input.labelWarning !== undefined ? { labelWarning: words(input.labelWarning, "The label warning") } : {}),
   };
   await db.transaction(async (tx) => {
     await tx
@@ -172,6 +189,9 @@ export type DrawerSummary = {
   cashTotal: Decimal;
   debitTotal: Decimal;
   expectedCash: Decimal;
+  /** Cash handed back for returns from this drawer. */
+  cashRefunds: Decimal;
+  refundCount: number;
 };
 
 export async function drawerSummary(tx: Tx | typeof db, session: DrawerSession): Promise<DrawerSummary> {
@@ -181,7 +201,14 @@ export async function drawerSummary(tx: Tx | typeof db, session: DrawerSession):
   // Debit share of each sale. Older sales have no debit amount saved: all-debit or all-cash.
   const debitOf = (s: Sale) => new Decimal(s.debitAmount ?? (s.paymentMethod === "DEBIT" ? (s.total ?? 0) : 0));
   const cashKept = done.map((s) => new Decimal(s.total ?? 0).sub(debitOf(s)));
+  const refunds = await tx
+    .select({ amount: saleReturns.amount })
+    .from(saleReturns)
+    .where(and(eq(saleReturns.drawerSessionId, session.id), eq(saleReturns.refundMethod, "CASH")));
+  const cashRefunds = refunds.reduce((acc, r) => acc.add(r.amount), new Decimal(0));
   return {
+    cashRefunds,
+    refundCount: refunds.length,
     saleCount: done.length,
     voidCount: rows.filter((s) => s.status === "VOIDED").length,
     subtotal: sum((s) => s.subtotal),
@@ -191,7 +218,7 @@ export async function drawerSummary(tx: Tx | typeof db, session: DrawerSession):
     total: sum((s) => s.total),
     cashTotal: cashKept.reduce((acc, v) => acc.add(v), new Decimal(0)),
     debitTotal: done.reduce((acc, s) => acc.add(debitOf(s)), new Decimal(0)),
-    expectedCash: expectedCash(session.openingCash, cashKept),
+    expectedCash: expectedCash(session.openingCash, cashKept).sub(cashRefunds),
   };
 }
 
@@ -235,7 +262,7 @@ export async function closeDrawer(actor: Actor, input: { countedCash: unknown })
  */
 export async function checkInCustomer(
   actor: Actor,
-  input: { birthDate: string; idExpires: string; customerType: string },
+  input: { birthDate: string; idExpires: string; customerType: string; idNumber?: string },
 ): Promise<Sale> {
   if (input.customerType !== "ADULT_USE" && input.customerType !== "MEDICAL") throw new InventoryError("Choose adult-use or medical.");
   const customerType: CustomerType = input.customerType;
@@ -250,6 +277,10 @@ export async function checkInCustomer(
     const ages = { adultMinAge: minimumAge(settings.adultMinAge, pack, "ADULT_USE"), medicalMinAge: minimumAge(settings.medicalMinAge, pack, "MEDICAL") };
     const problem = checkInProblem({ birthDate, idExpires, customerType }, ages, todayIn());
     if (problem) throw new InventoryError(problem);
+    const idNumber = (input.idNumber ?? "").trim();
+    if (settings.dailyLimits && !idNumber)
+      throw new InventoryError("This store counts purchase limits per customer per day. Enter the number from the customer's ID.");
+    const customerKey = idNumber ? customerKeyFor(actor.orgId, idNumber) : null;
     const session = await lockOpenDrawer(tx, actor);
     if (!session) throw new InventoryError("Open the cash drawer before serving customers.");
     const number = await nextNumber(tx, actor.facilityId, "S");
@@ -261,11 +292,12 @@ export async function checkInCustomer(
         drawerSessionId: session.id,
         number,
         customerType,
+        customerKey,
         userId: actor.userId,
         userName: actor.userName,
       })
       .returning();
-    await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "CHECK_IN", after: { number, customerType, idChecked: true } });
+    await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "CHECK_IN", after: { number, customerType, idChecked: true, dailyLimits: Boolean(customerKey) } });
     return sale;
   });
 }
@@ -351,10 +383,61 @@ async function inStock(tx: Tx, actor: Actor, itemId: string, pack: StatePack | n
   return { sellable, waitingOnLab: total.sub(sellable) };
 }
 
+/**
+ * For daily limits: a keyed one-way fingerprint of a customer's ID number. The same ID gives the same
+ * key at this business (and a different one at any other), and the number can't be worked back out.
+ */
+export function customerKeyFor(orgId: string, idNumber: string): string {
+  const normalized = idNumber.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (normalized.length < 4) throw new InventoryError("Enter the full number from the customer's ID.");
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) throw new Error("AUTH_SECRET is not set.");
+  return createHmac("sha256", `customer-id:${secret}`).update(`${orgId}:${normalized}`).digest("hex");
+}
+
+type LimitLine = Parameters<typeof limitUsage>[0][number];
+
+/** What this customer already bought today at completed sales anywhere in the business, for daily limits. */
+async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" | "customerKey">, settings: { dailyLimits: boolean }): Promise<LimitLine[]> {
+  if (!settings.dailyLimits || !sale.customerKey) return [];
+  return tx
+    .select({ quantity: saleLines.quantity, limitCategory: items.limitCategory, limitPerUnit: items.limitPerUnit })
+    .from(saleLines)
+    .innerJoin(sales, eq(sales.id, saleLines.saleId))
+    .innerJoin(items, eq(items.id, saleLines.itemId))
+    .where(
+      and(
+        eq(sales.orgId, sale.orgId),
+        eq(sales.customerKey, sale.customerKey),
+        eq(sales.status, "COMPLETED"),
+        sql`${sales.id} <> ${sale.id}`,
+        sql`(${sales.completedAt} at time zone 'America/Denver')::date = ${todayIn()}::date`,
+      ),
+    );
+}
+
 /** The first purchase limit this cart breaks, using the stricter of the store's and the state's numbers. */
-function limitCheck(lines: Parameters<typeof limitUsage>[0], settings: Awaited<ReturnType<typeof getRetailSettings>>, pack: StatePack | null, customer: CustomerType) {
+function limitCheck(
+  cart: Parameters<typeof limitUsage>[0],
+  settings: Awaited<ReturnType<typeof getRetailSettings>>,
+  pack: StatePack | null,
+  customer: CustomerType,
+  earlier: LimitLine[] = [],
+) {
   const { limits, fromState } = effectiveLimits(limitsOf(settings), pack, customer);
+  const lines = [...cart, ...earlier];
   const usage = limitUsage(lines);
+  if (earlier.length) {
+    // Daily limits: the same numbers, counted across today's purchases by this customer.
+    const before = limitUsage(earlier);
+    for (const k of ["FLOWER", "CONCENTRATE", "EDIBLE"] as const) {
+      if (usage[k].gt(limits[k])) {
+        const unit = k === "EDIBLE" ? "mg THC" : "g";
+        const name = k === "EDIBLE" ? "edibles" : k.toLowerCase();
+        return `This customer already bought ${before[k].toString()} ${unit} of ${name} earlier today. With this cart that's ${usage[k].toString()} ${unit}, over the daily limit of ${limits[k].toString()} ${unit}.`;
+      }
+    }
+  }
   const problem = limitProblem(usage, limits);
   const together = combinedCap(pack, customer);
   if (!problem && pack && together && usage.FLOWER.add(usage.CONCENTRATE).gt(together)) {
@@ -392,7 +475,8 @@ async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, itemId: str
   } else {
     await tx.insert(saleLines).values({ saleId: sale.id, itemId: item.id, quantity: store(newQuantity), unitPrice: item.price });
   }
-  const problem = limitCheck(await cartLines(tx, sale.id), await getRetailSettings(tx, actor.facilityId), pack, sale.customerType);
+  const settings = await getRetailSettings(tx, actor.facilityId);
+  const problem = limitCheck(await cartLines(tx, sale.id), settings, pack, sale.customerType, await earlierToday(tx, sale, settings));
   if (problem) throw new InventoryError(problem);
   return item.name;
 }
@@ -500,7 +584,9 @@ export async function completeSale(
     if (lines.length === 0) throw new InventoryError("The cart is empty.");
     const settings = await getRetailSettings(tx, actor.facilityId);
     const pack = await storePack(tx, actor.facilityId);
-    const problem = limitCheck(lines, settings, pack, sale.customerType);
+    // Lock out a second register finishing a sale for the same customer at the same moment.
+    if (sale.customerKey && settings.dailyLimits) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`daily:${sale.orgId}:${sale.customerKey}`}))`);
+    const problem = limitCheck(lines, settings, pack, sale.customerType, await earlierToday(tx, sale, settings));
     if (problem) throw new InventoryError(problem);
     const labGate = requiresLabBeforeRetail(pack);
 
@@ -603,4 +689,174 @@ export function happenedWithin(when: Date | null, ms: number): boolean {
 /** The moment a given number of milliseconds ago. */
 export function msAgo(ms: number): Date {
   return new Date(Date.now() - ms);
+}
+
+// ---------- Returns ----------
+
+export const RETURN_DISPOSITIONS = ["RESTOCK", "DISPOSE"] as const;
+export const REFUND_METHODS = ["CASH", "CARD"] as const;
+
+export type ReturnableLine = { saleLineId: string; itemName: string; sold: string; returned: string; returnable: string; unitPrice: string };
+
+/** Each line of a sale with how much is still returnable. */
+export async function returnableLines(tx: Tx | typeof db, saleId: string): Promise<ReturnableLine[]> {
+  const rows = await tx
+    .select({
+      saleLineId: saleLines.id,
+      itemName: items.name,
+      sold: saleLines.quantity,
+      unitPrice: saleLines.unitPrice,
+      returned: sql<string>`coalesce((select sum(${saleReturnLines.quantity}) from ${saleReturnLines} where ${saleReturnLines.saleLineId} = ${saleLines.id}), 0)`,
+    })
+    .from(saleLines)
+    .innerJoin(items, eq(items.id, saleLines.itemId))
+    .where(eq(saleLines.saleId, saleId))
+    .orderBy(asc(items.name));
+  return rows.map((r) => ({
+    ...r,
+    sold: new Decimal(r.sold).toString(),
+    returned: new Decimal(r.returned).toString(),
+    returnable: Decimal.max(new Decimal(r.sold).sub(r.returned), 0).toString(),
+    unitPrice: new Decimal(r.unitPrice).toFixed(2),
+  }));
+}
+
+/**
+ * Take items back from a completed sale, on any day. Sealed product goes back into the packages it was
+ * sold from; opened or damaged product goes back and is then written off as damaged, so the ledger and
+ * the state report both show what happened. The refund is the same share of what the customer paid
+ * (after discount and tax) as the returned items were of the sale. Cash comes out of the person's open
+ * drawer; card refunds are done on the card terminal and recorded here.
+ */
+export async function returnSale(
+  actor: Actor,
+  input: { saleId: string; lines: { saleLineId: string; quantity: unknown }[]; refundMethod: string; disposition: string; reason: string },
+): Promise<{ number: string; amount: string }> {
+  const reason = input.reason.trim().slice(0, 300);
+  if (!reason) throw new InventoryError("Say why it's being returned. It goes in the audit trail.");
+  if (!(REFUND_METHODS as readonly string[]).includes(input.refundMethod)) throw new InventoryError("Choose how the refund is given: cash or card.");
+  if (!(RETURN_DISPOSITIONS as readonly string[]).includes(input.disposition)) throw new InventoryError("Say whether the product is sealed (back to stock) or opened or damaged (written off).");
+  const wanted = input.lines
+    .map((l) => ({ saleLineId: String(l.saleLineId), raw: String(l.quantity ?? "").trim() }))
+    .filter((l) => l.raw !== "" && l.raw !== "0");
+  if (!wanted.length) throw new InventoryError("Enter how many of at least one item are coming back.");
+
+  return atomically(async () => {
+    return db.transaction(async (tx) => {
+      const sale = await lockSale(tx, actor, input.saleId, ["COMPLETED"], "returned");
+      const lines = await returnableLines(tx, sale.id);
+      const [{ refunded }] = await tx
+        .select({ refunded: sql<string>`coalesce(sum(${saleReturns.amount}), 0)` })
+        .from(saleReturns)
+        .where(eq(saleReturns.saleId, sale.id));
+      let drawerId: string | null = null;
+      if (input.refundMethod === "CASH") {
+        const drawer = await lockOpenDrawer(tx, actor);
+        if (!drawer) throw new InventoryError("Open your cash drawer to give a cash refund, or refund it to their card.");
+        drawerId = drawer.id;
+      }
+
+      // Work out the refund from the share of the sale coming back.
+      let returnedValue = new Decimal(0);
+      const plan: { line: ReturnableLine; quantity: Decimal }[] = [];
+      for (const w of wanted) {
+        const line = lines.find((l) => l.saleLineId === w.saleLineId);
+        if (!line) throw new InventoryError("One of those items isn't on this sale.");
+        const quantity = parsePositiveQty(w.raw, `Quantity of ${line.itemName}`);
+        if (quantity.gt(line.returnable))
+          throw new InventoryError(`Only ${line.returnable} of ${line.itemName} can still be returned (${line.sold} sold, ${line.returned} already returned).`);
+        plan.push({ line, quantity });
+        returnedValue = returnedValue.add(quantity.mul(line.unitPrice));
+      }
+      const subtotal = new Decimal(sale.subtotal ?? 0);
+      const total = new Decimal(sale.total ?? 0);
+      const remaining = total.sub(refunded);
+      const everything = lines.every((l) => {
+        const p = plan.find((x) => x.line.saleLineId === l.saleLineId);
+        return new Decimal(l.returnable).eq(p?.quantity ?? 0);
+      });
+      // The last return gives back exactly what's left, so the pennies always add up to the sale total.
+      const amount = everything ? remaining : Decimal.min(remaining, subtotal.isZero() ? new Decimal(0) : total.mul(returnedValue).div(subtotal).toDecimalPlaces(2, Decimal.ROUND_HALF_UP));
+
+      const number = await nextNumber(tx, actor.facilityId, "R");
+      const [ret] = await tx
+        .insert(saleReturns)
+        .values({
+          orgId: actor.orgId,
+          facilityId: actor.facilityId,
+          saleId: sale.id,
+          number,
+          refundMethod: input.refundMethod,
+          drawerSessionId: drawerId,
+          amount: amount.toFixed(2),
+          disposition: input.disposition,
+          reason,
+          userId: actor.userId,
+          userName: actor.userName,
+        })
+        .returning();
+
+      // Put the quantity back into the packages it was sold from, newest first.
+      for (const { line, quantity } of plan) {
+        const sources = await tx
+          .select({ packageId: saleLinePackages.packageId, quantity: saleLinePackages.quantity })
+          .from(saleLinePackages)
+          .where(eq(saleLinePackages.saleLineId, line.saleLineId))
+          .orderBy(asc(saleLinePackages.packageId));
+        const already = await tx
+          .select({ packageId: saleReturnLines.packageId, quantity: sql<string>`sum(${saleReturnLines.quantity})` })
+          .from(saleReturnLines)
+          .where(eq(saleReturnLines.saleLineId, line.saleLineId))
+          .groupBy(saleReturnLines.packageId);
+        let need = quantity;
+        for (const src of sources.reverse()) {
+          if (need.lte(0)) break;
+          const back = new Decimal(already.find((a) => a.packageId === src.packageId)?.quantity ?? 0);
+          const room = new Decimal(src.quantity).sub(back);
+          if (room.lte(0)) continue;
+          const take = Decimal.min(need, room);
+          const before = await lockPackage(tx, actor, src.packageId);
+          if (before.status === "DESTROYED") throw new InventoryError(`Package ${before.tag}, which ${line.itemName} came from, has been destroyed, so the return can't be recorded against it.`);
+          const after = await returnToPackageInTx(tx, actor, {
+            packageId: src.packageId,
+            quantity: take,
+            note: `Return ${number} from sale ${sale.number}: ${reason}`,
+            auditAction: "RETURNED_BY_CUSTOMER",
+          });
+          if (input.disposition === "DISPOSE") {
+            // Opened or damaged: written off straight away, so it can't be sold again.
+            await adjustPackage(actor, {
+              packageId: src.packageId,
+              newQuantity: new Decimal(after.quantity).sub(take).toString(),
+              reasonCode: "DAMAGE",
+              note: `Customer return ${number} not resellable: ${reason}`,
+            });
+          }
+          await tx.insert(saleReturnLines).values({ returnId: ret.id, saleLineId: line.saleLineId, packageId: src.packageId, quantity: store(take) });
+          need = need.sub(take);
+        }
+        if (need.gt(0)) throw new InventoryError(`The packages ${line.itemName} was sold from can't take back ${need.toString()} more.`);
+      }
+
+      await audit(tx, actor, {
+        entityType: "Sale",
+        entityId: sale.id,
+        action: "RETURN",
+        after: {
+          number: sale.number,
+          return: number,
+          refund: amount.toFixed(2),
+          refundMethod: input.refundMethod,
+          disposition: input.disposition,
+          items: plan.map((p) => `${p.quantity.toString()} × ${p.line.itemName}`),
+        },
+        reason,
+      });
+      return { number, amount: amount.toFixed(2) };
+    });
+  });
+}
+
+export async function returnsForSale(saleId: string) {
+  return db.select().from(saleReturns).where(eq(saleReturns.saleId, saleId)).orderBy(asc(saleReturns.createdAt));
 }

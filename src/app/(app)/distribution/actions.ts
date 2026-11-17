@@ -26,6 +26,7 @@ import {
   updateVendors,
   verifyCustomerLicense,
   verifyDestinationLicense,
+  issueCreditMemo,
 } from "@/lib/distribution";
 import { and, eq } from "drizzle-orm";
 import { destinations } from "@/db/schema";
@@ -265,6 +266,16 @@ export async function paymentAction(_state: FormState, formData: FormData): Prom
     });
     refresh();
     return { ok: result.balance === "0.00" ? "Payment recorded. This invoice is paid in full." : `Payment recorded. $${result.balance} still owed.` };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function creditMemoAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const result = await issueCreditMemo(await seller(), { invoiceId: field(formData, "invoiceId"), amount: field(formData, "amount"), reason: field(formData, "reason") });
+    refresh();
+    return { ok: result.balance === "0.00" ? "Credit recorded. Nothing more is owed on this invoice." : `Credit recorded. $${result.balance} still owed.` };
   } catch (error) {
     return toFormError(error);
   }

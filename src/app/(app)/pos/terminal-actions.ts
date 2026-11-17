@@ -43,7 +43,7 @@ export async function terminalOpenDrawer(openingCash: string): Promise<TerminalR
   });
 }
 
-export async function terminalCheckIn(input: { birthDate: string; idExpires: string; customerType: string }): Promise<TerminalResult> {
+export async function terminalCheckIn(input: { birthDate: string; idExpires: string; customerType: string; idNumber?: string }): Promise<TerminalResult> {
   return run(async (actor) => ({ saleId: (await checkInCustomer(actor, input)).id }));
 }
 

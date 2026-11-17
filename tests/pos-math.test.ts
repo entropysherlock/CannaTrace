@@ -118,7 +118,7 @@ describe("payments, quick cash, and ID barcodes", () => {
   it("reads US and Canadian ID barcodes, with or without line breaks", async () => {
     const { parseIdBarcode } = await import("@/lib/pos-math");
     const us = "@\n\x1e\rANSI 636014080102DL00410288ZC03290034DLDAQD1234562\nDCSPUBLIC\nDACJOHN\nDBB03141988\nDBA03142028\nDAJNM\nDCGUSA\n";
-    expect(parseIdBarcode(us)).toEqual({ firstName: "John", lastName: "Public", birthDate: "1988-03-14", idExpires: "2028-03-14", state: "NM" });
+    expect(parseIdBarcode(us)).toEqual({ firstName: "John", lastName: "Public", birthDate: "1988-03-14", idExpires: "2028-03-14", state: "NM", idNumber: "D1234562" });
     expect(parseIdBarcode(us.replace(/[\n\r\x1e]/g, ""))).toMatchObject({ birthDate: "1988-03-14", idExpires: "2028-03-14" });
     expect(parseIdBarcode("@ANSI 636012DLDAQ1\nDCGCAN\nDBB19880314\nDBA20280314\nDAAPUBLIC,JANE,Q\n")).toMatchObject({
       firstName: "Jane",

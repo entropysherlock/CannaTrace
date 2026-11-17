@@ -25,6 +25,8 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/signout") return NextResponse.next();
   // Invite links must open even for someone already signed in on this browser (an owner testing one, say).
   if (pathname.startsWith("/invite/")) return NextResponse.next();
+  // Same for password reset links and the page explaining how to get one.
+  if (pathname === "/reset" || pathname.startsWith("/reset/")) return NextResponse.next();
   // The live demo signs visitors in itself, and must also work for someone already in the demo.
   if (pathname === "/demo") return NextResponse.next();
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

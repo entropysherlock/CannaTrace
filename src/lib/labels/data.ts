@@ -17,6 +17,7 @@ import {
   plantBatches,
   plants,
   strains,
+  retailSettings,
 } from "@/db/schema";
 import type { LabelKind, LabelRecord } from "./types";
 
@@ -32,7 +33,8 @@ const trimNum = (s: string | null) => (s === null ? null : String(Number(s)));
 async function facilityValues(scope: Scope) {
   const [f] = await db.select().from(facilities).where(and(eq(facilities.id, scope.facilityId), eq(facilities.orgId, scope.orgId)));
   if (!f) throw new LabelDataError("This facility was not found.");
-  return { "facility.name": f.name, "facility.license": f.licenseNumber, "facility.state": f.state, today: day(new Date()) };
+  const [store] = await db.select({ warning: retailSettings.labelWarning }).from(retailSettings).where(eq(retailSettings.facilityId, f.id));
+  return { "facility.name": f.name, "facility.license": f.licenseNumber, "facility.state": f.state, today: day(new Date()), "store.warning": store?.warning ?? null };
 }
 
 /** Throw if any requested id wasn't found here. Records at another facility look exactly like records that don't exist. */

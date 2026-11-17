@@ -13,6 +13,7 @@ export const FIELDS: FieldDef[] = [
   { key: "facility.license", label: "License number", example: "CCD-0001", kinds: ["PLANT", "BATCH", "PACKAGE", "PRODUCT", "TRANSFER"] },
   { key: "facility.state", label: "State", example: "NM", kinds: ["PLANT", "BATCH", "PACKAGE", "PRODUCT", "TRANSFER"] },
   { key: "today", label: "Print date", example: "2026-11-17", kinds: ["PLANT", "BATCH", "PACKAGE", "PRODUCT", "TRANSFER"] },
+  { key: "store.warning", label: "Store warning (from Register → Store rules)", example: "For use only by adults 21 and older. Keep out of reach of children.", kinds: ["PACKAGE", "PRODUCT", "TRANSFER"] },
 
   { key: "plant.tag", label: "Plant tag", example: "PL-000123", kinds: ["PLANT"] },
   { key: "plant.strain", label: "Strain", example: "Blue Dream", kinds: ["PLANT"] },

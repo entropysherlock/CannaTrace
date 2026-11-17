@@ -156,7 +156,8 @@ export function quickCashAmounts(total: Decimal.Value): string[] {
   return [...out].sort((a, b) => Number(a) - Number(b)).slice(0, 5);
 }
 
-export type IdScan = { firstName: string | null; lastName: string | null; birthDate: string; idExpires: string; state: string | null };
+/** idNumber: the ID's own number (AAMVA field DAQ), used only to count daily purchase limits. */
+export type IdScan = { firstName: string | null; lastName: string | null; birthDate: string; idExpires: string; state: string | null; idNumber: string | null };
 
 /** A YYYY-MM-DD date from an AAMVA 8-digit date, which is MMDDCCYY in the US and CCYYMMDD in Canada. */
 function aamvaDate(raw: string | undefined, canadian: boolean): string | null {
@@ -195,5 +196,6 @@ export function parseIdBarcode(raw: string): IdScan | null {
   // Older cards put the whole name in DAA as LAST,FIRST,MIDDLE.
   if (!first && !last && fields.get("DAA")) [last, first] = fields.get("DAA")!.split(/[,$]/);
   const state = /DAJ([A-Z]{2})/.exec(raw)?.[1] ?? null;
-  return { firstName: title(first), lastName: title(last), birthDate, idExpires, state };
+  const idNumber = fields.get("DAQ")?.replace(/[^A-Za-z0-9]/g, "") || null;
+  return { firstName: title(first), lastName: title(last), birthDate, idExpires, state, idNumber: idNumber && idNumber.length >= 4 ? idNumber : null };
 }

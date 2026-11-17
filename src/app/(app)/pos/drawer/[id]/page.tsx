@@ -69,6 +69,7 @@ export default async function DrawerReportPage({ params }: { params: Promise<{ i
               {line("Debit", usd(summary.debitTotal))}
               {line("Cash", usd(summary.cashTotal))}
               {line("Starting cash", usd(drawer.openingCash))}
+              {summary.refundCount ? line(`Cash refunds (${summary.refundCount} return${summary.refundCount === 1 ? "" : "s"})`, `-${usd(summary.cashRefunds)}`) : null}
               {line("Cash expected in drawer", usd(summary.expectedCash))}
               {line("Cash counted", counted ? usd(counted) : "not counted yet")}
               {line(

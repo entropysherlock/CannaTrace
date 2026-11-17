@@ -5,6 +5,7 @@ import { unitPrice } from "@/components/distribution-ui";
 import { PosTabs } from "@/components/pos-tabs";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { discountPresets, facilities, items, retailPrices } from "@/db/schema";
+import { labelPackFor } from "@/lib/labels/jurisdictions";
 import { PACKS, rulesOf } from "@/lib/rules";
 import { StoreRulesForm, type StatePrefill } from "@/components/store-rules-form";
 import { db } from "@/lib/db";
@@ -141,6 +142,10 @@ export default async function MenuPage() {
                 sales: settings.saved ? num(settings.salesTaxPercent) : "",
               }}
               medicalTaxExempt={settings.medicalTaxExempt}
+              dailyLimits={settings.dailyLimits}
+              receiptWarning={settings.receiptWarning ?? ""}
+              labelWarning={settings.labelWarning ?? ""}
+              labelWarningSuggestion={labelWarningSuggestion(facility?.state)}
               prefills={prefills}
               facilityState={facility?.state ?? ""}
             />
@@ -160,4 +165,10 @@ export default async function MenuPage() {
       </div>
     </>
   );
+}
+
+/** The state's required label warning, where SmartLabel's verified rules spell out exact wording. */
+function labelWarningSuggestion(state: string | null | undefined): { text: string; citation: string } | null {
+  const rule = labelPackFor(state)?.rules.find((r) => /warning/i.test(r.title) && r.check.type === "statement");
+  return rule && rule.check.type === "statement" ? { text: rule.check.text, citation: rule.citation } : null;
 }

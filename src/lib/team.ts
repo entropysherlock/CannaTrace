@@ -1,8 +1,8 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
-import { auditLogs, customRoles, facilities, invites, organizations, users } from "@/db/schema";
+import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
+import { auditLogs, customRoles, facilities, invites, organizations, passwordResets, users } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
 import { OWNER_ONLY, ROLES, ROLE_LABELS, can, cleanPermissions, permissionsFor, type Permission, type Role } from "./rbac";
@@ -251,5 +251,80 @@ export async function deleteCustomRole(session: Session, roleId: string): Promis
     await tx.update(invites).set({ customRoleId: null }).where(eq(invites.customRoleId, role.id));
     await tx.delete(customRoles).where(eq(customRoles.id, role.id));
     await log(tx, session, "Role", role.id, "DELETE", { name: role.name });
+  });
+}
+
+// ---------- Passwords ----------
+
+export const RESET_HOURS = 24;
+/** Whole seconds, so a sign-in made in the same second as the change still counts (cookie times are in seconds). */
+const changedNow = () => new Date(Math.floor(Date.now() / 1000) * 1000);
+
+/**
+ * A one-time link a manager hands to a team member who forgot their password. Same rules as
+ * changing their access: owners' links come only from an owner, and never for yourself.
+ */
+export async function createPasswordReset(session: Session, userId: string): Promise<{ token: string; name: string; hours: number }> {
+  needTeamAccess(session);
+  return db.transaction(async (tx) => {
+    const target = await lockTarget(tx, session, userId);
+    if (!target.active) throw new InventoryError(`${target.name} is deactivated. Reactivate them first.`);
+    // Only the newest link works.
+    await tx.update(passwordResets).set({ usedAt: new Date() }).where(and(eq(passwordResets.userId, target.id), isNull(passwordResets.usedAt)));
+    const token = randomBytes(32).toString("base64url");
+    await tx.insert(passwordResets).values({
+      orgId: session.orgId,
+      userId: target.id,
+      tokenHash: hashToken(token),
+      createdByName: session.name,
+      expiresAt: new Date(Date.now() + RESET_HOURS * 3_600_000),
+    });
+    await log(tx, session, "User", target.id, "PASSWORD_RESET_LINK", { hours: RESET_HOURS });
+    return { token, name: target.name, hours: RESET_HOURS };
+  });
+}
+
+async function openReset(tx: Tx | typeof db, token: string, lock = false) {
+  if (!/^[A-Za-z0-9_-]{20,100}$/.test(token)) throw new InventoryError("This reset link isn't valid. Ask your manager for a new one.");
+  const q = tx
+    .select({ reset: passwordResets, user: users })
+    .from(passwordResets)
+    .innerJoin(users, eq(users.id, passwordResets.userId))
+    .where(and(eq(passwordResets.tokenHash, hashToken(token)), isNull(passwordResets.usedAt), gt(passwordResets.expiresAt, new Date())));
+  const [row] = lock ? await q.for("update", { of: passwordResets }) : await q;
+  if (!row || !row.user.active || row.user.orgId !== row.reset.orgId) throw new InventoryError("This reset link has expired or was already used. Ask your manager for a new one.");
+  return row;
+}
+
+export async function lookupReset(token: string): Promise<{ name: string; email: string }> {
+  const { user } = await openReset(db, token);
+  return { name: user.name, email: user.email };
+}
+
+/** Set a new password from a reset link. Every existing sign-in for that person stops working. */
+export async function completeReset(token: string, password: string): Promise<{ email: string }> {
+  checkPassword(password);
+  const passwordHash = await bcrypt.hash(password, 12);
+  return db.transaction(async (tx) => {
+    const { reset, user } = await openReset(tx, token, true);
+    await tx.update(users).set({ passwordHash, passwordChangedAt: changedNow() }).where(eq(users.id, user.id));
+    await tx.update(passwordResets).set({ usedAt: new Date() }).where(and(eq(passwordResets.userId, user.id), isNull(passwordResets.usedAt)));
+    await log(tx, { orgId: user.orgId, userId: user.id, name: user.name }, "User", user.id, "PASSWORD_RESET", { via: `link from ${reset.createdByName}` });
+    return { email: user.email };
+  });
+}
+
+/** Change your own password. Other devices are signed out; the caller re-issues this device's sign-in. */
+export async function changeOwnPassword(session: Session, input: { current: string; next: string }): Promise<void> {
+  if (session.support) throw new InventoryError("Support visits can't change a customer's password.");
+  checkPassword(input.next);
+  if (input.next === input.current) throw new InventoryError("Choose a password different from the current one.");
+  const [user] = await db.select().from(users).where(and(eq(users.id, session.userId), eq(users.orgId, session.orgId), eq(users.active, true)));
+  if (!user || !(await bcrypt.compare(input.current, user.passwordHash))) throw new InventoryError("Your current password isn't right.");
+  const passwordHash = await bcrypt.hash(input.next, 12);
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({ passwordHash, passwordChangedAt: changedNow() }).where(eq(users.id, user.id));
+    await tx.update(passwordResets).set({ usedAt: new Date() }).where(and(eq(passwordResets.userId, user.id), isNull(passwordResets.usedAt)));
+    await log(tx, session, "User", user.id, "PASSWORD_CHANGE", {});
   });
 }

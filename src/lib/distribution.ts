@@ -594,6 +594,30 @@ export async function recordPayment(
   });
 }
 
+/**
+ * A credit memo: lowers what a customer owes on an invoice without money changing hands (a return,
+ * a damaged delivery, a price correction). Recorded alongside payments so the balance stays right.
+ */
+export async function issueCreditMemo(actor: Actor, input: { invoiceId: string; amount: unknown; reason: string }): Promise<{ balance: string }> {
+  const amount = parseMoney(input.amount, "Credit amount");
+  const reason = required(input.reason, "Say what the credit is for, for example returned product or a damaged delivery.", 200);
+  return db.transaction(async (tx) => {
+    const [invoice] = await tx
+      .select()
+      .from(invoices)
+      .where(and(eq(invoices.id, input.invoiceId), eq(invoices.orgId, actor.orgId), eq(invoices.facilityId, actor.facilityId)))
+      .for("update");
+    if (!invoice) throw new InventoryError("That invoice was not found at this facility.");
+    const paid = await tx.select({ amount: payments.amount }).from(payments).where(eq(payments.invoiceId, invoice.id));
+    const { balance } = invoiceBalance(invoice.total, paid.map((p) => p.amount));
+    if (balance.lte(0)) throw new InventoryError(`Invoice ${invoice.number} is already settled in full, so there's nothing to credit.`);
+    if (amount.gt(balance)) throw new InventoryError(`The credit can be at most the $${balance.toFixed(2)} still owed on invoice ${invoice.number}.`);
+    await tx.insert(payments).values({ invoiceId: invoice.id, amount: amount.toFixed(2), method: "CREDIT_MEMO", reference: reason, paidOn: todayIn(), userName: actor.userName });
+    await audit(tx, actor, { entityType: "Invoice", entityId: invoice.id, action: "CREDIT_MEMO", after: { amount: amount.toFixed(2) }, reason });
+    return { balance: balance.sub(amount).toFixed(2) };
+  });
+}
+
 // ---------- Destinations and vendor edits ----------
 
 export type DestinationInput = {

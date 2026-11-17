@@ -28,13 +28,24 @@ export function StoreRulesForm({
   medicalTaxExempt,
   prefills,
   facilityState,
+  dailyLimits: initialDaily = false,
+  receiptWarning = "",
+  labelWarning = "",
+  labelWarningSuggestion = null,
 }: {
   initial: Values;
   medicalTaxExempt: boolean;
   prefills: StatePrefill[];
   facilityState: string;
+  dailyLimits?: boolean;
+  receiptWarning?: string;
+  labelWarning?: string;
+  /** Wording from a verified state label rule, offered as a one-click start. */
+  labelWarningSuggestion?: { text: string; citation: string } | null;
 }) {
   const [values, setValues] = useState(initial);
+  const [daily, setDaily] = useState(initialDaily);
+  const [labelText, setLabelText] = useState(labelWarning);
   const [state, setState] = useState(prefills.some((p) => p.state === facilityState) ? facilityState : (prefills[0]?.state ?? ""));
   const [filled, setFilled] = useState<StatePrefill | null>(null);
   const set = (key: keyof Values) => (e: React.ChangeEvent<HTMLInputElement>) => setValues((v) => ({ ...v, [key]: e.target.value }));
@@ -48,6 +59,7 @@ export function StoreRulesForm({
       concentrate: p.concentrate ?? v.concentrate,
       edible: p.edible ?? v.edible,
     }));
+    if (p.perDay) setDaily(true);
     setFilled(p);
   };
 
@@ -116,6 +128,26 @@ export function StoreRulesForm({
         <input type="checkbox" name="medicalTaxExempt" defaultChecked={medicalTaxExempt} className="h-5 w-5 accent-brand-700" />
         Medical patients pay no tax
       </label>
+      <label className="flex items-start gap-2 text-sm text-slate-700">
+        <input type="checkbox" name="dailyLimits" checked={daily} onChange={(e) => setDaily(e.target.checked)} className="mt-0.5 h-5 w-5 accent-brand-700" />
+        <span>
+          Count purchase limits per customer per day
+          <span className="block text-xs text-slate-500">
+            The register asks for the customer&apos;s ID number (scanned IDs fill it in) and adds up their purchases today across all your stores. Only a scrambled code of the number is kept.
+          </span>
+        </span>
+      </label>
+      <Field label="Receipt warning (optional)" hint="Printed at the bottom of every receipt. Copy the exact wording your state requires; CannaTrace doesn't supply receipt wording.">
+        <textarea name="receiptWarning" defaultValue={receiptWarning} rows={3} maxLength={1500} className={inputClass} />
+      </Field>
+      <Field label="Label warning (optional)" hint="Available to label templates as the “Store warning” field.">
+        <textarea name="labelWarning" value={labelText} onChange={(e) => setLabelText(e.target.value)} rows={3} maxLength={1500} className={inputClass} />
+      </Field>
+      {labelWarningSuggestion && labelText.trim() !== labelWarningSuggestion.text ? (
+        <button type="button" onClick={() => setLabelText(labelWarningSuggestion.text)} className="-mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:underline">
+          <Wand2 className="h-4 w-4" aria-hidden="true" /> Use the required wording from {labelWarningSuggestion.citation}
+        </button>
+      ) : null}
     </ActionForm>
   );
 }

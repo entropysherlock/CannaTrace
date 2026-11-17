@@ -100,6 +100,7 @@ export const WEBHOOK_EVENTS = [
   "TRANSFER_DELIVERED",
   "RETAIL_SALE",
   "RETAIL_SALE_VOIDED",
+  "RETAIL_SALE_RETURNED",
 ] as const;
 
 export async function createWebhook(actor: Actor, input: { url: string; events: string[] }): Promise<{ secret: string }> {

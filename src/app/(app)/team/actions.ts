@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { requirePermission } from "@/lib/session";
-import { changeUserRole, createInvite, deleteCustomRole, revokeInvite, saveCustomRole, setUserActive } from "@/lib/team";
+import { changeUserRole, createInvite, createPasswordReset, deleteCustomRole, revokeInvite, saveCustomRole, setUserActive } from "@/lib/team";
 
 export type InviteState = (FormState & { link?: string }) | null;
 
@@ -24,6 +24,18 @@ export async function inviteAction(_state: InviteState, formData: FormData): Pro
     return {
       ok: `Invite ready for ${invite.email} as ${invite.label}. Send them this link. It works once and expires in 7 days.`,
       link: `${await siteOrigin()}/invite/${invite.token}`,
+    };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function resetLinkAction(_state: InviteState, formData: FormData): Promise<InviteState> {
+  try {
+    const reset = await createPasswordReset(await requirePermission("users.manage"), field(formData, "userId"));
+    return {
+      ok: `Send this link to ${reset.name}. It lets them set a new password once, within ${reset.hours} hours. Any older reset link stops working.`,
+      link: `${await siteOrigin()}/reset/${reset.token}`,
     };
   } catch (error) {
     return toFormError(error);
@@ -55,7 +67,7 @@ export async function setActiveAction(_state: FormState, formData: FormData): Pr
     const active = field(formData, "active") === "true";
     await setUserActive(await requirePermission("users.manage"), field(formData, "userId"), active);
     revalidatePath("/team");
-    return { ok: active ? "They can sign in again." : "Switched off. They are signed out and cannot sign in." };
+    return { ok: active ? "Reactivated. They can sign in again." : "Deactivated. They're signed out everywhere and can't sign in until reactivated. Their history stays in the audit trail." };
   } catch (error) {
     return toFormError(error);
   }

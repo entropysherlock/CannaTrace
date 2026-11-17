@@ -62,11 +62,51 @@ test("a new business signs up, builds a role, invites someone, and they join wit
   await expect(them.getByText("This invite has already been used.")).toBeVisible();
   await theirs.close();
 
-  // The owner switches them off, and their next page sends them to sign in
+  // They forget their password: the owner makes a one-time reset link, and they set a new one
   await page.goto("/team");
   const row = page.locator("li", { hasText: `lead-${run}@e2e.test` });
-  await row.getByRole("button", { name: "Switch off" }).click();
-  await expect(page.getByText("Switched off.").filter({ visible: true }).first()).toBeVisible();
+  await row.getByRole("button", { name: "Make a password reset link for Lee Lead" }).click();
+  const resetLink = await row.getByLabel("Reset link for Lee Lead", { exact: true }).inputValue();
+  expect(resetLink).toMatch(/\/reset\/[\w-]{40,}$/);
+  const later = await browser.newContext();
+  const lee = await later.newPage();
+  await lee.goto("/login");
+  await lee.getByRole("link", { name: "Forgot your password?" }).click();
+  await expect(lee.getByRole("heading", { name: "Forgot your password?" })).toBeVisible();
+  await lee.goto(resetLink);
+  await expect(lee.getByRole("heading", { name: "Set a new password" })).toBeVisible();
+  await lee.locator('input[name="password"]').filter({ visible: true }).fill("a-new-password-for-lee");
+  await lee.locator('input[name="confirm"]').filter({ visible: true }).fill("a-new-password-for-lee");
+  await lee.getByRole("button", { name: "Save new password" }).click();
+  await expect(lee.getByText("Your password was changed. Sign in with the new one.")).toBeVisible();
+  await lee.getByLabel("Email").filter({ visible: true }).fill(`lead-${run}@e2e.test`);
+  await lee.getByLabel("Password").filter({ visible: true }).fill(PASSWORD);
+  await lee.getByRole("button", { name: "Sign in" }).click();
+  await expect(lee.getByText("That email and password do not match an active account.")).toBeVisible();
+  await lee.getByLabel("Password").filter({ visible: true }).fill("a-new-password-for-lee");
+  await lee.getByRole("button", { name: "Sign in" }).click();
+  await expect(lee).toHaveURL(/\/dashboard/);
+  // The link only works once
+  await lee.goto(resetLink);
+  await expect(lee.getByRole("heading", { name: "Reset link not available" })).toBeVisible();
+  // They can change it themselves from Password in the sidebar
+  await lee.goto("/account");
+  await lee.locator('input[name="current"]').filter({ visible: true }).fill("a-new-password-for-lee");
+  await lee.locator('input[name="next"]').filter({ visible: true }).fill("lees-own-new-password");
+  await lee.locator('input[name="confirm"]').filter({ visible: true }).fill("lees-own-new-password");
+  await lee.getByRole("button", { name: "Change password" }).click();
+  await expect(lee.getByText("Password changed. You've been signed out everywhere else.")).toBeVisible();
+  await lee.goto("/dashboard");
+  await expect(lee).toHaveURL(/\/dashboard/);
+
+  // The owner deactivates them, and their next page sends them to sign in
+  await page.goto("/team");
+  await row.getByRole("button", { name: "Deactivate" }).click();
+  await expect(page.getByText("Deactivated. They").filter({ visible: true }).first()).toBeVisible();
+  await expect(row.getByText("Deactivated: can't sign in")).toBeVisible();
+  await lee.goto("/dashboard");
+  await expect(lee).toHaveURL(/\/login/);
+  await later.close();
 });
 
 test("the CannaTrace logo opens the homepage, which offers a way back to the dashboard", async ({ page }) => {
