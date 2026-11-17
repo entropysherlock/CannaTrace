@@ -12,7 +12,7 @@ test("a new business signs up, builds a role, invites someone, and they join wit
   await page.locator('input[name="facilityName"]').filter({ visible: true }).fill("Front St");
   await page.locator('input[name="licenseNumber"]').filter({ visible: true }).fill(`E2E-${run}`);
   await page.locator('select[name="licenseType"]').filter({ visible: true }).selectOption("RETAIL");
-  await page.locator('input[name="state"]').filter({ visible: true }).fill("NM");
+  await page.locator('select[name="state"]').filter({ visible: true }).selectOption("NM");
   await page.locator('input[name="ownerName"]').filter({ visible: true }).fill("Team Owner");
   await page.locator('input[name="email"]').filter({ visible: true }).fill(`owner-${run}@e2e.test`);
   await page.locator('input[name="password"]').filter({ visible: true }).fill(PASSWORD);
