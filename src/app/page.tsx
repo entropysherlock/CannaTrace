@@ -18,6 +18,7 @@ import {
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LeafMark, Logo } from "@/components/logo";
+import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "CannaTrace · Seed-to-sale software for cannabis operators",
@@ -112,7 +113,12 @@ function ProductPreview() {
   );
 }
 
-export default function HomePage() {
+// Reads the sign-in cookie, so the buttons can say "Go to dashboard" for people already signed in.
+export const instant = false;
+
+export default async function HomePage() {
+  const signedIn = Boolean(await getSession());
+  const cta = signedIn ? { href: "/dashboard", label: "Go to dashboard" } : { href: "/signup", label: "Get started" };
   return (
     <div className="bg-white">
       <header className="sticky top-0 z-20 border-b border-slate-100 bg-white/90 backdrop-blur">
@@ -132,11 +138,13 @@ export default function HomePage() {
             </a>
           </nav>
           <div className="flex items-center gap-2">
-            <Link href="/login" className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
-              Sign in
-            </Link>
-            <Link href="/signup" className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-800">
-              Get started
+            {signedIn ? null : (
+              <Link href="/login" className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                Sign in
+              </Link>
+            )}
+            <Link href={cta.href} className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-800">
+              {cta.label}
             </Link>
           </div>
         </div>
@@ -156,10 +164,10 @@ export default function HomePage() {
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
-                href="/signup"
+                href={cta.href}
                 className="inline-flex items-center gap-2 rounded-lg bg-brand-700 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-brand-800"
               >
-                Get started <ArrowRight className="h-5 w-5" aria-hidden="true" />
+                {cta.label} <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </Link>
               <a
                 href="#features"
@@ -239,10 +247,10 @@ export default function HomePage() {
           <h2 className="mt-4 text-3xl font-bold tracking-tight">Run your whole operation in one place</h2>
           <p className="mx-auto mt-2 max-w-xl text-brand-100">Set up your business, add your licenses, and start tracking today.</p>
           <Link
-            href="/signup"
+            href={cta.href}
             className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-semibold text-brand-900 shadow-sm hover:bg-brand-50"
           >
-            Get started <ArrowRight className="h-5 w-5" aria-hidden="true" />
+            {cta.label} <ArrowRight className="h-5 w-5" aria-hidden="true" />
           </Link>
         </div>
       </section>
