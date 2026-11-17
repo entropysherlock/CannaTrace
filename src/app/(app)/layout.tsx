@@ -88,7 +88,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen md:flex">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-brand-950 p-4 text-white md:flex print:!hidden">
-        <Link href="/dashboard" className="mb-6 px-2">
+        <Link href="/" className="mb-6 px-2" title="CannaTrace home">
           <Logo tone="light" />
         </Link>
         <div className="-mx-1 flex-1 overflow-y-auto px-1">
@@ -107,7 +107,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
         <header className="flex flex-wrap items-center justify-between gap-2 bg-brand-950 px-4 py-3 text-white shadow-md print:hidden">
-          <Link href="/dashboard" className="md:hidden">
+          <Link href="/" className="md:hidden" title="CannaTrace home">
             <Logo tone="light" />
           </Link>
           <form action={switchFacility} className="order-last flex w-full min-w-0 items-center gap-2 md:order-none md:w-auto">

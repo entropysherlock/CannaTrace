@@ -28,7 +28,8 @@ export async function proxy(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const signedIn = await isSignedIn(request);
   if (!signedIn && !isPublic) return NextResponse.redirect(new URL("/login", request.url));
-  if (signedIn && isPublic) return NextResponse.redirect(new URL("/dashboard", request.url));
+  // The homepage is open to everyone; sign-in and sign-up pages send signed-in people to their dashboard.
+  if (signedIn && isPublic && pathname !== "/") return NextResponse.redirect(new URL("/dashboard", request.url));
   return NextResponse.next();
 }
 
