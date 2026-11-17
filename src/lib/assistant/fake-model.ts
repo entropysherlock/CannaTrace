@@ -34,6 +34,9 @@ export const fakeModel: Model = async ({ messages }, onText) => {
   if (move) return { content: toolUse("move_package", { tag: move[1], to_location: move[2].trim() }), stop_reason: "tool_use" };
   const bulk = question.match(/change category of (.+) to (.+)$/);
   if (bulk) return { content: toolUse("bulk_edit_items", { match: { name_contains: bulk[1].trim() }, changes: { category: bulk[2].trim() } }), stop_reason: "tool_use" };
+  const receive = question.match(/^receive (\S+) of (.+) into (.+)$/);
+  if (receive) return { content: toolUse("receive_packages", { location: receive[3].trim(), packages: [{ item: receive[2].trim(), quantity: "1", tag: receive[1].toUpperCase() }] }), stop_reason: "tool_use" };
+  if (/^undo (that|it|the last (one|change))$/.test(question)) return { content: toolUse("undo_tally_change", { change: "last" }), stop_reason: "tool_use" };
   const labels = question.match(/(check|prepare) (package|product) labels? for (\S+)/);
   if (labels)
     return {

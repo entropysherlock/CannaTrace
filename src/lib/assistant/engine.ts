@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { InventoryError } from "@/lib/inventory-math";
 import { can } from "@/lib/rbac";
 import type { Session } from "@/lib/session";
+import { recordChange, type ChangeOutcome } from "./changes";
 import { fakeModel } from "./fake-model";
 import { TOOLS, toolsFor, type Proposal, type Tool } from "./tools";
 
@@ -13,7 +14,7 @@ import { TOOLS, toolsFor, type Proposal, type Tool } from "./tools";
 export type AssistantEvent =
   | { type: "text"; text: string }
   | { type: "status"; label: string }
-  | { type: "proposal"; id: string; token: string; title: string; details: Proposal["details"] }
+  | { type: "proposal"; id: string; token: string; title: string; details: Proposal["details"]; steps?: string[] }
   | { type: "error"; message: string }
   | { type: "done" };
 
@@ -75,6 +76,9 @@ How to work:
 - CannaTrace enforces state rules from a rule pack per state (purchase limits, minimum age, lab testing before retail sale, waste hold and mixing, manifests, reconciliation). For compliance questions, use state_rules_check and cite the regulation it gives; never invent a rule or number it doesn't list. If the state has no pack, say so.
 - Labels (SmartLabel AI): use label_check to find problems, barcode_diagnose for scanning trouble, and prepare_labels to set up a print job. Report only what the checker returns: never invent a label requirement, potency, date, or lab result, and never say a label is compliant; say which checks passed and what still needs a person. If someone gives a count of labels, pass it as expected_labels.
 - Bulk changes: to change many items, shelf prices, vendors, or destinations at once, use bulk_edit_items, bulk_set_prices, bulk_edit_vendors, or bulk_edit_destinations. One card lists every record and change, and nothing happens until the person confirms. Describe which records you matched and what will change; if the match looks wider than they meant, say so and ask before proposing. Never split a bulk request into many single proposals.
+- Creating from plain English: receive_packages ("receive these 12 packages from Green Valley"), create_wholesale_order ("make a wholesale order for Dispensary X with these items"), and start_production_run ("start a production run of 200 gummy packs"). Every new package needs its own state tag: never invent tags; ask for them (or the first tag of the roll and a count). If the person said a count, pass it so a mismatch is caught.
+- Multi-step jobs: close_out_harvest weighs, packages, logs waste, prepares labels, and finishes a harvest with one Confirm; run_job strings together moves, holds, releases, adjustments, and labels. These tools check the whole plan against today's data before the card appears, then run it all or nothing. Never split a job into many separate proposals. If weight would be left over, ask what it is before proposing.
+- Undo: every change made through you can be undone as a whole with one click on its card, or with undo_tally_change ("undo that" means change "last"). Use recent_tally_changes to see what was done. Undo is blocked if anything it touched has been changed again since; explain that plainly. Undo never erases history: it adds reversing entries to the audit trail and state reports.
 - Vendors are the businesses this company sells to and/or buys from (the Vendors list under Distribution). Each vendor has one or more destinations: licensed locations orders ship to.
 - You are not a lawyer. For questions about what state rules require, give general information and suggest checking with the state regulator.`;
 }
@@ -128,12 +132,13 @@ export async function runAssistant(
           results.push({ type: "tool_result", tool_use_id: call.id, content: JSON.stringify(data).slice(0, 30_000) });
         } else {
           const proposal = await tool.propose(session, input);
-          const token = await new SignJWT({ action: proposal.action, uid: session.userId, org: session.orgId, fac: session.facilityId })
+          const token = await new SignJWT({ action: proposal.action, title: proposal.title, uid: session.userId, org: session.orgId, fac: session.facilityId })
             .setProtectedHeader({ alg: "HS256" })
+            .setJti(crypto.randomUUID().replace(/-/g, ""))
             .setIssuedAt()
             .setExpirationTime("15m")
             .sign(secret());
-          emit({ type: "proposal", id: call.id, token, title: proposal.title, details: proposal.details });
+          emit({ type: "proposal", id: call.id, token, title: proposal.title, details: proposal.details, ...(proposal.steps ? { steps: proposal.steps } : {}) });
           results.push({
             type: "tool_result",
             tool_use_id: call.id,
@@ -152,9 +157,13 @@ export async function runAssistant(
   return usage;
 }
 
-/** Carry out a proposal the person confirmed. Every check runs again with their current permissions. */
-export async function confirmProposal(session: Session, token: string): Promise<string> {
-  let payload: { action?: { tool: string; args: Record<string, string> }; uid?: string; org?: string; fac?: string };
+/**
+ * Carry out a proposal the person confirmed. Every check runs again with their current permissions.
+ * The whole change saves as one unit and is recorded so it can be undone; confirming the same card
+ * twice does it once.
+ */
+export async function confirmProposal(session: Session, token: string): Promise<ChangeOutcome> {
+  let payload: { action?: { tool: string; args: Record<string, string> }; title?: string; jti?: string; uid?: string; org?: string; fac?: string };
   try {
     payload = (await jwtVerify(token, secret())).payload as typeof payload;
   } catch {
@@ -164,9 +173,11 @@ export async function confirmProposal(session: Session, token: string): Promise<
     throw new InventoryError("This confirmation belongs to a different person or facility.");
   const tool = TOOLS.find((t) => t.name === payload.action!.tool);
   if (!tool || tool.kind !== "action") throw new InventoryError("That action is not available.");
-  if (!can(session, tool.permission)) throw new InventoryError("Your role no longer allows this.");
-  return tool.execute(
-    { userId: session.userId, userName: `${session.name} (via assistant)`, orgId: session.orgId, facilityId: session.facilityId },
-    payload.action.args,
-  );
+  const args = payload.action.args;
+  const needed = [tool.permission, ...(tool.extraPermissions?.(args) ?? [])];
+  if (!needed.every((p) => can(session, p))) throw new InventoryError("Your role no longer allows this.");
+  const actor = { userId: session.userId, userName: `${session.name} (via assistant)`, orgId: session.orgId, facilityId: session.facilityId };
+  const key = payload.jti ?? crypto.randomUUID().replace(/-/g, "");
+  if (tool.record === false) return { message: await tool.execute(actor, args, { key }), changeId: null, undoable: false };
+  return recordChange(actor, { key, tool: tool.name, title: payload.title ?? tool.label }, () => tool.execute(actor, args, { key }));
 }

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "@/db/schema";
@@ -13,8 +14,61 @@ const pool =
 
 if (process.env.NODE_ENV !== "production") globalForDb.pool = pool;
 
-export const db = drizzle(pool, { schema });
-export { pool };
+const base = drizzle(pool, { schema });
 
-export type Db = typeof db;
+export type Db = typeof base;
 export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/**
+ * The transaction a multi-step job (a Tally plan, or an undo) is running in. While one is open,
+ * every query through `db` uses it, and each inner `db.transaction` becomes a savepoint inside it,
+ * so the whole job saves together or not at all, and later steps see what earlier steps made.
+ * Outside a job, `db` behaves exactly as plain Drizzle.
+ */
+const ambient = new AsyncLocalStorage<Tx>();
+
+function transaction<T>(fn: (tx: Tx) => Promise<T>, config?: Parameters<Db["transaction"]>[1]): Promise<T> {
+  const outer = ambient.getStore();
+  if (!outer) return base.transaction(fn, config);
+  return outer.transaction((tx) => ambient.run(tx, () => fn(tx)));
+}
+
+export const db = new Proxy(base, {
+  get(target, prop) {
+    if (prop === "transaction") return transaction;
+    const current = ambient.getStore() ?? target;
+    const value = Reflect.get(current, prop, current);
+    return typeof value === "function" ? value.bind(current) : value;
+  },
+}) as Db;
+
+/** Run fn as one all-or-nothing unit. Nested calls become savepoints. */
+export function atomically<T>(fn: () => Promise<T>): Promise<T> {
+  const outer = ambient.getStore();
+  if (outer) return outer.transaction((tx) => ambient.run(tx, fn));
+  return base.transaction((tx) => ambient.run(tx, fn));
+}
+
+class DryRunDone<T> extends Error {
+  constructor(readonly result: T) {
+    super("dry run");
+  }
+}
+
+/**
+ * Run fn for real inside a transaction, then roll everything back. Used to check a whole plan
+ * with the same code and rules that will run on Confirm, without saving anything.
+ */
+export async function dryRun<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    await atomically(async () => {
+      throw new DryRunDone(await fn());
+    });
+  } catch (error) {
+    if (error instanceof DryRunDone) return error.result as T;
+    throw error;
+  }
+  throw new Error("unreachable");
+}
+
+export { pool };

@@ -83,7 +83,7 @@ async function resolveRecords(s: Session, kind: LabelKind, input: Input): Promis
   throw new InventoryError("Say which records: give tags, batch names, or order numbers, or ask for today's packages or all active packages.");
 }
 
-async function templateFor(s: Session, kind: LabelKind, name: string): Promise<string> {
+export async function templateFor(s: Session, kind: LabelKind, name: string): Promise<string> {
   if (name) {
     const list = (await listTemplates(s)).filter((t) => t.kind === kind && t.name.toLowerCase().includes(name.toLowerCase()));
     if (!list.length) throw new InventoryError(`No ${kind.toLowerCase()} template matches "${name}".`);

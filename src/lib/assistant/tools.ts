@@ -8,6 +8,8 @@ import { ENFORCEMENT } from "@/lib/rules";
 import { scanFacility } from "@/lib/rules/scan";
 import type { Session } from "@/lib/session";
 import { BULK_TOOLS } from "./bulk-tools";
+import { previewUndo, recentChanges, undoChange } from "./changes";
+import { JOB_TOOLS, permissionsFor, type JobStep } from "./jobs";
 import { LABEL_TOOLS } from "./label-tools";
 
 /**
@@ -24,6 +26,8 @@ export type Proposal = {
   title: string;
   /** Plain lines the person reviews before confirming. */
   details: { label: string; value: string }[];
+  /** For plans: every step, in order, shown as a numbered list on the card. */
+  steps?: string[];
   /** What runs on Confirm. Signed, so it cannot be changed in the browser. */
   action: { tool: string; args: Record<string, string> };
 };
@@ -46,7 +50,12 @@ type ActionTool = {
   description: string;
   schema: Record<string, unknown>;
   propose: (session: Session, input: Input) => Promise<Proposal>;
-  execute: (actor: Actor, args: Record<string, string>) => Promise<string>;
+  /** ctx.key is unique to this confirmation; use it for anything that must happen only once. */
+  execute: (actor: Actor, args: Record<string, string>, ctx?: { key: string }) => Promise<string>;
+  /** Permissions beyond `permission` that these particular args need, checked again on Confirm. */
+  extraPermissions?: (args: Record<string, string>) => Permission[];
+  /** False for tools whose effect is not itself a change Tally should offer to undo (Undo itself). */
+  record?: boolean;
 };
 
 export type Tool = ReadTool | ActionTool;
@@ -459,9 +468,72 @@ export const TOOLS: Tool[] = [
   },
   ...LABEL_TOOLS,
   ...BULK_TOOLS,
+  {
+    kind: "read",
+    name: "recent_tally_changes",
+    label: "Checking what Tally changed",
+    permission: null,
+    description: "The most recent changes made through Tally at this facility (newest first): what, who, when, the result, and whether each can still be undone. Use before undo_tally_change, or for 'what did you just do'.",
+    schema: obj({ limit: { type: "integer", description: "Up to 30. Default 10." } }),
+    run: async (s, input) =>
+      (await recentChanges(s, Math.min(Number(input.limit) || 10, 30))).map((c) => ({
+        id: c.id,
+        what: c.title,
+        result: c.result,
+        by: c.userName,
+        at: c.createdAt.toLocaleString("en-US", { timeZone: TZ, dateStyle: "medium", timeStyle: "short" }),
+        status: c.status === "UNDONE" ? `undone by ${c.undoneByName}` : c.notUndoableReason ? `can't be undone: ${c.notUndoableReason}` : "can be undone",
+      })),
+  },
+  {
+    kind: "action",
+    name: "undo_tally_change",
+    label: "Preparing the undo",
+    permission: "inventory.view",
+    record: false,
+    description:
+      "Propose undoing a change Tally made: the whole change is reversed as one unit, each reversal recorded in the audit trail (and reported to the state where needed). Use change 'last' for the person's most recent Tally change, or an id from recent_tally_changes. Undo is refused if anything it touched was changed again since. Nothing happens until Confirm.",
+    schema: obj({ change: text("'last', or a change id from recent_tally_changes.") }, ["change"]),
+    propose: async (s, input) => {
+      const want = str(input.change, 60) || "last";
+      let id = want;
+      if (want === "last") {
+        const mine = (await recentChanges(s, 30)).find((c) => c.userId === s.userId && c.status === "DONE");
+        if (!mine) throw new InventoryError("There's no Tally change of yours here left to undo.");
+        id = mine.id;
+      }
+      const actor = { userId: s.userId, userName: `${s.name} (undo via assistant)`, orgId: s.orgId, facilityId: s.facilityId };
+      const { change, steps } = await previewUndo(actor, id);
+      if (!undoPermissions(change.tool).every((p) => can(s, p))) throw new InventoryError("Undoing this needs the same permission as making it, and this role doesn't have it.");
+      return {
+        title: `Undo: ${change.title}`,
+        details: [
+          { label: "Done by", value: `${change.userName.replace(" (via assistant)", "")}, ${change.createdAt.toLocaleString("en-US", { timeZone: TZ, dateStyle: "medium", timeStyle: "short" })}` },
+          { label: "Was", value: change.result.slice(0, 160) },
+          { label: "Reverses", value: `${steps.length} step${steps.length === 1 ? "" : "s"}, all or nothing` },
+          { label: "Audit trail", value: "Kept; the undo is added on top" },
+        ],
+        steps,
+        action: { tool: "undo_tally_change", args: { changeId: change.id, tool: change.tool } },
+      };
+    },
+    extraPermissions: (a) => undoPermissions(a.tool),
+    execute: (actor, a) => undoChange({ ...actor, userName: actor.userName.replace("(via assistant)", "(undo via assistant)") }, a.changeId),
+  },
+  ...JOB_TOOLS.map((t) => (t.kind === "action" ? { ...t, extraPermissions: (a: Record<string, string>) => permissionsFor(JSON.parse(a.steps ?? "[]") as JobStep[]) } : t)),
 ];
 
 /** The tools this person may use. Others are never offered to the model at all. */
 export function toolsFor(session: Session): Tool[] {
   return TOOLS.filter((t) => t.permission === null || can(session, t.permission));
+}
+
+/** Undoing a change needs the same permissions as making it. */
+export function undoPermissions(toolName: string): Permission[] {
+  const original = TOOLS.find((t) => t.name === toolName);
+  if (!original || original.kind !== "action") return ["settings.manage"];
+  const perms: Permission[] = [original.permission];
+  if (toolName === "run_job") perms.push("inventory.adjust");
+  if (toolName === "close_out_harvest") perms.push("cultivation.write");
+  return perms;
 }
