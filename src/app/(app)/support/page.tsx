@@ -11,6 +11,11 @@ export const metadata = { title: "Support console · CannaTrace" };
 const when = (d: Date | null) =>
   d ? d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Denver" }) : "never";
 
+type Facility = { name: string; state: string; licenseNumber: string };
+const facilityMatches = (f: Facility, q: string) =>
+  Boolean(q) &&
+  (f.name.toLowerCase().includes(q) || f.licenseNumber.toLowerCase().includes(q) || f.state.toLowerCase() === q || stateName(f.state).toLowerCase().includes(q));
+
 export default async function SupportConsolePage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const session = await requireSession();
   if (session.support || !(await isPlatformAdmin(session.userId))) redirect("/dashboard");
@@ -21,7 +26,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
       !q ||
       a.name.toLowerCase().includes(q) ||
       a.owners.some((o) => o.toLowerCase().includes(q)) ||
-      a.facilities.some((f) => f.name.toLowerCase().includes(q) || f.state.toLowerCase() === q),
+      a.facilities.some((f) => facilityMatches(f, q)),
   );
   const real = accounts.filter((a) => !a.isDemo);
 
@@ -37,7 +42,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
             <input
               name="q"
               defaultValue={q}
-              placeholder="Search by business, owner email, facility, or state (e.g. NM)"
+              placeholder="Search by business, owner email, facility, license number, or state"
               aria-label="Search businesses"
               className={inputClass}
             />
@@ -59,29 +64,40 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
                       {a.owners.length ? `Owner ${a.owners.join(", ")}` : "No active owner"} · {a.users} user{a.users === 1 ? "" : "s"} · {a.packages} package
                       {a.packages === 1 ? "" : "s"}
                     </p>
-                    <p className="text-sm text-slate-600">
-                      {a.facilities.length
-                        ? a.facilities.map((f) => `${f.name} (${stateName(f.state) ?? f.state}, ${f.licenseType.toLowerCase()})`).join(" · ")
-                        : "No facilities"}
-                    </p>
                     <p className="text-xs text-slate-500">
                       Joined {when(a.createdAt)} · last activity {when(a.lastActivity)}
                     </p>
                   </div>
-                  {a.facilities.length ? (
-                    <ActionForm action={openAccountAction} submitLabel="Open account" className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
-                      <input type="hidden" name="orgId" value={a.id} />
-                      <input
-                        name="reason"
-                        required
-                        maxLength={300}
-                        placeholder="Why? e.g. Helping with label printing"
-                        aria-label={`Reason for opening ${a.name}`}
-                        className={`${inputClass} sm:w-72`}
-                      />
-                    </ActionForm>
-                  ) : null}
+
                 </div>
+                {a.facilities.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-500">No facilities yet, so there is nothing to open.</p>
+                ) : (
+                  <ul className="mt-3 divide-y divide-slate-100 rounded-lg ring-1 ring-slate-200" aria-label={`Facilities of ${a.name}`}>
+                    {a.facilities.map((f) => (
+                      <li key={f.id} className={`flex flex-wrap items-center justify-between gap-3 px-3 py-2 ${facilityMatches(f, q) ? "bg-amber-50" : ""}`}>
+                        <span className="min-w-0">
+                          <span className="font-semibold text-slate-900">{f.name}</span>
+                          <span className="block text-sm text-slate-600">
+                            {stateName(f.state)} · {f.licenseType.toLowerCase()} · license {f.licenseNumber}
+                          </span>
+                        </span>
+                        <ActionForm action={openAccountAction} submitLabel="Open" className="flex flex-wrap items-center gap-2">
+                          <input type="hidden" name="orgId" value={a.id} />
+                          <input type="hidden" name="facilityId" value={f.id} />
+                          <input
+                            name="reason"
+                            required
+                            maxLength={300}
+                            placeholder="Why? e.g. Label printing help"
+                            aria-label={`Reason for opening ${f.name}`}
+                            className={`${inputClass} sm:w-64`}
+                          />
+                        </ActionForm>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>

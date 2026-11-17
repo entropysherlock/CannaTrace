@@ -43,7 +43,7 @@ export type CustomerAccount = {
   name: string;
   isDemo: boolean;
   createdAt: Date;
-  facilities: { name: string; state: string; licenseType: string }[];
+  facilities: { id: string; name: string; state: string; licenseType: string; licenseNumber: string }[];
   users: number;
   owners: string[];
   packages: number;
@@ -71,7 +71,7 @@ export async function listCustomerAccounts(): Promise<CustomerAccount[]> {
     where not o.is_demo or o.demo_ready
     order by coalesce((select max(a.created_at) from audit_logs a where a.org_id = o.id), o.created_at) desc`);
   const facs = await db
-    .select({ orgId: facilities.orgId, name: facilities.name, state: facilities.state, licenseType: facilities.licenseType })
+    .select({ id: facilities.id, orgId: facilities.orgId, name: facilities.name, state: facilities.state, licenseType: facilities.licenseType, licenseNumber: facilities.licenseNumber })
     .from(facilities)
     .orderBy(asc(facilities.name));
   return rows.rows.map((r) => ({
@@ -93,17 +93,17 @@ type Admin = { userId: string; orgId: string; facilityId: string; name: string }
  * Start a support visit to a customer's account: a sign-in for their first facility that runs out
  * after two hours. The visit is written into the customer's own audit trail.
  */
-export async function openSupportVisit(admin: Admin, orgId: string, reason: string): Promise<SessionToken> {
+export async function openSupportVisit(admin: Admin, orgId: string, reason: string, facilityId?: string): Promise<SessionToken> {
   if (!(await isPlatformAdmin(admin.userId))) throw new InventoryError("Only CannaTrace support admins can open customer accounts.");
   const why = reason.trim().slice(0, 300);
   if (!why) throw new InventoryError("Say why you are opening this account, for example \"Helping with a stuck label print\". It goes in their audit trail.");
   const [facility] = await db
     .select({ id: facilities.id })
     .from(facilities)
-    .where(eq(facilities.orgId, orgId))
+    .where(facilityId ? and(eq(facilities.orgId, orgId), eq(facilities.id, facilityId)) : eq(facilities.orgId, orgId))
     .orderBy(asc(facilities.createdAt), asc(facilities.name))
     .limit(1);
-  if (!facility) throw new InventoryError("That business has no facilities yet, so there is nothing to open.");
+  if (!facility) throw new InventoryError(facilityId ? "That facility is not part of this business." : "That business has no facilities yet, so there is nothing to open.");
   const until = nowMs() + SUPPORT_VISIT_MS;
   await db.insert(auditLogs).values({
     orgId,

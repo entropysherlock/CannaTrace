@@ -15,7 +15,7 @@ async function admin() {
 
 export async function openAccountAction(_state: FormState, formData: FormData): Promise<FormState> {
   try {
-    const token = await openSupportVisit(await admin(), field(formData, "orgId"), field(formData, "reason"));
+    const token = await openSupportVisit(await admin(), field(formData, "orgId"), field(formData, "reason"), field(formData, "facilityId") || undefined);
     await createSession(token);
   } catch (error) {
     return toFormError(error);
