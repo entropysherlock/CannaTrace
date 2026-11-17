@@ -25,6 +25,16 @@ function keys(): { current: MasterKey | null; previous: MasterKey | null } {
   return { current: parseKey(process.env.AI_KEY_ENCRYPTION_KEY), previous: parseKey(process.env.AI_KEY_ENCRYPTION_KEY_PREVIOUS) };
 }
 
+/** Whether the master key is present and usable, without revealing anything about its value. */
+export function encryptionStatus(): "ready" | "missing" | "invalid" {
+  if (!process.env.AI_KEY_ENCRYPTION_KEY?.trim()) return "missing";
+  try {
+    return keys().current ? "ready" : "missing";
+  } catch {
+    return "invalid";
+  }
+}
+
 /** True when this server can store customer keys. */
 export function encryptionReady(): boolean {
   try {
