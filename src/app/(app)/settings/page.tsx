@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { Card, PageHeader } from "@/components/ui";
+import { ActionForm } from "@/components/action-form";
+import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { renameBusinessAction } from "./actions";
 import { asc, eq } from "drizzle-orm";
 import { customRoles, facilities as facilitiesTable, organizations, users as usersTable } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -24,6 +26,17 @@ export default async function SettingsPage() {
     <>
       <PageHeader title="Settings" subtitle={org?.name} />
       <div className="grid gap-5 lg:grid-cols-2">
+        <div className="lg:col-span-2">
+          <Card title="Business">
+            <ActionForm action={renameBusinessAction} submitLabel="Save name" className="flex flex-wrap items-end gap-3">
+              <div className="min-w-0 flex-1">
+                <Field label="Business name" hint="Your company's name, shown on reports and to CannaTrace support. Each facility keeps its own name.">
+                  <input name="name" required maxLength={100} defaultValue={org?.name} className={inputClass} />
+                </Field>
+              </div>
+            </ActionForm>
+          </Card>
+        </div>
         <Card
           title="Facilities"
           action={
