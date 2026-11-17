@@ -69,6 +69,19 @@ export function AssistantPanel({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
+
+  // Clicking anywhere outside the panel slides it closed. Buttons that open the assistant are left alone.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (!target || panelRef.current?.contains(target) || target.closest("[data-assistant-trigger]")) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -212,8 +225,9 @@ export function AssistantPanel({
     <>
       <button
         type="button"
+        data-assistant-trigger
         onClick={() => setOpen(true)}
-        aria-label="Ask Cousin Towel"
+        aria-label="Ask Tally"
         className={`fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-900 text-white shadow-lg shadow-brand-900/30 transition hover:scale-105 md:bottom-6 md:right-6 print:hidden ${open ? "pointer-events-none scale-75 opacity-0" : ""}`}
       >
         <Sparkles className="h-6 w-6" aria-hidden="true" />
@@ -225,18 +239,19 @@ export function AssistantPanel({
         aria-hidden="true"
       />
       <aside
+        ref={panelRef}
         role="dialog"
-        aria-label="Cousin Towel, the CannaTrace assistant"
+        aria-label="Tally, the CannaTrace assistant"
         aria-hidden={!open}
         inert={!open}
         className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-out sm:w-[440px] print:hidden ${open ? "translate-x-0" : "translate-x-full"}`}
       >
         <header className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/mascot.webp" alt="" className="h-10 w-10 rounded-xl border border-brand-100 bg-brand-50 object-cover object-top" />
+          <img src="/tally-avatar.webp" alt="" width={40} height={40} className="h-10 w-10 rounded-xl border border-brand-100 bg-white" />
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 font-semibold text-slate-900">
-              Cousin Towel <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">Claude</span>
+              Tally <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">Claude</span>
             </p>
             <p className="text-xs text-slate-500">Your CannaTrace assistant · answers from live data</p>
           </div>
@@ -428,11 +443,12 @@ export function AskButton() {
   return (
     <button
       type="button"
+      data-assistant-trigger
       onClick={() => window.dispatchEvent(new Event("open-assistant"))}
       className="hidden min-h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-brand-500 md:inline-flex"
     >
       <Sparkles className="h-4 w-4" aria-hidden="true" />
-      Ask Cousin Towel
+      Ask Tally
       <kbd className="rounded bg-white/15 px-1.5 text-[10px] font-semibold text-white">Ctrl J</kbd>
     </button>
   );
@@ -443,6 +459,7 @@ export function AskAboutButton({ prompt, label }: { prompt: string; label: strin
   return (
     <button
       type="button"
+      data-assistant-trigger
       onClick={() => window.dispatchEvent(new CustomEvent("open-assistant", { detail: prompt }))}
       className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 text-sm font-semibold text-brand-800 transition hover:border-brand-500"
     >

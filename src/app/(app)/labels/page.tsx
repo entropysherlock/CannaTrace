@@ -1,5 +1,4 @@
 import { and, eq } from "drizzle-orm";
-import { AskAboutButton } from "@/components/assistant-panel";
 import { JobActions } from "@/components/labels/job-actions";
 import { PrintStation } from "@/components/labels/print-station";
 import { Card, PageHeader } from "@/components/ui";
@@ -45,7 +44,6 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
       <PageHeader
         title="SmartLabel AI"
         subtitle="Labels fill in from your saved records, get checked for missing data, barcode problems, and verified state label rules, then print as an exact-size PDF."
-        action={<AskAboutButton label="Ask Cousin Towel" prompt="Find labels that would be missing required information right now, and tell me how to fix them." />}
       />
       <PrintStation
         templates={templates.map((t) => ({ id: t.id, name: t.name, kind: t.kind, isDefault: t.isDefault, jurisdiction: t.jurisdiction, size: sizeLabel(t.design.widthMm, t.design.heightMm) }))}

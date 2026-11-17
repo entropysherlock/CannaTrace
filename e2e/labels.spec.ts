@@ -164,10 +164,10 @@ test("a misconfigured label is explained, blocked, and diagnosed", async ({ page
   await page.goto("/labels/history");
   await expect(page.getByTestId("label-history").locator("tbody tr").first()).toContainText("Blocked by");
 
-  // Cousin Towel runs the same checker and reports what blocks the state product label
+  // Tally runs the same checker and reports what blocks the state product label
   await page.goto("/labels/history");
-  await page.getByRole("button", { name: "Ask Cousin Towel" }).click();
-  const panel = page.getByRole("dialog", { name: /Cousin Towel/ });
+  await page.getByRole("button", { name: "Ask Tally" }).click();
+  const panel = page.getByRole("dialog", { name: /Tally/ });
   await panel.getByLabel("Message the assistant").fill("check product labels for CT-000003");
   await panel.getByLabel("Message the assistant").press("Enter");
   await expect(panel).toContainText("can't print yet", { timeout: 15_000 });
