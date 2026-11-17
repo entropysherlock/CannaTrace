@@ -191,6 +191,74 @@ export const tallyChanges = pgTable(
 
 export type TallyChange = typeof tallyChanges.$inferSelect;
 
+/**
+ * Tally Watch: problems found by the regular sweep of a facility. One row per problem (key), kept
+ * up to date by each sweep: reopened if it comes back, resolved when it's gone, or dismissed by a person.
+ */
+export const watchFindings = pgTable(
+  "watch_findings",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id").notNull(),
+    key: text("key").notNull(),
+    check: text("check").notNull(),
+    /** critical, warning, or info */
+    severity: text("severity").notNull(),
+    title: text("title").notNull(),
+    detail: text("detail").notNull(),
+    /** Who may see it. Null: everyone at the facility. */
+    permission: text("permission"),
+    href: text("href"),
+    /** A Tally tool and input that fixes it, shown as a plan card the person approves. */
+    fix: jsonb("fix").$type<{ tool: string; input: Record<string, unknown>; label: string } | null>(),
+    /** When the fix needs a conversation (missing details), what to ask Tally. */
+    ask: text("ask"),
+    /** OPEN, RESOLVED, or DISMISSED */
+    status: text("status").notNull().default("OPEN"),
+    firstSeenAt: createdAt(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    dismissedByName: text("dismissed_by_name"),
+  },
+  (t) => [uniqueIndex("watch_findings_facility_key").on(t.facilityId, t.key), index("watch_findings_open_idx").on(t.orgId, t.facilityId, t.status)],
+);
+
+export type WatchFinding = typeof watchFindings.$inferSelect;
+
+/** When each facility was last swept, and what was found. */
+export const watchSweeps = pgTable(
+  "watch_sweeps",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id").notNull(),
+    open: integer("open").notNull(),
+    opened: integer("opened").notNull(),
+    resolved: integer("resolved").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("watch_sweeps_facility_idx").on(t.facilityId, t.createdAt)],
+);
+
+/**
+ * A package report exported from the state system (for example Metrc's Packages grid) and uploaded,
+ * so Tally Watch can compare it with CannaTrace until a live connection is approved.
+ */
+export const stateReports = pgTable(
+  "state_reports",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id").notNull(),
+    fileName: text("file_name").notNull(),
+    uploadedByName: text("uploaded_by_name").notNull(),
+    rows: jsonb("rows").notNull().$type<{ tag: string; quantity: string | null; unit: string | null; item: string | null; status: string | null }[]>(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("state_reports_facility_idx").on(t.facilityId, t.createdAt)],
+);
+
 /** One row per Tally question: who asked, which account paid, tokens used, and how it ended. */
 export const aiUsage = pgTable(
   "ai_usage",

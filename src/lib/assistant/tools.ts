@@ -9,6 +9,7 @@ import { scanFacility } from "@/lib/rules/scan";
 import type { Session } from "@/lib/session";
 import { BULK_TOOLS } from "./bulk-tools";
 import { previewUndo, recentChanges, undoChange } from "./changes";
+import { openFindings, sweepIfStale } from "@/lib/watch";
 import { JOB_TOOLS, permissionsFor, type JobStep } from "./jobs";
 import { LABEL_TOOLS } from "./label-tools";
 
@@ -468,6 +469,26 @@ export const TOOLS: Tool[] = [
   },
   ...LABEL_TOOLS,
   ...BULK_TOOLS,
+  {
+    kind: "read",
+    name: "watch_findings",
+    label: "Checking Tally Watch",
+    permission: null,
+    description:
+      "What needs attention at this facility, from Tally Watch's automatic checks: failed lab tests still sellable, mismatches with the state system, failed state reports, rule problems, expiring licenses on open orders, unlabeled new packages, open harvests and runs, overdue customers. Each item may include fix: a tool and input that fixes it; call that tool with that input to prepare the plan card. Use for 'what needs attention', 'anything wrong', 'morning rundown'.",
+    schema: obj({}),
+    run: async (s) => {
+      await sweepIfStale(s);
+      return (await openFindings(s)).slice(0, 40).map((f) => ({
+        severity: f.severity,
+        problem: f.title,
+        detail: f.detail,
+        page: f.href,
+        fix: f.fix ? { tool: f.fix.tool, input: f.fix.input, what: f.fix.label } : null,
+        needs_details: f.ask,
+      }));
+    },
+  },
   {
     kind: "read",
     name: "recent_tally_changes",
