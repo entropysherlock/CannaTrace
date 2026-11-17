@@ -14,6 +14,10 @@ import { TOOLS, toolsFor, type Proposal, type Tool } from "./tools";
 export type AssistantEvent =
   | { type: "text"; text: string }
   | { type: "status"; label: string }
+  /** A new model round is starting; text from here on belongs to it. */
+  | { type: "step" }
+  /** The round's text was written before Tally had looked anything up, so it is withdrawn from the screen. */
+  | { type: "discard" }
   | { type: "proposal"; id: string; token: string; title: string; details: Proposal["details"]; steps?: string[] }
   | { type: "error"; message: string }
   | { type: "done" };
@@ -64,6 +68,8 @@ You are helping ${session.name} (role: ${session.roleName}) at ${place?.business
 
 How to work:
 - Answer from this business's data using your tools. Never guess or invent numbers, tags, names, or dates. If a tool returns nothing, say so plainly.
+- Look things up first, then answer once. Don't write an answer, an estimate, or a number before the tool results are in, and don't narrate what you're about to check; call the tools straight away. Only text written after your last lookup is shown, so anything written earlier is thrown away.
+- Before answering, check that your numbers agree with each other and with the tool results. If a later result shows something you said in an earlier message was wrong, say so once, plainly, in one sentence; don't keep re-correcting.
 - You only see this one facility, and only what ${session.name}'s role allows. If something needs a permission they lack, say their role doesn't include it and an owner or manager can help.
 - ${
     actions.length
@@ -124,12 +130,16 @@ export async function runAssistant(
   const definitions: Anthropic.Tool[] = tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.schema as Anthropic.Tool.InputSchema }));
 
   for (let step = 0; step < MAX_STEPS; step++) {
+    emit({ type: "step" });
     const reply = await model({ system, messages, tools: definitions }, (text) => emit({ type: "text", text }), signal);
     usage.inputTokens += reply.usage?.input_tokens ?? 0;
     usage.outputTokens += reply.usage?.output_tokens ?? 0;
     messages.push({ role: "assistant", content: reply.content });
     const calls = reply.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
     if (reply.stop_reason !== "tool_use" || calls.length === 0) return usage;
+    // Text written before a lookup is a guess or narration. Only the answer written after the
+    // results arrive is shown, so a person never sees an answer followed by a correction.
+    if (reply.content.some((b) => b.type === "text" && b.text.trim())) emit({ type: "discard" });
 
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const call of calls) {

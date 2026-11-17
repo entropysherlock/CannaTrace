@@ -2,7 +2,8 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { facilities, locations, organizations, packages, users } from "@/db/schema";
 import { db, pool } from "@/lib/db";
-import { confirmProposal, runAssistant, trimHistory, type AssistantEvent } from "@/lib/assistant/engine";
+import type Anthropic from "@anthropic-ai/sdk";
+import { confirmProposal, runAssistant, trimHistory, type AssistantEvent, type Model } from "@/lib/assistant/engine";
 import { TOOLS, toolsFor } from "@/lib/assistant/tools";
 import { ROLE_LABELS, permissionsFor, type Role } from "@/lib/rbac";
 import type { Session } from "@/lib/session";
@@ -90,5 +91,37 @@ describe.skipIf(!hasDb)("assistant tools and confirmations", () => {
     expect(kept.length).toBeLessThanOrEqual(40);
     expect(kept[0].role).toBe("user");
     expect(kept.at(-1)?.content).toBe("last");
+  });
+
+  it("never shows an answer written before the lookup, so a person doesn't see an answer and then a correction", async () => {
+    // A model that guesses, then looks it up, then corrects itself: what people saw before this fix.
+    let round = 0;
+    const guesser: Model = async (_params, onText) => {
+      round++;
+      const text = (t: string) => ({ type: "text", text: t, citations: null }) as Anthropic.ContentBlock;
+      if (round === 1) {
+        onText("You have 12 packages in stock. ");
+        onText("Let me double-check that.");
+        return {
+          content: [text("You have 12 packages in stock. Let me double-check that."), { type: "tool_use", id: "toolu_1", name: "business_overview", input: {} } as unknown as Anthropic.ContentBlock],
+          stop_reason: "tool_use",
+        };
+      }
+      onText("You have 9 packages in stock.");
+      return { content: [text("You have 9 packages in stock.")], stop_reason: "end_turn" };
+    };
+    const events: AssistantEvent[] = [];
+    await runAssistant(owner, [{ role: "user", content: "how many packages do we have?" }], (e) => events.push(e), new AbortController().signal, guesser);
+
+    // Replay the events the way the panel does.
+    let shown = "";
+    let stepStart = 0;
+    for (const e of events) {
+      if (e.type === "step") stepStart = shown.length;
+      else if (e.type === "discard") shown = shown.slice(0, stepStart);
+      else if (e.type === "text") shown += e.text;
+    }
+    expect(shown).toBe("You have 9 packages in stock.");
+    expect(events.map((e) => e.type)).toEqual(["step", "text", "text", "discard", "status", "step", "text"]);
   });
 });

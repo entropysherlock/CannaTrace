@@ -24,7 +24,7 @@ type Proposal = {
 };
 type Turn =
   | { role: "user"; content: string }
-  | { role: "assistant"; content: string; status?: string; proposals: Proposal[]; error?: string; streaming?: boolean };
+  | { role: "assistant"; content: string; status?: string; proposals: Proposal[]; error?: string; streaming?: boolean; stepStart?: number };
 
 const STORAGE_KEY = "cannatrace-assistant";
 
@@ -192,7 +192,9 @@ export function AssistantPanel({
         for (const line of lines) {
           if (!line.trim()) continue;
           const event = JSON.parse(line);
-          if (event.type === "text") updateLast((t) => ({ ...t, content: t.content + event.text, status: undefined }));
+          if (event.type === "step") updateLast((t) => ({ ...t, stepStart: t.content.length }));
+          else if (event.type === "discard") updateLast((t) => ({ ...t, content: t.content.slice(0, t.stepStart ?? 0) }));
+          else if (event.type === "text") updateLast((t) => ({ ...t, content: t.content + event.text, status: undefined }));
           else if (event.type === "status") updateLast((t) => ({ ...t, status: event.label }));
           else if (event.type === "proposal")
             updateLast((t) => ({ ...t, status: undefined, proposals: [...t.proposals, { id: event.id, token: event.token, title: event.title, details: event.details, steps: event.steps, state: "waiting" }] }));
