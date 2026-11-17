@@ -1,11 +1,10 @@
 import "server-only";
-import { createHash } from "node:crypto";
 import { and, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
 import { auditLogs, tallyAttachments, type TallyAttachment } from "@/db/schema";
-import { encryptionReady, openBytes, sealBytes } from "@/lib/ai/secret-box";
+import { encryptionReady, openBytes } from "@/lib/ai/secret-box";
 import { db } from "@/lib/db";
 import type { Session } from "@/lib/session";
-import { AttachmentError, checkBeforeUpload, MAX_FILE_BYTES, processFile, type Kind } from "./process";
+import { AttachmentError, checkBeforeUpload, MAX_FILE_BYTES, type Kind } from "./limits";
 
 /**
  * Storage for Tally attachments: private to the uploader at one facility, encrypted at rest,
@@ -24,10 +23,10 @@ export function retentionHours(): number {
 }
 
 export type AttachmentInfo = { id: string; name: string; kind: Kind; size: number; meta: Record<string, unknown> };
-const ctx = (a: { orgId: string; id: string }) => `${a.orgId}:${a.id}`;
+export const ctx = (a: { orgId: string; id: string }) => `${a.orgId}:${a.id}`;
 const cleanName = (name: string) => name.replace(/[\u0000-\u001f\u007f/\\]/g, "_").trim().slice(0, 150) || "file";
 
-async function log(session: Session, id: string, action: string, after: Record<string, unknown>) {
+export async function log(session: Session, id: string, action: string, after: Record<string, unknown>) {
   // Size, type, and counts only: never the file's contents.
   await db.insert(auditLogs).values({ orgId: session.orgId, facilityId: session.facilityId, userId: session.userId, userName: session.name, entityType: "TallyFile", entityId: id, action, after });
 }
@@ -67,7 +66,7 @@ export async function startUpload(session: Session, input: { name: string; size:
 }
 
 /** The person's own file at their current facility, or nothing: other people's files are never found. */
-async function own(session: Session, id: string) {
+export async function own(session: Session, id: string) {
   const [row] = await db
     .select()
     .from(tallyAttachments)
@@ -99,36 +98,7 @@ export async function appendChunk(session: Session, id: string, offset: number, 
   return { received: updated.received };
 }
 
-export async function finishUpload(session: Session, id: string): Promise<AttachmentInfo> {
-  const row = await own(session, id);
-  if (row.status === "READY") return info(row);
-  if (row.received !== row.size || !row.staging) throw new AttachmentError("The upload didn't finish. Try attaching the file again.");
-  const bytes = Buffer.from(row.staging);
-  try {
-    const processed = await processFile(bytes, row.name);
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
-    const [ready] = await db
-      .update(tallyAttachments)
-      .set({ status: "READY", kind: processed.kind, staging: null, payload: sealBytes(processed.payload, ctx(row)), meta: processed.meta, sha256 })
-      .where(eq(tallyAttachments.id, row.id))
-      .returning();
-    await log(session, row.id, "UPLOAD", { kind: processed.kind, sizeBytes: row.size, sha256: sha256.slice(0, 16), ...counts(processed.meta) });
-    return info(ready);
-  } catch (error) {
-    // A file that fails checks is not kept.
-    await db.delete(tallyAttachments).where(eq(tallyAttachments.id, row.id));
-    if (error instanceof AttachmentError) throw error;
-    console.error("attachment processing failed", (error as Error)?.name);
-    throw new AttachmentError(`${row.name} couldn't be read.`);
-  }
-}
-
-function counts(meta: Record<string, unknown>) {
-  const m = meta as { pages?: number; sheets?: { totalRows: number }[]; chars?: number; width?: number; height?: number };
-  return { pages: m.pages, sheets: m.sheets?.length, rows: m.sheets?.reduce((t, s) => t + s.totalRows, 0), chars: m.chars, pixels: m.width ? `${m.width}x${m.height}` : undefined };
-}
-
-function info(row: TallyAttachment): AttachmentInfo {
+export function info(row: TallyAttachment): AttachmentInfo {
   return { id: row.id, name: row.name, kind: row.kind as Kind, size: row.size, meta: row.meta ?? {} };
 }
 

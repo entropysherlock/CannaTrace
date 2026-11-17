@@ -12,7 +12,6 @@ import {
   CHUNK_BYTES,
   deleteAttachment,
   deleteExpiredAttachments,
-  finishUpload,
   loadAttachments,
   startUpload,
   type LoadedAttachment,
@@ -23,6 +22,7 @@ import { db, pool } from "@/lib/db";
 import { receivePackage } from "@/lib/inventory";
 import { permissionsFor } from "@/lib/rbac";
 import type { Session } from "@/lib/session";
+import { finishUpload } from "@/lib/assistant/attachments/finish";
 import * as fx from "./fixtures/files";
 
 const hasDb = Boolean(process.env.DATABASE_URL);

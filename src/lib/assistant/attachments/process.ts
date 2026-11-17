@@ -5,6 +5,25 @@ import mammoth from "mammoth";
 import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
 import { parseCsv } from "@/lib/csv";
+import {
+  AttachmentError,
+  checkBeforeUpload,
+  ext,
+  LIMITS,
+  mb,
+  PDF_MAX_PAGES,
+  IMAGE_MAX_PIXELS,
+  IMAGE_SEND_EDGE,
+  MAX_UNZIPPED,
+  MAX_TEXT_CHARS,
+  MAX_SHEETS,
+  MAX_ROWS,
+  MAX_COLUMNS,
+  type Processed,
+  type Sheet,
+} from "./limits";
+
+export { AttachmentError, checkBeforeUpload, LIMITS, readSheets, type Kind, type Processed, type Sheet } from "./limits";
 
 /**
  * Checks and reads files attached to Tally. The type comes from the file's own bytes, never from the
@@ -12,41 +31,6 @@ import { parseCsv } from "@/lib/csv";
  * metadata and defuses malformed image tricks); documents and spreadsheets are reduced to their text
  * and rows. Nothing here runs anything inside a file.
  */
-
-export class AttachmentError extends Error {}
-
-export type Kind = "IMAGE" | "PDF" | "SPREADSHEET" | "DOCUMENT";
-export type Sheet = { name: string; columns: string[]; rows: string[][]; totalRows: number };
-export type Processed =
-  | { kind: "IMAGE"; payload: Buffer; meta: { mediaType: "image/jpeg" | "image/png"; width: number; height: number; sentWidth: number; sentHeight: number; warnings: string[] } }
-  | { kind: "PDF"; payload: Buffer; meta: { pages: number; warnings: string[] } }
-  | { kind: "SPREADSHEET"; payload: Buffer; meta: { format: "CSV" | "XLSX"; sheets: { name: string; columns: string[]; totalRows: number }[]; warnings: string[] } }
-  | { kind: "DOCUMENT"; payload: Buffer; meta: { format: "DOCX" | "TXT"; chars: number; warnings: string[] } };
-
-const MB = 1024 * 1024;
-/** Per-file size limits, by what the file turns out to be. */
-export const LIMITS = {
-  IMAGE: 15 * MB,
-  PDF: 20 * MB,
-  XLSX: 10 * MB,
-  CSV: 10 * MB,
-  DOCX: 10 * MB,
-  TXT: 2 * MB,
-} as const;
-export const MAX_FILE_BYTES = Math.max(...Object.values(LIMITS));
-export const PDF_MAX_PAGES = 100;
-const IMAGE_MAX_PIXELS = 60_000_000;
-const IMAGE_SEND_EDGE = 1568; // Claude's recommended longest edge; larger is downscaled by the API anyway
-const MAX_UNZIPPED = 150 * MB;
-const MAX_TEXT_CHARS = 200_000;
-const MAX_SHEETS = 20;
-const MAX_ROWS = 50_000;
-const MAX_COLUMNS = 200;
-
-export const ACCEPTED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".pdf", ".docx", ".txt", ".csv", ".xlsx"];
-
-const mb = (n: number) => `${Math.round((n / MB) * 10) / 10} MB`;
-const ext = (name: string) => (name.toLowerCase().match(/\.[a-z0-9]+$/)?.[0] ?? "");
 
 /** What a file is, from its first bytes (and, for zip-based Office files and plain text, its name). */
 export function sniff(bytes: Buffer, name: string): "PNG" | "JPEG" | "WEBP" | "PDF" | "ZIP" | "TEXT" | null {
@@ -57,15 +41,6 @@ export function sniff(bytes: Buffer, name: string): "PNG" | "JPEG" | "WEBP" | "P
   if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) return "ZIP";
   if ([".txt", ".csv"].includes(ext(name)) && !bytes.subarray(0, 8192).includes(0)) return "TEXT";
   return null;
-}
-
-/** Refuse a file before upload by its declared name and size, so nobody waits for a doomed upload. */
-export function checkBeforeUpload(name: string, size: number): void {
-  if (!ACCEPTED_EXTENSIONS.includes(ext(name)))
-    throw new AttachmentError(`${name} isn't a file type Tally can read. Use an image (PNG, JPG, WEBP), a PDF, a Word file (DOCX), a text file (TXT), or a spreadsheet (CSV, XLSX).`);
-  if (size <= 0) throw new AttachmentError(`${name} is empty.`);
-  const limit = { ".png": LIMITS.IMAGE, ".jpg": LIMITS.IMAGE, ".jpeg": LIMITS.IMAGE, ".webp": LIMITS.IMAGE, ".pdf": LIMITS.PDF, ".docx": LIMITS.DOCX, ".txt": LIMITS.TXT, ".csv": LIMITS.CSV, ".xlsx": LIMITS.XLSX }[ext(name)]!;
-  if (size > limit) throw new AttachmentError(`${name} is ${mb(size)}. The limit for this kind of file is ${mb(limit)}.`);
 }
 
 async function unzipChecked(bytes: Buffer, name: string): Promise<JSZip> {
@@ -302,6 +277,3 @@ export async function processFile(bytes: Buffer, name: string): Promise<Processe
   throw new AttachmentError(`${name} doesn't contain what its name says (${e.slice(1).toUpperCase()}), or it's damaged. Attach the original file.`);
 }
 
-export function readSheets(payload: Buffer): Sheet[] {
-  return JSON.parse(payload.toString("utf8")) as Sheet[];
-}

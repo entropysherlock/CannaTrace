@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { attachmentRoute } from "@/lib/assistant/attachments/http";
-import { AttachmentError } from "@/lib/assistant/attachments/process";
-import { appendChunk, CHUNK_BYTES, deleteAttachment, finishUpload } from "@/lib/assistant/attachments/store";
+import { finishUpload } from "@/lib/assistant/attachments/finish";
+import { AttachmentError } from "@/lib/assistant/attachments/limits";
+import { appendChunk, CHUNK_BYTES, deleteAttachment } from "@/lib/assistant/attachments/store";
 
 export const maxDuration = 60;
 

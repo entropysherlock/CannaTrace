@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { InventoryError } from "@/lib/inventory-math";
 import { convert, type UnitCode } from "@/lib/units";
 import { stateUnit } from "@/lib/watch/checks";
-import { AttachmentError, readSheets, type Sheet } from "./attachments/process";
+import { AttachmentError, readSheets, type Sheet } from "./attachments/limits";
 import { loadAttachment } from "./attachments/store";
 import type { Tool } from "./tools";
 

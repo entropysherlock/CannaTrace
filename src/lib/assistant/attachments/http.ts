@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { resolveTally } from "@/lib/ai/connection";
 import { InventoryError } from "@/lib/inventory-math";
 import { currentSession, type Session } from "@/lib/session";
-import { AttachmentError } from "./process";
+import { AttachmentError } from "./limits";
 
 /** Signed in, with Tally available to them: otherwise there's nothing to attach files to. */
 export async function attachmentRoute(fn: (session: Session) => Promise<Response>): Promise<Response> {
