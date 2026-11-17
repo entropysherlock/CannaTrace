@@ -13,11 +13,18 @@ export class SecretBoxError extends Error {}
 
 type MasterKey = { id: string; key: Buffer };
 
+/** Shortest master secret accepted: anything shorter is too easy to guess. */
+export const MIN_SECRET_CHARS = 32;
+
 function parseKey(raw: string | undefined): MasterKey | null {
   if (!raw) return null;
-  const text = raw.trim();
-  const key = /^[0-9a-f]{64}$/i.test(text) ? Buffer.from(text, "hex") : Buffer.from(text, "base64");
-  if (key.length !== 32) throw new SecretBoxError("AI_KEY_ENCRYPTION_KEY must be 32 random bytes, written as base64 or 64 hex characters.");
+  const text = raw.trim().replace(/^["']|["']$/g, "");
+  if (!text) return null;
+  let key: Buffer;
+  if (/^[0-9a-f]{64}$/i.test(text)) key = Buffer.from(text, "hex");
+  else if (/^[A-Za-z0-9+/]{43}=$/.test(text)) key = Buffer.from(text, "base64");
+  else if (text.length >= MIN_SECRET_CHARS) key = createHash("sha256").update(`cannatrace-ai-key:${text}`).digest();
+  else throw new SecretBoxError(`AI_KEY_ENCRYPTION_KEY is too short (${text.length} characters). Use the generated value (44 characters).`);
   return { id: createHash("sha256").update(key).digest("hex").slice(0, 8), key };
 }
 
@@ -26,6 +33,11 @@ function keys(): { current: MasterKey | null; previous: MasterKey | null } {
 }
 
 /** Whether the master key is present and usable, without revealing anything about its value. */
+/** Length of the configured secret, for telling someone why it was refused. Never the value. */
+export function secretLength(): number {
+  return (process.env.AI_KEY_ENCRYPTION_KEY ?? "").trim().length;
+}
+
 export function encryptionStatus(): "ready" | "missing" | "invalid" {
   if (!process.env.AI_KEY_ENCRYPTION_KEY?.trim()) return "missing";
   try {

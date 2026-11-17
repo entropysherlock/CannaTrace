@@ -3,7 +3,7 @@ import { ActionForm } from "@/components/action-form";
 import { Disclosure } from "@/components/disclosure";
 import { SecretGenerator } from "@/components/secret-generator";
 import { StateSelect } from "@/components/state-select";
-import { encryptionStatus } from "@/lib/ai/secret-box";
+import { encryptionStatus, secretLength } from "@/lib/ai/secret-box";
 import { licenseTypeEnum } from "@/db/schema";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { isPlatformAdmin, listCustomerAccounts, listSupportAdmins, recentSupportVisits } from "@/lib/platform-admin";
@@ -160,7 +160,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
               <div className="space-y-3 text-sm text-slate-700">
                 <p className="font-semibold text-amber-900">
                   {encryptionStatus() === "invalid"
-                    ? "AI_KEY_ENCRYPTION_KEY is set in Vercel, but its value isn't valid. It must be exactly the value from Generate (44 characters, ending in =). Edit it in Vercel, paste a fresh generated value, save, and redeploy."
+                    ? `AI_KEY_ENCRYPTION_KEY is set in Vercel, but its value is only ${secretLength()} characters long, so something else was pasted. Edit it in Vercel, paste a fresh generated value (44 characters), save, and redeploy.`
                     : "Not set up yet: AI_KEY_ENCRYPTION_KEY is missing or empty on this server. Businesses can't connect Tally until it is set."}
                 </p>
                 <ol className="list-decimal space-y-1 pl-5">
