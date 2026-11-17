@@ -78,6 +78,10 @@ describe("encrypting saved keys", () => {
     expect(() => sealSecret(KEY_A, "org-1")).toThrow(/AI_KEY_ENCRYPTION_KEY is missing/);
     process.env.AI_KEY_ENCRYPTION_KEY = "too-short";
     expect(encryptionReady()).toBe(false);
+    // Any long random secret works too, not only the generated format
+    process.env.AI_KEY_ENCRYPTION_KEY = "  correct-horse-battery-staple-and-more-words-1234  ";
+    expect(encryptionReady()).toBe(true);
+    expect(openSecret(sealSecret(KEY_A, "org-1"), "org-1")).toBe(KEY_A);
   });
 });
 
