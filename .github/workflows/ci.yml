@@ -26,6 +26,9 @@ jobs:
       AUTH_SECRET: ci-only-secret-not-used-anywhere-real
       # Test-only key for encrypting saved Tally API keys. Real servers use their own secret value.
       AI_KEY_ENCRYPTION_KEY: Y2ktb25seS1rZXktbm90LWZvci1yZWFsLXVzZS0zMiE=
+      # Most test files create a business, and they all count toward the hourly sign-up limit;
+      # lift it so the sign-up tests aren't refused. Real servers keep the default.
+      SIGNUPS_PER_HOUR: "1000"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,6 +46,3 @@ jobs:
       - run: npm run test:e2e
         env:
           CI: "true"
-          # The database tests above each create a business, which counts toward the hourly sign-up
-          # limit; lift it here so the browser sign-up test isn't refused. Real servers keep the default.
-          SIGNUPS_PER_HOUR: "1000"
