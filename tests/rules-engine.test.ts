@@ -41,7 +41,7 @@ describe("state rule packs", () => {
   });
 
   it("has packs for New Mexico, California, Michigan, and Colorado with the confirmed numbers", () => {
-    expect(Object.keys(PACKS).sort()).toEqual(["CA", "CO", "MI", "NM"]);
+    expect(Object.keys(PACKS).sort()).toEqual(["AK", "AZ", "CA", "CO", "CT", "DE", "IL", "MA", "MD", "ME", "MI", "MN", "MO", "MT", "NJ", "NM", "NV", "NY", "OH", "OR", "RI", "VT", "WA"]);
     const store = { FLOWER: new Decimal(1000), CONCENTRATE: new Decimal(1000), EDIBLE: new Decimal(100000) };
     const cap = (state: string, customer: "ADULT_USE" | "MEDICAL") => {
       const { limits } = effectiveLimits(store, packFor(state), customer);
@@ -143,5 +143,27 @@ describe.skipIf(!hasDb)("state rules at the register and in the daily check (dat
     const scan = await scanFacility(actor.orgId, wy.id);
     expect(scan.pack).toBeNull();
     expect(scan.issues[0]).toMatchObject({ id: "no-pack", severity: "info" });
+  });
+});
+
+describe("adult-use packs added 2026-11-17", () => {
+  const store = { FLOWER: new Decimal(1000), CONCENTRATE: new Decimal(1000), EDIBLE: new Decimal(100000) };
+  const lim = (s: string) => effectiveLimits(store, packFor(s), "ADULT_USE").limits;
+  it("has the confirmed numbers for states that changed limits in 2026", () => {
+    expect(lim("IL").FLOWER.toNumber()).toBe(60); // P.A. 104-0463
+    expect(lim("MA").FLOWER.toNumber()).toBe(56.7); // H.5350
+    expect(lim("VT").FLOWER.toNumber()).toBe(56.7); // Act 176
+    expect(lim("ME").CONCENTRATE.toNumber()).toBe(10);
+    expect(lim("OR").CONCENTRATE.toNumber()).toBe(10);
+    expect(lim("NJ").CONCENTRATE.toNumber()).toBe(4);
+    expect(lim("OH").EDIBLE.toNumber()).toBe(15000);
+    expect(lim("MO").FLOWER.toNumber()).toBe(85.05);
+  });
+  it("requires 21 everywhere and only claims testing rules that were read", () => {
+    for (const s of ["AK", "AZ", "CT", "DE", "IL", "ME", "MD", "MA", "MN", "MO", "MT", "NV", "NJ", "NY", "OH", "OR", "RI", "VT", "WA"]) {
+      expect(minimumAge(18, packFor(s), "ADULT_USE"), s).toBe(21);
+    }
+    expect(["AK", "AZ", "ME", "MA", "MO", "NJ", "WA"].every((s) => requiresLabBeforeRetail(packFor(s)))).toBe(true);
+    expect(requiresLabBeforeRetail(packFor("NY"))).toBe(false);
   });
 });

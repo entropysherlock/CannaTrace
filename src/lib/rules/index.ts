@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+import { ADULT_USE_PACKS } from "./packs/adult-use";
 import { CA } from "./packs/ca";
 import { CO } from "./packs/co";
 import { MI } from "./packs/mi";
@@ -9,7 +10,7 @@ export type { Rule, StatePack } from "./types";
 export { ENFORCEMENT } from "./types";
 
 /** Every state with a rule pack. Add a state by writing its pack and listing it here. */
-export const PACKS: Record<string, StatePack> = { NM, CA, MI, CO };
+export const PACKS: Record<string, StatePack> = { NM, CA, MI, CO, ...ADULT_USE_PACKS };
 
 export function packFor(state: string | null | undefined): StatePack | null {
   return state ? (PACKS[state.toUpperCase()] ?? null) : null;
