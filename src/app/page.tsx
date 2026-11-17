@@ -1,229 +1,243 @@
 import {
-  BadgeCheck,
+  ArrowRight,
+  BarChart3,
   Boxes,
+  CalendarDays,
   Check,
-  ClipboardCheck,
+  ChevronDown,
+  ChevronRight,
   Factory,
-  FileLock2,
-  KeyRound,
   Leaf,
-  LayoutDashboard,
-  ScrollText,
+  MapPin,
+  Play,
   ShieldCheck,
-  ShoppingCart,
-  Sparkles,
   Sprout,
   Store,
   Truck,
-  TriangleAlert,
   Users,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import { Logo } from "@/components/logo";
-import { PACKS } from "@/lib/rules";
+import { LeafMark, Logo } from "@/components/logo";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "CannaTrace · Seed-to-sale software for licensed cannabis businesses",
-  description: "Cultivation, inventory, manufacturing, distribution, retail, and state compliance in one system, with an assistant that answers from your own data.",
+  title: "CannaTrace · Seed-to-Sale Operations Platform",
+  description: "CannaTrace helps cannabis operators manage cultivation, inventory, compliance, manufacturing, distribution, and retail operations in one integrated platform.",
 };
 
 // Reads the sign-in cookie, so the buttons can say "Go to dashboard" for people already signed in.
 export const instant = false;
 
-const display = "font-[family-name:var(--font-display)]";
+/* ---------- The example dashboard in the hero. Figures are for illustration. ---------- */
 
-/* ---------- Product illustrations, drawn from the real screens. Figures are examples. ---------- */
-
-function MiniTile({ icon: Icon, value, label }: { icon: LucideIcon; value: string; label: string }) {
+function Stat({ icon: Icon, value, label, change }: { icon: LucideIcon; value: string; label: string; change: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-brand-100 bg-white p-3 sm:p-4">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 sm:h-11 sm:w-11">
-        <Icon className="h-5 w-5" aria-hidden="true" />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-lg font-extrabold tracking-tight text-brand-950 sm:text-2xl">{value}</span>
-        <span className="block truncate text-[11px] font-semibold text-slate-600 sm:text-xs">{label}</span>
-      </span>
+    <div className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+      <Icon className="h-7 w-7 shrink-0 text-brand-600" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="whitespace-nowrap text-base font-extrabold leading-tight text-slate-900">{value}</p>
+        <p className="whitespace-nowrap text-[11px] text-slate-500">{label}</p>
+        <p className="whitespace-nowrap text-[11px] font-semibold text-brand-600">↑ {change}</p>
+      </div>
     </div>
   );
 }
 
-function DashboardShowcase() {
-  const line = "M0,150 C60,140 110,128 170,120 C240,110 290,104 350,88 C420,70 470,74 540,52 C600,34 650,30 720,12";
-  const nav = ["Dashboard", "Cultivation", "Inventory", "Manufacturing", "Distribution", "Register", "Reports", "Compliance"];
+function HeroDashboard() {
+  const series = [
+    { d: "M0,120 C40,112 80,100 120,96 C160,92 200,84 240,72 C280,60 320,50 360,30 C380,22 400,12 420,4", w: 3, o: 1 },
+    { d: "M0,130 C40,126 80,118 120,116 C160,112 200,106 240,98 C280,90 320,82 360,70 C380,64 400,58 420,52", w: 2, o: 0.55 },
+    { d: "M0,138 C40,136 80,132 120,130 C160,128 200,124 240,120 C280,114 320,108 360,100 C380,96 400,92 420,88", w: 2, o: 0.3 },
+  ];
+  const nav = ["Dashboard", "Cultivation", "Inventory", "Manufacturing", "Distribution", "Retail", "Compliance", "Reports"];
+  const checks = [
+    ["State Reporting", "Up to date"],
+    ["Metrc Integration", "Connected"],
+    ["Inventory Reconciliation", "No issues"],
+    ["Audit Readiness", "Ready"],
+  ];
+  const stages = ["Cultivate", "Harvest", "Manufacture", "Package", "Distribute", "Retail"];
   return (
     <figure>
-      <div className="overflow-hidden rounded-2xl bg-white shadow-[0_40px_80px_-20px_rgba(12,48,32,0.45)] ring-1 ring-black/5">
-        <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2.5">
-          <span className="h-3 w-3 rounded-full bg-slate-300" />
-          <span className="h-3 w-3 rounded-full bg-slate-300" />
-          <span className="h-3 w-3 rounded-full bg-slate-300" />
-          <span className="ml-3 hidden rounded-md bg-white px-3 py-1 text-xs text-slate-500 ring-1 ring-slate-200 sm:block">your-business.cannatrace.app/dashboard</span>
-        </div>
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_30px_60px_-20px_rgba(12,48,32,0.35)]">
         <div className="flex">
-          <div className="hidden w-48 shrink-0 flex-col gap-1 bg-brand-950 p-4 md:flex">
-            <span className="mb-4 flex items-center gap-2 text-sm font-bold text-white">
-              <Leaf className="h-4 w-4 text-brand-200" aria-hidden="true" /> CannaTrace
-            </span>
+          <div className="hidden w-36 shrink-0 bg-brand-950 p-3 sm:block">
+            <p className="mb-5 mt-1 flex items-center gap-1.5 text-sm font-bold text-white">
+              <LeafMark className="h-5 w-5 text-brand-200" /> CannaTrace
+            </p>
             {nav.map((label, i) => (
-              <span key={label} className={`rounded-lg px-3 py-2 text-xs font-medium ${i === 0 ? "bg-brand-600 text-white" : "text-brand-100"}`}>
+              <p key={label} className={`mb-0.5 rounded-lg px-2.5 py-2 text-xs font-medium ${i === 0 ? "bg-brand-600 text-white" : "text-brand-100"}`}>
                 {label}
-              </span>
+              </p>
             ))}
           </div>
-          <div className="min-w-0 flex-1 bg-[#e8f1eb] p-3 sm:p-5">
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-2 sm:mb-4">
-              <div>
-                <p className="text-lg font-extrabold text-brand-950 sm:text-2xl">Dashboard</p>
-                <p className="text-[11px] text-slate-600 sm:text-xs">Front Street Grow · license NM-0000</p>
-              </div>
-              <div className="hidden gap-2 sm:flex">
-                {["New sale", "Receive", "Count"].map((b) => (
-                  <span key={b} className="rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-800">
-                    {b}
-                  </span>
-                ))}
+          <div className="min-w-0 flex-1 bg-slate-50/60 p-3 sm:p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-lg font-extrabold text-slate-900">Dashboard</p>
+              <div className="hidden gap-2 md:flex">
+                <span className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700">
+                  <MapPin className="h-3 w-3" aria-hidden="true" /> All Locations <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                </span>
+                <span className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700">
+                  <CalendarDays className="h-3 w-3" aria-hidden="true" /> Last 30 Days <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                </span>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-              <MiniTile icon={Sprout} value="1,240" label="Plants growing" />
-              <MiniTile icon={Boxes} value="386" label="Packages in stock" />
-              <MiniTile icon={ShoppingCart} value="$48,900" label="Sales, last 30 days" />
-              <MiniTile icon={ShieldCheck} value="96" label="Compliance score" />
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              <Stat icon={Leaf} value="12,480" label="Active Plants" change="+6.8%" />
+              <Stat icon={Boxes} value="4,320" label="Inventory Units" change="+3.9%" />
+              <Stat icon={Factory} value="2,680" label="Batches" change="+5.1%" />
+              <Stat icon={Store} value="$428,900" label="Retail Sales" change="+12.4%" />
             </div>
-            <div className="mt-2 grid gap-2 sm:mt-3 sm:gap-3 lg:grid-cols-3">
-              <div className="rounded-xl border border-brand-100 bg-white p-3 sm:p-4 lg:col-span-2">
-                <p className="text-xs font-bold text-brand-900 sm:text-sm">Sales by day</p>
-                <svg viewBox="0 0 720 160" className="mt-2 h-28 w-full sm:h-40" aria-hidden="true">
+            <div className="mt-2 grid gap-2 xl:grid-cols-5">
+              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm xl:col-span-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-slate-900">Operations Overview</p>
+                  <p className="flex gap-2 text-[10px] text-slate-500">
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand-700" /> Cultivation
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> Manufacturing
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand-200" /> Sales
+                    </span>
+                  </p>
+                </div>
+                <svg viewBox="0 0 420 140" className="mt-2 h-32 w-full" aria-hidden="true">
                   <defs>
-                    <linearGradient id="hero-area" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#2f8a4c" stopOpacity="0.28" />
+                    <linearGradient id="hero-fill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#2f8a4c" stopOpacity="0.35" />
                       <stop offset="100%" stopColor="#2f8a4c" stopOpacity="0" />
                     </linearGradient>
                   </defs>
-                  {[40, 80, 120].map((y) => (
-                    <line key={y} x1="0" x2="720" y1={y} y2={y} stroke="#e2e8f0" />
+                  {[35, 70, 105].map((y) => (
+                    <line key={y} x1="0" x2="420" y1={y} y2={y} stroke="#eef2ef" />
                   ))}
-                  <path d={`${line} L720,160 L0,160 Z`} fill="url(#hero-area)" />
-                  <path d={line} fill="none" stroke="#237a3e" strokeWidth="3" strokeLinecap="round" />
+                  <path d={`${series[0].d} L420,140 L0,140 Z`} fill="url(#hero-fill)" />
+                  {series.map((s, i) => (
+                    <path key={i} d={s.d} fill="none" stroke="#237a3e" strokeOpacity={s.o} strokeWidth={s.w} strokeLinecap="round" />
+                  ))}
                 </svg>
               </div>
-              <div className="rounded-xl border border-brand-100 bg-white p-3 sm:p-4">
-                <p className="text-xs font-bold text-brand-900 sm:text-sm">Needs attention</p>
-                <ul className="mt-2 space-y-2 text-[11px] sm:text-xs">
-                  <li className="flex items-center gap-2 text-slate-700">
-                    <TriangleAlert className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" /> 2 packages need a lab result
-                  </li>
-                  <li className="flex items-center gap-2 text-slate-700">
-                    <ClipboardCheck className="h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" /> Monthly count done
-                  </li>
-                  <li className="flex items-center gap-2 text-slate-700">
-                    <Check className="h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" /> State reports up to date
-                  </li>
+              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm xl:col-span-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-slate-900">Compliance Status</p>
+                  <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-800">Compliant</span>
+                </div>
+                <ul className="mt-2 space-y-1.5">
+                  {checks.map(([label, state]) => (
+                    <li key={label} className="flex items-center justify-between gap-2 whitespace-nowrap text-[10px]">
+                      <span className="flex items-center gap-1.5 text-slate-700">
+                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-brand-600 text-white">
+                          <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
+                        </span>
+                        {label}
+                      </span>
+                      <span className="text-brand-700">{state}</span>
+                    </li>
+                  ))}
                 </ul>
+              </div>
+            </div>
+            <div className="mt-2 grid gap-2 xl:grid-cols-[1fr_1.15fr]">
+              <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-900 text-brand-100">
+                  <Sprout className="h-7 w-7" aria-hidden="true" />
+                </span>
+                <div className="min-w-0 flex-1 text-[11px]">
+                  <p className="text-xs font-bold text-slate-900">Plant Tracking</p>
+                  <p className="text-brand-700">Flower · Cultivation Room A</p>
+                  <p className="text-slate-600">8,420 plants · Week 5 (Flower)</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                <p className="text-xs font-bold text-slate-900">Workflow Status</p>
+                <ol className="mt-2 grid grid-cols-6">
+                  {stages.map((stage, i) => (
+                    <li key={stage} className="relative flex flex-col items-center gap-1">
+                      {i > 0 ? <span className="absolute right-1/2 top-[7px] h-0.5 w-full bg-slate-200" aria-hidden="true" /> : null}
+                      <span
+                        className={`relative z-10 flex h-4 w-4 items-center justify-center rounded-full ${i < 2 ? "bg-brand-600 text-white" : "border-2 border-slate-300 bg-white"}`}
+                      >
+                        {i < 2 ? <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" /> : null}
+                      </span>
+                      <span className="max-w-full truncate text-[8px] text-slate-600">{stage}</span>
+                    </li>
+                  ))}
+                </ol>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <figcaption className="mt-3 text-center text-xs text-slate-500">Example screen. Figures are for illustration.</figcaption>
+      <figcaption className="mt-2 text-center text-xs text-slate-500">Example screen. Figures are for illustration.</figcaption>
     </figure>
   );
 }
 
-function RulesVignette() {
+/* ---------- The tablet in "See CannaTrace in Action" ---------- */
+
+function TabletCultivation() {
   const rows = [
-    ["Adult-use purchase limit", "Enforced at the register"],
-    ["Lab testing before sale", "Enforced at the register"],
-    ["Waste: 72-hour hold, 50% mix", "Enforced when destroying"],
-    ["Monthly inventory count", "Checked daily"],
+    ["PL-10428", "Gelato", "Flower", "35 days", "Room A"],
+    ["PL-10429", "Gelato", "Flower", "35 days", "Room A"],
+    ["PL-10430", "Blue Dream", "Vegetative", "18 days", "Room B"],
+    ["PL-10431", "Blue Dream", "Vegetative", "18 days", "Room B"],
   ];
   return (
-    <div className="rounded-2xl border border-brand-100 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-4 border-b border-brand-50 pb-4">
-        <div>
-          <p className="text-sm font-semibold text-slate-600">Compliance score</p>
-          <p className={`${display} text-5xl font-bold text-brand-700`}>
-            96<span className="text-xl text-slate-400">/100</span>
+    <div className="rounded-[2rem] bg-slate-900 p-3 shadow-2xl">
+      <div className="flex overflow-hidden rounded-[1.4rem] bg-white">
+        <div className="hidden w-32 shrink-0 bg-brand-950 p-3 sm:block">
+          <p className="mb-4 flex items-center gap-1 text-xs font-bold text-white">
+            <LeafMark className="h-4 w-4 text-brand-200" /> CannaTrace
           </p>
+          {["Dashboard", "Cultivation", "Inventory"].map((label, i) => (
+            <p key={label} className={`mb-0.5 rounded-md px-2 py-1.5 text-[11px] ${i === 1 ? "bg-brand-600 text-white" : "text-brand-100"}`}>
+              {label}
+            </p>
+          ))}
         </div>
-        <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-800">New Mexico rules</span>
-      </div>
-      <ul className="mt-3 divide-y divide-brand-50">
-        {rows.map(([rule, how]) => (
-          <li key={rule} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-            <span className="flex items-center gap-2 text-slate-800">
-              <Check className="h-4 w-4 text-brand-600" aria-hidden="true" />
-              {rule}
-            </span>
-            <span className="hidden text-xs font-semibold text-brand-700 sm:inline">{how}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function AssistantVignette() {
-  return (
-    <div className="rounded-2xl border border-brand-100 bg-white p-5 shadow-sm">
-      <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-brand-700 px-4 py-2.5 text-sm text-white">Put package 0042 on hold, we&apos;re waiting on the retest.</p>
-      <div className="mt-4 flex gap-3">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-700 text-white">
-          <Sparkles className="h-4 w-4" aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm text-slate-700">Ready. Review it and press Confirm.</p>
-          <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
-            <p className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-600">Hold package</p>
-            <dl className="space-y-1.5 px-4 py-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">Package</dt>
-                <dd className="font-medium text-slate-900">0042 · Blue Mesa 3.5 g</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">Status</dt>
-                <dd className="font-medium text-slate-900">Active → On hold</dd>
-              </div>
-            </dl>
-            <div className="flex gap-2 border-t border-slate-100 px-4 py-3">
-              <span className="flex-1 rounded-lg bg-brand-700 py-2 text-center text-sm font-semibold text-white">Confirm</span>
-              <span className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</span>
-            </div>
-          </div>
+        <div className="min-w-0 flex-1 p-4">
+          <p className="text-sm font-extrabold text-slate-900">Cultivation</p>
+          <p className="mt-2 flex gap-4 border-b border-slate-100 text-[11px] text-slate-500">
+            <span className="border-b-2 border-brand-600 pb-1 font-semibold text-brand-700">Plants</span>
+            <span>Batches</span>
+            <span>Rooms</span>
+            <span>Harvests</span>
+          </p>
+          <table className="mt-3 w-full text-left text-[10px]">
+            <thead className="text-slate-500">
+              <tr>
+                {["Plant ID", "Strain", "Stage", "Age", "Location"].map((h) => (
+                  <th key={h} className="pb-1 font-semibold">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="text-slate-700">
+              {rows.map((r) => (
+                <tr key={r[0]} className="border-t border-slate-100">
+                  <td className="py-1.5 font-mono">{r[0]}</td>
+                  <td>{r[1]}</td>
+                  <td>
+                    <span className={`rounded px-1 py-0.5 ${r[2] === "Flower" ? "bg-brand-100 text-brand-800" : "bg-slate-100 text-slate-700"}`}>{r[2]}</span>
+                  </td>
+                  <td>{r[3]}</td>
+                  <td>{r[4]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
-    </div>
-  );
-}
-
-function RegisterVignette() {
-  return (
-    <div className="rounded-2xl border border-brand-100 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between border-b border-brand-50 pb-3">
-        <p className="font-bold text-brand-950">Cart S-00418</p>
-        <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-800">Adult-use · ID checked</span>
-      </div>
-      <ul className="divide-y divide-brand-50 text-sm">
-        {[
-          ["Blue Mesa 3.5 g jar", "x8", "$280.00"],
-          ["Prickly Pear gummies", "x2", "$44.00"],
-        ].map(([item, q, price]) => (
-          <li key={item} className="flex justify-between gap-3 py-2.5">
-            <span className="text-slate-800">
-              {item} <span className="text-slate-400">{q}</span>
-            </span>
-            <span className="font-semibold text-slate-900">{price}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-2 flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
-        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        Adding one more jar puts the cart at 31.5 g of flower. California law allows 28.5 g per day.
-      </p>
     </div>
   );
 }
@@ -231,268 +245,233 @@ function RegisterVignette() {
 /* ---------- Page ---------- */
 
 const MODULES: { icon: LucideIcon; title: string; text: string }[] = [
-  { icon: Sprout, title: "Cultivation", text: "Batches, plant tags, phase moves, harvest weights, and waste, from clone to cure." },
-  { icon: Boxes, title: "Inventory", text: "Every package by tag, lot, and location, with splits, merges, holds, and counts." },
-  { icon: Factory, title: "Manufacturing", text: "Recipes, production runs, yield against plan, and cost per unit." },
-  { icon: Truck, title: "Distribution", text: "Licensed customers, price lists, manifests, invoices, and payments." },
-  { icon: Store, title: "Retail", text: "ID check, state purchase limits, taxes, cash drawer, and receipts." },
-  { icon: ScrollText, title: "Reports and audit", text: "Sales, stock, and an audit trail of every change that cannot be edited." },
+  { icon: Sprout, title: "Cultivation", text: "Track plants, batches, and growth from clone to harvest." },
+  { icon: Boxes, title: "Inventory", text: "Manage inventory across all locations and stages." },
+  { icon: ShieldCheck, title: "Compliance", text: "Stay compliant with real-time reporting and audit-ready records." },
+  { icon: Factory, title: "Manufacturing", text: "Handle production, batching, formulations, and quality control." },
+  { icon: Truck, title: "Distribution", text: "Streamline transfers, shipping, and chain-of-custody." },
+  { icon: Store, title: "Retail", text: "Run compliant, data-driven retail operations and sales." },
 ];
 
-const STEPS = [
-  { title: "Create your business", text: "Enter your business, your first license, and your own login. It takes about two minutes." },
-  { title: "Invite your team", text: "Send each person a one-time link with the role you choose, or build your own role." },
-  { title: "Start tracking", text: "Receive packages, tag plants, or open the register. Your state's rules are applied from the first sale." },
+const BENEFITS: { icon: LucideIcon; title: string; text: string }[] = [
+  { icon: Zap, title: "Real-time inventory", text: "Accurate, up-to-the-minute visibility across your entire operation." },
+  { icon: ShieldCheck, title: "Audit-ready traceability", text: "End-to-end tracking from seed to sale with compliant, exportable records." },
+  { icon: BarChart3, title: "Faster operations", text: "Automate workflows, reduce manual work, and get more done with less effort." },
+  { icon: MapPin, title: "Multi-location support", text: "Manage multiple facilities, licenses, and markets from a single platform." },
 ];
 
-const TRUST: { icon: LucideIcon; title: string; text: string }[] = [
-  { icon: Users, title: "Roles for every job", text: "Seven built-in roles plus ones you build, down to single permissions." },
-  { icon: ScrollText, title: "Records that can't be rewritten", text: "Inventory history and the audit trail are append-only in the database." },
-  { icon: KeyRound, title: "Passwords and keys stay secret", text: "Passwords are hashed. API keys and invite links are stored only as hashes." },
-  { icon: FileLock2, title: "Changes you approve", text: "The assistant only proposes changes. Nothing happens until a person confirms." },
+const AUDIENCE: { icon: LucideIcon; label: string }[] = [
+  { icon: Users, label: "Growers" },
+  { icon: Factory, label: "Producers" },
+  { icon: Truck, label: "Distributors" },
+  { icon: Store, label: "Retailers" },
 ];
 
-const FAQ = [
-  ["Which states does CannaTrace support?", `Rule packs today cover ${Object.values(PACKS).map((p) => p.name).join(", ")}. Every rule links to the regulation it comes from. Businesses in other states can still use everything else, with their own limits.`],
-  ["Does it connect to Metrc or my state's tracking system?", "CannaTrace keeps a reporting queue of every change and sends it to the state system as connections become available. Until then, it lists exactly what to enter by hand, so nothing is missed."],
-  ["What does the assistant do?", "It answers questions from your live data, like what's on hold or who owes you money, and can prepare changes such as moving or holding a package. You review and confirm every change."],
-  ["Can I bring my existing inventory?", "Yes. Import packages, items, and customers from a spreadsheet. Every row is checked first, and nothing is imported until the whole file is clean."],
-  ["Does it work on phones and tablets?", "Yes. Every screen works on a phone, and the camera can scan package tags."],
-];
+function NavMenu({ label, items }: { label: string; items: [string, string][] }) {
+  return (
+    <div className="group relative">
+      <button type="button" className="flex items-center gap-1 py-2 text-[15px] font-medium text-slate-800 hover:text-brand-700">
+        {label} <ChevronDown className="h-4 w-4" aria-hidden="true" />
+      </button>
+      <div className="invisible absolute left-0 top-full z-40 w-52 rounded-xl border border-slate-100 bg-white p-2 opacity-0 shadow-lg transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
+        {items.map(([text, href]) => (
+          <a key={text} href={href} className="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-800">
+            {text}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default async function HomePage() {
   const signedIn = Boolean(await getSession());
-  const cta = signedIn ? { href: "/dashboard", label: "Go to dashboard" } : { href: "/signup", label: "Get started" };
+  const cta = signedIn ? { href: "/dashboard", label: "Go to Dashboard" } : { href: "/signup", label: "Get Started" };
 
   return (
     <div className="bg-white text-slate-900">
+      <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-3">
+          <Link href="/" aria-label="CannaTrace home">
+            <Logo size="lg" />
+          </Link>
+          <nav className="hidden items-center gap-7 lg:flex">
+            <NavMenu
+              label="Features"
+              items={[
+                ["Cultivation", "#features"],
+                ["Inventory", "#features"],
+                ["Compliance", "#features"],
+                ["Manufacturing", "#features"],
+                ["Distribution", "#features"],
+                ["Retail", "#features"],
+              ]}
+            />
+            <NavMenu
+              label="Solutions"
+              items={[
+                ["Growers", "#solutions"],
+                ["Producers", "#solutions"],
+                ["Distributors", "#solutions"],
+                ["Retailers", "#solutions"],
+              ]}
+            />
+            <a href="#contact" className="text-[15px] font-medium text-slate-800 hover:text-brand-700">
+              Pricing
+            </a>
+            <NavMenu
+              label="Resources"
+              items={[
+                ["Why CannaTrace", "#benefits"],
+                ["See it in action", "#demo"],
+                [signedIn ? "Go to dashboard" : "Sign in", signedIn ? "/dashboard" : "/login"],
+              ]}
+            />
+            <a href="#contact" className="text-[15px] font-medium text-slate-800 hover:text-brand-700">
+              Contact
+            </a>
+          </nav>
+          <div className="flex items-center gap-3">
+            {signedIn ? null : (
+              <Link href="/login" className="hidden text-[15px] font-medium text-slate-800 hover:text-brand-700 sm:block">
+                Sign in
+              </Link>
+            )}
+            <a href="#demo" className="rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-brand-800">
+              Book a Demo
+            </a>
+          </div>
+        </div>
+      </header>
+
       {/* Hero */}
-      <div className="bg-brand-950 text-white">
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-brand-950/90 backdrop-blur">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4">
-            <Link href="/" aria-label="CannaTrace home">
-              <Logo tone="light" />
-            </Link>
-            <nav className="hidden items-center gap-8 text-sm font-medium text-brand-100 lg:flex">
-              <a href="#platform" className="hover:text-white">
-                Platform
-              </a>
-              <a href="#compliance" className="hover:text-white">
-                Compliance
-              </a>
-              <a href="#assistant" className="hover:text-white">
-                Assistant
-              </a>
-              <a href="#faq" className="hover:text-white">
-                Questions
-              </a>
-            </nav>
-            <div className="flex items-center gap-2">
-              {signedIn ? null : (
-                <Link href="/login" className="rounded-lg px-3 py-2 text-sm font-semibold text-brand-100 hover:text-white">
-                  Sign in
-                </Link>
-              )}
-              <Link href={cta.href} className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-brand-950 hover:bg-brand-50">
-                {cta.label}
-              </Link>
-            </div>
-          </div>
-        </header>
-
-        <section className="mx-auto max-w-7xl px-5 pb-0 pt-16 sm:pt-24">
-          <div className="max-w-3xl">
-            <h1 className={`${display} text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl`}>From seed to sale, every gram accounted for.</h1>
-            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-brand-100 sm:text-xl">
-              CannaTrace runs cultivation, inventory, manufacturing, wholesale, and retail for licensed cannabis businesses, and applies your state&apos;s rules at every step.
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#f4faf6] via-white to-[#e6f3ea]">
+        <LeafMark className="pointer-events-none absolute -right-24 top-1/2 h-[34rem] w-[34rem] -translate-y-1/2 text-brand-600/[0.05]" />
+        <div className="relative mx-auto grid max-w-[90rem] items-center gap-10 px-5 py-14 lg:grid-cols-[0.8fr_1.2fr] lg:py-20 xl:px-10">
+          <div>
+            <span className="inline-block rounded-lg bg-brand-100/70 px-4 py-1.5 text-sm font-semibold text-brand-900">Cannabis Operations Software</span>
+            <h1 className="mt-6 text-5xl font-extrabold leading-[1.02] tracking-tight text-slate-950 sm:text-6xl">
+              From Seed to Sale.
+              <br />
+              <span className="text-brand-700">Fully Tracked</span>.
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-700">
+              CannaTrace helps cannabis operators manage cultivation, inventory, compliance, manufacturing, distribution, and retail operations — all in one integrated platform.
             </p>
-            <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Link href={cta.href} className="rounded-xl bg-white px-6 py-3.5 text-base font-bold text-brand-950 shadow-sm hover:bg-brand-50">
-                {cta.label}
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href={cta.href} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-7 py-3.5 text-base font-bold text-white shadow-sm hover:bg-brand-800">
+                {cta.label} <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </Link>
-              <a href="#platform" className="rounded-xl px-6 py-3.5 text-base font-semibold text-white ring-1 ring-white/30 hover:bg-white/10">
-                See the platform
+              <a href="#demo" className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-7 py-3 text-base font-bold text-slate-900 hover:border-brand-600">
+                <Play className="h-5 w-5" aria-hidden="true" /> View Demo
               </a>
             </div>
+            <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-700">
+              {["Compliance built in", "Scalable", "Secure", "Built for Cannabis"].map((item) => (
+                <li key={item} className="flex items-center gap-1.5">
+                  <Check className="h-4 w-4 text-brand-600" strokeWidth={3} aria-hidden="true" /> {item}
+                </li>
+              ))}
+            </ul>
           </div>
-          <div className="relative mt-14 sm:mt-20">
-            <div className="relative z-10 -mb-32 sm:-mb-48">
-              <DashboardShowcase />
-            </div>
-          </div>
-        </section>
-      </div>
-
-      {/* State packs */}
-      <section className="bg-white pb-16 pt-44 sm:pt-60">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-5 text-center">
-          <p className="w-full text-sm font-semibold text-slate-600 sm:w-auto">State rules built in for</p>
-          {Object.values(PACKS).map((p) => (
-            <span key={p.state} className={`${display} text-2xl font-bold text-brand-900`}>
-              {p.name}
-            </span>
-          ))}
+          <HeroDashboard />
         </div>
       </section>
 
       {/* Platform */}
-      <section id="platform" className="scroll-mt-24 border-t border-brand-50 bg-white py-20 sm:py-28">
+      <section id="features" className="scroll-mt-20 py-16">
         <div className="mx-auto max-w-7xl px-5">
-          <h2 className={`${display} max-w-3xl text-4xl font-bold tracking-tight text-brand-950 sm:text-5xl`}>One system from the grow room to the register.</h2>
-          <p className="mt-4 max-w-2xl text-lg text-slate-600">Every module shares the same inventory, so a plant you tag today is the jar you sell next month, with its full history.</p>
-          <div className="mt-14 grid gap-x-12 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+          <h2 className="text-center text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">A Complete Cannabis Operations Platform</h2>
+          <p className="mt-2 text-center text-slate-600">Power every stage of your cannabis business with integrated, compliant, and scalable tools.</p>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {MODULES.map(({ icon: Icon, title, text }) => (
-              <div key={title} className="border-t-2 border-brand-600 pt-5">
-                <Icon className="h-7 w-7 text-brand-700" aria-hidden="true" />
-                <h3 className="mt-4 text-lg font-bold text-brand-950">{title}</h3>
-                <p className="mt-1.5 leading-relaxed text-slate-600">{text}</p>
+              <div key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                  <Icon className="h-6 w-6" aria-hidden="true" />
+                </span>
+                <h3 className="mt-4 text-lg font-bold text-slate-950">{title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600">{text}</p>
               </div>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* Feature rows */}
-      <section id="compliance" className="scroll-mt-24 bg-brand-50 py-20 sm:py-28">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 lg:grid-cols-2">
-          <div>
-            <ShieldCheck className="h-9 w-9 text-brand-700" aria-hidden="true" />
-            <h2 className={`${display} mt-5 text-4xl font-bold tracking-tight text-brand-950`}>Your state&apos;s rules, enforced where the work happens.</h2>
-            <p className="mt-4 text-lg leading-relaxed text-slate-600">
-              Purchase limits at the register, lab testing before sale, waste hold periods before destruction. Each rule links to the regulation it comes from, and a daily score shows what to fix before an inspector finds it.
-            </p>
-            <ul className="mt-6 space-y-2 text-slate-800">
-              {["Stricter of your store's limits and the state's", "Untested product can't be rung up", "Score and fix list on the dashboard"].map((t) => (
-                <li key={t} className="flex items-center gap-2">
-                  <BadgeCheck className="h-5 w-5 text-brand-600" aria-hidden="true" />
-                  {t}
+          {/* Benefits strip */}
+          <div id="benefits" className="mt-8 grid scroll-mt-20 gap-6 rounded-2xl bg-brand-50/70 px-6 py-6 sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-brand-100">
+            {BENEFITS.map(({ icon: Icon, title, text }) => (
+              <div key={title} className="flex gap-4 lg:px-4 lg:first:pl-0">
+                <Icon className="mt-0.5 h-7 w-7 shrink-0 text-brand-700" aria-hidden="true" />
+                <div>
+                  <h3 className="font-bold text-slate-950">{title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600">{text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Audience, with the mascot */}
+          <div id="solutions" className="mt-10 grid scroll-mt-20 items-center gap-8 lg:grid-cols-[1fr_1.3fr_1fr]">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Made for cannabis operators</p>
+              <h2 className="mt-1 text-2xl font-extrabold leading-tight text-slate-950">Built for growers, producers, distributors, and retailers.</h2>
+            </div>
+            <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+              <Image src="/mascot.webp" alt="The CannaTrace mascot, a friendly towel holding a tablet showing the CannaTrace dashboard" width={140} height={127} className="h-28 w-auto shrink-0" />
+              <p className="relative rounded-2xl bg-brand-50 px-4 py-3 text-sm font-medium text-brand-950">
+                Every plant, package, and sale, tracked in one place. Need a hand? Ask me anything inside the app.
+              </p>
+            </div>
+            <ul className="flex justify-between gap-4 lg:justify-end lg:gap-8">
+              {AUDIENCE.map(({ icon: Icon, label }) => (
+                <li key={label} className="flex flex-col items-center gap-2 text-sm font-semibold text-slate-800">
+                  <Icon className="h-8 w-8 text-slate-700" aria-hidden="true" />
+                  {label}
                 </li>
               ))}
             </ul>
           </div>
-          <RulesVignette />
         </div>
       </section>
 
-      <section id="assistant" className="scroll-mt-24 bg-white py-20 sm:py-28">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 lg:grid-cols-2">
-          <div className="lg:order-2">
-            <Sparkles className="h-9 w-9 text-brand-700" aria-hidden="true" />
-            <h2 className={`${display} mt-5 text-4xl font-bold tracking-tight text-brand-950`}>Ask your business anything.</h2>
-            <p className="mt-4 text-lg leading-relaxed text-slate-600">
-              The built-in assistant answers from your live data: top sellers last week, what&apos;s on hold, which customers owe you. Ask it to move or hold a package and it prepares the change for you to confirm.
-            </p>
-            <ul className="mt-6 space-y-2 text-slate-800">
-              {["Sees only what your role allows", "Every change waits for your Confirm", "Recorded in the audit trail"].map((t) => (
-                <li key={t} className="flex items-center gap-2">
-                  <BadgeCheck className="h-5 w-5 text-brand-600" aria-hidden="true" />
-                  {t}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="lg:order-1">
-            <AssistantVignette />
+      {/* See it in action */}
+      <section id="demo" className="scroll-mt-20 px-5 pb-16">
+        <div className="relative mx-auto grid max-w-7xl items-center gap-10 overflow-hidden rounded-3xl bg-gradient-to-r from-brand-50 via-[#eef7f1] to-brand-100 px-6 py-12 sm:px-12 lg:grid-cols-2">
+          <LeafMark className="pointer-events-none absolute -bottom-16 -right-10 h-80 w-80 text-brand-600/15" />
+          <TabletCultivation />
+          <div className="relative">
+            <h2 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">See CannaTrace in Action</h2>
+            <p className="mt-3 max-w-lg text-lg text-slate-700">Discover how CannaTrace can streamline your operations, ensure compliance, and help your cannabis business grow.</p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href={cta.href} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-6 py-3 font-bold text-white shadow-sm hover:bg-brand-800">
+                {cta.label} <ArrowRight className="h-5 w-5" aria-hidden="true" />
+              </Link>
+              <a href="#features" className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-6 py-2.5 font-bold text-slate-900 hover:border-brand-600">
+                <Play className="h-5 w-5" aria-hidden="true" /> Watch Product Tour
+              </a>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="bg-brand-50 py-20 sm:py-28">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 lg:grid-cols-2">
+      <footer id="contact" className="scroll-mt-20 border-t border-slate-100 bg-white">
+        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:grid-cols-3">
           <div>
-            <Store className="h-9 w-9 text-brand-700" aria-hidden="true" />
-            <h2 className={`${display} mt-5 text-4xl font-bold tracking-tight text-brand-950`}>A register that knows the law.</h2>
-            <p className="mt-4 text-lg leading-relaxed text-slate-600">
-              Check ID at the door, ring up by scan, and let CannaTrace stop a sale before it goes over the limit. Taxes, discounts, cash drawers, voids, and end-of-day totals are built in.
-            </p>
+            <Logo />
+            <p className="mt-2 text-sm text-slate-600">Seed-to-sale software for licensed cannabis businesses.</p>
           </div>
-          <RegisterVignette />
-        </div>
-      </section>
-
-      {/* Getting started: a real sequence */}
-      <section className="bg-white py-20 sm:py-28">
-        <div className="mx-auto max-w-7xl px-5">
-          <h2 className={`${display} max-w-2xl text-4xl font-bold tracking-tight text-brand-950`}>Up and running the same day.</h2>
-          <ol className="mt-12 grid gap-8 md:grid-cols-3">
-            {STEPS.map((step, i) => (
-              <li key={step.title} className="rounded-2xl border border-brand-100 p-6">
-                <span className={`${display} flex h-11 w-11 items-center justify-center rounded-full bg-brand-700 text-xl font-bold text-white`}>{i + 1}</span>
-                <h3 className="mt-5 text-lg font-bold text-brand-950">{step.title}</h3>
-                <p className="mt-1.5 leading-relaxed text-slate-600">{step.text}</p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-
-      {/* Trust */}
-      <section className="bg-brand-950 py-20 text-white sm:py-24">
-        <div className="mx-auto max-w-7xl px-5">
-          <h2 className={`${display} max-w-2xl text-4xl font-bold tracking-tight`}>Built for an industry that gets audited.</h2>
-          <div className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
-            {TRUST.map(({ icon: Icon, title, text }) => (
-              <div key={title}>
-                <Icon className="h-7 w-7 text-brand-200" aria-hidden="true" />
-                <h3 className="mt-4 font-bold">{title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-brand-100">{text}</p>
-              </div>
-            ))}
+          <div className="text-sm">
+            <p className="font-bold text-slate-950">Pricing and demos</p>
+            <p className="mt-1 text-slate-600">Online booking is coming soon. You can create an account and start using CannaTrace today.</p>
           </div>
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section id="faq" className="scroll-mt-24 bg-white py-20 sm:py-28">
-        <div className="mx-auto grid max-w-7xl gap-12 px-5 lg:grid-cols-3">
-          <h2 className={`${display} text-4xl font-bold tracking-tight text-brand-950`}>Questions operators ask.</h2>
-          <div className="divide-y divide-brand-100 border-y border-brand-100 lg:col-span-2">
-            {FAQ.map(([q, a]) => (
-              <details key={q} className="group py-5">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-lg font-semibold text-brand-950">
-                  {q}
-                  <span className="text-2xl font-light text-brand-600 transition group-open:rotate-45">+</span>
-                </summary>
-                <p className="mt-3 max-w-2xl leading-relaxed text-slate-600">{a}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Closing call to action */}
-      <section className="bg-brand-50 py-20">
-        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 px-5 lg:flex-row lg:items-center">
-          <div>
-            <h2 className={`${display} text-4xl font-bold tracking-tight text-brand-950 sm:text-5xl`}>Run your whole operation in one place.</h2>
-            <p className="mt-3 text-lg text-slate-600">Set up your business, add your licenses, and start tracking today.</p>
-          </div>
-          <Link href={cta.href} className="shrink-0 rounded-xl bg-brand-700 px-8 py-4 text-lg font-bold text-white shadow-sm hover:bg-brand-800">
-            {cta.label}
-          </Link>
-        </div>
-      </section>
-
-      <footer className="border-t border-brand-100 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-8 text-sm text-slate-500">
-          <Logo />
-          <nav className="flex flex-wrap gap-6">
-            <a href="#platform" className="hover:text-brand-700">
-              Platform
-            </a>
-            <a href="#compliance" className="hover:text-brand-700">
-              Compliance
-            </a>
-            <a href="#faq" className="hover:text-brand-700">
-              Questions
-            </a>
-            <Link href={signedIn ? "/dashboard" : "/login"} className="hover:text-brand-700">
-              {signedIn ? "Go to dashboard" : "Sign in"}
+          <div className="flex flex-col gap-2 text-sm sm:items-end">
+            <Link href={cta.href} className="font-semibold text-brand-700 hover:underline">
+              {cta.label}
             </Link>
-          </nav>
-          <p className="flex items-center gap-1.5">
-            <LayoutDashboard className="h-4 w-4" aria-hidden="true" /> Seed-to-sale software for licensed cannabis businesses
-          </p>
+            {signedIn ? null : (
+              <Link href="/login" className="text-slate-600 hover:text-brand-700">
+                Sign in
+              </Link>
+            )}
+          </div>
         </div>
       </footer>
     </div>
