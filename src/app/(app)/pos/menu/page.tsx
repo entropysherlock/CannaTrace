@@ -1,21 +1,23 @@
-import { Info } from "lucide-react";
 import Decimal from "decimal.js";
 import { and, asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
 import { unitPrice } from "@/components/distribution-ui";
 import { PosTabs } from "@/components/pos-tabs";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
-import { discountPresets, items, retailPrices } from "@/db/schema";
+import { discountPresets, facilities, items, retailPrices } from "@/db/schema";
+import { PACKS, rulesOf } from "@/lib/rules";
+import { StoreRulesForm, type StatePrefill } from "@/components/store-rules-form";
 import { db } from "@/lib/db";
 import { getRetailSettings } from "@/lib/pos";
 import { LIMIT_LABELS } from "@/lib/pos-math";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
-import { discountPresetAction, menuItemAction, retailSettingsAction } from "../actions";
+import { discountPresetAction, menuItemAction } from "../actions";
 
 export default async function MenuPage() {
   const session = await requirePagePermission("pos.manage");
-  const [settings, menu, itemRows, discounts] = await Promise.all([
+  const [[facility], settings, menu, itemRows, discounts] = await Promise.all([
+    db.select({ state: facilities.state }).from(facilities).where(eq(facilities.id, session.facilityId)),
     getRetailSettings(db, session.facilityId),
     db
       .select({ id: items.id, name: items.name, unit: items.unit, price: retailPrices.price, limitCategory: items.limitCategory, limitPerUnit: items.limitPerUnit })
@@ -31,6 +33,27 @@ export default async function MenuPage() {
     db.select().from(discountPresets).where(eq(discountPresets.orgId, session.orgId)).orderBy(asc(discountPresets.name)),
   ]);
   const num = (value: Decimal.Value) => new Decimal(value).toString();
+  const prefills: StatePrefill[] = Object.values(PACKS)
+    .map((pack) => {
+      const rule = rulesOf(pack, "PURCHASE_LIMIT").find((r) => r.customer === "ADULT_USE");
+      if (!rule) return null;
+      const str = (v: number | undefined) => (v === undefined ? null : String(Math.round(v * 1000) / 1000));
+      return {
+        state: pack.state,
+        name: pack.name,
+        flower: str(rule.flowerGrams),
+        concentrate: str(rule.concentrateGrams),
+        edible: str(rule.edibleMg),
+        combined: str(rule.combinedGrams),
+        perDay: rule.period === "DAY",
+        summary: rule.summary,
+        citation: rule.source.citation,
+        url: rule.source.url,
+        checked: rule.source.checked,
+      };
+    })
+    .filter((p): p is StatePrefill => p !== null)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <>
@@ -109,28 +132,18 @@ export default async function MenuPage() {
           </Card>
 
           <Card title="Store rules">
-            <ActionForm action={retailSettingsAction} submitLabel="Save store rules">
-              <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Limits and tax rates are set by your state and city and they change. Enter the current figures for this store; CannaTrace does not look them up. The register stays locked until these are saved.</span></p>
-              <Field label="Flower limit per purchase, in grams">
-                <input name="flowerLimitGrams" inputMode="decimal" required defaultValue={settings.saved ? num(settings.flowerLimitGrams) : ""} className={inputClass} />
-              </Field>
-              <Field label="Concentrate limit per purchase, in grams">
-                <input name="concentrateLimitGrams" inputMode="decimal" required defaultValue={settings.saved ? num(settings.concentrateLimitGrams) : ""} className={inputClass} />
-              </Field>
-              <Field label="Edible limit per purchase, in milligrams of THC">
-                <input name="edibleLimitMg" inputMode="decimal" required defaultValue={settings.saved ? num(settings.edibleLimitMg) : ""} className={inputClass} />
-              </Field>
-              <Field label="Cannabis excise tax, percent">
-                <input name="exciseTaxPercent" inputMode="decimal" required defaultValue={settings.saved ? num(settings.exciseTaxPercent) : ""} className={inputClass} />
-              </Field>
-              <Field label="Sales tax, percent">
-                <input name="salesTaxPercent" inputMode="decimal" required defaultValue={settings.saved ? num(settings.salesTaxPercent) : ""} className={inputClass} />
-              </Field>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" name="medicalTaxExempt" defaultChecked={settings.medicalTaxExempt} className="h-5 w-5 accent-brand-700" />
-                Medical patients pay no tax
-              </label>
-            </ActionForm>
+            <StoreRulesForm
+              initial={{
+                flower: settings.saved ? num(settings.flowerLimitGrams) : "",
+                concentrate: settings.saved ? num(settings.concentrateLimitGrams) : "",
+                edible: settings.saved ? num(settings.edibleLimitMg) : "",
+                excise: settings.saved ? num(settings.exciseTaxPercent) : "",
+                sales: settings.saved ? num(settings.salesTaxPercent) : "",
+              }}
+              medicalTaxExempt={settings.medicalTaxExempt}
+              prefills={prefills}
+              facilityState={facility?.state ?? ""}
+            />
           </Card>
 
           <Card title="Add a discount">
