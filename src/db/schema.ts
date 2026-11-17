@@ -297,6 +297,8 @@ export const packages = pgTable(
     heldSince: timestamp("held_since", { withTimezone: true }),
     lotNumber: text("lot_number"),
     costPerUnit: qty("cost_per_unit"),
+    /** The vendor this package was bought from, when it was received from outside. */
+    vendorId: text("vendor_id"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -730,9 +732,42 @@ export const customers = pgTable(
     priceListId: text("price_list_id").references(() => priceLists.id),
     paymentTermsDays: integer("payment_terms_days").notNull().default(0),
     active: boolean("active").notNull().default(true),
+    /** Vendor roles: a business can be one we sell to, one we buy from, or both. */
+    weSellTo: boolean("we_sell_to").notNull().default(true),
+    weBuyFrom: boolean("we_buy_from").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("customers_org_license_key").on(t.orgId, t.licenseNumber)],
+);
+
+/**
+ * A vendor's licensed location that product can ship to (Flourish calls these destinations).
+ * A vendor can have several; orders ship to one, and its license is the one checked at shipping.
+ */
+export const destinations = pgTable(
+  "destinations",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    vendorId: text("vendor_id")
+      .notNull()
+      .references(() => customers.id),
+    name: text("name").notNull(),
+    licenseNumber: text("license_number").notNull(),
+    licenseType: text("license_type").notNull(),
+    licenseExpires: text("license_expires").notNull(), // YYYY-MM-DD
+    licenseVerifiedAt: timestamp("license_verified_at", { withTimezone: true }),
+    licenseVerifiedBy: text("license_verified_by"),
+    address: text("address"),
+    contactName: text("contact_name"),
+    phone: text("phone"),
+    email: text("email"),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("destinations_vendor_license_key").on(t.vendorId, t.licenseNumber), index("destinations_org_idx").on(t.orgId)],
 );
 
 export const drivers = pgTable("drivers", {
@@ -786,6 +821,8 @@ export const orders = pgTable(
     customerId: text("customer_id")
       .notNull()
       .references(() => customers.id),
+    /** Where it ships. Older orders, from before destinations, have none and use the vendor's own license. */
+    destinationId: text("destination_id").references(() => destinations.id),
     status: orderStatusEnum("status").notNull().default("DRAFT"),
     notes: text("notes"),
     userName: text("user_name").notNull(),

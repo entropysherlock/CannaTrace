@@ -7,6 +7,7 @@ import { can, type Permission } from "@/lib/rbac";
 import { ENFORCEMENT } from "@/lib/rules";
 import { scanFacility } from "@/lib/rules/scan";
 import type { Session } from "@/lib/session";
+import { BULK_TOOLS } from "./bulk-tools";
 import { LABEL_TOOLS } from "./label-tools";
 
 /**
@@ -457,6 +458,7 @@ export const TOOLS: Tool[] = [
     },
   },
   ...LABEL_TOOLS,
+  ...BULK_TOOLS,
 ];
 
 /** The tools this person may use. Others are never offered to the model at all. */

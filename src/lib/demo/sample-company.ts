@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { facilities, itemCategories, items, locations, organizations, packages, users } from "@/db/schema";
+import { destinations, facilities, itemCategories, items, locations, organizations, packages, users } from "@/db/schema";
 import { db } from "@/lib/db";
 import {
   changePlantPhase,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/cultivation";
 import { expandTags } from "@/lib/cultivation-math";
 import { addLabResult, adjustPackage, movePackage, receivePackage, type Actor } from "@/lib/inventory";
-import { createCustomer, createDriver, createPriceList, createVehicle, setPrice, verifyCustomerLicense } from "@/lib/distribution";
+import { createCustomer, createDestination, createDriver, createPriceList, createVehicle, setPrice, verifyCustomerLicense, verifyDestinationLicense } from "@/lib/distribution";
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { createRecipe } from "@/lib/manufacturing";
 import { createDiscount, saveRetailSettings, setMenuItem } from "@/lib/pos";
@@ -267,12 +267,33 @@ export async function seedSampleCompany(opts: SeedOptions) {
     paymentTermsDays: "15",
   });
   await verifyCustomerLicense(salesActor, { customerId: verified.id });
+  // Its own store is its first destination; it has a second store too. Both licenses checked.
+  const [main] = await db.select({ id: destinations.id }).from(destinations).where(eq(destinations.vendorId, verified.id));
+  await verifyDestinationLicense(salesActor, { destinationId: main.id });
+  const second = await createDestination(salesActor, {
+    vendorId: verified.id,
+    name: "Turquoise Trail – Madrid",
+    licenseNumber: "DEMO-RET-0418",
+    licenseType: "Retailer",
+    licenseExpires: addDays(todayIn(), 200),
+    address: "2860 NM-14, Madrid, NM",
+  });
+  await verifyDestinationLicense(salesActor, { destinationId: second.id });
   await createCustomer(salesActor, {
     name: "Bosque Wellness",
     licenseNumber: "DEMO-RET-0533",
     licenseType: "Retailer",
     licenseExpires: addDays(todayIn(), 90),
     address: "415 Rio Grande Blvd NW, Albuquerque, NM",
+  });
+  // A supplier: a vendor we buy from.
+  await createCustomer(salesActor, {
+    name: "Sandoval Packaging Supply",
+    licenseNumber: "DEMO-SUP-0090",
+    licenseType: "Ancillary supplier",
+    licenseExpires: addDays(todayIn(), 365),
+    weSellTo: false,
+    weBuyFrom: true,
   });
   await createDriver(salesActor, { name: "Dana Ortiz", licenseNumber: "DEMO-DL-0001", phone: "505-555-0142" });
   await createVehicle(salesActor, { make: "Ford", model: "Transit Connect", plate: "DEMO-123" });

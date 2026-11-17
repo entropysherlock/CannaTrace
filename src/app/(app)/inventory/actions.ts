@@ -43,6 +43,7 @@ export async function receiveAction(_state: FormState, formData: FormData): Prom
       lotNumber: field(formData, "lotNumber"),
       costPerUnit: field(formData, "costPerUnit"),
       note: field(formData, "note"),
+      vendorId: field(formData, "vendorId") || null,
     });
     packageId = pkg.id;
   } catch (error) {

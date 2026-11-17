@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   customers,
+  destinations,
   facilities,
   harvestPackages,
   harvests,
@@ -159,14 +160,15 @@ async function batchRecords(scope: Scope, ids: string[], fac: Record<string, str
 /** A transfer label is printed for each package allocated to the order, in a fixed order. */
 async function transferRecords(scope: Scope, orderIds: string[], fac: Record<string, string | null>): Promise<LabelRecord[]> {
   const rows = await db
-    .select({ order: orders, customer: customers })
+    .select({ order: orders, customer: customers, destination: destinations })
     .from(orders)
     .innerJoin(customers, eq(customers.id, orders.customerId))
+    .leftJoin(destinations, eq(destinations.id, orders.destinationId))
     .where(and(eq(orders.orgId, scope.orgId), eq(orders.facilityId, scope.facilityId), inArray(orders.id, orderIds)));
   requireAll(orderIds, new Set(rows.map((r) => r.order.id)), "order");
   const out: LabelRecord[] = [];
   for (const id of orderIds) {
-    const { order, customer } = rows.find((r) => r.order.id === id)!;
+    const { order, customer, destination } = rows.find((r) => r.order.id === id)!;
     const allocs = await db.select({ packageId: orderAllocations.packageId }).from(orderAllocations).where(eq(orderAllocations.orderId, id)).orderBy(asc(orderAllocations.createdAt));
     if (allocs.length === 0) throw new LabelDataError(`Order ${order.number} has no packages picked yet. Pick packages before printing transfer labels.`);
     const pkgRecords = await packageRecords(scope, allocs.map((a) => a.packageId), fac);
@@ -179,7 +181,8 @@ async function transferRecords(scope: Scope, orderIds: string[], fac: Record<str
           "order.number": order.number,
           "order.manifest": order.manifestNumber,
           "order.customer": customer.name,
-          "order.customerLicense": customer.licenseNumber,
+          // The receiving license is the destination's, where the order has one.
+          "order.customerLicense": destination?.licenseNumber ?? customer.licenseNumber,
           "order.shipDate": order.departAt ? order.departAt.slice(0, 10) : day(order.shippedAt),
           "order.position": `${i + 1} of ${pkgRecords.length}`,
         },

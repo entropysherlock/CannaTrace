@@ -8,7 +8,7 @@ import { ActionForm } from "@/components/action-form";
 import { DistributionTabs, Pill, unitPrice, usd } from "@/components/distribution-ui";
 import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
-import { customers, drivers, invoices, items, orderAllocations, orderLines, orders, packages, vehicles } from "@/db/schema";
+import { customers, destinations, drivers, invoices, items, orderAllocations, orderLines, orders, packages, vehicles } from "@/db/schema";
 import { db } from "@/lib/db";
 import { licenseProblem, lineTotal, todayIn } from "@/lib/distribution-math";
 import { can } from "@/lib/rbac";
@@ -37,9 +37,10 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const session = await requirePagePermission("sales.view");
   const { id } = await params;
   const [row] = await db
-    .select({ order: orders, customer: customers })
+    .select({ order: orders, customer: customers, destination: destinations })
     .from(orders)
     .innerJoin(customers, eq(customers.id, orders.customerId))
+    .leftJoin(destinations, eq(destinations.id, orders.destinationId))
     .where(and(eq(orders.id, id), eq(orders.orgId, session.orgId), eq(orders.facilityId, session.facilityId)));
   if (!row) notFound();
   const { order, customer } = row;
@@ -69,7 +70,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
   const canSell = can(session, "sales.write");
   const canFulfil = canSell || can(session, "inventory.write");
-  const problem = licenseProblem(customer, todayIn());
+  // The destination's license is the one checked when the order ships.
+  const problem = row.destination ? licenseProblem({ ...row.destination, name: `${customer.name} (${row.destination.name})` }, todayIn()) : licenseProblem(customer, todayIn());
   const hidden = <input type="hidden" name="orderId" value={order.id} />;
   const pickedFor = (lineId: string) =>
     allocations.filter((a) => a.lineId === lineId).reduce((sum, a) => sum.add(a.quantity), new Decimal(0));
@@ -88,7 +90,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     <>
       <PageHeader
         title={order.number}
-        subtitle={`${customer.name} · started by ${order.userName} on ${order.createdAt.toLocaleDateString("en-US")}`}
+        subtitle={`${customer.name}${row.destination && row.destination.name !== customer.name ? ` – ${row.destination.name}` : ""} · started by ${order.userName} on ${order.createdAt.toLocaleDateString("en-US")}`}
         action={
           <div className="flex flex-wrap items-center gap-3">
             {allocations.length && can(session, "labels.print") && !["DRAFT", "CANCELLED"].includes(order.status) ? (
@@ -106,7 +108,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         <p className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800">
           {problem}{" "}
           <Link href={`/distribution/customers/${customer.id}`} className="underline">
-            Open customer
+            Open vendor
           </Link>
         </p>
       ) : null}

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { DistributionTabs } from "@/components/distribution-ui";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
-import { customers } from "@/db/schema";
+import { customers, destinations } from "@/db/schema";
 import { db } from "@/lib/db";
 import { licenseProblem, todayIn } from "@/lib/distribution-math";
 import { can } from "@/lib/rbac";
@@ -12,32 +12,39 @@ import { customerAction } from "../actions";
 
 export default async function CustomersPage() {
   const session = await requirePagePermission("sales.view");
-  const rows = await db.select().from(customers).where(eq(customers.orgId, session.orgId)).orderBy(asc(customers.name));
+  const [rows, dests] = await Promise.all([
+    db.select().from(customers).where(eq(customers.orgId, session.orgId)).orderBy(asc(customers.name)),
+    db.select().from(destinations).where(eq(destinations.orgId, session.orgId)),
+  ]);
   const today = todayIn();
 
   return (
     <>
-      <PageHeader title="Customers" subtitle="Licensed businesses you sell to. Shared across your facilities." />
+      <PageHeader title="Vendors" subtitle="Licensed businesses you sell to or buy from, and the locations you ship to. Shared across your facilities." />
       <DistributionTabs current="/distribution/customers" />
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2">
           {rows.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">No customers yet.</p>
+            <p className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">No vendors yet.</p>
           ) : (
             <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
               {rows.map((customer) => {
-                const problem = licenseProblem(customer, today);
+                const theirs = dests.filter((d) => d.vendorId === customer.id && d.active);
+                const ready = theirs.filter((d) => !licenseProblem(d, today)).length;
+                const roles = [customer.weSellTo ? "we sell to" : null, customer.weBuyFrom ? "we buy from" : null].filter(Boolean).join(" · ");
                 return (
                   <li key={customer.id}>
                     <Link href={`/distribution/customers/${customer.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
                       <div>
                         <p className="font-semibold text-slate-900">{customer.name}</p>
                         <p className="text-sm text-slate-600">
-                          {customer.licenseType} · {customer.licenseNumber} · expires {customer.licenseExpires}
+                          {roles} · {customer.licenseNumber}
+                          {customer.active ? "" : " · inactive"}
                         </p>
                       </div>
-                      <span className={`text-sm font-semibold ${problem ? "text-red-700" : "text-brand-700"}`}>
-                        {problem ? "cannot sell yet" : "license verified"}
+                      <span className={`text-sm font-semibold ${customer.weSellTo && ready === 0 ? "text-red-700" : "text-brand-700"}`}>
+                        {theirs.length} destination{theirs.length === 1 ? "" : "s"}
+                        {customer.weSellTo ? ` · ${ready ? `${ready} ready to ship` : "none ready to ship"}` : ""}
                       </span>
                     </Link>
                   </li>
@@ -47,8 +54,17 @@ export default async function CustomersPage() {
           )}
         </div>
         {can(session, "sales.write") ? (
-          <Card title="Add a customer">
-            <ActionForm action={customerAction} submitLabel="Add customer">
+          <Card title="Add a vendor">
+            <ActionForm action={customerAction} submitLabel="Add vendor">
+              <fieldset className="flex flex-wrap gap-4 text-sm">
+                <legend className="mb-1 text-sm font-medium text-slate-700">This vendor is one</legend>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="weSellTo" defaultChecked className="h-5 w-5 accent-brand-700" /> we sell to
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="weBuyFrom" className="h-5 w-5 accent-brand-700" /> we buy from
+                </label>
+              </fieldset>
               <Field label="Business name">
                 <input name="name" required className={inputClass} />
               </Field>
@@ -73,7 +89,7 @@ export default async function CustomersPage() {
               <Field label="Phone (optional)">
                 <input name="phone" className={inputClass} />
               </Field>
-              <Field label="Delivery address (optional)">
+              <Field label="Address (optional)" hint="Their license and address become their first destination. Add more on their page.">
                 <input name="address" className={inputClass} />
               </Field>
             </ActionForm>

@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { customers, itemCategories, items, locations, locationTypeEnum, unitEnum } from "@/db/schema";
+import { customers, destinations, itemCategories, items, locations, locationTypeEnum, unitEnum } from "@/db/schema";
 import { readTable } from "./csv";
 import { db } from "./db";
 import { parseDate } from "./distribution-math";
@@ -115,7 +115,20 @@ export async function importCsv(actor: Actor, kind: ImportKind, text: string): P
             })
             .onConflictDoNothing({ target: [customers.orgId, customers.licenseNumber] })
             .returning({ id: customers.id });
-          if (!customer) throw new RowError(`a customer with license ${licenseNumber} already exists`);
+          if (!customer) throw new RowError(`a vendor with license ${licenseNumber} already exists`);
+          // Their own licensed location is their first destination.
+          await tx.insert(destinations).values({
+            orgId: actor.orgId,
+            vendorId: customer.id,
+            name: need(row, "name"),
+            licenseNumber,
+            licenseType: need(row, "licenseType"),
+            licenseExpires: parseDate(need(row, "licenseExpires"), "licenseExpires"),
+            contactName: row.values.contactName || null,
+            email: row.values.email || null,
+            phone: row.values.phone || null,
+            address: row.values.address || null,
+          });
         });
       } else if (kind === "packages") {
         const skuIds = new Map((await tx.select({ id: items.id, sku: items.sku }).from(items).where(eq(items.orgId, actor.orgId))).map((i) => [i.sku, i.id]));

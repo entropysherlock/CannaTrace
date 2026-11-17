@@ -2,6 +2,7 @@ import Decimal from "decimal.js";
 import { and, eq, sql } from "drizzle-orm";
 import {
   customers,
+  destinations,
   drivers,
   invoices,
   items,
@@ -66,9 +67,14 @@ export async function createCustomer(
     phone?: string;
     address?: string;
     paymentTermsDays?: unknown;
+    weSellTo?: boolean;
+    weBuyFrom?: boolean;
   },
 ): Promise<{ id: string }> {
-  const name = required(input.name, "Enter the customer's business name.");
+  const name = required(input.name, "Enter the vendor's business name.");
+  const weSellTo = input.weSellTo ?? true;
+  const weBuyFrom = input.weBuyFrom ?? false;
+  if (!weSellTo && !weBuyFrom) throw new InventoryError("Tick at least one: you sell to them, you buy from them, or both.");
   const licenseNumber = required(input.licenseNumber, "Enter the customer's license number.", 60).toUpperCase();
   const licenseType = required(input.licenseType, "Enter the license type, for example Retailer.", 60);
   const licenseExpires = parseDate(input.licenseExpires, "License expiry date");
@@ -89,11 +95,26 @@ export async function createCustomer(
         phone: text(input.phone, 40),
         address: text(input.address, 300),
         paymentTermsDays: terms,
+        weSellTo,
+        weBuyFrom,
       })
       .onConflictDoNothing({ target: [customers.orgId, customers.licenseNumber] })
       .returning({ id: customers.id });
-    if (!customer) throw new InventoryError(`A customer with license ${licenseNumber} already exists.`);
-    await audit(tx, actor, { entityType: "Customer", entityId: customer.id, action: "CREATE", after: { name, licenseNumber, licenseExpires } });
+    if (!customer) throw new InventoryError(`A vendor with license ${licenseNumber} already exists.`);
+    // Their own licensed location is their first destination.
+    await tx.insert(destinations).values({
+      orgId: actor.orgId,
+      vendorId: customer.id,
+      name,
+      licenseNumber,
+      licenseType,
+      licenseExpires,
+      address: text(input.address, 300),
+      contactName: text(input.contactName),
+      phone: text(input.phone, 40),
+      email: text(input.email),
+    });
+    await audit(tx, actor, { entityType: "Vendor", entityId: customer.id, action: "CREATE", after: { name, licenseNumber, licenseExpires, weSellTo, weBuyFrom } });
     return customer;
   });
 }
@@ -115,6 +136,11 @@ export async function verifyCustomerLicense(
       .update(customers)
       .set({ licenseExpires, licenseVerifiedAt: new Date(), licenseVerifiedBy: actor.userName })
       .where(eq(customers.id, before.id));
+    // The same license at their own location (their first destination) is verified with it.
+    await tx
+      .update(destinations)
+      .set({ licenseExpires, licenseVerifiedAt: new Date(), licenseVerifiedBy: actor.userName })
+      .where(and(eq(destinations.vendorId, before.id), eq(destinations.licenseNumber, before.licenseNumber)));
     await audit(tx, actor, {
       entityType: "Customer",
       entityId: before.id,
@@ -215,16 +241,59 @@ async function customerFor(tx: Tx, actor: Actor, customerId: string) {
   return customer;
 }
 
-export async function createOrder(actor: Actor, input: { customerId: string; notes?: string }): Promise<Order> {
+/**
+ * Why this order can't go to where it is headed, or null. The license that matters is the one at the
+ * destination; when that is the vendor's own licensed location, the vendor's record must be good too.
+ * Orders from before destinations existed use the vendor's license.
+ */
+async function shipToProblem(tx: Tx, actor: Actor, order: Order, customer: typeof customers.$inferSelect, today: string): Promise<string | null> {
+  if (!order.destinationId) return licenseProblem(customer, today);
+  if (!customer.active) return `${customer.name} is marked inactive.`;
+  const [destination] = await tx.select().from(destinations).where(and(eq(destinations.id, order.destinationId), eq(destinations.orgId, actor.orgId)));
+  if (!destination) return "This order's destination was not found.";
+  const problem =
+    licenseProblem({ ...destination, name: destination.name === customer.name ? customer.name : `${customer.name} (${destination.name})` }, today) ??
+    (destination.licenseNumber === customer.licenseNumber ? licenseProblem(customer, today) : null);
+  return problem ? problem.replace("on the customer's page", "on the vendor's page") : null;
+}
+
+/** A vendor's destination, or its first active one when none is named. */
+async function destinationFor(tx: Tx, actor: Actor, vendorId: string, destinationId?: string | null) {
+  const rows = await tx
+    .select()
+    .from(destinations)
+    .where(and(eq(destinations.vendorId, vendorId), eq(destinations.orgId, actor.orgId)))
+    .orderBy(destinations.createdAt);
+  if (destinationId) {
+    const chosen = rows.find((d) => d.id === destinationId);
+    if (!chosen) throw new InventoryError("Pick one of this vendor's destinations.");
+    if (!chosen.active) throw new InventoryError(`${chosen.name} is marked inactive.`);
+    return chosen;
+  }
+  const first = rows.find((d) => d.active);
+  if (!first) throw new InventoryError("This vendor has no active destination to ship to. Add one on the vendor's page.");
+  return first;
+}
+
+export async function createOrder(actor: Actor, input: { customerId: string; destinationId?: string; notes?: string }): Promise<Order> {
   return db.transaction(async (tx) => {
     const customer = await customerFor(tx, actor, input.customerId);
     if (!customer.active) throw new InventoryError(`${customer.name} is marked inactive.`);
+    const destination = await destinationFor(tx, actor, customer.id, input.destinationId || null);
     const number = await nextNumber(tx, actor.facilityId, "SO");
     const [order] = await tx
       .insert(orders)
-      .values({ orgId: actor.orgId, facilityId: actor.facilityId, number, customerId: customer.id, notes: text(input.notes, 500), userName: actor.userName })
+      .values({
+        orgId: actor.orgId,
+        facilityId: actor.facilityId,
+        number,
+        customerId: customer.id,
+        destinationId: destination.id,
+        notes: text(input.notes, 500),
+        userName: actor.userName,
+      })
       .returning();
-    await audit(tx, actor, { entityType: "Order", entityId: order.id, action: "CREATE", after: { number, customer: customer.name } });
+    await audit(tx, actor, { entityType: "Order", entityId: order.id, action: "CREATE", after: { number, vendor: customer.name, destination: destination.name } });
     return order;
   });
 }
@@ -288,7 +357,7 @@ export async function confirmOrder(actor: Actor, input: { orderId: string }): Pr
   await db.transaction(async (tx) => {
     const order = await lockOrder(tx, actor, input.orderId, ["DRAFT"], "confirmed again");
     if ((await tx.$count(orderLines, eq(orderLines.orderId, order.id))) === 0) throw new InventoryError("Add at least one line before confirming.");
-    const problem = licenseProblem(await customerFor(tx, actor, order.customerId), todayIn());
+    const problem = await shipToProblem(tx, actor, order, await customerFor(tx, actor, order.customerId), todayIn());
     if (problem) throw new InventoryError(problem);
     await tx.update(orders).set({ status: "CONFIRMED", confirmedAt: new Date() }).where(eq(orders.id, order.id));
     await audit(tx, actor, { entityType: "Order", entityId: order.id, action: "CONFIRM" });
@@ -406,7 +475,7 @@ export async function shipOrder(
     const order = await lockOrder(tx, actor, input.orderId, ["PACKED"], "shipped. Mark it packed first");
     const customer = await customerFor(tx, actor, order.customerId);
     const today = todayIn();
-    const problem = licenseProblem(customer, today);
+    const problem = await shipToProblem(tx, actor, order, customer, today);
     if (problem) throw new InventoryError(problem);
     const [driver] = await tx.select().from(drivers).where(and(eq(drivers.id, input.driverId), eq(drivers.orgId, actor.orgId), eq(drivers.active, true)));
     const [vehicle] = await tx.select().from(vehicles).where(and(eq(vehicles.id, input.vehicleId), eq(vehicles.orgId, actor.orgId), eq(vehicles.active, true)));
@@ -522,5 +591,180 @@ export async function recordPayment(
       after: { amount: amount.toFixed(2), method: input.method, paidOn },
     });
     return { balance: balance.sub(amount).toFixed(2) };
+  });
+}
+
+// ---------- Destinations and vendor edits ----------
+
+export type DestinationInput = {
+  name: string;
+  licenseNumber: string;
+  licenseType: string;
+  licenseExpires: string;
+  address?: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
+};
+
+export async function createDestination(actor: Actor, input: DestinationInput & { vendorId: string }): Promise<{ id: string }> {
+  const name = required(input.name, "Name the destination, for example its street or store name.");
+  const licenseNumber = required(input.licenseNumber, "Enter the destination's license number.", 60).toUpperCase();
+  const licenseType = required(input.licenseType, "Enter the license type, for example Retailer.", 60);
+  const licenseExpires = parseDate(input.licenseExpires, "License expiry date");
+  return db.transaction(async (tx) => {
+    const vendor = await customerFor(tx, actor, input.vendorId);
+    const [row] = await tx
+      .insert(destinations)
+      .values({
+        orgId: actor.orgId,
+        vendorId: vendor.id,
+        name,
+        licenseNumber,
+        licenseType,
+        licenseExpires,
+        address: text(input.address, 300),
+        contactName: text(input.contactName),
+        phone: text(input.phone, 40),
+        email: text(input.email),
+      })
+      .onConflictDoNothing({ target: [destinations.vendorId, destinations.licenseNumber] })
+      .returning({ id: destinations.id });
+    if (!row) throw new InventoryError(`${vendor.name} already has a destination with license ${licenseNumber}.`);
+    await audit(tx, actor, { entityType: "Destination", entityId: row.id, action: "CREATE", after: { vendor: vendor.name, name, licenseNumber, licenseExpires } });
+    return row;
+  });
+}
+
+export async function verifyDestinationLicense(actor: Actor, input: { destinationId: string; licenseExpires?: string }): Promise<void> {
+  const expires = input.licenseExpires?.trim() ? parseDate(input.licenseExpires, "License expiry date") : null;
+  await db.transaction(async (tx) => {
+    const [before] = await tx.select().from(destinations).where(and(eq(destinations.id, input.destinationId), eq(destinations.orgId, actor.orgId)));
+    if (!before) throw new InventoryError("That destination was not found.");
+    const licenseExpires = expires ?? before.licenseExpires;
+    if (licenseExpires < todayIn()) throw new InventoryError(`This license expired on ${licenseExpires}. Enter the new expiry date from the state's lookup to verify it.`);
+    await tx.update(destinations).set({ licenseExpires, licenseVerifiedAt: new Date(), licenseVerifiedBy: actor.userName }).where(eq(destinations.id, before.id));
+    // The vendor's own record carries the same license when this is their main location.
+    await tx
+      .update(customers)
+      .set({ licenseExpires, licenseVerifiedAt: new Date(), licenseVerifiedBy: actor.userName })
+      .where(and(eq(customers.id, before.vendorId), eq(customers.licenseNumber, before.licenseNumber)));
+    await audit(tx, actor, {
+      entityType: "Destination",
+      entityId: before.id,
+      action: "VERIFY_LICENSE",
+      before: { licenseExpires: before.licenseExpires },
+      after: { licenseExpires, verifiedBy: actor.userName },
+    });
+  });
+}
+
+/** Fields of a vendor that can be changed, one at a time or in bulk. */
+export type VendorChanges = Partial<{
+  name: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  paymentTermsDays: number;
+  priceListId: string | null;
+  active: boolean;
+  weSellTo: boolean;
+  weBuyFrom: boolean;
+}>;
+
+/** Fields of a destination that can be changed, one at a time or in bulk. */
+export type DestinationChanges = Partial<{
+  name: string;
+  licenseType: string;
+  licenseExpires: string;
+  address: string | null;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  active: boolean;
+}>;
+
+/** Check and tidy vendor changes. Throws a message a person can act on. */
+export async function cleanVendorChanges(tx: Tx | typeof db, orgId: string, raw: Record<string, unknown>): Promise<VendorChanges> {
+  const out: VendorChanges = {};
+  const opt = (v: unknown, max = 120) => (v === null || String(v).trim() === "" ? null : String(v).trim().slice(0, max));
+  if ("name" in raw) out.name = required(String(raw.name ?? ""), "A vendor needs a name.");
+  if ("contactName" in raw) out.contactName = opt(raw.contactName);
+  if ("email" in raw) out.email = opt(raw.email);
+  if ("phone" in raw) out.phone = opt(raw.phone, 40);
+  if ("address" in raw) out.address = opt(raw.address, 300);
+  if ("paymentTermsDays" in raw) {
+    const n = Number(raw.paymentTermsDays);
+    if (!Number.isInteger(n) || n < 0 || n > 120) throw new InventoryError("Payment terms must be a whole number of days from 0 to 120.");
+    out.paymentTermsDays = n;
+  }
+  if ("priceListId" in raw) {
+    const id = opt(raw.priceListId);
+    if (id) {
+      const [list] = await tx.select({ id: priceLists.id }).from(priceLists).where(and(eq(priceLists.id, id), eq(priceLists.orgId, orgId)));
+      if (!list) throw new InventoryError("Pick a price list from your own lists.");
+    }
+    out.priceListId = id;
+  }
+  for (const key of ["active", "weSellTo", "weBuyFrom"] as const) if (key in raw) out[key] = Boolean(raw[key]);
+  return out;
+}
+
+export function cleanDestinationChanges(raw: Record<string, unknown>): DestinationChanges {
+  const out: DestinationChanges = {};
+  const opt = (v: unknown, max = 120) => (v === null || String(v).trim() === "" ? null : String(v).trim().slice(0, max));
+  if ("name" in raw) out.name = required(String(raw.name ?? ""), "A destination needs a name.");
+  if ("licenseType" in raw) out.licenseType = required(String(raw.licenseType ?? ""), "Enter the license type.", 60);
+  if ("licenseExpires" in raw) out.licenseExpires = parseDate(String(raw.licenseExpires ?? ""), "License expiry date");
+  if ("address" in raw) out.address = opt(raw.address, 300);
+  if ("contactName" in raw) out.contactName = opt(raw.contactName);
+  if ("phone" in raw) out.phone = opt(raw.phone, 40);
+  if ("email" in raw) out.email = opt(raw.email);
+  if ("active" in raw) out.active = Boolean(raw.active);
+  return out;
+}
+
+/** Apply the same changes to several vendors at once. All or nothing; each vendor gets its own audit entry. */
+export async function updateVendors(actor: Actor, vendorIds: string[], raw: Record<string, unknown>): Promise<number> {
+  if (vendorIds.length === 0) throw new InventoryError("No vendors were chosen.");
+  return db.transaction(async (tx) => {
+    const changes = await cleanVendorChanges(tx, actor.orgId, raw);
+    if (Object.keys(changes).length === 0) throw new InventoryError("Nothing to change.");
+    if (changes.weSellTo === false && changes.weBuyFrom === false) throw new InventoryError("A vendor must be one you sell to, buy from, or both.");
+    let n = 0;
+    for (const id of vendorIds) {
+      const [before] = await tx.select().from(customers).where(and(eq(customers.id, id), eq(customers.orgId, actor.orgId))).for("update");
+      if (!before) throw new InventoryError("One of the vendors no longer exists. Nothing was changed.");
+      const next = { ...changes };
+      if ((next.weSellTo ?? before.weSellTo) === false && (next.weBuyFrom ?? before.weBuyFrom) === false)
+        throw new InventoryError(`${before.name} would be neither a vendor you sell to nor one you buy from. Nothing was changed.`);
+      await tx.update(customers).set(next).where(eq(customers.id, id));
+      const was = Object.fromEntries(Object.keys(next).map((k) => [k, before[k as keyof typeof before]]));
+      await audit(tx, actor, { entityType: "Vendor", entityId: id, action: "UPDATE", before: was, after: next });
+      n++;
+    }
+    return n;
+  });
+}
+
+/** Apply the same changes to several destinations at once. All or nothing, with an audit entry for each. */
+export async function updateDestinations(actor: Actor, destinationIds: string[], raw: Record<string, unknown>): Promise<number> {
+  if (destinationIds.length === 0) throw new InventoryError("No destinations were chosen.");
+  const changes = cleanDestinationChanges(raw);
+  if (Object.keys(changes).length === 0) throw new InventoryError("Nothing to change.");
+  return db.transaction(async (tx) => {
+    let n = 0;
+    for (const id of destinationIds) {
+      const [before] = await tx.select().from(destinations).where(and(eq(destinations.id, id), eq(destinations.orgId, actor.orgId))).for("update");
+      if (!before) throw new InventoryError("One of the destinations no longer exists. Nothing was changed.");
+      // A new expiry date means the license must be checked again before the next shipment.
+      const reverify = changes.licenseExpires && changes.licenseExpires !== before.licenseExpires ? { licenseVerifiedAt: null, licenseVerifiedBy: null } : {};
+      await tx.update(destinations).set({ ...changes, ...reverify }).where(eq(destinations.id, id));
+      const was = Object.fromEntries(Object.keys(changes).map((k) => [k, before[k as keyof typeof before]]));
+      await audit(tx, actor, { entityType: "Destination", entityId: id, action: "UPDATE", before: was, after: changes });
+      n++;
+    }
+    return n;
   });
 }
