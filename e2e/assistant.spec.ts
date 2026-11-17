@@ -18,7 +18,7 @@ test("the assistant answers from live data and only changes things after Confirm
   await page.goto("/inventory");
   const tag = "CT-000007";
 
-  await page.getByRole("button", { name: "Ask CannaTrace" }).first().click();
+  await page.getByRole("button", { name: "Ask Cousin Towel" }).first().click();
   await panel.getByLabel("Message the assistant").fill(`move ${tag} to Dry Room`);
   await panel.getByLabel("Message the assistant").press("Enter");
   const card = panel.locator("div", { hasText: "Move package" }).filter({ has: page.getByRole("button", { name: "Confirm" }) }).last();

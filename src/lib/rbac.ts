@@ -25,7 +25,9 @@ export type Permission =
   | "compliance.view"
   | "compliance.manage"
   | "reports.view"
-  | "integrations.manage";
+  | "integrations.manage"
+  | "labels.print"
+  | "labels.manage";
 
 const ALL: Permission[] = [
   "inventory.view",
@@ -46,6 +48,8 @@ const ALL: Permission[] = [
   "compliance.manage",
   "reports.view",
   "integrations.manage",
+  "labels.print",
+  "labels.manage",
 ];
 
 const MATRIX: Record<Role, Permission[]> = {
@@ -62,10 +66,12 @@ const MATRIX: Record<Role, Permission[]> = {
     "audit.view",
     "compliance.view",
     "reports.view",
+    "labels.print",
+    "labels.manage",
   ],
-  CULTIVATION: ["inventory.view", "cultivation.view", "cultivation.write"],
-  SALES: ["inventory.view", "sales.view", "sales.write", "reports.view"],
-  BUDTENDER: ["inventory.view", "pos.use"],
+  CULTIVATION: ["inventory.view", "cultivation.view", "cultivation.write", "labels.print"],
+  SALES: ["inventory.view", "sales.view", "sales.write", "reports.view", "labels.print"],
+  BUDTENDER: ["inventory.view", "pos.use", "labels.print"],
   READ_ONLY: ["inventory.view", "cultivation.view", "sales.view", "audit.view", "compliance.view", "reports.view"],
 };
 
@@ -114,6 +120,13 @@ export const PERMISSION_GROUPS: { title: string; permissions: { key: Permission;
     permissions: [
       { key: "pos.use", label: "Use the register", hint: "Check customers in and ring up sales." },
       { key: "pos.manage", label: "Run the store", hint: "Prices, discounts, limits, taxes, drawers, voids, and returns." },
+    ],
+  },
+  {
+    title: "Labels",
+    permissions: [
+      { key: "labels.print", label: "Print labels", hint: "Preview, print, and reprint labels from approved templates." },
+      { key: "labels.manage", label: "Design labels and set up printers", hint: "Create and publish templates, set facility defaults, and configure printers." },
     ],
   },
   {

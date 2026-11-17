@@ -2,6 +2,7 @@ import { TriangleAlert } from "lucide-react";
 import Decimal from "decimal.js";
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
+import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { DistributionTabs, Pill, unitPrice, usd } from "@/components/distribution-ui";
@@ -88,7 +89,16 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       <PageHeader
         title={order.number}
         subtitle={`${customer.name} · started by ${order.userName} on ${order.createdAt.toLocaleDateString("en-US")}`}
-        action={<Pill status={order.status} />}
+        action={
+          <div className="flex flex-wrap items-center gap-3">
+            {allocations.length && can(session, "labels.print") && !["DRAFT", "CANCELLED"].includes(order.status) ? (
+              <LabelLink kind="TRANSFER" ids={[order.id]}>
+                Print transfer labels
+              </LabelLink>
+            ) : null}
+            <Pill status={order.status} />
+          </div>
+        }
       />
       <DistributionTabs current="/distribution" />
       <p className="mb-5 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800">{NEXT_STEP[order.status]}</p>

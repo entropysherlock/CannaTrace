@@ -1065,3 +1065,111 @@ export type Harvest = typeof harvests.$inferSelect;
 export type Plant = typeof plants.$inferSelect;
 export type Package = typeof packages.$inferSelect;
 export type PackageStatus = (typeof packageStatusEnum.enumValues)[number];
+
+// ---------------------------------------------------------------------------
+// SmartLabel: label templates, printers, and print jobs.
+// Labels never change inventory. They only read records and log what was printed.
+
+export const labelKindEnum = pgEnum("label_kind", ["PLANT", "BATCH", "PACKAGE", "PRODUCT", "TRANSFER"]);
+export const printJobStatusEnum = pgEnum("print_job_status", ["QUEUED", "RENDERED", "PRINTED", "FAILED", "CANCELLED"]);
+
+export const labelTemplates = pgTable(
+  "label_templates",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    name: text("name").notNull(),
+    kind: labelKindEnum("kind").notNull(),
+    /** Two-letter state whose label rules this template is checked against, or null for internal labels. */
+    jurisdiction: text("jurisdiction"),
+    currentVersion: integer("current_version").notNull().default(1),
+    isDefault: boolean("is_default").notNull().default(false),
+    archived: boolean("archived").notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("label_templates_facility_name_key").on(t.facilityId, t.name),
+    index("label_templates_scope_idx").on(t.orgId, t.facilityId, t.kind),
+  ],
+);
+
+/** Every saved design is kept so a printed label can always be traced to the exact layout used. */
+export const labelTemplateVersions = pgTable(
+  "label_template_versions",
+  {
+    id: id(),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => labelTemplates.id),
+    version: integer("version").notNull(),
+    widthMm: numeric("width_mm", { precision: 7, scale: 2 }).notNull(),
+    heightMm: numeric("height_mm", { precision: 7, scale: 2 }).notNull(),
+    elements: jsonb("elements").notNull(),
+    note: text("note"),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("label_template_versions_key").on(t.templateId, t.version)],
+);
+
+export const printerProfiles = pgTable(
+  "printer_profiles",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    name: text("name").notNull(),
+    /** How labels reach the printer. Only BROWSER_PDF is built today. */
+    adapter: text("adapter").notNull().default("BROWSER_PDF"),
+    offsetXMm: numeric("offset_x_mm", { precision: 6, scale: 2 }).notNull().default("0"),
+    offsetYMm: numeric("offset_y_mm", { precision: 6, scale: 2 }).notNull().default("0"),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("printer_profiles_facility_name_key").on(t.facilityId, t.name)],
+);
+
+export const printJobs = pgTable(
+  "print_jobs",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => labelTemplates.id),
+    templateVersion: integer("template_version").notNull(),
+    printerProfileId: text("printer_profile_id").references(() => printerProfiles.id),
+    sourceType: labelKindEnum("source_type").notNull(),
+    sourceIds: jsonb("source_ids").notNull(),
+    copies: integer("copies").notNull().default(1),
+    labelCount: integer("label_count").notNull(),
+    status: printJobStatusEnum("status").notNull().default("QUEUED"),
+    /** Same key twice means the same request; the second one returns the first job instead of printing again. */
+    idempotencyKey: text("idempotency_key").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    reprintOf: text("reprint_of"),
+    warnings: jsonb("warnings"),
+    userId: text("user_id").notNull(),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("print_jobs_idempotency_key").on(t.orgId, t.idempotencyKey),
+    index("print_jobs_scope_idx").on(t.orgId, t.facilityId, t.createdAt),
+  ],
+);

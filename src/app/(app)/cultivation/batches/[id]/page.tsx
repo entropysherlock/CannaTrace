@@ -1,6 +1,7 @@
 import { Info } from "lucide-react";
 import { and, asc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
+import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { CultivationTabs, WeightInput } from "@/components/cultivation-ui";
@@ -56,9 +57,21 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
         title={batch.name}
         subtitle={`${batch.strainName} · started from ${batch.source.toLowerCase()}s on ${batch.createdAt.toLocaleDateString("en-US")}`}
         action={
-          <Link href={`/cultivation/plants?batch=${batch.id}`} className="text-sm font-semibold text-brand-700 hover:underline">
-            See this batch&apos;s tagged plants
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            {can(session, "labels.print") ? (
+              <>
+                <LabelLink kind="BATCH" ids={[batch.id]}>
+                  Print batch label
+                </LabelLink>
+                <LabelLink kind="PLANT" batch={batch.id}>
+                  Print plant tags
+                </LabelLink>
+              </>
+            ) : null}
+            <Link href={`/cultivation/plants?batch=${batch.id}`} className="text-sm font-semibold text-brand-700 hover:underline">
+              See this batch&apos;s tagged plants
+            </Link>
+          </div>
         }
       />
       <CultivationTabs current="/cultivation" />
