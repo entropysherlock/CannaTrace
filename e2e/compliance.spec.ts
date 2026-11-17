@@ -11,7 +11,7 @@ test("state reporting: practice mode sends, NMS2S lists records for hand entry",
   await expect(page).toHaveURL(/\/dashboard/);
 
   // Seeded opening records were sent in practice mode
-  await page.getByRole("link", { name: "State reporting" }).first().click();
+  await page.getByRole("link", { name: "Compliance" }).first().click();
   await expect(page.getByRole("heading", { name: "State reporting" })).toBeVisible();
   await expect(seen(page, "Practice mode. Records are marked as sent")).toBeVisible();
   await expect(seen(page, "Received package CT-000001: 4536 g")).toBeVisible();
