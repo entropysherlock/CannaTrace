@@ -48,6 +48,10 @@ export function explainProviderError(error: unknown): ProviderError {
     return new ProviderError("NO_CREDIT", "Your Claude account is out of credits or has a billing problem. Add credits under Billing in the Claude Console; Tally works again as soon as they post.");
   if (e?.status === 429 || type === "rate_limit_error")
     return new ProviderError("RATE_LIMITED", "Anthropic is limiting how many requests your Claude account can send right now. Wait a minute and try again, or raise your account's limits in the Claude Console.");
+  if (e?.status === 413 || type === "request_too_large" || /request.{0,20}too large|exceeds the maximum/i.test(text))
+    return new ProviderError("ERROR", "The attached files are too large for Claude to read in one go. Remove some attachments, or attach a smaller file, and ask again.");
+  if ((e?.status === 400 || type === "invalid_request_error") && /image|pdf|document|media type|vision/i.test(text))
+    return new ProviderError("ERROR", "The Claude model chosen for Tally couldn't read one of the attached files. Try a different file, or pick another model in Settings → Tally AI.");
   if (e?.status === 529 || type === "overloaded_error") return new ProviderError("ERROR", "Claude is busy right now. Try again in a minute.");
   if (e?.status && e.status >= 500) return new ProviderError("ERROR", "Anthropic had a problem answering. Try again in a minute.");
   if (/connection|fetch failed|ENOTFOUND|ETIMEDOUT|timed out/i.test(text)) return new ProviderError("ERROR", "CannaTrace couldn't reach Anthropic. Try again in a minute.");

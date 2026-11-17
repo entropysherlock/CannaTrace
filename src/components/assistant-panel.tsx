@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { AttachButton, AttachmentChips, FileGlyph, useAttachments, type SentFile } from "./assistant-attachments";
 
 type Detail = { label: string; value: string };
 type ProposalState = "waiting" | "working" | "done" | "cancelled" | "failed";
@@ -23,7 +24,7 @@ type Proposal = {
   undoResult?: string;
 };
 type Turn =
-  | { role: "user"; content: string }
+  | { role: "user"; content: string; attachments?: SentFile[] }
   | { role: "assistant"; content: string; status?: string; proposals: Proposal[]; error?: string; streaming?: boolean; stepStart?: number };
 
 const STORAGE_KEY = "cannatrace-assistant";
@@ -56,7 +57,7 @@ const md: Components = {
 function transcript(turns: Turn[]) {
   return turns.map((t) =>
     t.role === "user"
-      ? t
+      ? { role: "user" as const, content: t.content, ...(t.attachments?.length ? { attachments: t.attachments.map((a) => ({ id: a.id, name: a.name })) } : {}) }
       : {
           role: "assistant" as const,
           content: [
@@ -78,13 +79,18 @@ export function AssistantPanel({
   firstName,
   isOwner,
   suggestions,
+  retentionHours = 24,
 }: {
   enabled: boolean;
   offReason?: string | null;
   firstName: string;
   isOwner: boolean;
   suggestions: string[];
+  /** How long attached files are kept, for the notice in the attach menu. */
+  retentionHours?: number;
 }) {
+  const files = useAttachments();
+  const [dragging, setDragging] = useState(false);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
@@ -162,8 +168,9 @@ export function AssistantPanel({
 
   const send = async (text: string) => {
     const question = text.trim();
-    if (!question || busy) return;
-    const history: Turn[] = [...turns, { role: "user", content: question }];
+    if (busy || files.uploading || (!question && !files.ready)) return;
+    const attached = files.take();
+    const history: Turn[] = [...turns, { role: "user", content: question, ...(attached.length ? { attachments: attached } : {}) }];
     setTurns([...history, { role: "assistant", content: "", proposals: [], streaming: true, status: "Thinking" }]);
     setDraft("");
     setBusy(true);
@@ -279,6 +286,21 @@ export function AssistantPanel({
         aria-hidden={!open}
         inert={!open}
         className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-out sm:w-[440px] print:hidden ${open ? "translate-x-0" : "translate-x-full"}`}
+        onDragOver={(e) => {
+          if (!enabled || busy || !Array.from(e.dataTransfer.types).includes("Files")) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+        }}
+        onDrop={(e) => {
+          setDragging(false);
+          const dropped = Array.from(e.dataTransfer.files ?? []);
+          if (!dropped.length || !enabled || busy) return;
+          e.preventDefault();
+          files.add(dropped);
+        }}
       >
         <header className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -349,8 +371,18 @@ export function AssistantPanel({
             <ol className="space-y-5">
               {turns.map((turn, i) =>
                 turn.role === "user" ? (
-                  <li key={i} className="flex justify-end">
-                    <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-brand-700 px-4 py-2.5 text-sm text-white">{turn.content}</p>
+                  <li key={i} className="flex flex-col items-end gap-1.5">
+                    {turn.attachments?.length ? (
+                      <ul className="flex max-w-[85%] flex-wrap justify-end gap-1.5" aria-label="Files sent">
+                        {turn.attachments.map((a) => (
+                          <li key={a.id} className="flex max-w-full items-center gap-1.5 rounded-lg border border-brand-100 bg-brand-50 px-2 py-1 text-xs font-medium text-brand-900" data-sent-file>
+                            <FileGlyph group={a.kind} className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{a.name}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {turn.content ? <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-brand-700 px-4 py-2.5 text-sm text-white">{turn.content}</p> : null}
                   </li>
                 ) : (
                   <li key={i} className="flex gap-3">
@@ -471,7 +503,9 @@ export function AssistantPanel({
             send(draft);
           }}
         >
-          <div className="flex items-end gap-2 rounded-2xl border border-slate-300 bg-white p-2 shadow-sm focus-within:border-brand-600 focus-within:ring-1 focus-within:ring-brand-600">
+          <AttachmentChips items={files.items} notice={files.notice} onRemove={files.remove} />
+          <div className="flex items-end gap-1 rounded-2xl border border-slate-300 bg-white p-2 shadow-sm focus-within:border-brand-600 focus-within:ring-1 focus-within:ring-brand-600">
+            <AttachButton disabled={!enabled || busy} onFiles={files.add} retentionHours={retentionHours} />
             <textarea
               ref={inputRef}
               value={draft}
@@ -487,6 +521,14 @@ export function AssistantPanel({
                   send(draft);
                 }
               }}
+              onPaste={(e) => {
+                // A pasted screenshot (or copied files) become attachments; pasted text stays text.
+                const pasted = Array.from(e.clipboardData.files ?? []);
+                if (pasted.length && enabled && !busy) {
+                  e.preventDefault();
+                  files.add(pasted);
+                }
+              }}
               rows={1}
               maxLength={4000}
               placeholder={enabled ? "Ask anything about your business…" : "Not turned on yet"}
@@ -500,7 +542,8 @@ export function AssistantPanel({
             ) : (
               <button
                 type="submit"
-                disabled={!enabled || !draft.trim()}
+                disabled={!enabled || files.uploading || (!draft.trim() && !files.ready)}
+                title={files.uploading ? "Waiting for files to finish uploading" : undefined}
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-700 text-white transition hover:bg-brand-800 disabled:bg-slate-200 disabled:text-slate-400"
                 aria-label="Send"
               >
@@ -509,9 +552,21 @@ export function AssistantPanel({
             )}
           </div>
           <p className="mt-2 text-center text-[11px] text-slate-400">
-            {last?.role === "assistant" && last.streaming ? "Working on it…" : "Claude can make mistakes. Changes always wait for your Confirm."}
+            {last?.role === "assistant" && last.streaming
+              ? "Working on it…"
+              : files.uploading
+                ? "Uploading files…"
+                : "Claude can make mistakes. Changes always wait for your Confirm."}
           </p>
         </form>
+        {dragging ? (
+          <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-brand-500 bg-brand-50/90 text-center" aria-hidden="true">
+            <p className="text-sm font-semibold text-brand-800">
+              Drop files to attach
+              <span className="block text-xs font-normal text-brand-700">Images, PDFs, spreadsheets, and documents</span>
+            </p>
+          </div>
+        ) : null}
       </aside>
     </>
   );

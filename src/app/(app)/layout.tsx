@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AssistantPanel } from "@/components/assistant-panel";
 import { Logo } from "@/components/logo";
 import { tallyAvailability } from "@/lib/ai/connection";
+import { retentionHours } from "@/lib/assistant/attachments/store";
 import { BottomNav, SectionTabs, SideNav, type NavGroup, type NavItem, type Tab } from "@/components/side-nav";
 import { asc, eq } from "drizzle-orm";
 import { facilities as facilitiesTable } from "@/db/schema";
@@ -198,6 +199,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         offReason={tally.reason}
         firstName={session.name.split(" ")[0]}
         isOwner={can(session, "ai.manage")}
+        retentionHours={retentionHours()}
         suggestions={[
           "Give me a quick rundown of where things stand",
           can(session, "compliance.view") ? "Are we following our state's rules? What needs fixing?" : null,
