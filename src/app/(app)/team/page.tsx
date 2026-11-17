@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
@@ -124,9 +125,7 @@ export default async function TeamPage() {
                 </Link>
               }
             >
-              <p className="mb-3 text-sm text-slate-600">
-                Built-in roles cover the usual jobs. Build your own when someone needs a different mix, such as a shift lead who can use the register and run counts.
-              </p>
+              <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900 mb-3"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Built-in roles cover the usual jobs. Build your own when someone needs a different mix, such as a shift lead who can use the register and run counts.</span></p>
               {roles.length ? (
                 <ul className="mb-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
                   {roles.map((r) => (
@@ -162,9 +161,7 @@ export default async function TeamPage() {
 
         <div className="space-y-5">
           <Card title="Invite someone">
-            <p className="mb-3 text-sm text-slate-600">
-              You get a private link to send them by text or email. They open it, pick their own password, and they&apos;re in.
-            </p>
+            <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900 mb-3"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>You get a private link to send them by text or email. They open it, pick their own password, and they&apos;re in.</span></p>
             <InviteForm action={inviteAction} builtIn={builtIn} custom={custom} />
           </Card>
           <Card title="Waiting to join">

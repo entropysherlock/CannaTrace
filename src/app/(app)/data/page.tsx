@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { IMPORT_KINDS } from "@/lib/importer";
@@ -38,10 +39,8 @@ export default async function DataPage() {
         {canImport ? (
           <Card title="Upload">
             <ActionForm action={importAction} submitLabel="Import">
-              <p className="text-sm text-slate-600">
-                Every row is checked first. If any row has a problem, nothing is imported and each problem is listed with its line number. Import items and
-                locations before opening inventory.
-              </p>
+              <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Every row is checked first. If any row has a problem, nothing is imported and each problem is listed with its line number. Import items and
+                locations before opening inventory.</span></p>
               <Field label="What the file contains">
                 <select name="kind" required defaultValue="" className={inputClass}>
                   <option value="" disabled>

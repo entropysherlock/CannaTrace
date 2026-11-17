@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import { and, asc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -82,10 +83,8 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
             <Card title="Tag plants">
               <ActionForm action={tagPlantsAction} submitLabel="Tag plants">
                 {hidden}
-                <p className="text-sm text-slate-600">
-                  Tagged plants become vegetative plants you track one by one. Enter the first tag on the roll and how many, or
-                  scan a list.
-                </p>
+                <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Tagged plants become vegetative plants you track one by one. Enter the first tag on the roll and how many, or
+                  scan a list.</span></p>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="col-span-2">
                     <Field label="First tag">

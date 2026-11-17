@@ -10,14 +10,14 @@ const TABS = [
 
 export function CultivationTabs({ current }: { current: string }) {
   return (
-    <nav className="mb-5 flex gap-1 overflow-x-auto border-b border-slate-200">
+    <nav className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-brand-100 bg-white p-1.5 shadow-sm [scrollbar-width:none]">
       {TABS.map((tab) => (
         <Link
           key={tab.href}
           href={tab.href}
           aria-current={tab.href === current ? "page" : undefined}
-          className={`min-h-11 shrink-0 border-b-2 px-3 py-2 text-sm font-semibold ${
-            tab.href === current ? "border-brand-700 text-brand-800" : "border-transparent text-slate-600 hover:text-slate-900"
+          className={`inline-flex min-h-10 shrink-0 items-center rounded-lg px-4 text-sm font-bold transition-colors ${
+            tab.href === current ? "bg-brand-600 text-white shadow-sm" : "text-brand-800 hover:bg-brand-50"
           }`}
         >
           {tab.label}

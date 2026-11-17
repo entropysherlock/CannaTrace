@@ -1,3 +1,4 @@
+import { TriangleAlert } from "lucide-react";
 import Decimal from "decimal.js";
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
@@ -305,7 +306,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                     <Field label="Route notes (optional)">
                       <input name="routeNotes" maxLength={500} className={inputClass} />
                     </Field>
-                    <p className="text-sm text-slate-600">Shipping removes the packages from inventory and creates the invoice. It cannot be undone.</p>
+                    <p className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium leading-relaxed text-amber-900"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Shipping removes the packages from inventory and creates the invoice. It cannot be undone.</span></p>
                   </ActionForm>
                 )}
               </Card>

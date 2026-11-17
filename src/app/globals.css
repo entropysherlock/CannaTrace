@@ -16,8 +16,27 @@
 }
 
 html {
-  background: #f3f7f4;
+  background: #e8f1eb;
   color: #0f172a;
+}
+
+/*
+ * Data tables look like a store system: a green header row, striped rows, and a hover highlight.
+ * Kept outside Tailwind's layers on purpose, so it applies to every table without editing each page.
+ */
+main table thead th {
+  background: #eef7f1;
+  color: #113f22;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+main table tbody tr:nth-child(even) {
+  background: #f7fbf8;
+}
+main table tbody tr:hover {
+  background: #eef7f1;
 }
 
 body {

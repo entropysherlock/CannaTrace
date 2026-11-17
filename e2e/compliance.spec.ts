@@ -41,7 +41,7 @@ test("state reporting: practice mode sends, NMS2S lists records for hand entry",
 
   // The dashboard warns about it
   await page.goto("/dashboard");
-  await expect(seen(page, "1 to enter by hand")).toBeVisible();
+  await expect(seen(page, "1 record to enter in the state system by hand")).toBeVisible();
 
   // Mark it entered
   await page.goto("/compliance");
@@ -79,7 +79,7 @@ test("the state rules page shows the score, what to fix, and each rule's source"
   await page.getByLabel("Password").fill("demo1234");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
-  await expect(seen(page, "New Mexico rules")).toBeVisible();
+  await expect(seen(page, "Compliance score")).toBeVisible();
 
   await page.goto("/compliance/rules");
   await expect(page.getByRole("heading", { name: "State rules" })).toBeVisible();

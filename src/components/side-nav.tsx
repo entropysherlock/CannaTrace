@@ -89,7 +89,10 @@ export function SectionTabs({ groups }: { groups: NavGroup[] }) {
   if (!item?.tabs || item.tabs.length < 2) return null;
   const current = best(item.tabs, pathname);
   return (
-    <nav aria-label={`${item.label} sections`} className="-mt-2 mb-5 overflow-x-auto overflow-y-hidden border-b border-slate-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <nav
+      aria-label={`${item.label} sections`}
+      className="-mt-1 mb-6 overflow-x-auto overflow-y-hidden rounded-xl border border-brand-100 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       <ul className="flex min-w-max gap-1">
         {item.tabs.map((tab) => {
           const on = tab.href === current?.href;
@@ -98,8 +101,8 @@ export function SectionTabs({ groups }: { groups: NavGroup[] }) {
               <Link
                 href={tab.href}
                 aria-current={on ? "page" : undefined}
-                className={`-mb-px inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-semibold transition-colors ${
-                  on ? "border-brand-600 text-brand-800" : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"
+                className={`inline-flex min-h-10 items-center rounded-lg px-4 text-sm font-bold transition-colors ${
+                  on ? "bg-brand-600 text-white shadow-sm" : "text-brand-800 hover:bg-brand-50"
                 }`}
               >
                 {tab.label}

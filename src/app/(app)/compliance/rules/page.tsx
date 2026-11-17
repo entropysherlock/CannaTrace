@@ -232,10 +232,8 @@ export default async function StateRulesPage() {
                 </li>
               ))}
             </ul>
-            <p className="mt-3 text-xs text-slate-500">
-              CannaTrace is not a lawyer. Rules change; check anything important
-              with your regulator. Tell us if a rule looks out of date.
-            </p>
+            <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900 mt-3"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>CannaTrace is not a lawyer. Rules change; check anything important
+              with your regulator. Tell us if a rule looks out of date.</span></p>
           </Card>
         ) : null}
       </div>

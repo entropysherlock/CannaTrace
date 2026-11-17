@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import { and, desc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
@@ -71,7 +72,7 @@ export default async function IntegrationsPage() {
                 <input type="checkbox" name="canWrite" className="h-5 w-5 accent-brand-700" />
                 Allow changes (inventory adjustments), not just reading
               </label>
-              <p className="text-sm text-slate-600">The key works only for this facility. Changes it makes appear in the audit trail under the key&apos;s name.</p>
+              <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>The key works only for this facility. Changes it makes appear in the audit trail under the key&apos;s name.</span></p>
             </ActionForm>
           </Card>
           <Card title="Using the API">

@@ -106,9 +106,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur print:hidden">
+        <header className="flex flex-wrap items-center justify-between gap-2 bg-brand-950 px-4 py-3 text-white shadow-md print:hidden">
           <Link href="/dashboard" className="md:hidden">
-            <Logo />
+            <Logo tone="light" />
           </Link>
           <form action={switchFacility} className="order-last flex w-full min-w-0 items-center gap-2 md:order-none md:w-auto">
             <label htmlFor="facilityId" className="sr-only">
@@ -118,7 +118,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               id="facilityId"
               name="facilityId"
               defaultValue={session.facilityId}
-              className="min-h-10 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 text-sm md:flex-none"
+              className="min-h-10 min-w-0 flex-1 rounded-lg border border-brand-700 bg-brand-900 px-3 text-sm font-semibold text-white md:flex-none"
             >
               {facilities.map((f) => (
                 <option key={f.id} value={f.id}>
@@ -126,13 +126,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 </option>
               ))}
             </select>
-            <button type="submit" className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50">
+            <button type="submit" className="min-h-10 rounded-lg border border-brand-600 px-3 text-sm font-semibold text-brand-100 hover:bg-brand-800">
               Switch
             </button>
           </form>
           <AskButton />
           <form action={signOut} className="md:hidden">
-            <button type="submit" className="text-sm font-medium text-brand-700">
+            <button type="submit" className="text-sm font-medium text-brand-200">
               Sign out
             </button>
           </form>
