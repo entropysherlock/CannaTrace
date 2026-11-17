@@ -24,6 +24,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://cannatrace:cannatrace@localhost:5432/cannatrace
       AUTH_SECRET: ci-only-secret-not-used-anywhere-real
+      # Test-only key for encrypting saved Tally API keys. Real servers use their own secret value.
+      AI_KEY_ENCRYPTION_KEY: Y2ktb25seS1rZXktbm90LWZvci1yZWFsLXVzZS0zMiE=
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

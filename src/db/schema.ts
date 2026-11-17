@@ -133,6 +133,57 @@ export const platformAdmins = pgTable("platform_admins", {
   createdAt: createdAt(),
 });
 
+/**
+ * A business's own Claude (Anthropic) connection for Tally. One per business, shared by everyone in it.
+ * The API key is stored only encrypted (see lib/ai/secret-box); key_hint is the last four characters.
+ */
+export const aiConnections = pgTable("ai_connections", {
+  orgId: text("org_id")
+    .primaryKey()
+    .references(() => organizations.id),
+  encryptedKey: text("encrypted_key").notNull(),
+  keyHint: text("key_hint").notNull(),
+  model: text("model").notNull(),
+  /** Models this key could use when it was last checked. */
+  availableModels: jsonb("available_models").$type<{ id: string; name: string }[]>().notNull().default([]),
+  /** CONNECTED, INVALID_KEY, NO_CREDIT, RATE_LIMITED, or ERROR. */
+  status: text("status").notNull().default("CONNECTED"),
+  statusMessage: text("status_message"),
+  checkedAt: timestamp("checked_at", { withTimezone: true }),
+  connectedByName: text("connected_by_name").notNull(),
+  connectedAt: timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Tally can be paused without removing the key. */
+  enabled: boolean("enabled").notNull().default(true),
+  dailyLimit: integer("daily_limit").notNull().default(300),
+  monthlyLimit: integer("monthly_limit").notNull().default(5000),
+  perPersonDailyLimit: integer("per_person_daily_limit").notNull().default(60),
+  maxAnswerTokens: integer("max_answer_tokens").notNull().default(2048),
+});
+
+/** One row per Tally question: who asked, which account paid, tokens used, and how it ended. */
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: text("user_id").notNull(),
+    userName: text("user_name").notNull(),
+    facilityId: text("facility_id"),
+    /** CUSTOMER (the business's own key) or PLATFORM (CannaTrace's key: live demo and allowed test accounts only). */
+    billedTo: text("billed_to").notNull(),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    /** OK, or the error kind (INVALID_KEY, NO_CREDIT, RATE_LIMITED, ERROR, ABORTED). */
+    outcome: text("outcome").notNull(),
+    supportVisit: boolean("support_visit").notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [index("ai_usage_org_time_idx").on(t.orgId, t.createdAt), index("ai_usage_user_time_idx").on(t.orgId, t.userId, t.createdAt)],
+);
+
 /** A role a business builds itself: a name and the exact list of things it allows. */
 export const customRoles = pgTable(
   "custom_roles",

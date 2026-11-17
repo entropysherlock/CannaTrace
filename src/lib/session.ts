@@ -158,7 +158,7 @@ async function resolveSupport(session: SessionToken, visit: NonNullable<SessionT
 export class PermissionError extends Error {}
 
 /** Things a visitor to the shared live demo may look at but not change: the team, the business, and outside connections. */
-const LOCKED_IN_DEMO: readonly Permission[] = ["users.manage", "settings.manage", "integrations.manage"];
+const LOCKED_IN_DEMO: readonly Permission[] = ["users.manage", "settings.manage", "integrations.manage", "ai.manage"];
 export const DEMO_LOCKED_MESSAGE =
   "That is switched off in the live demo, because everyone shares this sample business. Create your own account to use it.";
 

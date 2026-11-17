@@ -19,29 +19,29 @@ export type AssistantEvent =
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
-export const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
 const MAX_STEPS = 8;
 const MAX_MESSAGES = 40;
 const MAX_CHARS = 4000;
 
-export function assistantEnabled(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY) || process.env.ASSISTANT_FAKE === "1";
-}
-
-/** One model turn: streams text through onText and returns the finished message. */
+/** One model turn: streams text through onText and returns the finished message and the tokens it used. */
 export type Model = (
   params: { system: string; messages: Anthropic.MessageParam[]; tools: Anthropic.Tool[] },
   onText: (text: string) => void,
   signal: AbortSignal,
-) => Promise<{ content: Anthropic.ContentBlock[]; stop_reason: string | null }>;
+) => Promise<{ content: Anthropic.ContentBlock[]; stop_reason: string | null; usage?: { input_tokens: number; output_tokens: number } }>;
 
-const realModel: Model = async (params, onText, signal) => {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const stream = client.messages.stream({ model: MODEL, max_tokens: 2048, ...params }, { signal });
-  stream.on("text", onText);
-  const message = await stream.finalMessage();
-  return { content: message.content, stop_reason: message.stop_reason };
-};
+/** Claude, through one specific account's key. The key is used here and nowhere else. */
+export function claudeModel(apiKey: string, model: string, maxTokens: number): Model {
+  const client = new Anthropic({ apiKey, maxRetries: 1 });
+  return async (params, onText, signal) => {
+    const stream = client.messages.stream({ model, max_tokens: maxTokens, ...params }, { signal });
+    stream.on("text", onText);
+    const message = await stream.finalMessage();
+    return { content: message.content, stop_reason: message.stop_reason, usage: message.usage };
+  };
+}
+
+export { fakeModel };
 
 function secret() {
   const value = process.env.AUTH_SECRET;
@@ -87,19 +87,32 @@ export function trimHistory(messages: ChatMessage[]): ChatMessage[] {
   return clean;
 }
 
-/** Run a conversation turn: the model may call tools several times before it answers. */
-export async function runAssistant(session: Session, history: ChatMessage[], emit: (e: AssistantEvent) => void, signal: AbortSignal): Promise<void> {
+export type RunUsage = { inputTokens: number; outputTokens: number };
+
+/**
+ * Run a conversation turn: the model may call tools several times before it answers. Tools are limited
+ * to what this person's role allows, and actions only become proposals they must confirm.
+ */
+export async function runAssistant(
+  session: Session,
+  history: ChatMessage[],
+  emit: (e: AssistantEvent) => void,
+  signal: AbortSignal,
+  model: Model = fakeModel,
+  usage: RunUsage = { inputTokens: 0, outputTokens: 0 },
+): Promise<RunUsage> {
   const tools = toolsFor(session);
-  const model = process.env.ASSISTANT_FAKE === "1" ? fakeModel : realModel;
   const system = await systemPrompt(session, tools);
   const messages: Anthropic.MessageParam[] = trimHistory(history);
   const definitions: Anthropic.Tool[] = tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.schema as Anthropic.Tool.InputSchema }));
 
   for (let step = 0; step < MAX_STEPS; step++) {
     const reply = await model({ system, messages, tools: definitions }, (text) => emit({ type: "text", text }), signal);
+    usage.inputTokens += reply.usage?.input_tokens ?? 0;
+    usage.outputTokens += reply.usage?.output_tokens ?? 0;
     messages.push({ role: "assistant", content: reply.content });
     const calls = reply.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    if (reply.stop_reason !== "tool_use" || calls.length === 0) return;
+    if (reply.stop_reason !== "tool_use" || calls.length === 0) return usage;
 
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const call of calls) {
@@ -134,6 +147,7 @@ export async function runAssistant(session: Session, history: ChatMessage[], emi
     messages.push({ role: "user", content: results });
   }
   emit({ type: "text", text: "\n\nI stopped there because that took too many steps. Try asking a narrower question." });
+  return usage;
 }
 
 /** Carry out a proposal the person confirmed. Every check runs again with their current permissions. */
