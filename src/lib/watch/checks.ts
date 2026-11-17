@@ -235,9 +235,9 @@ async function reconcile(f: Scope): Promise<Finding[]> {
       check: "state_report_old",
       severity: "info",
       title: `The state package report is ${plural(Number(report.days), "day")} old`,
-      detail: `Matching against the state system uses the report uploaded ${uploaded}. Export a fresh one and upload it on the Tally Watch page.`,
+      detail: `Matching against the state system uses the report uploaded ${uploaded}. Export a fresh one and upload it in Tally Watch on the Dashboard.`,
       permission: "compliance.view",
-      href: "/watch",
+      href: "/dashboard#tally-watch",
     });
     return out;
   }
@@ -331,7 +331,7 @@ async function reconcile(f: Scope): Promise<Finding[]> {
       title: "More differences with the state system than shown",
       detail: `Tally Watch lists the first ${PER_CHECK} of each kind. Fix these, then upload a fresh report.`,
       permission: "compliance.view",
-      href: "/watch",
+      href: "/dashboard#tally-watch",
     });
   return out;
 }

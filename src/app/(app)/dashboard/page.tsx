@@ -26,6 +26,7 @@ import { requireSession } from "@/lib/session";
 import { scanFacility } from "@/lib/rules/scan";
 import { ADAPTERS } from "@/lib/sync";
 import { openFindings, sweepIfStale } from "@/lib/watch";
+import { WatchSection } from "@/components/watch-section";
 import { SYSTEM_LABELS, type SystemName } from "@/lib/sync-math";
 
 type Row = Record<string, string | number | null>;
@@ -71,7 +72,6 @@ export default async function DashboardPage() {
   const fac = session.facilityId;
   await sweepIfStale(session);
   const watch = await openFindings(session);
-  const urgent = watch.filter((w) => w.severity === "critical").length;
 
   const [rulesScan, [facility], [counts], salesDays, activityDays, [sync], [ledger], [audit], [topGroup], [flow]] = await Promise.all([
     scanFacility(org, fac),
@@ -186,24 +186,7 @@ export default async function DashboardPage() {
         ) : null}
       </div>
 
-      {watch.length ? (
-        <Link
-          href="/watch"
-          data-watch-summary
-          className={`mb-5 block rounded-2xl border p-4 shadow-sm transition hover:shadow ${urgent ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}
-        >
-          <span className="flex items-center gap-2 font-bold text-slate-900">
-            <AlertTriangle className={`h-5 w-5 ${urgent ? "text-red-600" : "text-amber-600"}`} aria-hidden="true" />
-            Tally Watch found {watch.length} thing{watch.length === 1 ? "" : "s"} to look at{urgent ? `, ${urgent} urgent` : ""}
-          </span>
-          <ul className="mt-2 space-y-1 pl-7 text-sm text-slate-700">
-            {watch.slice(0, 3).map((w) => (
-              <li key={w.id}>{w.title}</li>
-            ))}
-          </ul>
-          <span className="mt-2 block pl-7 text-sm font-semibold text-brand-700">Review and fix →</span>
-        </Link>
-      ) : null}
+      <WatchSection session={session} findings={watch} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Tile
