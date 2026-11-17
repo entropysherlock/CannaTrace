@@ -114,11 +114,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mt-4 border-t border-brand-800 px-2 pt-4 text-sm">
           <p className="font-medium">{session.name}</p>
           <p className="text-brand-200">{session.roleName}</p>
-          <form action={signOut}>
-            <button type="submit" className="mt-2 font-medium text-brand-200 hover:text-white hover:underline">
-              Sign out
-            </button>
-          </form>
+          <div className="mt-2 flex gap-4">
+            <Link href="/account" className="font-medium text-brand-200 hover:text-white hover:underline">
+              Password
+            </Link>
+            <form action={signOut}>
+              <button type="submit" className="font-medium text-brand-200 hover:text-white hover:underline">
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
       </aside>
 
@@ -149,11 +154,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Switch
             </button>
           </form>
-          <form action={signOut} className="md:hidden">
-            <button type="submit" className="text-sm font-medium text-brand-200">
-              Sign out
-            </button>
-          </form>
+          <div className="flex items-center gap-4 md:hidden">
+            <Link href="/account" className="text-sm font-medium text-brand-200">
+              Password
+            </Link>
+            <form action={signOut}>
+              <button type="submit" className="text-sm font-medium text-brand-200">
+                Sign out
+              </button>
+            </form>
+          </div>
         </header>
         {session.supportVisit ? (
           <div role="note" aria-label="Support view" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-violet-700 px-4 py-2 text-center text-sm text-white print:hidden">

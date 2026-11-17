@@ -17,6 +17,8 @@ export type HomeView = {
   canManage: boolean;
   drawerOpen: boolean;
   ages: { adultMinAge: number; medicalMinAge: number };
+  /** Purchase limits count per customer per day, so the ID number is needed. */
+  dailyLimits: boolean;
   heldCarts: { id: string; number: string; items: number; clerk: string; since: string }[];
   shift: { sales: number; total: string } | null;
   recent: { id: string; number: string; status: string; total: string | null; time: string }[];
@@ -80,6 +82,7 @@ function CheckIn({ view }: { view: HomeView }) {
   const [manual, setManual] = useState(false);
   const [birthDate, setBirthDate] = useState("");
   const [idExpires, setIdExpires] = useState("");
+  const [idNumber, setIdNumber] = useState("");
   const [pending, start] = useTransition();
   const { toasts, push } = useToasts();
   const startButton = useRef<HTMLButtonElement>(null);
@@ -96,6 +99,7 @@ function CheckIn({ view }: { view: HomeView }) {
       setManual(false);
       setBirthDate(id.birthDate);
       setIdExpires(id.idExpires);
+      setIdNumber(id.idNumber ?? "");
       beep(checkInProblem({ ...id, customerType: type }, view.ages, view.today) ? "error" : "ok");
     },
     [push, type, view.ages, view.today],
@@ -110,11 +114,13 @@ function CheckIn({ view }: { view: HomeView }) {
       setManual(false);
       setBirthDate("");
       setIdExpires("");
+      setIdNumber("");
       setType("ADULT_USE");
     },
     [],
   );
 
+  const needsNumber = view.dailyLimits && !idNumber.trim();
   const ready = Boolean(birthDate && idExpires);
   const problem = ready ? checkInProblem({ birthDate, idExpires, customerType: type }, view.ages, view.today) : null;
   const age = ready ? ageOn(birthDate, view.today) : null;
@@ -124,7 +130,7 @@ function CheckIn({ view }: { view: HomeView }) {
 
   const begin = () =>
     start(async () => {
-      const r = await terminalCheckIn({ birthDate, idExpires, customerType: type });
+      const r = await terminalCheckIn({ birthDate, idExpires, customerType: type, idNumber: idNumber.trim() || undefined });
       if (r.error || !r.saleId) {
         beep("error");
         push("error", r.error ?? "Could not start the cart.");
@@ -137,6 +143,7 @@ function CheckIn({ view }: { view: HomeView }) {
     setScanned(null);
     setBirthDate("");
     setIdExpires("");
+    setIdNumber("");
   };
 
   return (
@@ -182,11 +189,25 @@ function CheckIn({ view }: { view: HomeView }) {
                 Born {birthDate} · ID expires {idExpires}
                 {scanned?.state ? ` · ${scanned.state}` : ""}
               </p>
-              <p className="mt-1 text-xs text-slate-500">The name and dates are used for this check only and are not saved.</p>
+              <p className="mt-1 text-xs text-slate-500">
+                The name and dates are used for this check only and are not saved.
+                {view.dailyLimits ? " The ID number is kept only as a scrambled code for today's purchase limits; the number itself isn't saved." : ""}
+              </p>
+              {view.dailyLimits && !scanned?.idNumber ? (
+                <label className="mt-3 block">
+                  <span className="text-sm font-semibold text-slate-700">ID number (this store counts limits per customer per day)</span>
+                  <input
+                    value={idNumber}
+                    onChange={(e) => setIdNumber(e.target.value)}
+                    autoComplete="off"
+                    className="mt-1 block h-12 w-full rounded-xl border-2 border-slate-200 px-3 text-lg focus:border-brand-600 focus:outline-none"
+                  />
+                </label>
+              ) : null}
             </div>
           </div>
           <div className="mt-5 grid grid-cols-[1fr_auto] gap-2">
-            <button ref={startButton} type="button" disabled={Boolean(problem) || pending} onClick={begin} className={bigButton}>
+            <button ref={startButton} type="button" disabled={Boolean(problem) || needsNumber || pending} onClick={begin} className={bigButton}>
               {pending ? "Starting…" : "Start sale"}
             </button>
             <button type="button" onClick={reset} className="h-16 rounded-2xl px-5 text-base font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-white">

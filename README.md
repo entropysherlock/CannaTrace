@@ -107,7 +107,7 @@ Every deploy runs `npm run vercel-build`, which updates the database tables befo
 - [x] App shell with desktop sidebar and phone bottom navigation
 - [x] Demo seed data
 - [x] CI: lint, typecheck, tests, migrate, seed, build, browser tests
-- [ ] Password reset and user deactivation screens
+- [x] Password reset (one-time links from the Team page; change your own under Password) and user deactivation
 
 ### Phase 2: Inventory and warehouse
 - [x] Items, categories, and locations, with screens to add them and retire items
@@ -160,7 +160,7 @@ Every deploy runs `npm run vercel-build`, which updates the database tables befo
 - [x] Invoices with due dates from payment terms, and a printable invoice
 - [x] Payments (cash, check, ACH, wire) with balance and overdue status
 - [ ] Taxes on invoices
-- [ ] Returns and credit memos
+- [x] Credit memos on invoices (product returns are received as packages)
 - [ ] Multi-stop routes (one order per manifest for now)
 
 ### Phase 6: Retail POS
@@ -174,9 +174,9 @@ Every deploy runs `npm run vercel-build`, which updates the database tables befo
 - [x] Cash drawer: opening float, expected cash, counted cash, and the difference
 - [x] Printable receipt and end-of-day report
 - [x] Voiding a sale during the same shift puts the product back in stock
-- [ ] Returns after the shift has closed, and refunds to a card
+- [x] Returns on any day, partial or whole: sealed items back to stock or opened items written off; cash refunds from the open drawer, card refunds recorded (done on the card terminal)
 - [ ] More than one register per store
-- [ ] Limits tracked per customer per day (limits apply per purchase)
+- [x] Limits per customer per day (optional, by a one-way code of the ID number; ID scans fill it in)
 - [ ] Loyalty and customer profiles
 
 ### Phase 7: Compliance sync (state reporting)
@@ -225,14 +225,14 @@ State reports and webhooks are sent by calling `GET /api/sync/run` with `Authori
 ### Known limits
 - Camera scanning has not been tested on a real phone. It needs HTTPS (or localhost) and camera permission.
 - COA files are stored in the database. That is fine to start; move them to file storage before heavy use.
-- Labels are internal inventory labels. State-required consumer warnings and symbols are not included.
+- Returned items don't reduce a customer's daily total (the stricter reading). Password reset links are made by an owner; there's no email sending yet.
 - Merging refuses packages from different lots. Some states allow it under conditions; that rule is not modelled.
 - Locations cannot be renamed or removed yet.
 - Harvests can only be packaged into items tracked by weight. Pre-packaged units (jars, pre-rolls) come in Phase 4.
 - Bulk plant actions handle up to 500 plants at a time.
 - Tax rates and purchase limits are whatever each store enters under Menu and store rules. CannaTrace ships with none and does not look them up.
 - Both taxes are charged on the discounted subtotal. If your state taxes differently (for example tax on tax), the totals will not match.
-- Receipts do not include state-required warning text.
+- Receipt warning text is whatever the store enters under Store rules; CannaTrace doesn't supply receipt wording. Label templates can use the store's label warning field, and New Mexico product labels are checked for the state's required warning.
 - The printed manifest is an internal document. It does not replace the manifest issued by the state track-and-trace system.
 - License verification records that a person checked the state lookup; it does not query the state automatically.
 - Cost per unit shows as unknown if any input package has no cost on record, rather than showing a partial figure.

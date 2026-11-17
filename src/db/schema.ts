@@ -116,9 +116,32 @@ export const users = pgTable(
     /** When set, this role's permissions replace the built-in role's. */
     customRoleId: text("custom_role_id").references(() => customRoles.id),
     active: boolean("active").notNull().default(true),
+    /** Sign-ins from before this moment no longer work (set when the password changes). */
+    passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index("users_org_idx").on(t.orgId)],
+);
+
+/**
+ * One-time links for setting a new password, made by a manager for a team member (there is no email
+ * sending yet). Only a hash of the link's secret is stored, so a database copy can't be used to sign in.
+ */
+export const passwordResets = pgTable(
+  "password_resets",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    tokenHash: text("token_hash").notNull().unique(),
+    createdByName: text("created_by_name").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("password_resets_user_idx").on(t.userId)],
 );
 
 /**
@@ -1071,6 +1094,12 @@ export const retailSettings = pgTable("retail_settings", {
   medicalTaxExempt: boolean("medical_tax_exempt").notNull().default(true),
   adultMinAge: integer("adult_min_age").notNull().default(21),
   medicalMinAge: integer("medical_min_age").notNull().default(18),
+  /** Count purchase limits per customer per day (by their ID number), not just per purchase. */
+  dailyLimits: boolean("daily_limits").notNull().default(false),
+  /** Wording printed at the bottom of every receipt, as the store's state requires. */
+  receiptWarning: text("receipt_warning"),
+  /** Wording available to label templates as the "Store warning" field. */
+  labelWarning: text("label_warning"),
 });
 
 export const retailPrices = pgTable(
@@ -1150,12 +1179,66 @@ export const sales = pgTable(
     debitAmount: money("debit_amount"),
     changeDue: money("change_due"),
     voidReason: text("void_reason"),
+    /**
+     * For per-customer daily limits: a keyed one-way fingerprint of the customer's ID number, the
+     * same for the same ID at this business. The ID number itself is never stored.
+     */
+    customerKey: text("customer_key"),
     userId: text("user_id").notNull(),
     userName: text("user_name").notNull(),
     createdAt: createdAt(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
-  (t) => [uniqueIndex("sales_facility_number_key").on(t.facilityId, t.number), index("sales_session_idx").on(t.drawerSessionId, t.status)],
+  (t) => [
+    uniqueIndex("sales_facility_number_key").on(t.facilityId, t.number),
+    index("sales_session_idx").on(t.drawerSessionId, t.status),
+    index("sales_customer_day_idx").on(t.orgId, t.customerKey, t.completedAt),
+  ],
+);
+
+/** Items a customer brought back from a completed sale, on any day, with the refund. */
+export const saleReturns = pgTable(
+  "sale_returns",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    saleId: text("sale_id")
+      .notNull()
+      .references(() => sales.id),
+    number: text("number").notNull(),
+    /** CASH (from an open drawer) or CARD (refunded on the card terminal). */
+    refundMethod: text("refund_method").notNull(),
+    /** The drawer the cash came out of, for cash refunds. */
+    drawerSessionId: text("drawer_session_id").references(() => drawerSessions.id),
+    amount: money("amount").notNull(),
+    /** RESTOCK (sealed, back on the shelf) or DISPOSE (opened or damaged, written off). */
+    disposition: text("disposition").notNull(),
+    reason: text("reason").notNull(),
+    userId: text("user_id").notNull(),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("sale_returns_facility_number_key").on(t.facilityId, t.number), index("sale_returns_sale_idx").on(t.saleId), index("sale_returns_drawer_idx").on(t.drawerSessionId)],
+);
+
+export const saleReturnLines = pgTable(
+  "sale_return_lines",
+  {
+    returnId: text("return_id")
+      .notNull()
+      .references(() => saleReturns.id),
+    saleLineId: text("sale_line_id")
+      .notNull()
+      .references(() => saleLines.id),
+    packageId: text("package_id")
+      .notNull()
+      .references(() => packages.id),
+    quantity: qty("quantity").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.returnId, t.saleLineId, t.packageId] })],
 );
 
 export const saleLines = pgTable(

@@ -24,6 +24,8 @@ export type SessionToken = {
    * and these say where to send the support person back to and when the visit ends (epoch ms).
    */
   support?: { homeOrgId: string; homeFacilityId: string; until: number };
+  /** When the cookie was issued (seconds). A password change makes older cookies stop working. */
+  issuedAt?: number;
 };
 
 export type Session = SessionToken & {
@@ -71,7 +73,7 @@ export async function readToken(token: string | undefined): Promise<SessionToken
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
-    const { userId, orgId, facilityId, role, name, support } = payload as Record<string, unknown>;
+    const { userId, orgId, facilityId, role, name, support, iat } = payload as Record<string, unknown>;
     if (typeof userId !== "string" || typeof orgId !== "string" || typeof facilityId !== "string") {
       return null;
     }
@@ -80,7 +82,7 @@ export async function readToken(token: string | undefined): Promise<SessionToken
       s && typeof s.homeOrgId === "string" && typeof s.homeFacilityId === "string" && typeof s.until === "number"
         ? { homeOrgId: s.homeOrgId, homeFacilityId: s.homeFacilityId, until: s.until }
         : undefined;
-    return { userId, orgId, facilityId, role: role as Role, name: String(name ?? ""), ...(visit ? { support: visit } : {}) };
+    return { userId, orgId, facilityId, role: role as Role, name: String(name ?? ""), ...(visit ? { support: visit } : {}), ...(typeof iat === "number" ? { issuedAt: iat } : {}) };
   } catch {
     return null;
   }
@@ -88,6 +90,12 @@ export async function readToken(token: string | undefined): Promise<SessionToken
 
 export async function getSession(): Promise<SessionToken | null> {
   return readToken((await cookies()).get(SESSION_COOKIE)?.value);
+}
+
+/** The person a sign-in cookie value belongs to, if it still counts. Used by tests and by currentSession. */
+export async function sessionFromToken(token: string | undefined): Promise<Session | null> {
+  const session = await readToken(token);
+  return session ? resolve(session) : null;
 }
 
 /** The signed-in, still-active person with their current permissions, or null. Never redirects. */
@@ -112,12 +120,22 @@ export async function requireSession(): Promise<Session> {
 async function resolve(session: SessionToken): Promise<Session | null> {
   if (session.support) return resolveSupport(session, session.support);
   const [user] = await db
-    .select({ role: users.role, name: users.name, customRoleId: users.customRoleId, customName: customRoles.name, customPermissions: customRoles.permissions, isDemo: organizations.isDemo })
+    .select({
+      role: users.role,
+      name: users.name,
+      customRoleId: users.customRoleId,
+      customName: customRoles.name,
+      customPermissions: customRoles.permissions,
+      isDemo: organizations.isDemo,
+      passwordChangedAt: users.passwordChangedAt,
+    })
     .from(users)
     .innerJoin(organizations, eq(organizations.id, users.orgId))
     .leftJoin(customRoles, and(eq(customRoles.id, users.customRoleId), eq(customRoles.orgId, users.orgId)))
     .where(and(eq(users.id, session.userId), eq(users.orgId, session.orgId), eq(users.active, true)));
   if (!user) return null;
+  // Signed in before the password was changed or reset: that sign-in no longer counts.
+  if (user.passwordChangedAt && session.issuedAt !== undefined && session.issuedAt * 1000 < user.passwordChangedAt.getTime()) return null;
   const custom = user.customRoleId && user.customPermissions;
   return {
     ...session,

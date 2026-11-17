@@ -35,6 +35,7 @@ const EVENT_TYPES: Record<string, string> = {
   "Order:DELIVER": "TRANSFER_DELIVERED",
   "Sale:COMPLETE": "RETAIL_SALE",
   "Sale:VOID": "RETAIL_SALE_VOIDED",
+  "Sale:RETURN": "RETAIL_SALE_RETURNED",
 };
 
 export function eventTypeFor(entityType: string, action: string): string | null {
@@ -99,6 +100,8 @@ export function describeEvent(type: string, before: Json, after: Json): string {
       return `Retail sale ${str(a.number)} for $${str(a.total)}`;
     case "RETAIL_SALE_VOIDED":
       return `Voided retail sale ${str(a.number)}`;
+    case "RETAIL_SALE_RETURNED":
+      return `Customer return ${str(a.return)} on sale ${str(a.number)}: $${str(a.refund)} refunded`;
     case "HARVEST_UNFINISHED":
       return "Reopened a finished harvest";
     case "HARVEST_WASTE_REVERSED":

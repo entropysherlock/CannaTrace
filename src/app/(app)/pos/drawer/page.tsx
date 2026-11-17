@@ -45,6 +45,12 @@ export default async function DrawerPage() {
                   </dd>
                   <dt className="text-slate-600">Cash sales</dt>
                   <dd className="text-right">{usd(summary.cashTotal)}</dd>
+                  {summary.refundCount ? (
+                    <>
+                      <dt className="text-slate-600">Cash refunds for returns</dt>
+                      <dd className="text-right">-{usd(summary.cashRefunds)}</dd>
+                    </>
+                  ) : null}
                   <dt className="font-semibold text-slate-900">Cash that should be in the drawer</dt>
                   <dd className="text-right text-lg font-bold">{usd(summary.expectedCash)}</dd>
                 </dl>

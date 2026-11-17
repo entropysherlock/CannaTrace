@@ -95,14 +95,22 @@ test("sell wholesale: customer, order, pick, ship, manifest, invoice, payment", 
   await page.getByRole("link", { name: /INV-\d{5}/ }).click();
   await expect(page.getByRole("heading", { name: /Invoice INV-\d{5}/ })).toBeVisible();
   await expect(page.getByText("$1,250.00").filter({ visible: true }).first()).toBeVisible();
-  await page.locator('input[name="amount"]').fill("5000");
+  const payment = page.locator("section", { has: page.getByRole("heading", { name: "Record a payment" }) });
+  const credit = page.locator("section", { has: page.getByRole("heading", { name: "Issue a credit memo" }) });
+  await payment.locator('input[name="amount"]').fill("5000");
   await page.getByRole("button", { name: "Record payment" }).click();
-  await expect(page.locator('form p[role="alert"]')).toContainText("Only $1250.00 is still owed");
-  await page.locator('input[name="amount"]').fill("1000");
+  await expect(payment.locator('form p[role="alert"]')).toContainText("Only $1250.00 is still owed");
+  await payment.locator('input[name="amount"]').fill("1000");
   await page.locator('input[name="reference"]').fill("Check 2041");
   await page.getByRole("button", { name: "Record payment" }).click();
   await expect(page.getByText("Payment recorded. $250.00 still owed.")).toBeVisible();
-  await page.locator('input[name="amount"]').fill("250");
+  // A credit memo for a damaged case lowers what's owed without money changing hands
+  await credit.locator('input[name="amount"]').fill("50");
+  await credit.locator('input[name="reason"]').fill("One case damaged in transit (test)");
+  await page.getByRole("button", { name: "Issue credit" }).click();
+  await expect(page.getByText("Credit recorded. $200.00 still owed.")).toBeVisible();
+  await expect(page.getByText("Credit memo · One case damaged in transit (test)")).toBeVisible();
+  await payment.locator('input[name="amount"]').fill("200");
   await page.locator('select[name="method"]').selectOption("CASH");
   await page.getByRole("button", { name: "Record payment" }).click();
   await expect(page.getByText("paid", { exact: true }).filter({ visible: true }).first()).toBeVisible();

@@ -18,12 +18,12 @@ import {
   sales,
 } from "@/db/schema";
 import { db } from "@/lib/db";
-import { happenedWithin } from "@/lib/pos";
+import { getRetailSettings, happenedWithin, returnableLines, returnsForSale } from "@/lib/pos";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { NextCustomer } from "@/components/register/next-customer";
 import { RegisterShell } from "@/components/register/shell";
-import { voidSaleAction } from "../../../actions";
+import { returnSaleAction, voidSaleAction } from "../../../actions";
 import { shellInfo } from "../../../shell-info";
 
 export default async function ReceiptPage({
@@ -53,7 +53,7 @@ export default async function ReceiptPage({
   const { sale, facility } = row;
   if (sale.status === "OPEN") redirect(`/pos/sales/${sale.id}`);
 
-  const [info, lines, tags] = await Promise.all([
+  const [info, lines, tags, settings, returns, returnable] = await Promise.all([
     shellInfo(session),
     db
       .select({
@@ -73,7 +73,11 @@ export default async function ReceiptPage({
       .innerJoin(saleLines, eq(saleLines.id, saleLinePackages.saleLineId))
       .where(eq(saleLines.saleId, sale.id))
       .orderBy(asc(packages.tag)),
+    getRetailSettings(db, sale.facilityId),
+    returnsForSale(sale.id),
+    returnableLines(db, sale.id),
   ]);
+  const canReturn = sale.status === "COMPLETED" && can(session, "pos.manage") && returnable.some((l) => new Decimal(l.returnable).gt(0));
   const canVoid =
     sale.status === "COMPLETED" &&
     row.drawerStatus === "OPEN" &&
@@ -209,13 +213,71 @@ export default async function ReceiptPage({
                       Voided: {sale.voidReason}
                     </p>
                   ) : null}
+                  {returns.length ? (
+                    <div className="mt-4 border-t border-dashed border-slate-400 pt-3" data-returns>
+                      <p className="font-semibold">Returns</p>
+                      <ul className="mt-1 space-y-1">
+                        {returns.map((r) => (
+                          <li key={r.id} className="flex justify-between gap-3">
+                            <span>
+                              {r.number} · {r.createdAt.toLocaleDateString("en-US")} · {r.refundMethod === "CASH" ? "cash" : "card"} refund
+                              <span className="block text-xs text-slate-500">
+                                {r.disposition === "RESTOCK" ? "Back to stock" : "Written off"}: {r.reason}
+                              </span>
+                            </span>
+                            <span>-{usd(r.amount)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                 </>
               )}
+              {settings.receiptWarning && sale.status !== "CANCELLED" ? (
+                <p className="mt-4 whitespace-pre-line border-t border-slate-300 pt-3 text-center text-xs font-semibold" data-receipt-warning>
+                  {settings.receiptWarning}
+                </p>
+              ) : null}
             </div>
           </div>
 
-          {canVoid ? (
-            <div className="md:col-span-2 print:hidden">
+          {canVoid || canReturn ? (
+            <div className="space-y-5 md:col-span-2 print:hidden">
+            {canReturn ? (
+              <Card title="Return items">
+                <ActionForm action={returnSaleAction} submitLabel="Record return" quiet>
+                  <input type="hidden" name="saleId" value={sale.id} />
+                  <ul className="space-y-2">
+                    {returnable
+                      .filter((l) => new Decimal(l.returnable).gt(0))
+                      .map((l) => (
+                        <li key={l.saleLineId}>
+                          <Field label={`${l.itemName}`} hint={`${l.returnable} of ${l.sold} can be returned`}>
+                            <input name={`qty:${l.saleLineId}`} inputMode="decimal" placeholder="0" aria-label={`How many ${l.itemName} are coming back`} className={inputClass} />
+                          </Field>
+                        </li>
+                      ))}
+                  </ul>
+                  <Field label="Condition">
+                    <select name="disposition" required defaultValue="RESTOCK" className={inputClass}>
+                      <option value="RESTOCK">Sealed and unopened: back to stock</option>
+                      <option value="DISPOSE">Opened or damaged: write it off</option>
+                    </select>
+                  </Field>
+                  <Field label="Refund">
+                    <select name="refundMethod" required defaultValue={sale.paymentMethod === "CASH" ? "CASH" : "CARD"} className={inputClass}>
+                      <option value="CASH">Cash from my open drawer</option>
+                      <option value="CARD">To their card (do it on the card terminal)</option>
+                    </select>
+                  </Field>
+                  <Field label="Reason" hint="Required. Shown in the audit trail.">
+                    <input name="reason" required maxLength={300} className={inputClass} />
+                  </Field>
+                  <p className="text-xs text-slate-500">The refund is the same share of what they paid, after discount and tax, as the items are of the sale.</p>
+                </ActionForm>
+              </Card>
+            ) : null}
+            {canVoid ? (
               <Card title="Void this sale">
                 <ActionForm
                   action={voidSaleAction}
@@ -247,6 +309,7 @@ export default async function ReceiptPage({
                   </Field>
                 </ActionForm>
               </Card>
+            ) : null}
             </div>
           ) : null}
         </div>

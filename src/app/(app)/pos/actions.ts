@@ -10,6 +10,7 @@ import {
   saveRetailSettings,
   setMenuItem,
   voidSale,
+  returnSale,
 } from "@/lib/pos";
 import type { Permission } from "@/lib/rbac";
 import { requirePermission } from "@/lib/session";
@@ -44,6 +45,24 @@ export async function voidSaleAction(_state: FormState, formData: FormData): Pro
   }
 }
 
+export async function returnSaleAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const lines = [...formData.keys()].filter((k) => k.startsWith("qty:")).map((k) => ({ saleLineId: k.slice(4), quantity: field(formData, k) }));
+    const r = await returnSale(await manager(), {
+      saleId: field(formData, "saleId"),
+      lines,
+      refundMethod: field(formData, "refundMethod"),
+      disposition: field(formData, "disposition"),
+      reason: field(formData, "reason"),
+    });
+    refresh();
+    revalidatePath("/inventory");
+    return { ok: `Return ${r.number} recorded. Refund $${r.amount} ${field(formData, "refundMethod") === "CASH" ? "in cash from your drawer" : "to their card on the card terminal"}.` };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
 export async function retailSettingsAction(_state: FormState, formData: FormData): Promise<FormState> {
   try {
     await saveRetailSettings(await manager(), {
@@ -53,6 +72,9 @@ export async function retailSettingsAction(_state: FormState, formData: FormData
       exciseTaxPercent: field(formData, "exciseTaxPercent"),
       salesTaxPercent: field(formData, "salesTaxPercent"),
       medicalTaxExempt: formData.get("medicalTaxExempt") === "on",
+      dailyLimits: formData.get("dailyLimits") === "on",
+      receiptWarning: String(formData.get("receiptWarning") ?? ""),
+      labelWarning: String(formData.get("labelWarning") ?? ""),
     });
     refresh();
     return { ok: "Store rules saved." };

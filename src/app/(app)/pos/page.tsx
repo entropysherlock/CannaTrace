@@ -39,6 +39,7 @@ export default async function RegisterPage() {
     canManage: can(session, "pos.manage"),
     drawerOpen: Boolean(info.drawerId),
     ages: { adultMinAge: minimumAge(settings.adultMinAge, pack, "ADULT_USE"), medicalMinAge: minimumAge(settings.medicalMinAge, pack, "MEDICAL") },
+    dailyLimits: settings.dailyLimits,
     heldCarts: rows
       .filter((s) => s.status === "OPEN")
       .map((s) => ({ id: s.id, number: s.number, items: s.lineCount, clerk: s.userName.split(" ")[0], since: time(s.createdAt) })),

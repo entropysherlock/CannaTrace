@@ -107,7 +107,7 @@ test("a full shift on the touch register: ID scan, barcode scan, limits, discoun
   await display.close();
 
   // Void it: stock comes back
-  await page.locator('input[name="reason"]').fill("Customer changed their mind at the counter");
+  await page.locator("section", { has: page.getByRole("heading", { name: "Void this sale" }) }).locator('input[name="reason"]').fill("Customer changed their mind at the counter");
   await page.getByRole("button", { name: "Void sale" }).click();
   await expect(page.getByText("Voided: Customer changed their mind at the counter")).toBeVisible();
   await page.goto("/inventory?q=CT-000101");
@@ -189,4 +189,73 @@ test("a manager fills the store's purchase limits from the state's rules", async
   await page.getByRole("button", { name: "Fill in" }).click();
   await page.getByRole("button", { name: "Save store rules" }).click();
   await expect(page.getByText("Store rules saved.")).toBeVisible();
+});
+
+test("the store's warning prints on receipts, and a manager takes back part of a sale with a refund", async ({ page }) => {
+  await signInAtShop(page, "manager@demo.test");
+  await page.goto("/pos/menu");
+  await page.locator('textarea[name="receiptWarning"]').fill("Keep out of reach of children. (Fictional test wording.)");
+  await page.getByRole("button", { name: "Save store rules" }).click();
+  await expect(page.getByText("Store rules saved.")).toBeVisible();
+
+  await page.goto("/pos");
+  if (await page.getByRole("button", { name: "Open drawer" }).isVisible()) {
+    await page.getByLabel("Starting cash").fill("100");
+    await page.getByRole("button", { name: "Open drawer" }).click();
+  }
+  await typeDates(page, "1979-04-04");
+  await page.getByRole("button", { name: "Start sale" }).click();
+  await page.getByRole("button", { name: /^Add Desert Haze 1 g Pre-roll/ }).click();
+  await page.getByRole("button", { name: /^Add Desert Haze 1 g Pre-roll/ }).click();
+  await expect(qtyOf(page, "Desert Haze 1 g Pre-roll")).toHaveText("2");
+  await page.getByRole("button", { name: /Pay/ }).click();
+  const pay = page.getByRole("dialog", { name: /Take payment/ });
+  await pay.getByLabel(/Cash received/).fill("50");
+  await pay.getByRole("button", { name: /Complete sale/ }).click();
+  await expect(page).toHaveURL(/\/receipt$/);
+  await expect(page.locator("[data-receipt-warning]")).toHaveText("Keep out of reach of children. (Fictional test wording.)");
+
+  const ret = page.locator("section", { has: page.getByRole("heading", { name: "Return items" }) });
+  await ret.getByLabel("How many Desert Haze 1 g Pre-roll are coming back").fill("1");
+  await ret.getByLabel("Condition").selectOption("RESTOCK");
+  await ret.getByLabel("Refund").selectOption("CASH");
+  await ret.locator('input[name="reason"]').fill("Changed their mind (test)");
+  await ret.getByRole("button", { name: "Record return" }).click();
+  await expect(page.getByText(/Return R-\d{5} recorded\. Refund \$\d+\.\d{2} in cash from your drawer\./)).toBeVisible();
+  await expect(page.locator("[data-returns]")).toContainText("Back to stock: Changed their mind (test)");
+  await page.goto("/pos/drawer");
+  await expect(page.getByText("Cash refunds for returns").filter({ visible: true })).toBeVisible();
+});
+
+test("with daily limits on, the register needs the ID number: a scanned license fills it in, typed dates need it typed", async ({ page }) => {
+  await signInAtShop(page, "manager@demo.test");
+  await page.goto("/pos/menu");
+  await page.getByRole("checkbox", { name: /Count purchase limits per customer per day/ }).check();
+  await page.getByRole("button", { name: "Save store rules" }).click();
+  await expect(page.getByText("Store rules saved.")).toBeVisible();
+  try {
+    await page.goto("/pos");
+    if (await page.getByRole("button", { name: "Open drawer" }).isVisible()) {
+      await page.getByLabel("Starting cash").fill("100");
+      await page.getByRole("button", { name: "Open drawer" }).click();
+    }
+    await typeDates(page, "1979-04-04");
+    await expect(page.getByRole("button", { name: "Start sale" })).toBeDisabled();
+    await page.getByLabel(/^ID number/).fill("NM-555 0001");
+    await expect(page.getByText(/kept only as a scrambled code/)).toBeVisible();
+    await page.getByRole("button", { name: "Start sale" }).click();
+    await expect(page.getByRole("heading", { name: /^Cart S-\d{5}$/ })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel cart" }).click();
+    await page.getByRole("button", { name: "Yes, cancel cart" }).click();
+
+    // A scanned license carries its own number, so nothing extra is asked
+    await scan(page, LICENSE("03141988"));
+    await expect(page.getByLabel(/^ID number/)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Start sale" })).toBeEnabled();
+  } finally {
+    await page.goto("/pos/menu");
+    await page.getByRole("checkbox", { name: /Count purchase limits per customer per day/ }).uncheck();
+    await page.getByRole("button", { name: "Save store rules" }).click();
+    await expect(page.getByText("Store rules saved.")).toBeVisible();
+  }
 });

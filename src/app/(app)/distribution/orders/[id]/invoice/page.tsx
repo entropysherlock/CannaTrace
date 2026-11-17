@@ -12,7 +12,7 @@ import { PAYMENT_METHODS, invoiceBalance, lineTotal, todayIn } from "@/lib/distr
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
-import { paymentAction } from "../../../actions";
+import { creditMemoAction, paymentAction } from "../../../actions";
 
 export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("sales.view");
@@ -118,16 +118,16 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
       </div>
 
       <div className="space-y-5 print:hidden">
-        <Card title="Payments">
+        <Card title="Payments and credits">
           {paid.length === 0 ? (
-            <p className="text-sm text-slate-600">No payments recorded.</p>
+            <p className="text-sm text-slate-600">No payments or credits recorded.</p>
           ) : (
             <ul className="divide-y divide-slate-100 text-sm">
               {paid.map((payment) => (
                 <li key={payment.id} className="py-2">
                   <div className="flex justify-between gap-3">
                     <span className="font-medium text-slate-900">
-                      {payment.method.toLowerCase()}
+                      {payment.method === "CREDIT_MEMO" ? "Credit memo" : payment.method.toLowerCase()}
                       {payment.reference ? ` · ${payment.reference}` : ""}
                     </span>
                     <span className="font-semibold">{usd(payment.amount)}</span>
@@ -161,6 +161,20 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
               </Field>
               <Field label="Check number or reference (optional)">
                 <input name="reference" maxLength={100} className={inputClass} />
+              </Field>
+            </ActionForm>
+          </Card>
+        ) : null}
+        {state !== "PAID" && can(session, "sales.write") ? (
+          <Card title="Issue a credit memo">
+            <p className="mb-3 text-sm text-slate-600">Lowers what they owe without money changing hands, for returned product, a damaged delivery, or a price correction.</p>
+            <ActionForm action={creditMemoAction} submitLabel="Issue credit" quiet>
+              <input type="hidden" name="invoiceId" value={invoice.id} />
+              <Field label="Credit in dollars" hint={`Up to ${usd(balance)}.`}>
+                <input name="amount" inputMode="decimal" required className={inputClass} />
+              </Field>
+              <Field label="What it's for">
+                <input name="reason" required maxLength={200} className={inputClass} placeholder="Returned 2 cases, damaged in transit" />
               </Field>
             </ActionForm>
           </Card>
