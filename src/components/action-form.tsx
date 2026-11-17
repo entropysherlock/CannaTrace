@@ -39,20 +39,20 @@ export function ActionForm({
     >
       {children}
       {state?.error ? (
-        <p role="alert" className="whitespace-pre-line rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p role="alert" className="whitespace-pre-line rounded-lg border-l-4 border-red-600 bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
           {state.error}
         </p>
       ) : null}
       {state?.ok ? (
-        <p role="status" className="whitespace-pre-line break-all rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <p role="status" className="whitespace-pre-line break-all rounded-lg border-l-4 border-brand-600 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-900">
           {state.ok}
         </p>
       ) : null}
       <button
         type="submit"
         disabled={pending}
-        className={`inline-flex min-h-11 items-center justify-center rounded-md px-4 text-sm font-semibold disabled:opacity-60 ${
-          quiet ? "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50" : "bg-brand-700 text-white hover:bg-brand-800"
+        className={`inline-flex min-h-11 items-center justify-center rounded-lg px-5 text-sm font-bold shadow-sm transition disabled:opacity-60 ${
+          quiet ? "border-2 border-brand-200 bg-white text-brand-800 hover:border-brand-500 hover:bg-brand-50" : "bg-brand-600 text-white hover:bg-brand-700"
         }`}
       >
         {pending ? "Working…" : submitLabel}

@@ -106,7 +106,7 @@ test("receive, move, adjust, split, hold, lab result, label, and count", async (
   // Label
   await page.getByRole("link", { name: "Print label" }).click();
   await expect(page).toHaveURL(/\/label$/);
-  await expect(page.locator("main svg")).toBeVisible();
+  await expect(page.locator("main svg:not(.lucide)").filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Print label" })).toBeVisible();
   await expect(page.locator("main p.font-mono")).toHaveText(`${run}-A`);
 

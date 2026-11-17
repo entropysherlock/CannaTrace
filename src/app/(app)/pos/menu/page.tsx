@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import Decimal from "decimal.js";
 import { and, asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
@@ -109,9 +110,7 @@ export default async function MenuPage() {
 
           <Card title="Store rules">
             <ActionForm action={retailSettingsAction} submitLabel="Save store rules">
-              <p className="text-sm text-slate-600">
-                Limits and tax rates are set by your state and city and they change. Enter the current figures for this store; CannaTrace does not look them up. The register stays locked until these are saved.
-              </p>
+              <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Limits and tax rates are set by your state and city and they change. Enter the current figures for this store; CannaTrace does not look them up. The register stays locked until these are saved.</span></p>
               <Field label="Flower limit per purchase, in grams">
                 <input name="flowerLimitGrams" inputMode="decimal" required defaultValue={settings.saved ? num(settings.flowerLimitGrams) : ""} className={inputClass} />
               </Field>

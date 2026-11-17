@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import Decimal from "decimal.js";
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
@@ -123,9 +124,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
           <Card title="Void this sale">
             <ActionForm action={voidSaleAction} submitLabel="Void sale" quiet>
               <input type="hidden" name="saleId" value={sale.id} />
-              <p className="text-sm text-slate-600">
-                Puts the product back into the packages it came from and removes the sale from today&apos;s totals. Refund the customer by hand.
-              </p>
+              <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Puts the product back into the packages it came from and removes the sale from today&apos;s totals. Refund the customer by hand.</span></p>
               <Field label="Reason" hint="Required. Shown in the audit trail.">
                 <input name="reason" required maxLength={300} className={inputClass} />
               </Field>

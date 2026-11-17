@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import { and, asc, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -65,9 +66,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             <Card title="Verify license">
               <ActionForm action={verifyLicenseAction} submitLabel="Mark as verified">
                 {hidden}
-                <p className="text-sm text-slate-600">
-                  Look this license up on the state regulator&apos;s site first. Marking it verified records your name and today&apos;s date.
-                </p>
+                <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Look this license up on the state regulator&apos;s site first. Marking it verified records your name and today&apos;s date.</span></p>
                 <Field label="New expiry date (only if it changed)">
                   <input name="licenseExpires" type="date" className={inputClass} />
                 </Field>

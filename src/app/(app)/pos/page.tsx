@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import { and, desc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
@@ -70,7 +71,7 @@ export default async function RegisterPage() {
         <div className="grid gap-5 lg:grid-cols-3">
           <Card title="Check in a customer">
             <ActionForm action={checkInAction} submitLabel="Start cart">
-              <p className="text-sm text-slate-600">Enter both dates from the customer&apos;s ID. They are used for the age check only and are not saved.</p>
+              <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Enter both dates from the customer&apos;s ID. They are used for the age check only and are not saved.</span></p>
               <Field label="Date of birth on the ID">
                 <input name="birthDate" type="date" required className={inputClass} />
               </Field>

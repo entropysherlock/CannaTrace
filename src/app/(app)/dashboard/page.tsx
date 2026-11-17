@@ -1,10 +1,27 @@
-import { AlertTriangle, Boxes, CheckCircle2, CircleDollarSign, Factory, Leaf, Sprout, XCircle, type LucideIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  Boxes,
+  Check,
+  CheckCircle2,
+  CircleDollarSign,
+  ClipboardCheck,
+  FileText,
+  Info,
+  Leaf,
+  ShieldCheck,
+  ShoppingCart,
+  Sprout,
+  Truck,
+  XCircle,
+  type LucideIcon,
+} from "lucide-react";
 import Decimal from "decimal.js";
 import { sql } from "drizzle-orm";
 import Link from "next/link";
 import { ActivityChart } from "@/components/activity-chart";
 import { usd } from "@/components/distribution-ui";
 import { db } from "@/lib/db";
+import { can } from "@/lib/rbac";
 import { requireSession } from "@/lib/session";
 import { scanFacility } from "@/lib/rules/scan";
 import { ADAPTERS } from "@/lib/sync";
@@ -14,40 +31,45 @@ type Row = Record<string, string | number | null>;
 const q = async (query: ReturnType<typeof sql>) => (await db.execute<Row>(query)).rows;
 const n = (v: unknown) => Number(v ?? 0);
 
-function StatCard({ icon: Icon, label, value, sub, href }: { icon: LucideIcon; label: string; value: string; sub: string; href: string }) {
+type Tone = "green" | "forest" | "teal" | "outline";
+const TILE: Record<Tone, { box: string; icon: string; label: string }> = {
+  green: { box: "bg-brand-600 text-white", icon: "text-lime-200", label: "text-brand-100" },
+  forest: { box: "bg-brand-900 text-white", icon: "text-lime-200", label: "text-brand-100" },
+  teal: { box: "bg-teal-700 text-white", icon: "text-teal-100", label: "text-teal-100" },
+  outline: { box: "border-2 border-brand-500 bg-white text-brand-950", icon: "text-brand-600", label: "text-brand-700" },
+};
+
+function Tile({ icon: Icon, label, value, sub, href, tone }: { icon: LucideIcon; label: string; value: string; sub?: string; href: string; tone: Tone }) {
+  const t = TILE[tone];
   return (
-    <Link href={href} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand-500">
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-        <Icon className="h-6 w-6" aria-hidden="true" />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-2xl font-bold tracking-tight text-slate-900">{value}</span>
-        <span className="block text-sm text-slate-600">{label}</span>
-        <span className="block text-xs text-slate-500">{sub}</span>
-      </span>
+    <Link href={href} className={`group flex flex-col rounded-2xl p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${t.box}`}>
+      <Icon className={`h-7 w-7 ${t.icon}`} aria-hidden="true" />
+      <span className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">{value}</span>
+      <span className={`mt-0.5 text-sm font-semibold ${t.label}`}>{label}</span>
+      {sub ? <span className={`mt-1 text-xs ${t.label} opacity-90`}>{sub}</span> : null}
     </Link>
   );
 }
 
-type Level = "good" | "warn" | "bad";
-const LEVEL: Record<Level, { icon: LucideIcon; tone: string }> = {
-  good: { icon: CheckCircle2, tone: "text-brand-700" },
-  warn: { icon: AlertTriangle, tone: "text-amber-700" },
-  bad: { icon: XCircle, tone: "text-red-700" },
-};
-
-function StatusRow({ label, level, text }: { label: string; level: Level; text: string }) {
-  const { icon: Icon, tone } = LEVEL[level];
+function ActionButton({ icon: Icon, label, href, primary }: { icon: LucideIcon; label: string; href: string; primary?: boolean }) {
   return (
-    <li className="flex items-center justify-between gap-3 py-2.5 text-sm">
-      <span className="flex items-center gap-2 text-slate-800">
-        <Icon className={`h-5 w-5 ${tone}`} aria-hidden="true" />
-        {label}
-      </span>
-      <span className={`font-medium ${tone}`}>{text}</span>
-    </li>
+    <Link
+      href={href}
+      className={`flex flex-col items-center justify-center gap-2 rounded-2xl px-3 py-4 text-sm font-bold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+        primary ? "bg-lime-400 text-brand-950 hover:bg-lime-300" : "border border-brand-100 bg-white text-brand-900 hover:border-brand-500"
+      }`}
+    >
+      <Icon className="h-7 w-7" aria-hidden="true" />
+      {label}
+    </Link>
   );
 }
+
+const ISSUE_STYLE = {
+  high: { icon: XCircle, tone: "text-red-600", pill: "bg-red-100 text-red-800", word: "Fix now" },
+  medium: { icon: AlertTriangle, tone: "text-amber-600", pill: "bg-amber-100 text-amber-900", word: "Fix" },
+  info: { icon: Info, tone: "text-sky-600", pill: "bg-sky-100 text-sky-900", word: "Note" },
+} as const;
 
 export default async function DashboardPage() {
   const session = await requireSession();
@@ -109,7 +131,6 @@ export default async function DashboardPage() {
 
   const system = String(facility.track_trace_system) as SystemName;
   const connection = ADAPTERS[system].status();
-  const reportingLevel: Level = n(sync.failed) ? "bad" : n(sync.manual) ? "warn" : "good";
   const reportingText = n(sync.failed)
     ? `${n(sync.failed)} failed`
     : n(sync.manual)
@@ -128,120 +149,149 @@ export default async function DashboardPage() {
     { label: "Retail", count: n(flow.sales_today), unit: "sales today", href: "/pos" },
   ];
 
+  const actions = [
+    { label: "New sale", href: "/pos", icon: ShoppingCart, show: can(session, "pos.use") },
+    { label: "Receive", href: "/inventory/receive", icon: Truck, show: can(session, "inventory.write") },
+    { label: "Count", href: "/counts", icon: ClipboardCheck, show: can(session, "inventory.adjust") },
+    { label: "Orders", href: "/distribution", icon: FileText, show: can(session, "sales.view") },
+    { label: "Plants", href: "/cultivation", icon: Sprout, show: can(session, "cultivation.view") },
+  ].filter((a) => a.show);
+
+  const issues = [
+    ...(n(ledger.off)
+      ? [{ id: "ledger", severity: "high" as const, title: `${n(ledger.off)} package${n(ledger.off) === 1 ? "" : "s"} don't match their history`, fix: { href: "/inventory", label: "Check" } }]
+      : []),
+    ...rulesScan.issues.map((i) => ({ id: i.id, severity: i.severity, title: i.title, fix: i.fix })),
+  ];
+  const score = rulesScan.score;
+
   return (
     <>
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          {String(facility.name)} · license {String(facility.license_number)}
-        </p>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-brand-950 sm:text-3xl">Dashboard</h1>
+          <p className="mt-1 text-sm font-medium text-brand-700">
+            {String(facility.name)} · license {String(facility.license_number)}
+          </p>
+        </div>
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+            system === "MOCK" ? "bg-amber-100 text-amber-900" : connection.ready ? "bg-brand-100 text-brand-900" : "bg-red-100 text-red-800"
+          }`}
+        >
+          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+          {system === "MOCK" ? "Practice mode" : `${SYSTEM_LABELS[system]}: ${connection.ready ? "connected" : "not connected"}`} · {reportingText}
+        </span>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <Tile
+          tone="green"
           icon={Sprout}
           label="Plants growing"
           value={(n(counts.plants) + n(counts.untagged)).toLocaleString("en-US")}
-          sub={`${n(counts.plants).toLocaleString("en-US")} tagged · ${n(counts.untagged).toLocaleString("en-US")} young`}
+          sub={`${n(counts.plants)} tagged · ${n(counts.untagged)} young`}
           href="/cultivation"
         />
-        <StatCard
+        <Tile
+          tone="forest"
           icon={Boxes}
           label="Packages in stock"
           value={n(counts.packages).toLocaleString("en-US")}
-          sub={n(counts.held) ? `${n(counts.held)} on hold or quarantined` : "none on hold"}
+          sub={n(counts.held) ? `${n(counts.held)} on hold` : "none on hold"}
           href="/inventory"
         />
-        <StatCard
-          icon={Factory}
-          label="Harvests and runs in progress"
-          value={(n(counts.drying) + n(counts.runs)).toLocaleString("en-US")}
-          sub={`${n(counts.drying)} drying · ${n(counts.runs)} production runs`}
-          href="/manufacturing"
+        <Tile tone="teal" icon={CircleDollarSign} label="Sales, last 30 days" value={usd(salesTotal)} sub="retail and wholesale" href="/reports" />
+        <Tile
+          tone="outline"
+          icon={ShieldCheck}
+          label="Compliance score"
+          value={rulesScan.pack ? `${score}` : "—"}
+          sub={rulesScan.pack ? `${rulesScan.pack.name} rules` : "no rule pack for this state"}
+          href="/compliance/rules"
         />
-        <StatCard icon={CircleDollarSign} label="Sales, last 30 days" value={usd(salesTotal)} sub="retail and wholesale" href="/reports" />
       </div>
 
+      {actions.length ? (
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {actions.map((a, i) => (
+            <ActionButton key={a.href} icon={a.icon} label={a.label} href={a.href} primary={i === 0} />
+          ))}
+        </div>
+      ) : null}
+
       <div className="mt-4 grid gap-4 xl:grid-cols-3">
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
+        <section className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-semibold text-slate-900">{useSales ? "Sales by day" : "Inventory activity by day"}</h2>
-            <p className="text-sm text-slate-500">Last 30 days</p>
+            <h2 className="text-base font-bold text-brand-900">{useSales ? "Sales by day" : "Inventory activity by day"}</h2>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">Last 30 days</p>
           </div>
           {useSales || activityTotal > 0 ? (
             <ActivityChart points={points} format={useSales ? "money" : "count"} seriesLabel={useSales ? "Sales" : "Inventory records"} />
           ) : (
-            <p className="py-16 text-center text-sm text-slate-500">Nothing recorded yet. Receive a package or make a sale and it will show here.</p>
+            <p className="py-16 text-center text-sm text-slate-500">Nothing recorded yet.</p>
           )}
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <h2 className="text-base font-semibold text-slate-900">Compliance status</h2>
-            <Link href="/compliance" className="text-sm font-semibold text-brand-700 hover:underline">
-              Details
+        <section className="rounded-2xl border border-brand-100 bg-white shadow-sm">
+          <div className="flex items-center justify-between rounded-t-2xl border-b border-brand-100 bg-brand-50 px-4 py-3">
+            <h2 className="text-base font-bold text-brand-900">Needs attention</h2>
+            <Link href="/compliance/rules" className="text-sm font-bold text-brand-700 hover:underline">
+              All rules
             </Link>
           </div>
-          <ul className="divide-y divide-slate-100">
-            <StatusRow label="State reporting" level={reportingLevel} text={reportingText} />
-            <StatusRow
-              label={SYSTEM_LABELS[system].replace(" (nothing is sent)", "")}
-              level={system === "MOCK" ? "warn" : connection.ready ? "good" : "bad"}
-              text={system === "MOCK" ? "Practice only" : connection.ready ? "Set up" : "Not connected"}
-            />
-            <StatusRow
-              label="Inventory reconciliation"
-              level={n(ledger.off) ? "bad" : "good"}
-              text={n(ledger.off) ? `${n(ledger.off)} packages off` : "No issues"}
-            />
-            <StatusRow label="Audit trail" level="good" text={`${n(audit.today)} entries today`} />
-            <StatusRow
-              label={rulesScan.pack ? `${rulesScan.pack.name} rules` : "State rules"}
-              level={!rulesScan.pack ? "warn" : rulesScan.score >= 90 ? "good" : rulesScan.score >= 70 ? "warn" : "bad"}
-              text={rulesScan.pack ? `Score ${rulesScan.score}/100` : "No rule pack yet"}
-            />
-          </ul>
+          {issues.length ? (
+            <ul className="divide-y divide-brand-50">
+              {issues.slice(0, 6).map((issue) => {
+                const st = ISSUE_STYLE[issue.severity];
+                const Icon = st.icon;
+                const row = (
+                  <>
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <Icon className={`h-5 w-5 shrink-0 ${st.tone}`} aria-hidden="true" />
+                      <span className="text-sm font-medium text-slate-800">{issue.title}</span>
+                    </span>
+                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${st.pill}`}>{st.word}</span>
+                  </>
+                );
+                return (
+                  <li key={issue.id}>
+                    {issue.fix ? (
+                      <Link href={issue.fix.href} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-brand-50">
+                        {row}
+                      </Link>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3 px-4 py-3">{row}</div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="flex items-center gap-2 px-4 py-6 text-sm font-semibold text-brand-700">
+              <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> All clear
+            </p>
+          )}
+          <p className="border-t border-brand-50 px-4 py-2 text-xs text-slate-500">{n(audit.today)} audit entries today</p>
         </section>
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-3">
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <h2 className="mb-3 text-base font-semibold text-slate-900">Plant tracking</h2>
-          {topGroup ? (
-            <Link href="/cultivation/plants" className="flex items-center gap-4 rounded-lg p-1 hover:bg-brand-50">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-600 to-brand-900 text-brand-100">
-                <Leaf className="h-8 w-8" aria-hidden="true" />
-              </span>
-              <span className="min-w-0 text-sm">
-                <span className="block font-semibold text-slate-900">{String(topGroup.strain)}</span>
-                <span className="block text-slate-600">
-                  {String(topGroup.phase) === "FLOWERING" ? "Flowering" : "Vegetative"} · {String(topGroup.room)}
-                </span>
-                <span className="block font-medium text-brand-700">
-                  {n(topGroup.plants)} plants · week {weeks}
-                </span>
-              </span>
-            </Link>
-          ) : (
-            <p className="text-sm text-slate-500">No tagged plants at this facility.</p>
-          )}
-        </section>
-
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
-          <h2 className="mb-4 text-base font-semibold text-slate-900">Workflow</h2>
+        <section className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
+          <h2 className="mb-4 text-base font-bold text-brand-900">Workflow</h2>
           <ol className="grid grid-cols-3 gap-y-4 sm:grid-cols-6">
             {stages.map((stage, i) => (
               <li key={stage.label} className="relative text-center">
-                {i > 0 ? <span className="absolute right-1/2 top-2.5 hidden h-0.5 w-full bg-slate-200 sm:block" aria-hidden="true" /> : null}
+                {i > 0 ? <span className="absolute right-1/2 top-4 hidden h-1 w-full rounded bg-brand-100 sm:block" aria-hidden="true" /> : null}
                 <Link href={stage.href} className="relative flex flex-col items-center gap-1 hover:text-brand-700">
                   <span
-                    className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                      stage.count > 0 ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 bg-white"
+                    className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-extrabold ${
+                      stage.count > 0 ? "bg-brand-600 text-white" : "border-2 border-brand-200 bg-white text-brand-300"
                     }`}
                   >
-                    {stage.count > 0 ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : null}
+                    {stage.count > 0 ? <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" /> : i + 1}
                   </span>
-                  <span className="text-xs font-semibold text-slate-800">{stage.label}</span>
+                  <span className="text-xs font-bold text-brand-950">{stage.label}</span>
                   <span className="text-xs text-slate-500">
                     {stage.count.toLocaleString("en-US")} {stage.unit}
                   </span>
@@ -249,6 +299,28 @@ export default async function DashboardPage() {
               </li>
             ))}
           </ol>
+        </section>
+
+        <section className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-5">
+          <h2 className="mb-3 text-base font-bold text-brand-900">Plant tracking</h2>
+          {topGroup ? (
+            <Link href="/cultivation/plants" className="flex items-center gap-4 rounded-xl p-1 hover:bg-brand-50">
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-lime-200">
+                <Leaf className="h-8 w-8" aria-hidden="true" />
+              </span>
+              <span className="min-w-0 text-sm">
+                <span className="block font-bold text-brand-950">{String(topGroup.strain)}</span>
+                <span className="block text-slate-600">
+                  {String(topGroup.phase) === "FLOWERING" ? "Flowering" : "Vegetative"} · {String(topGroup.room)}
+                </span>
+                <span className="mt-1 inline-block rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-bold text-brand-900">
+                  {n(topGroup.plants)} plants · week {weeks}
+                </span>
+              </span>
+            </Link>
+          ) : (
+            <p className="text-sm text-slate-500">No tagged plants here.</p>
+          )}
         </section>
       </div>
     </>
