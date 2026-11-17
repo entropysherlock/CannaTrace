@@ -247,9 +247,12 @@ test("with daily limits on, the register needs the ID number: a scanned license 
     await expect(page.getByRole("heading", { name: /^Cart S-\d{5}$/ })).toBeVisible();
     await page.getByRole("button", { name: "Cancel cart" }).click();
     await page.getByRole("button", { name: "Yes, cancel cart" }).click();
+    await expect(page.getByRole("heading", { name: "Next customer" })).toBeVisible();
+    await expect(page.getByText("Scan the barcode on the back of the ID")).toBeVisible();
 
     // A scanned license carries its own number, so nothing extra is asked
     await scan(page, LICENSE("03141988"));
+    await expect(page.getByText("Marisol Rivera")).toBeVisible();
     await expect(page.getByLabel(/^ID number/)).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Start sale" })).toBeEnabled();
   } finally {
