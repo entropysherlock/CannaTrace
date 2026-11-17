@@ -8,7 +8,7 @@ import { facilities as facilitiesTable } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requireSession } from "@/lib/session";
-import { signOut } from "../login/actions";
+import { leaveDemo, signOut } from "../login/actions";
 import { switchFacility } from "./settings/actions";
 
 // Every screen here needs the signed-in session and live data, so routes are allowed to block.
@@ -149,6 +149,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </button>
           </form>
         </header>
+        {session.isDemo ? (
+          <div role="note" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-amber-100 px-4 py-2 text-center text-sm text-amber-950 print:hidden">
+            <span>
+              <strong>Live demo.</strong> Everything here is made-up sample data in a sandbox shared with other visitors. It starts fresh every day.
+            </span>
+            <span className="flex gap-3">
+              <Link href="/signup" className="font-bold underline hover:no-underline">
+                Create your account
+              </Link>
+              <form action={leaveDemo}>
+                <button type="submit" className="font-bold underline hover:no-underline">
+                  Leave the demo
+                </button>
+              </form>
+            </span>
+          </div>
+        ) : null}
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
           <SectionTabs groups={groups} />
           {children}

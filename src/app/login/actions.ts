@@ -35,6 +35,12 @@ export async function signIn(_state: FormState, formData: FormData): Promise<For
   redirect("/dashboard");
 }
 
+/** Leaving the live demo goes back to the homepage rather than the sign-in screen. */
+export async function leaveDemo(): Promise<void> {
+  await destroySession();
+  redirect("/");
+}
+
 export async function signOut(): Promise<void> {
   await destroySession();
   redirect("/login");

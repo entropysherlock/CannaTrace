@@ -6,6 +6,7 @@ export const DEMO_OWNER = "owner@demo.test";
 
 /**
  * Remove the made-up demo company left by an earlier showcase deploy.
+ * The public live demo's sample businesses (marked is_demo) are not counted and are not a reason to stop.
  * Only acts when the demo company is the ONLY organization in the database and is recognised
  * by both its name and its owner account. If any real business exists, it changes nothing.
  * Everything is emptied in one step (TRUNCATE), which is the only way past the locks that stop
@@ -17,7 +18,8 @@ export async function removeDemoCompany(): Promise<string> {
       await tx.execute<{ id: string; name: string; demo_owner: boolean }>(sql`
         select o.id, o.name,
                exists (select 1 from users u where u.org_id = o.id and u.email = ${DEMO_OWNER}) as demo_owner
-        from organizations o`)
+        from organizations o
+        where not o.is_demo`)
     ).rows;
     if (orgs.length === 0) return "No businesses yet. The first visitor will be asked to set one up.";
     const demo = orgs.filter((o) => o.name === DEMO_COMPANY && o.demo_owner);
