@@ -15,12 +15,25 @@ export const fakeModel: Model = async ({ messages }, onText) => {
     return { content: [{ type: "text", text, citations: null } as Anthropic.ContentBlock], stop_reason: "end_turn" };
   };
 
+  // Attachments: report exactly what arrived, so tests can prove files reach the model.
+  if (Array.isArray(last.content) && !last.content.some((b) => b.type === "tool_result")) {
+    const blocks = last.content as Anthropic.ContentBlockParam[];
+    const labels = blocks.filter((b): b is Anthropic.TextBlockParam => b.type === "text" && b.text.startsWith("[Attached file"));
+    const question = (blocks.filter((b) => b.type === "text").at(-1) as Anthropic.TextBlockParam | undefined)?.text.toLowerCase() ?? "";
+    const id = labels[0]?.text.match(/attachment id ([\w-]+)/)?.[1];
+    if (/compare/.test(question) && id) return { content: toolUse("compare_attachment_inventory", { attachment: id }), stop_reason: "tool_use" };
+    const kinds = blocks.map((b) => (b.type === "image" ? `image (${(b.source as { media_type?: string }).media_type})` : b.type === "document" ? `document "${b.title}" (${(b.source as { media_type?: string }).media_type})` : b.type === "text" && b.text.startsWith("<spreadsheet") ? "spreadsheet preview" : null)).filter(Boolean);
+    const gone = blocks.filter((b) => b.type === "text" && /no longer available/.test(b.text)).length;
+    return say(`I received ${labels.length} file${labels.length === 1 ? "" : "s"}: ${kinds.join(", ") || "none"}.${gone ? ` ${gone} file(s) had expired.` : ""}`);
+  }
   if (Array.isArray(last.content)) {
     const result = last.content.find((b) => b.type === "tool_result") as Anthropic.ToolResultBlockParam | undefined;
     const body = typeof result?.content === "string" ? result.content : "";
     if (result?.is_error) return say(`I couldn't do that: ${body}`);
     if (body.startsWith("A confirmation card")) return say("I've prepared that. Review it below and press **Confirm**.");
     const data = JSON.parse(body || "{}");
+    if (data.quantity_or_status_differences)
+      return say(`Compared ${data.file}: ${data.matching} match, ${data.quantity_or_status_differences.count} differ, ${data.in_file_not_in_cannatrace.count} not in CannaTrace. Nothing was changed.`);
     if (Array.isArray(data.findings)) {
       const lines = data.findings.filter((f: { severity: string }) => f.severity !== "info").map((f: { message: string }) => `- ${f.message}`);
       return say(`Checked ${data.labels} label(s) with ${data.template}. ${data.can_print ? "They can print." : `They can't print yet (${data.blocking} blocking).`}\n\n${lines.join("\n")}`);

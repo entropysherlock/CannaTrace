@@ -7,6 +7,7 @@ import { can, type Permission } from "@/lib/rbac";
 import { ENFORCEMENT } from "@/lib/rules";
 import { scanFacility } from "@/lib/rules/scan";
 import type { Session } from "@/lib/session";
+import { ATTACHMENT_TOOLS } from "./attachment-tools";
 import { BULK_TOOLS } from "./bulk-tools";
 import { previewUndo, recentChanges, undoChange } from "./changes";
 import { openFindings, sweepIfStale } from "@/lib/watch";
@@ -469,6 +470,7 @@ export const TOOLS: Tool[] = [
   },
   ...LABEL_TOOLS,
   ...BULK_TOOLS,
+  ...ATTACHMENT_TOOLS,
   {
     kind: "read",
     name: "watch_findings",

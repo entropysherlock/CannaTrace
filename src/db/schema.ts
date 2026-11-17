@@ -259,6 +259,40 @@ export const stateReports = pgTable(
   (t) => [index("state_reports_facility_idx").on(t.facilityId, t.createdAt)],
 );
 
+/**
+ * Files attached to Tally chats. Private to the person who uploaded them, at one facility, and
+ * deleted automatically when they expire. The stored payload is encrypted and is only what Tally
+ * needs (a re-encoded image, the PDF, or extracted text/rows), never served back as a download.
+ */
+export const tallyAttachments = pgTable(
+  "tally_attachments",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id").notNull(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    /** IMAGE, PDF, SPREADSHEET, DOCUMENT */
+    kind: text("kind").notNull(),
+    /** Bytes the person uploaded. */
+    size: integer("size").notNull(),
+    /** UPLOADING while chunks arrive, then READY. */
+    status: text("status").notNull().default("UPLOADING"),
+    received: integer("received").notNull().default(0),
+    /** Raw upload while it arrives; cleared once processed. */
+    staging: bytea("staging"),
+    /** Encrypted processed content. */
+    payload: bytea("payload"),
+    meta: jsonb("meta").$type<Record<string, unknown>>(),
+    sha256: text("sha256"),
+    createdAt: createdAt(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("tally_attachments_owner_idx").on(t.orgId, t.userId, t.createdAt), index("tally_attachments_expiry_idx").on(t.expiresAt)],
+);
+
+export type TallyAttachment = typeof tallyAttachments.$inferSelect;
+
 /** One row per Tally question: who asked, which account paid, tokens used, and how it ended. */
 export const aiUsage = pgTable(
   "ai_usage",

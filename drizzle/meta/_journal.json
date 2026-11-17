@@ -134,6 +134,13 @@
       "when": 1794948286127,
       "tag": "0018_tally_watch",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794952124853,
+      "tag": "0019_tally_attachments",
+      "breakpoints": true
     }
   ]
 }

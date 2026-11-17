@@ -95,3 +95,33 @@ export function keyHint(apiKey: string): string {
   const k = apiKey.trim();
   return `${k.startsWith("sk-ant-") ? "sk-ant-" : ""}…${k.slice(-4)}`;
 }
+
+/**
+ * Encrypt file bytes (Tally attachments) with the same master key, bound to the business and the file,
+ * so a stored file copied to another row or business cannot be decrypted there.
+ * Layout: keyId(8 ascii) | iv(12) | tag(16) | ciphertext.
+ */
+export function sealBytes(plain: Buffer, context: string): Buffer {
+  const { current } = keys();
+  if (!current) throw new SecretBoxError("File storage is not set up on this server (AI_KEY_ENCRYPTION_KEY is missing).");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", current.key, iv);
+  cipher.setAAD(Buffer.from(`cannatrace:file:${context}`));
+  const body = Buffer.concat([cipher.update(plain), cipher.final()]);
+  return Buffer.concat([Buffer.from(current.id, "ascii"), iv, cipher.getAuthTag(), body]);
+}
+
+export function openBytes(sealed: Buffer, context: string): Buffer {
+  const keyId = sealed.subarray(0, 8).toString("ascii");
+  const { current, previous } = keys();
+  const master = [current, previous].find((k) => k?.id === keyId);
+  if (!master) throw new SecretBoxError("This file was saved with an encryption key this server no longer has.");
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", master.key, sealed.subarray(8, 20));
+    decipher.setAAD(Buffer.from(`cannatrace:file:${context}`));
+    decipher.setAuthTag(sealed.subarray(20, 36));
+    return Buffer.concat([decipher.update(sealed.subarray(36)), decipher.final()]);
+  } catch {
+    throw new SecretBoxError("This file could not be decrypted.");
+  }
+}

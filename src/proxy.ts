@@ -18,7 +18,7 @@ async function isSignedIn(request: NextRequest): Promise<boolean> {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   // Scheduled sync runs authenticate with their own secret, not a sign-in cookie.
-  if (pathname.startsWith("/api/sync/")) return NextResponse.next();
+  if (pathname.startsWith("/api/sync/") || pathname === "/api/watch/run") return NextResponse.next();
   // The REST API authenticates with API keys, not a sign-in cookie.
   if (pathname.startsWith("/api/v1/")) return NextResponse.next();
   // Clearing a stale sign-in must work whether or not the cookie looks valid.
