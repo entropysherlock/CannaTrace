@@ -43,9 +43,9 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 }
 
 /** A white card. With a title it gets a green header band, like a store system's panels. */
-export function Card({ title, children, action }: { title?: string; children: ReactNode; action?: ReactNode }) {
+export function Card({ title, children, action, className }: { title?: string; children: ReactNode; action?: ReactNode; className?: string }) {
   return (
-    <section className="rounded-xl border border-brand-100 bg-white shadow-sm">
+    <section className={`rounded-xl border border-brand-100 bg-white shadow-sm ${className ?? ""}`}>
       {title ? (
         <div className="flex items-center justify-between gap-3 rounded-t-xl border-b border-brand-100 bg-brand-50 px-4 py-3 sm:px-5">
           <h2 className="text-base font-bold text-brand-900">{title}</h2>

@@ -86,126 +86,74 @@ export default async function CultivationPage() {
         ))}
       </div>
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-3">
-        <div className="space-y-5 lg:col-span-2">
-          <Card title="Plant batches">
-            {batches.length === 0 ? (
-              <p className="text-sm text-slate-600">No batches yet. Start one with clones or seeds.</p>
-            ) : (
-              <ul className="divide-y divide-slate-100 text-sm">
-                {batches.map((batch) => (
-                  <li key={batch.id}>
-                    <Link href={`/cultivation/batches/${batch.id}`} className="flex min-h-12 flex-wrap items-center justify-between gap-2 py-2 hover:text-brand-700">
-                      <span>
-                        <span className="font-semibold">{batch.name}</span>{" "}
-                        <span className="text-slate-600">
-                          · {batch.strainName} · {batch.source.toLowerCase()}s · {batch.roomName}
-                        </span>
+      {/* Each list sits beside the form that adds to it, so the two columns stay even. */}
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <Card title="Plant batches" className={canWrite ? "h-full" : undefined}>
+          {batches.length === 0 ? (
+            <p className="text-sm text-slate-600">No batches yet. Start one with clones or seeds.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100 text-sm">
+              {batches.map((batch) => (
+                <li key={batch.id}>
+                  <Link href={`/cultivation/batches/${batch.id}`} className="flex min-h-12 flex-wrap items-center justify-between gap-2 py-2 hover:text-brand-700">
+                    <span>
+                      <span className="font-semibold">{batch.name}</span>{" "}
+                      <span className="text-slate-600">
+                        · {batch.strainName} · {batch.source.toLowerCase()}s · {batch.roomName}
                       </span>
-                      <span className={batch.status === "CLOSED" ? "text-slate-400" : "font-semibold text-slate-900"}>
-                        {batch.status === "CLOSED" ? "all tagged" : `${batch.untaggedCount} of ${batch.initialCount} untagged`} ›
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card title="Open tasks">
-            {tasks.length === 0 ? (
-              <p className="text-sm text-slate-600">Nothing on the list.</p>
-            ) : (
-              <ul className="divide-y divide-slate-100 text-sm">
-                {tasks.map((task) => (
-                  <li key={task.id} className="flex items-center justify-between gap-3 py-2">
-                    <div>
-                      <p className="font-medium text-slate-900">{task.title}</p>
-                      <p className={task.dueDate && task.dueDate < today ? "font-semibold text-red-700" : "text-slate-600"}>
-                        {task.dueDate ? `Due ${task.dueDate}${task.dueDate < today ? " (overdue)" : ""}` : "No due date"}
-                        {task.roomName ? ` · ${task.roomName}` : ""}
-                      </p>
-                    </div>
-                    {canWrite ? (
-                      <form action={completeTaskAction}>
-                        <input type="hidden" name="taskId" value={task.id} />
-                        <button type="submit" className="min-h-10 rounded-md border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50">
-                          Done
-                        </button>
-                      </form>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        </div>
-
+                    </span>
+                    <span className={batch.status === "CLOSED" ? "text-slate-400" : "font-semibold text-slate-900"}>
+                      {batch.status === "CLOSED" ? "all tagged" : `${batch.untaggedCount} of ${batch.initialCount} untagged`} ›
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
         {canWrite ? (
-          <div className="space-y-5">
-            <Card title="Start a batch">
-              {strainRows.length === 0 ? (
-                <p className="text-sm text-slate-600">
-                  Add a strain first on the{" "}
-                  <Link href="/cultivation/strains" className="font-semibold text-brand-700 hover:underline">
-                    Strains
-                  </Link>{" "}
-                  tab.
-                </p>
-              ) : (
-                <ActionForm action={batchAction} submitLabel="Start batch">
-                  <Field label="Batch name">
-                    <input name="name" required className={inputClass} />
-                  </Field>
-                  <Field label="Strain">
-                    <select name="strainId" required defaultValue="" className={inputClass}>
-                      <option value="" disabled>
-                        Choose a strain
+          <Card title="Start a batch" className="h-full">
+            {strainRows.length === 0 ? (
+              <p className="text-sm text-slate-600">
+                Add a strain first on the{" "}
+                <Link href="/cultivation/strains" className="font-semibold text-brand-700 hover:underline">
+                  Strains
+                </Link>{" "}
+                tab.
+              </p>
+            ) : (
+              <ActionForm action={batchAction} submitLabel="Start batch">
+                <Field label="Batch name">
+                  <input name="name" required className={inputClass} />
+                </Field>
+                <Field label="Strain">
+                  <select name="strainId" required defaultValue="" className={inputClass}>
+                    <option value="" disabled>
+                      Choose a strain
+                    </option>
+                    {strainRows.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
                       </option>
-                      {strainRows.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
+                    ))}
+                  </select>
+                </Field>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Started from">
+                    <select name="source" defaultValue="CLONE" className={inputClass}>
+                      <option value="CLONE">Clones</option>
+                      <option value="SEED">Seeds</option>
                     </select>
                   </Field>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Field label="Started from">
-                      <select name="source" defaultValue="CLONE" className={inputClass}>
-                        <option value="CLONE">Clones</option>
-                        <option value="SEED">Seeds</option>
-                      </select>
-                    </Field>
-                    <Field label="How many">
-                      <input name="count" inputMode="numeric" required className={inputClass} />
-                    </Field>
-                  </div>
-                  <Field label="Room">
-                    <select name="locationId" required defaultValue="" className={inputClass}>
-                      <option value="" disabled>
-                        Choose a room
-                      </option>
-                      {rooms.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
+                  <Field label="How many">
+                    <input name="count" inputMode="numeric" required className={inputClass} />
                   </Field>
-                </ActionForm>
-              )}
-            </Card>
-            <Card title="Add a task">
-              <ActionForm action={taskAction} submitLabel="Add task">
-                <Field label="What needs doing">
-                  <input name="title" required maxLength={200} className={inputClass} />
-                </Field>
-                <Field label="Due date (optional)">
-                  <input name="dueDate" type="date" className={inputClass} />
-                </Field>
-                <Field label="Room (optional)">
-                  <select name="locationId" defaultValue="" className={inputClass}>
-                    <option value="">Any</option>
+                </div>
+                <Field label="Room">
+                  <select name="locationId" required defaultValue="" className={inputClass}>
+                    <option value="" disabled>
+                      Choose a room
+                    </option>
                     {rooms.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.name}
@@ -214,8 +162,57 @@ export default async function CultivationPage() {
                   </select>
                 </Field>
               </ActionForm>
-            </Card>
-          </div>
+            )}
+          </Card>
+        ) : null}
+        <Card title="Open tasks" className={canWrite ? "h-full" : undefined}>
+          {tasks.length === 0 ? (
+            <p className="text-sm text-slate-600">Nothing on the list.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100 text-sm">
+              {tasks.map((task) => (
+                <li key={task.id} className="flex items-center justify-between gap-3 py-2">
+                  <div>
+                    <p className="font-medium text-slate-900">{task.title}</p>
+                    <p className={task.dueDate && task.dueDate < today ? "font-semibold text-red-700" : "text-slate-600"}>
+                      {task.dueDate ? `Due ${task.dueDate}${task.dueDate < today ? " (overdue)" : ""}` : "No due date"}
+                      {task.roomName ? ` · ${task.roomName}` : ""}
+                    </p>
+                  </div>
+                  {canWrite ? (
+                    <form action={completeTaskAction}>
+                      <input type="hidden" name="taskId" value={task.id} />
+                      <button type="submit" className="min-h-10 rounded-md border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50">
+                        Done
+                      </button>
+                    </form>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        {canWrite ? (
+          <Card title="Add a task" className="h-full">
+            <ActionForm action={taskAction} submitLabel="Add task">
+              <Field label="What needs doing">
+                <input name="title" required maxLength={200} className={inputClass} />
+              </Field>
+              <Field label="Due date (optional)">
+                <input name="dueDate" type="date" className={inputClass} />
+              </Field>
+              <Field label="Room (optional)">
+                <select name="locationId" defaultValue="" className={inputClass}>
+                  <option value="">Any</option>
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </ActionForm>
+          </Card>
         ) : null}
       </div>
     </>

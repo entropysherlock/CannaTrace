@@ -185,7 +185,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </span>
           </div>
         ) : null}
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
+        {/* Centered column; the extra bottom room keeps the last card clear of the floating Tally button. */}
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 md:pb-24">
           <SectionTabs groups={groups} />
           {children}
         </main>
