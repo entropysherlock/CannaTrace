@@ -46,7 +46,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
       .groupBy(plants.status),
   ]);
   const tagged = statusCounts.reduce((sum, row) => sum + row.count, 0);
-  const canWrite = can(session.role, "cultivation.write") && batch.untaggedCount > 0;
+  const canWrite = can(session, "cultivation.write") && batch.untaggedCount > 0;
   const hidden = <input type="hidden" name="batchId" value={batch.id} />;
 
   return (

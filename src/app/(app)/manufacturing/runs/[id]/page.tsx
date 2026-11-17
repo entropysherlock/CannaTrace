@@ -64,7 +64,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
   ]);
 
   const open = run.status === "IN_PROGRESS";
-  const canWrite = open && can(session.role, "manufacturing.write");
+  const canWrite = open && can(session, "manufacturing.write");
   const hidden = <input type="hidden" name="runId" value={run.id} />;
   const used = (itemId: string) => inputs.filter((i) => i.itemId === itemId).reduce((sum, i) => sum.add(i.quantity), new Decimal(0));
   const costSoFar = inputCost(inputs);

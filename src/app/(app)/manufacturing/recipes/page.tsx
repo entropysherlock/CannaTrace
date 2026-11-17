@@ -35,7 +35,7 @@ export default async function RecipesPage() {
         .where(inArray(bomLines.bomId, recipes.map((r) => r.id)))
         .orderBy(asc(inputItem.name))
     : [];
-  const canWrite = can(session.role, "manufacturing.write");
+  const canWrite = can(session, "manufacturing.write");
   const itemOptions = itemRows.map((item) => (
     <option key={item.id} value={item.id}>
       {item.name} ({unitLabel(item.unit)})

@@ -27,6 +27,12 @@ export default async function LoginPage() {
             <input name="password" type="password" autoComplete="current-password" required className={inputClass} />
           </Field>
         </ActionForm>
+        <p className="mt-5 text-center text-sm text-slate-600">
+          New to CannaTrace?{" "}
+          <Link href="/signup" className="font-semibold text-brand-700 hover:underline">
+            Create a business account
+          </Link>
+        </p>
       </div>
     </main>
   );

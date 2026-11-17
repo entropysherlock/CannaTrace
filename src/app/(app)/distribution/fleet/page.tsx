@@ -14,7 +14,7 @@ export default async function FleetPage() {
     db.select().from(drivers).where(eq(drivers.orgId, session.orgId)).orderBy(asc(drivers.name)),
     db.select().from(vehicles).where(eq(vehicles.orgId, session.orgId)).orderBy(asc(vehicles.plate)),
   ]);
-  const canWrite = can(session.role, "sales.write");
+  const canWrite = can(session, "sales.write");
 
   return (
     <>

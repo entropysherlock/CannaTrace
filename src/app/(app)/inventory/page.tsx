@@ -57,7 +57,7 @@ export default async function InventoryPage({
         title="Inventory"
         subtitle={`${rows.length} package${rows.length === 1 ? "" : "s"} shown`}
         action={
-          can(session.role, "inventory.write") ? (
+          can(session, "inventory.write") ? (
             <Link href="/inventory/receive" className={buttonLinkClass}>
               Receive package
             </Link>

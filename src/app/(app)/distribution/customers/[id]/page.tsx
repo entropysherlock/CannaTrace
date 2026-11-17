@@ -26,7 +26,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
       .limit(20),
   ]);
   const problem = licenseProblem(customer, todayIn());
-  const canWrite = can(session.role, "sales.write");
+  const canWrite = can(session, "sales.write");
   const hidden = <input type="hidden" name="customerId" value={customer.id} />;
 
   return (

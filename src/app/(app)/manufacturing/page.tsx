@@ -31,7 +31,7 @@ export default async function ManufacturingPage() {
       .where(and(eq(boms.orgId, session.orgId), eq(boms.active, true)))
       .orderBy(asc(boms.name)),
   ]);
-  const canWrite = can(session.role, "manufacturing.write");
+  const canWrite = can(session, "manufacturing.write");
 
   return (
     <>

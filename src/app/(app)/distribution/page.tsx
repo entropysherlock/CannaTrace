@@ -63,7 +63,7 @@ export default async function OrdersPage() {
             </ul>
           )}
         </div>
-        {can(session.role, "sales.write") ? (
+        {can(session, "sales.write") ? (
           <Card title="Start an order">
             {customerRows.length === 0 ? (
               <p className="text-sm text-slate-600">

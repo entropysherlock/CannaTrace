@@ -47,7 +47,7 @@ export default async function CompliancePage() {
   const manual = attention.filter((e) => e.status === "MANUAL");
   const system = facility.trackTraceSystem as SystemName;
   const connection = ADAPTERS[system].status();
-  const canManage = can(session.role, "compliance.manage");
+  const canManage = can(session, "compliance.manage");
   const oldestWaiting = recent.filter((e) => e.status === "PENDING").at(-1);
 
   const tiles = [

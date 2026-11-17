@@ -1,11 +1,10 @@
-import { ActionForm } from "@/components/action-form";
-import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import Link from "next/link";
+import { Card, PageHeader } from "@/components/ui";
 import { asc, eq } from "drizzle-orm";
-import { facilities as facilitiesTable, organizations, users as usersTable } from "@/db/schema";
+import { customRoles, facilities as facilitiesTable, organizations, users as usersTable } from "@/db/schema";
 import { db } from "@/lib/db";
-import { ROLES, ROLE_LABELS, can } from "@/lib/rbac";
+import { ROLE_LABELS, can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
-import { addUser } from "./actions";
 
 export default async function SettingsPage() {
   const session = await requirePagePermission("settings.manage");
@@ -13,8 +12,9 @@ export default async function SettingsPage() {
     db.select().from(organizations).where(eq(organizations.id, session.orgId)),
     db.select().from(facilitiesTable).where(eq(facilitiesTable.orgId, session.orgId)).orderBy(asc(facilitiesTable.name)),
     db
-      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, role: usersTable.role })
+      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, role: usersTable.role, customName: customRoles.name })
       .from(usersTable)
+      .leftJoin(customRoles, eq(customRoles.id, usersTable.customRoleId))
       .where(eq(usersTable.orgId, session.orgId))
       .orderBy(asc(usersTable.name)),
   ]);
@@ -35,7 +35,16 @@ export default async function SettingsPage() {
             ))}
           </ul>
         </Card>
-        <Card title="People">
+        <Card
+          title="Team"
+          action={
+            can(session, "users.manage") ? (
+              <Link href="/team" className="text-sm font-semibold text-brand-700 hover:underline">
+                Manage team
+              </Link>
+            ) : null
+          }
+        >
           <ul className="divide-y divide-slate-100 text-sm">
             {users.map((u) => (
               <li key={u.id} className="flex items-center justify-between gap-3 py-2">
@@ -43,35 +52,11 @@ export default async function SettingsPage() {
                   <p className="font-medium text-slate-900">{u.name}</p>
                   <p className="text-slate-600">{u.email}</p>
                 </div>
-                <span className="text-slate-700">{ROLE_LABELS[u.role]}</span>
+                <span className="text-slate-700">{u.customName ?? ROLE_LABELS[u.role]}</span>
               </li>
             ))}
           </ul>
         </Card>
-        {can(session.role, "users.manage") ? (
-          <Card title="Add a person">
-            <ActionForm action={addUser} submitLabel="Add person">
-              <Field label="Name">
-                <input name="name" required className={inputClass} />
-              </Field>
-              <Field label="Email">
-                <input name="email" type="email" required className={inputClass} />
-              </Field>
-              <Field label="Temporary password" hint="At least 8 characters.">
-                <input name="password" type="password" minLength={8} required className={inputClass} />
-              </Field>
-              <Field label="Role">
-                <select name="role" defaultValue="READ_ONLY" className={inputClass}>
-                  {ROLES.map((role) => (
-                    <option key={role} value={role}>
-                      {ROLE_LABELS[role]}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </ActionForm>
-          </Card>
-        ) : null}
       </div>
     </>
   );

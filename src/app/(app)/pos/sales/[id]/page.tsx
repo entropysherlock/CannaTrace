@@ -64,7 +64,7 @@ export default async function CartPage({ params }: { params: Promise<{ id: strin
           </Link>
         }
       />
-      <PosTabs current="/pos" canManage={can(session.role, "pos.manage")} />
+      <PosTabs current="/pos" canManage={can(session, "pos.manage")} />
       <div className="grid gap-5 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <Card title="Menu">

@@ -140,7 +140,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
             </ul>
           )}
         </Card>
-        {state !== "PAID" && can(session.role, "sales.write") ? (
+        {state !== "PAID" && can(session, "sales.write") ? (
           <Card title="Record a payment">
             <ActionForm action={paymentAction} submitLabel="Record payment">
               <input type="hidden" name="invoiceId" value={invoice.id} />

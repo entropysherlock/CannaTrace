@@ -11,7 +11,7 @@ import { batchAction, completeTaskAction, taskAction } from "./actions";
 
 export default async function CultivationPage() {
   const session = await requirePagePermission("cultivation.view");
-  const canWrite = can(session.role, "cultivation.write");
+  const canWrite = can(session, "cultivation.write");
   const inFacility = <T extends { orgId: unknown; facilityId: unknown }>(t: T) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     and(eq(t.orgId as any, session.orgId), eq(t.facilityId as any, session.facilityId));

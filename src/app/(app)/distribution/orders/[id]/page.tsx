@@ -65,8 +65,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     db.select({ id: invoices.id, number: invoices.number }).from(invoices).where(eq(invoices.orderId, order.id)),
   ]);
 
-  const canSell = can(session.role, "sales.write");
-  const canFulfil = canSell || can(session.role, "inventory.write");
+  const canSell = can(session, "sales.write");
+  const canFulfil = canSell || can(session, "inventory.write");
   const problem = licenseProblem(customer, todayIn());
   const hidden = <input type="hidden" name="orderId" value={order.id} />;
   const pickedFor = (lineId: string) =>

@@ -55,7 +55,7 @@ export default async function PlantsPage({
       .orderBy(asc(locations.name)),
     db.select({ id: strains.id, name: strains.name }).from(strains).where(eq(strains.orgId, session.orgId)).orderBy(asc(strains.name)),
   ]);
-  const canWrite = can(session.role, "cultivation.write");
+  const canWrite = can(session, "cultivation.write");
 
   const list = (
     <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">

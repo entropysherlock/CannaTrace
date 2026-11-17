@@ -26,7 +26,7 @@ export default async function DrawerPage() {
   return (
     <>
       <PageHeader title="Cash drawer" subtitle="Count out at the end of the shift to get the end-of-day report." />
-      <PosTabs current="/pos/drawer" canManage={can(session.role, "pos.manage")} />
+      <PosTabs current="/pos/drawer" canManage={can(session, "pos.manage")} />
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5">
           {open && summary ? (

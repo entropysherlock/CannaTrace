@@ -115,8 +115,8 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
   const unit = pkg.unit;
   const num = (value: string) => new Decimal(value).toString();
   const editable = pkg.status !== "DESTROYED" && pkg.status !== "FINISHED";
-  const canWrite = can(session.role, "inventory.write");
-  const canAdjust = can(session.role, "inventory.adjust");
+  const canWrite = can(session, "inventory.write");
+  const canAdjust = can(session, "inventory.adjust");
   const parents = lineage.filter((l) => l.childId === pkg.id);
   const children = lineage.filter((l) => l.parentId === pkg.id);
   const hidden = <input type="hidden" name="packageId" value={pkg.id} />;
@@ -383,7 +383,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
             </ul>
           </Card>
 
-          {can(session.role, "audit.view") ? (
+          {can(session, "audit.view") ? (
             <Card title="Audit trail">
               <ul className="divide-y divide-slate-100 text-sm">
                 {auditEntries.map((entry) => (
