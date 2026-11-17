@@ -12,7 +12,7 @@ import type { Session } from "@/lib/session";
 import type { Tool } from "./tools";
 
 /**
- * Cousin Towel's label tools. Every number comes from the deterministic label checker, never
+ * Tally's label tools. Every number comes from the deterministic label checker, never
  * from the model. Printing goes through a proposal the person confirms, and only creates a
  * print job: inventory is never changed.
  */

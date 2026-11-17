@@ -18,7 +18,7 @@ test("the assistant answers from live data and only changes things after Confirm
   await page.goto("/inventory");
   const tag = "CT-000007";
 
-  await page.getByRole("button", { name: "Ask Cousin Towel" }).first().click();
+  await page.getByRole("button", { name: "Ask Tally" }).first().click();
   await panel.getByLabel("Message the assistant").fill(`move ${tag} to Dry Room`);
   await panel.getByLabel("Message the assistant").press("Enter");
   const card = panel.locator("div", { hasText: "Move package" }).filter({ has: page.getByRole("button", { name: "Confirm" }) }).last();
@@ -34,8 +34,14 @@ test("the assistant answers from live data and only changes things after Confirm
   await panel.getByRole("button", { name: "Confirm" }).last().click();
   await expect(panel.getByText(`Moved package ${tag}.`)).toBeVisible();
 
+  // Clicking outside the panel slides it closed; clicking inside keeps it open
+  const aside = page.locator('aside[role="dialog"]');
+  await panel.getByLabel("Message the assistant").click();
+  await expect(aside).toHaveAttribute("aria-hidden", "false");
+  await page.locator("main h1").first().click({ force: true });
+  await expect(aside).toHaveAttribute("aria-hidden", "true");
+
   // The audit trail says it went through the assistant
-  await page.keyboard.press("Escape");
   await page.goto("/audit");
   await expect(page.getByText("(via assistant)").first()).toBeVisible();
 });

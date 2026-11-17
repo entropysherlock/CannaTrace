@@ -129,7 +129,7 @@ export function PrintStation({
     }
   }
 
-  const askTowel = () => {
+  const askTally = () => {
     const problems = preview?.issues.filter((i) => i.severity !== "info").slice(0, 8).map((i) => `- ${i.message}${i.fix ? ` (${i.fix})` : ""}`).join("\n");
     const prompt = problems
       ? `I'm printing ${preview?.template.name} labels and the checker found these problems:\n${problems}\nExplain what each means and how to fix it.`
@@ -237,8 +237,8 @@ export function PrintStation({
           <button type="button" disabled={busy || !templateId || selected.size === 0} onClick={check} className="inline-flex min-h-11 items-center gap-2 rounded-lg border-2 border-brand-600 bg-white px-5 text-sm font-bold text-brand-800 transition hover:bg-brand-50 disabled:opacity-50">
             Check and preview
           </button>
-          <button type="button" onClick={askTowel} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-brand-800 hover:bg-brand-50">
-            <Sparkles className="h-4 w-4" aria-hidden="true" /> Ask Cousin Towel
+          <button type="button" data-assistant-trigger onClick={askTally} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-brand-800 hover:bg-brand-50">
+            <Sparkles className="h-4 w-4" aria-hidden="true" /> Ask Tally
           </button>
         </div>
         {error ? (
