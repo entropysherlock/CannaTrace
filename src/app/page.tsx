@@ -21,6 +21,7 @@ import {
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { DemoVideoButton, DemoVideoPlayer, DemoVideoPoster } from "@/components/demo-video";
 import { LeafMark, Logo } from "@/components/logo";
 import { getSession } from "@/lib/session";
 
@@ -189,64 +190,6 @@ function HeroDashboard() {
 
 /* ---------- The tablet in "See CannaTrace in Action" ---------- */
 
-function TabletCultivation() {
-  const rows = [
-    ["PL-10428", "Gelato", "Flower", "35 days", "Room A"],
-    ["PL-10429", "Gelato", "Flower", "35 days", "Room A"],
-    ["PL-10430", "Blue Dream", "Vegetative", "18 days", "Room B"],
-    ["PL-10431", "Blue Dream", "Vegetative", "18 days", "Room B"],
-  ];
-  return (
-    <div className="rounded-[2rem] bg-slate-900 p-3 shadow-2xl">
-      <div className="flex overflow-hidden rounded-[1.4rem] bg-white">
-        <div className="hidden w-32 shrink-0 bg-brand-950 p-3 sm:block">
-          <p className="mb-4 flex items-center gap-1 text-xs font-bold text-white">
-            <LeafMark className="h-4 w-4 text-brand-200" /> CannaTrace
-          </p>
-          {["Dashboard", "Cultivation", "Inventory"].map((label, i) => (
-            <p key={label} className={`mb-0.5 rounded-md px-2 py-1.5 text-[11px] ${i === 1 ? "bg-brand-600 text-white" : "text-brand-100"}`}>
-              {label}
-            </p>
-          ))}
-        </div>
-        <div className="min-w-0 flex-1 p-4">
-          <p className="text-sm font-extrabold text-slate-900">Cultivation</p>
-          <p className="mt-2 flex gap-4 border-b border-slate-100 text-[11px] text-slate-500">
-            <span className="border-b-2 border-brand-600 pb-1 font-semibold text-brand-700">Plants</span>
-            <span>Batches</span>
-            <span>Rooms</span>
-            <span>Harvests</span>
-          </p>
-          <table className="mt-3 w-full text-left text-[10px]">
-            <thead className="text-slate-500">
-              <tr>
-                {["Plant ID", "Strain", "Stage", "Age", "Location"].map((h) => (
-                  <th key={h} className="pb-1 font-semibold">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="text-slate-700">
-              {rows.map((r) => (
-                <tr key={r[0]} className="border-t border-slate-100">
-                  <td className="py-1.5 font-mono">{r[0]}</td>
-                  <td>{r[1]}</td>
-                  <td>
-                    <span className={`rounded px-1 py-0.5 ${r[2] === "Flower" ? "bg-brand-100 text-brand-800" : "bg-slate-100 text-slate-700"}`}>{r[2]}</span>
-                  </td>
-                  <td>{r[3]}</td>
-                  <td>{r[4]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ---------- Page ---------- */
 
 const MODULES: { icon: LucideIcon; title: string; text: string }[] = [
@@ -375,13 +318,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               <Link href={cta.href} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-7 py-3.5 text-base font-bold text-white shadow-sm hover:bg-brand-800">
                 {cta.label} <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </Link>
-              <Link
-                href="/demo"
-                prefetch={false}
-                className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-7 py-3 text-base font-bold text-slate-900 hover:border-brand-600"
-              >
-                <Play className="h-5 w-5" aria-hidden="true" /> Try the Live Demo
-              </Link>
+              <DemoVideoButton className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-7 py-3 text-base font-bold text-slate-900 hover:border-brand-600">
+                <Play className="h-5 w-5" aria-hidden="true" /> Watch the Live Demo
+              </DemoVideoButton>
             </div>
             <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-700">
               {["Compliance built in", "Scalable", "Secure", "Built for Cannabis"].map((item) => (
@@ -453,26 +392,28 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       <section id="demo" className="scroll-mt-20 px-5 pb-16">
         <div className="relative mx-auto grid max-w-7xl items-center gap-10 overflow-hidden rounded-3xl bg-gradient-to-r from-brand-50 via-[#eef7f1] to-brand-100 px-6 py-12 sm:px-12 lg:grid-cols-2">
           <LeafMark className="pointer-events-none absolute -bottom-16 -right-10 h-80 w-80 text-brand-600/15" />
-          <TabletCultivation />
+          <div className="relative">
+            <DemoVideoPoster />
+          </div>
           <div className="relative">
             <h2 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">See CannaTrace in Action</h2>
             <p className="mt-3 max-w-lg text-lg text-slate-700">
-              Click around a working sample business: plants, inventory, lab results, labels, wholesale orders, and the register. No sign-up needed.
+              A one-minute tour of CannaTrace at work: plants, inventory, lab results, labels, wholesale, the register, state rules, and Tally.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                href="/demo"
-                prefetch={false}
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-6 py-3 font-bold text-white shadow-sm hover:bg-brand-800"
-              >
-                <Play className="h-5 w-5" aria-hidden="true" /> Open the Live Demo
-              </Link>
+              <DemoVideoButton className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-6 py-3 font-bold text-white shadow-sm hover:bg-brand-800">
+                <Play className="h-5 w-5" aria-hidden="true" /> Watch the Live Demo
+              </DemoVideoButton>
               <a href={DEMO_LINK} className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-6 py-2.5 font-bold text-slate-900 hover:border-brand-600">
                 Book a Demo <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </a>
             </div>
-            <p className="mt-3 max-w-lg text-sm text-slate-600">
-              The demo is a shared sandbox filled with made-up data. Other visitors may be in it too, and it starts fresh every day.
+            <p className="mt-4 max-w-lg text-sm text-slate-600">
+              Want to click around yourself?{" "}
+              <Link href="/demo" prefetch={false} className="font-semibold text-brand-700 underline hover:no-underline">
+                Open the sample business
+              </Link>
+              . It&apos;s filled with made-up data and starts fresh every day.
             </p>
             {demoNotice ? (
               <p role="status" className="mt-3 max-w-lg rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
@@ -482,6 +423,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           </div>
         </div>
       </section>
+
+      <DemoVideoPlayer />
 
       <footer id="contact" className="scroll-mt-20 border-t border-slate-100 bg-white">
         <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:grid-cols-3">
