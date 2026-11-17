@@ -87,6 +87,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           "Settings",
           tabs([
             ["/settings", "Business", can(session, "settings.manage")],
+            ["/settings/facilities", "Facilities", can(session, "settings.manage")],
             ["/team", "Team", can(session, "users.manage")],
             ["/integrations", "Integrations", can(session, "integrations.manage")],
           ]),
@@ -125,6 +126,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Facility
             </label>
             <select
+              // Keyed by facility so the menu shows the new one after switching from any page.
+              key={session.facilityId}
               id="facilityId"
               name="facilityId"
               defaultValue={session.facilityId}

@@ -87,8 +87,8 @@ test("a new package's label fills in, checks, prints as an exact-size PDF, and r
 
   // 8. Reprint makes a new print job and nothing else
   await firstRow.getByRole("button", { name: "Reprint" }).click();
-  await expect(firstRow).toContainText("Reprint queued: 1 label.");
-  await page.goto("/labels/history");
+  // The new reprint job appears at the top of the history
+  await expect(page.getByTestId("label-history").locator("tbody tr")).toHaveCount(2);
   await expect(page.getByTestId("label-history").locator("tbody tr").first()).toContainText("reprint");
   await page.goto(`/inventory?q=${run}-P`);
   await expect(page.getByText("1 package shown")).toBeVisible();

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { StateSelect } from "@/components/state-select";
 import { ActionForm } from "@/components/action-form";
 import { Logo } from "@/components/logo";
 import { Field, inputClass } from "@/components/ui";
@@ -49,7 +50,7 @@ export default async function SetupPage() {
                 </Field>
               </div>
               <Field label="State">
-                <input name="state" required maxLength={2} autoCapitalize="characters" className={inputClass} />
+                <StateSelect />
               </Field>
             </div>
           </fieldset>

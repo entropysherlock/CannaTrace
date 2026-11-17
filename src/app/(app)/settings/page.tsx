@@ -5,6 +5,7 @@ import { customRoles, facilities as facilitiesTable, organizations, users as use
 import { db } from "@/lib/db";
 import { ROLE_LABELS, can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
+import { stateName } from "@/lib/states";
 
 export default async function SettingsPage() {
   const session = await requirePagePermission("settings.manage");
@@ -23,13 +24,20 @@ export default async function SettingsPage() {
     <>
       <PageHeader title="Settings" subtitle={org?.name} />
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card title="Facilities">
+        <Card
+          title="Facilities"
+          action={
+            <Link href="/settings/facilities" className="text-sm font-semibold text-brand-700 hover:underline">
+              Manage facilities
+            </Link>
+          }
+        >
           <ul className="divide-y divide-slate-100 text-sm">
             {facilities.map((f) => (
               <li key={f.id} className="py-2">
                 <p className="font-medium text-slate-900">{f.name}</p>
                 <p className="text-slate-600">
-                  {f.licenseType.toLowerCase()} · license {f.licenseNumber} · {f.state} · sync: {f.trackTraceSystem.toLowerCase()}
+                  {f.licenseType.toLowerCase()} · license {f.licenseNumber} · {stateName(f.state)} · sync: {f.trackTraceSystem.toLowerCase()}
                 </p>
               </li>
             ))}
