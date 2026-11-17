@@ -486,8 +486,8 @@ export default async function HomePage() {
             <a href="#faq" className="hover:text-brand-700">
               Questions
             </a>
-            <Link href="/login" className="hover:text-brand-700">
-              Sign in
+            <Link href={signedIn ? "/dashboard" : "/login"} className="hover:text-brand-700">
+              {signedIn ? "Go to dashboard" : "Sign in"}
             </Link>
           </nav>
           <p className="flex items-center gap-1.5">
