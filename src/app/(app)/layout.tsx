@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AssistantPanel } from "@/components/assistant-panel";
 import { Logo } from "@/components/logo";
-import { assistantEnabled } from "@/lib/assistant/engine";
+import { tallyAvailability } from "@/lib/ai/connection";
 import { BottomNav, SectionTabs, SideNav, type NavGroup, type NavItem, type Tab } from "@/components/side-nav";
 import { asc, eq } from "drizzle-orm";
 import { facilities as facilitiesTable } from "@/db/schema";
@@ -18,6 +18,7 @@ export const instant = false;
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const supportAdmin = !session.support && (await isPlatformAdmin(session.userId));
+  const tally = await tallyAvailability(session);
   const facilities = await db
     .select({ id: facilitiesTable.id, name: facilitiesTable.name, licenseNumber: facilitiesTable.licenseNumber })
     .from(facilitiesTable)
@@ -92,6 +93,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             ["/settings/facilities", "Facilities", can(session, "settings.manage")],
             ["/team", "Team", can(session, "users.manage")],
             ["/integrations", "Integrations", can(session, "integrations.manage")],
+            ["/settings/ai", "Tally AI", can(session, "ai.manage")],
           ]),
         ),
         entry("support", "Support console", tabs([["/support", "Support console", supportAdmin]])),
@@ -191,9 +193,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       <BottomNav groups={groups} />
       <AssistantPanel
-        enabled={assistantEnabled()}
+        enabled={tally.ready}
+        offReason={tally.reason}
         firstName={session.name.split(" ")[0]}
-        isOwner={session.role === "OWNER" && !session.customRoleId}
+        isOwner={can(session, "ai.manage")}
         suggestions={[
           "Give me a quick rundown of where things stand",
           can(session, "compliance.view") ? "Are we following our state's rules? What needs fixing?" : null,

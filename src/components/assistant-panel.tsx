@@ -58,11 +58,13 @@ function transcript(turns: Turn[]) {
 
 export function AssistantPanel({
   enabled,
+  offReason,
   firstName,
   isOwner,
   suggestions,
 }: {
   enabled: boolean;
+  offReason?: string | null;
   firstName: string;
   isOwner: boolean;
   suggestions: string[];
@@ -278,12 +280,21 @@ export function AssistantPanel({
           {!enabled ? (
             <div className="mt-10 text-center">
               <Sparkles className="mx-auto h-10 w-10 text-brand-200" aria-hidden="true" />
-              <p className="mt-3 font-semibold text-slate-900">The assistant isn&apos;t turned on yet</p>
+              <p className="mt-3 font-semibold text-slate-900">{offReason === "PAUSED" ? "Tally is paused" : "Tally isn't connected yet"}</p>
               <p className="mx-auto mt-1 max-w-xs text-sm text-slate-600">
-                {isOwner
-                  ? "Add an Anthropic API key to the site's settings in Vercel as ANTHROPIC_API_KEY, then redeploy."
-                  : "Ask an owner to turn it on."}
+                {offReason === "PAUSED"
+                  ? isOwner
+                    ? "Turn it back on in Settings → Tally AI."
+                    : "An owner paused Tally for this business."
+                  : isOwner
+                    ? "Tally runs on your business's own Claude account. Connecting takes about five minutes."
+                    : "Tally runs on your business's own Claude account. Ask an owner to connect it in Settings → Tally AI."}
               </p>
+              {isOwner ? (
+                <a href="/settings/ai" className="mt-4 inline-flex min-h-10 items-center rounded-lg bg-brand-700 px-4 text-sm font-bold text-white hover:bg-brand-800">
+                  Set up Tally AI
+                </a>
+              ) : null}
             </div>
           ) : turns.length === 0 ? (
             <div className="mt-6">

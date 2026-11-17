@@ -27,7 +27,8 @@ export type Permission =
   | "reports.view"
   | "integrations.manage"
   | "labels.print"
-  | "labels.manage";
+  | "labels.manage"
+  | "ai.manage";
 
 const ALL: Permission[] = [
   "inventory.view",
@@ -50,11 +51,12 @@ const ALL: Permission[] = [
   "integrations.manage",
   "labels.print",
   "labels.manage",
+  "ai.manage",
 ];
 
 const MATRIX: Record<Role, Permission[]> = {
   OWNER: ALL,
-  MANAGER: ALL.filter((p) => p !== "users.manage" && p !== "integrations.manage"),
+  MANAGER: ALL.filter((p) => p !== "users.manage" && p !== "integrations.manage" && p !== "ai.manage"),
   INVENTORY: [
     "inventory.view",
     "inventory.write",
@@ -144,12 +146,13 @@ export const PERMISSION_GROUPS: { title: string; permissions: { key: Permission;
       { key: "settings.manage", label: "Business settings", hint: "Facilities and imports." },
       { key: "users.manage", label: "Manage the team", hint: "Invite people, change roles, and build roles. Only an owner can hand this out." },
       { key: "integrations.manage", label: "API keys and webhooks", hint: "Connect other software. Only an owner can hand this out." },
+      { key: "ai.manage", label: "Tally AI connection", hint: "Connect the business's Claude account, choose the model, and set usage limits. Only an owner can hand this out." },
     ],
   },
 ];
 
 /** Permissions only an owner may give someone, because they control who can do what. */
-export const OWNER_ONLY: readonly Permission[] = ["users.manage", "integrations.manage"];
+export const OWNER_ONLY: readonly Permission[] = ["users.manage", "integrations.manage", "ai.manage"];
 
 export function permissionsFor(role: Role): Permission[] {
   return [...MATRIX[role]];

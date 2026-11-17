@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { Disclosure } from "@/components/disclosure";
+import { SecretGenerator } from "@/components/secret-generator";
 import { StateSelect } from "@/components/state-select";
+import { encryptionReady } from "@/lib/ai/secret-box";
 import { licenseTypeEnum } from "@/db/schema";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { isPlatformAdmin, listCustomerAccounts, listSupportAdmins, recentSupportVisits } from "@/lib/platform-admin";
@@ -149,6 +151,22 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
               <li>The visit and your reason go into the customer&apos;s own audit trail.</li>
               <li>A visit ends when you press Exit support view, or after 2 hours.</li>
             </ul>
+          </Card>
+
+          <Card title="Tally key storage">
+            {encryptionReady() ? (
+              <p className="text-sm text-slate-700">Set up. Businesses can connect their own Claude accounts in Settings → Tally AI.</p>
+            ) : (
+              <div className="space-y-3 text-sm text-slate-700">
+                <p className="font-semibold text-amber-900">Not set up yet: businesses can&apos;t connect Tally until it is.</p>
+                <ol className="list-decimal space-y-1 pl-5">
+                  <li>Press Generate and Copy below. The value is made in your browser and never sent to CannaTrace.</li>
+                  <li>In Vercel: the CannaTrace project → Settings → Environment Variables → add AI_KEY_ENCRYPTION_KEY with that value (Production).</li>
+                  <li>Redeploy. Keep the value secret and never change it; changing it would disconnect every business.</li>
+                </ol>
+                <SecretGenerator />
+              </div>
+            )}
           </Card>
 
           <Card title="Support team">
