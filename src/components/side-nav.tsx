@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  LifeBuoy,
   BarChart3,
   Tag,
   Boxes,
@@ -30,6 +31,7 @@ const ICONS: Record<string, LucideIcon> = {
   reports: BarChart3,
   compliance: ShieldCheck,
   settings: Settings,
+  support: LifeBuoy,
 };
 
 export type Tab = { href: string; label: string };

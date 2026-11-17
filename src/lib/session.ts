@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { customRoles, organizations, users } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
+import { isPlatformAdmin, nowMs } from "./platform-admin";
 import { ROLE_LABELS, can, cleanPermissions, permissionsFor, type Permission, type Role } from "./rbac";
 
 export const SESSION_COOKIE = "ct_session";
@@ -18,6 +19,11 @@ export type SessionToken = {
   facilityId: string;
   role: Role;
   name: string;
+  /**
+   * Set while CannaTrace support is inside a customer's account: orgId/facilityId are the customer's,
+   * and these say where to send the support person back to and when the visit ends (epoch ms).
+   */
+  support?: { homeOrgId: string; homeFacilityId: string; until: number };
 };
 
 export type Session = SessionToken & {
@@ -28,6 +34,8 @@ export type Session = SessionToken & {
   customRoleId: string | null;
   /** Signed in to the public live demo's sample business. */
   isDemo?: boolean;
+  /** CannaTrace support is visiting this customer's account. */
+  supportVisit?: { orgName: string; until: number };
 };
 
 function secret(): Uint8Array {
@@ -39,8 +47,8 @@ function secret(): Uint8Array {
 }
 
 export async function createSession(session: SessionToken): Promise<void> {
-  const { userId, orgId, facilityId, role, name } = session;
-  const token = await new SignJWT({ userId, orgId, facilityId, role, name })
+  const { userId, orgId, facilityId, role, name, support } = session;
+  const token = await new SignJWT({ userId, orgId, facilityId, role, name, ...(support ? { support } : {}) })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE_SECONDS}s`)
@@ -63,11 +71,16 @@ export async function readToken(token: string | undefined): Promise<SessionToken
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
-    const { userId, orgId, facilityId, role, name } = payload as Record<string, unknown>;
+    const { userId, orgId, facilityId, role, name, support } = payload as Record<string, unknown>;
     if (typeof userId !== "string" || typeof orgId !== "string" || typeof facilityId !== "string") {
       return null;
     }
-    return { userId, orgId, facilityId, role: role as Role, name: String(name ?? "") };
+    const s = support as { homeOrgId?: unknown; homeFacilityId?: unknown; until?: unknown } | undefined;
+    const visit =
+      s && typeof s.homeOrgId === "string" && typeof s.homeFacilityId === "string" && typeof s.until === "number"
+        ? { homeOrgId: s.homeOrgId, homeFacilityId: s.homeFacilityId, until: s.until }
+        : undefined;
+    return { userId, orgId, facilityId, role: role as Role, name: String(name ?? ""), ...(visit ? { support: visit } : {}) };
   } catch {
     return null;
   }
@@ -88,6 +101,8 @@ export async function requireSession(): Promise<Session> {
   const session = await getSession();
   if (!session) redirect("/login");
   const full = await resolve(session);
+  // A support visit that ran out goes back to the support person's own account, not to sign-in.
+  if (!full && session.support) redirect("/support/return");
   // The cookie is genuine but its account is gone or switched off: clear it, or sign-in and the
   // dashboard would keep sending the visitor to each other.
   if (!full) redirect("/signout");
@@ -95,6 +110,7 @@ export async function requireSession(): Promise<Session> {
 }
 
 async function resolve(session: SessionToken): Promise<Session | null> {
+  if (session.support) return resolveSupport(session, session.support);
   const [user] = await db
     .select({ role: users.role, name: users.name, customRoleId: users.customRoleId, customName: customRoles.name, customPermissions: customRoles.permissions, isDemo: organizations.isDemo })
     .from(users)
@@ -111,6 +127,31 @@ async function resolve(session: SessionToken): Promise<Session | null> {
     permissions: custom ? cleanPermissions(user.customPermissions ?? []) : permissionsFor(user.role),
     roleName: custom ? String(user.customName) : ROLE_LABELS[user.role],
     isDemo: user.isDemo,
+  };
+}
+
+/**
+ * A support visit: the person is CannaTrace staff, still a support admin and still active, and the
+ * visit has not run out. They act with an owner's permissions, under a name that says "support".
+ */
+async function resolveSupport(session: SessionToken, visit: NonNullable<SessionToken["support"]>): Promise<Session | null> {
+  if (visit.until < nowMs()) return null;
+  const [user] = await db
+    .select({ name: users.name, email: users.email, createdAt: users.createdAt, homeOrg: users.orgId })
+    .from(users)
+    .where(and(eq(users.id, session.userId), eq(users.active, true)));
+  if (!user || user.homeOrg !== visit.homeOrgId || !(await isPlatformAdmin(session.userId))) return null;
+  const [org] = await db.select({ name: organizations.name, isDemo: organizations.isDemo }).from(organizations).where(eq(organizations.id, session.orgId));
+  if (!org) return null;
+  return {
+    ...session,
+    role: "OWNER",
+    name: `${user.name} (CannaTrace support)`,
+    customRoleId: null,
+    permissions: permissionsFor("OWNER"),
+    roleName: "CannaTrace support",
+    isDemo: org.isDemo,
+    supportVisit: { orgName: org.name, until: visit.until },
   };
 }
 
