@@ -32,16 +32,17 @@ test("CannaTrace support opens a customer's account, sees it as they do, and eve
   await signIn(page, "owner@demo.test");
   await page.getByRole("link", { name: "Support console" }).first().click();
   await expect(page.getByRole("heading", { name: "Support console" })).toBeVisible();
-  await page.getByLabel("Search businesses").fill(`casey-${run}`);
+  // Found by the license number of one of its facilities, which is listed on its own line
+  await page.getByLabel("Search businesses").fill(`sup-${run}`);
   await page.getByRole("button", { name: "Search" }).click();
-  const row = page.locator("li", { hasText: BUSINESS });
-  await expect(row).toContainText("Canyon Road Store (New Mexico, retail)");
+  const facility = page.getByRole("list", { name: `Facilities of ${BUSINESS}` }).getByRole("listitem").filter({ hasText: "Canyon Road Store" });
+  await expect(facility).toContainText(`New Mexico · retail · license SUP-${run.toUpperCase()}`);
 
-  // A reason is required, then the account opens
-  await row.getByRole("button", { name: "Open account" }).click();
-  await expect(row.getByLabel(`Reason for opening ${BUSINESS}`)).toBeFocused();
-  await row.getByLabel(`Reason for opening ${BUSINESS}`).fill("Helping set up their first facility");
-  await row.getByRole("button", { name: "Open account" }).click();
+  // A reason is required, then that facility opens
+  await facility.getByRole("button", { name: "Open" }).click();
+  await expect(facility.getByLabel("Reason for opening Canyon Road Store")).toBeFocused();
+  await facility.getByLabel("Reason for opening Canyon Road Store").fill("Helping set up their first facility");
+  await facility.getByRole("button", { name: "Open" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
   const banner = page.getByRole("note", { name: "Support view" });
   await expect(banner).toContainText(`you are inside ${BUSINESS} as CannaTrace support`);
