@@ -1,9 +1,13 @@
 import "server-only";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
-import { auditLogs, facilities, organizations, platformAdmins, users } from "@/db/schema";
+import { randomBytes } from "node:crypto";
+import { auditLogs, facilities, invites, licenseTypeEnum, organizations, platformAdmins, users } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
 import type { SessionToken } from "./session";
+import { checkEmail } from "./setup";
+import { isSupportedState } from "./states";
+import { INVITE_DAYS, hashToken } from "./team";
 
 /**
  * The first support admins, by email. An email here only counts for an account that already existed
@@ -183,4 +187,57 @@ export async function recentSupportVisits(limit = 20) {
     .where(and(eq(auditLogs.entityType, "Support")))
     .orderBy(desc(auditLogs.createdAt))
     .limit(limit);
+}
+
+/**
+ * Set up a business for a customer from the support console: the business, its first facility, and an
+ * owner invite. The owner sets their own password from the invite link; support never sees it.
+ */
+export async function createCustomerBusiness(
+  admin: Admin,
+  input: { businessName: string; facilityName: string; licenseNumber: string; licenseType: string; state: string; ownerEmail: string },
+): Promise<{ orgId: string; businessName: string; inviteToken: string; ownerEmail: string }> {
+  if (!(await isPlatformAdmin(admin.userId))) throw new InventoryError("Only CannaTrace support admins can set up businesses.");
+  const text = (value: string, message: string, max = 120) => {
+    const t = value.trim().replace(/\s+/g, " ").slice(0, max);
+    if (!t) throw new InventoryError(message);
+    return t;
+  };
+  const businessName = text(input.businessName, "Enter the business name.", 100);
+  const facilityName = text(input.facilityName, "Enter a name for the first facility, for example its street or nickname.", 100);
+  const licenseNumber = text(input.licenseNumber, "Enter the facility's state license number.", 60).toUpperCase();
+  if (!(licenseTypeEnum.enumValues as readonly string[]).includes(input.licenseType)) throw new InventoryError("Choose the license type.");
+  const state = input.state.trim().toUpperCase();
+  if (!isSupportedState(state)) throw new InventoryError("Choose one of the listed states.");
+  const ownerEmail = checkEmail(input.ownerEmail);
+  const token = randomBytes(32).toString("base64url");
+
+  return db.transaction(async (tx) => {
+    if ((await tx.$count(users, sql`lower(${users.email}) = ${ownerEmail}`)) > 0)
+      throw new InventoryError("Someone already has a CannaTrace account with that email. Use a different email for the new owner.");
+    const [org] = await tx.insert(organizations).values({ name: businessName }).returning({ id: organizations.id });
+    const [facility] = await tx
+      .insert(facilities)
+      .values({ orgId: org.id, name: facilityName, licenseNumber, licenseType: input.licenseType as "RETAIL", state })
+      .returning({ id: facilities.id });
+    await tx.insert(invites).values({
+      orgId: org.id,
+      email: ownerEmail,
+      role: "OWNER",
+      tokenHash: hashToken(token),
+      invitedBy: admin.userId,
+      expiresAt: new Date(nowMs() + INVITE_DAYS * 86_400_000),
+    });
+    await tx.insert(auditLogs).values({
+      orgId: org.id,
+      facilityId: facility.id,
+      userId: admin.userId,
+      userName: `${admin.name} (CannaTrace support)`,
+      entityType: "Business",
+      entityId: org.id,
+      action: "SUPPORT_CREATED_BUSINESS",
+      after: { businessName, facilityName, licenseNumber, state, ownerEmail },
+    });
+    return { orgId: org.id, businessName, inviteToken: token, ownerEmail };
+  });
 }

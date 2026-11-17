@@ -1,10 +1,13 @@
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
+import { Disclosure } from "@/components/disclosure";
+import { StateSelect } from "@/components/state-select";
+import { licenseTypeEnum } from "@/db/schema";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { isPlatformAdmin, listCustomerAccounts, listSupportAdmins, recentSupportVisits } from "@/lib/platform-admin";
 import { stateName } from "@/lib/states";
 import { requireSession } from "@/lib/session";
-import { addAdminAction, openAccountAction, removeAdminAction } from "./actions";
+import { addAdminAction, createBusinessAction, openAccountAction, removeAdminAction } from "./actions";
 
 export const metadata = { title: "Support console · CannaTrace" };
 
@@ -50,6 +53,41 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
               Search
             </button>
           </form>
+          <Disclosure title="Set up a new business" defaultOpen={real.length < 3}>
+            <ActionForm action={createBusinessAction} submitLabel="Create business" className="space-y-3 border-t border-slate-100 p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Business (company) name">
+                  <input name="businessName" required maxLength={100} className={inputClass} />
+                </Field>
+                <Field label="First facility name" hint="For example its street or nickname. More can be added later in their Settings.">
+                  <input name="facilityName" required maxLength={100} className={inputClass} />
+                </Field>
+                <Field label="State license number">
+                  <input name="licenseNumber" required maxLength={60} className={inputClass} />
+                </Field>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="License type">
+                    <select name="licenseType" required defaultValue="" className={inputClass}>
+                      <option value="" disabled>
+                        Choose one
+                      </option>
+                      {licenseTypeEnum.enumValues.map((type) => (
+                        <option key={type} value={type}>
+                          {type.charAt(0) + type.slice(1).toLowerCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="State">
+                    <StateSelect />
+                  </Field>
+                </div>
+                <Field label="Owner's email" hint="They get an invite link to set their own password. It must not already have a CannaTrace account.">
+                  <input name="ownerEmail" type="email" required className={inputClass} />
+                </Field>
+              </div>
+            </ActionForm>
+          </Disclosure>
           {shown.length === 0 ? <p className="rounded-lg bg-white p-6 text-sm text-slate-600">No businesses match.</p> : null}
           <ul className="space-y-3">
             {shown.map((a) => (
