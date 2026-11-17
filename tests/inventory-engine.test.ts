@@ -182,9 +182,15 @@ describe.skipIf(!hasDb)("inventory engine (database)", () => {
     expect((await qtyOf(pkg.id)).quantity).toBe("15");
   });
 
-  it("destroys a package for good", async () => {
+  it("destroys a package for good, after New Mexico's 72-hour hold and with the waste mixed", async () => {
     const pkg = await receive("12");
-    await destroyPackage(actor, { packageId: pkg.id, reason: "Mold, rendered unusable" });
+    await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold", mixedConfirmed: true })).rejects.toThrow(/held for 72 hours.*on hold or in quarantine first/);
+    await setPackageStatus(actor, { packageId: pkg.id, status: "QUARANTINE", reason: "Mold found" });
+    await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold", mixedConfirmed: true })).rejects.toThrow(/can be destroyed after/);
+    // Three days pass
+    await db.update(packages).set({ heldSince: new Date(Date.now() - 73 * 3_600_000) }).where(eq(packages.id, pkg.id));
+    await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold" })).rejects.toThrow(/at least 50% non-cannabis/);
+    await destroyPackage(actor, { packageId: pkg.id, reason: "Mold, rendered unusable", mixedConfirmed: true });
     expect(await qtyOf(pkg.id)).toMatchObject({ quantity: "0", status: "DESTROYED" });
     await expect(adjustPackage(actor, { packageId: pkg.id, newQuantity: "5", reasonCode: "ENTRY_ERROR" })).rejects.toThrow(/destroyed/);
     await expect(setPackageStatus(actor, { packageId: pkg.id, status: "ACTIVE", reason: "oops" })).rejects.toThrow(/destroyed/);

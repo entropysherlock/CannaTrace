@@ -6,6 +6,7 @@ import { ActivityChart } from "@/components/activity-chart";
 import { usd } from "@/components/distribution-ui";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/session";
+import { scanFacility } from "@/lib/rules/scan";
 import { ADAPTERS } from "@/lib/sync";
 import { SYSTEM_LABELS, type SystemName } from "@/lib/sync-math";
 
@@ -53,7 +54,8 @@ export default async function DashboardPage() {
   const org = session.orgId;
   const fac = session.facilityId;
 
-  const [[facility], [counts], salesDays, activityDays, [sync], [ledger], [audit], [topGroup], [flow]] = await Promise.all([
+  const [rulesScan, [facility], [counts], salesDays, activityDays, [sync], [ledger], [audit], [topGroup], [flow]] = await Promise.all([
+    scanFacility(org, fac),
     q(sql`select name, license_number, track_trace_system from facilities where id = ${fac}`),
     q(sql`select
         (select count(*) from plants where org_id = ${org} and facility_id = ${fac} and status = 'ACTIVE') as plants,
@@ -193,6 +195,11 @@ export default async function DashboardPage() {
               text={n(ledger.off) ? `${n(ledger.off)} packages off` : "No issues"}
             />
             <StatusRow label="Audit trail" level="good" text={`${n(audit.today)} entries today`} />
+            <StatusRow
+              label={rulesScan.pack ? `${rulesScan.pack.name} rules` : "State rules"}
+              level={!rulesScan.pack ? "warn" : rulesScan.score >= 90 ? "good" : rulesScan.score >= 70 ? "warn" : "bad"}
+              text={rulesScan.pack ? `Score ${rulesScan.score}/100` : "No rule pack yet"}
+            />
           </ul>
         </section>
       </div>

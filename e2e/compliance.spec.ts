@@ -72,3 +72,19 @@ test("a read-only user can see state reporting but not change it", async ({ page
   await expect(page.getByRole("button", { name: "Send now" })).toHaveCount(0);
   await expect(page.locator('select[name="system"]')).toHaveCount(0);
 });
+
+test("the state rules page shows the score, what to fix, and each rule's source", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("manager@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  await expect(seen(page, "New Mexico rules")).toBeVisible();
+
+  await page.goto("/compliance/rules");
+  await expect(page.getByRole("heading", { name: "State rules" })).toBeVisible();
+  await expect(seen(page, "Compliance score")).toBeVisible();
+  await expect(seen(page, "New Mexico rules in effect")).toBeVisible();
+  await expect(page.getByRole("link", { name: /16\.8\.2\.40\(H\)\(1\) NMAC/ })).toBeVisible();
+  await expect(seen(page, "Enforced at the register")).toBeVisible();
+});

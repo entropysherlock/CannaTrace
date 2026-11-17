@@ -3,6 +3,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import {
   discountPresets,
   drawerSessions,
+  facilities,
   items,
   packages,
   retailPrices,
@@ -19,6 +20,7 @@ import { parseDate, parseMoney, parsePrice, todayIn } from "./distribution-math"
 import { InventoryError, audit, consumeFromPackageInTx, returnToPackageInTx, type Actor } from "./inventory";
 import { parsePositiveQty } from "./inventory-math";
 import { nextNumber } from "./numbering";
+import { effectiveLimits, minimumAge, packFor, requiresLabBeforeRetail, type StatePack } from "./rules";
 import {
   cartTotals,
   changeDue,
@@ -241,7 +243,9 @@ export async function checkInCustomer(
     if (!settings.saved) {
       throw new InventoryError("This store's purchase limits and tax rates have not been entered yet. A manager must save them under Menu and store rules before anyone can sell.");
     }
-    const problem = checkInProblem({ birthDate, idExpires, customerType }, settings, todayIn());
+    const pack = await storePack(tx, actor.facilityId);
+    const ages = { adultMinAge: minimumAge(settings.adultMinAge, pack, "ADULT_USE"), medicalMinAge: minimumAge(settings.medicalMinAge, pack, "MEDICAL") };
+    const problem = checkInProblem({ birthDate, idExpires, customerType }, ages, todayIn());
     if (problem) throw new InventoryError(problem);
     const session = await lockOpenDrawer(tx, actor);
     if (!session) throw new InventoryError("Open the cash drawer before serving customers.");
@@ -320,13 +324,38 @@ function limitsOf(settings: Awaited<ReturnType<typeof getRetailSettings>>) {
   };
 }
 
-/** Sellable stock of an item at this store: active packages only. */
-async function inStock(tx: Tx, actor: Actor, itemId: string): Promise<Decimal> {
+/** The state rule pack for the store's facility, or null when its state has none yet. */
+export async function storePack(tx: Tx | typeof db, facilityId: string): Promise<StatePack | null> {
+  const [row] = await tx.select({ state: facilities.state }).from(facilities).where(eq(facilities.id, facilityId));
+  return packFor(row?.state);
+}
+
+/** A package's most recent lab result passed. */
+const passedLab = sql`(select lr.status from lab_results lr where lr.package_id = ${packages.id} order by lr.created_at desc limit 1) = 'PASS'`;
+
+/** Sellable stock of an item at this store: active packages, and only lab-passed ones where the state requires testing. */
+async function inStock(tx: Tx, actor: Actor, itemId: string, pack: StatePack | null): Promise<{ sellable: Decimal; waitingOnLab: Decimal }> {
+  const gate = requiresLabBeforeRetail(pack);
   const [row] = await tx
-    .select({ total: sql<string>`coalesce(sum(${packages.quantity}), 0)` })
+    .select({
+      total: sql<string>`coalesce(sum(${packages.quantity}), 0)`,
+      passed: sql<string>`coalesce(sum(${packages.quantity}) filter (where ${passedLab}), 0)`,
+    })
     .from(packages)
     .where(and(eq(packages.orgId, actor.orgId), eq(packages.facilityId, actor.facilityId), eq(packages.itemId, itemId), eq(packages.status, "ACTIVE")));
-  return new Decimal(row.total);
+  const total = new Decimal(row.total);
+  const sellable = gate ? new Decimal(row.passed) : total;
+  return { sellable, waitingOnLab: total.sub(sellable) };
+}
+
+/** The first purchase limit this cart breaks, using the stricter of the store's and the state's numbers. */
+function limitCheck(lines: Parameters<typeof limitUsage>[0], settings: Awaited<ReturnType<typeof getRetailSettings>>, pack: StatePack | null, customer: CustomerType) {
+  const { limits, fromState } = effectiveLimits(limitsOf(settings), pack, customer);
+  const usage = limitUsage(lines);
+  const problem = limitProblem(usage, limits);
+  if (!problem || !pack) return problem;
+  const broken = (["FLOWER", "CONCENTRATE", "EDIBLE"] as const).find((k) => usage[k].gt(limits[k]));
+  return broken && fromState.has(broken) ? problem.replace(/The limit is (.+) per purchase\.$/, `${pack.name} law allows $1 per purchase.`) : problem;
 }
 
 /** Add to the cart. Adding an item that is already there increases its quantity. */
@@ -344,16 +373,20 @@ export async function addToCart(actor: Actor, input: { saleId: string; itemId: s
     const before = await cartLines(tx, sale.id);
     const existing = before.find((line) => line.itemId === item.id);
     const newQuantity = quantity.add(existing?.quantity ?? 0);
-    const available = await inStock(tx, actor, item.id);
-    if (newQuantity.gt(available)) {
-      throw new InventoryError(`Only ${available.toString()} of ${item.name} is in stock${existing ? `, and ${new Decimal(existing.quantity).toString()} is already in the cart` : ""}.`);
+    const pack = await storePack(tx, actor.facilityId);
+    const { sellable, waitingOnLab } = await inStock(tx, actor, item.id, pack);
+    if (newQuantity.gt(sellable)) {
+      const lab = waitingOnLab.gt(0) && pack ? ` ${waitingOnLab.toString()} more is waiting on a passing lab result, which ${pack.name} requires before sale.` : "";
+      throw new InventoryError(
+        `Only ${sellable.toString()} of ${item.name} ${lab ? "can be sold" : "is in stock"}${existing ? `, and ${new Decimal(existing.quantity).toString()} is already in the cart` : ""}.${lab}`,
+      );
     }
     if (existing) {
       await tx.update(saleLines).set({ quantity: store(newQuantity) }).where(eq(saleLines.id, existing.id));
     } else {
       await tx.insert(saleLines).values({ saleId: sale.id, itemId: item.id, quantity: store(quantity), unitPrice: item.price });
     }
-    const problem = limitProblem(limitUsage(await cartLines(tx, sale.id)), limitsOf(await getRetailSettings(tx, actor.facilityId)));
+    const problem = limitCheck(await cartLines(tx, sale.id), await getRetailSettings(tx, actor.facilityId), pack, sale.customerType);
     if (problem) throw new InventoryError(problem);
   });
 }
@@ -405,8 +438,10 @@ export async function completeSale(
     const lines = await cartLines(tx, sale.id);
     if (lines.length === 0) throw new InventoryError("The cart is empty.");
     const settings = await getRetailSettings(tx, actor.facilityId);
-    const problem = limitProblem(limitUsage(lines), limitsOf(settings));
+    const pack = await storePack(tx, actor.facilityId);
+    const problem = limitCheck(lines, settings, pack, sale.customerType);
     if (problem) throw new InventoryError(problem);
+    const labGate = requiresLabBeforeRetail(pack);
 
     const totals = saleTotals(lines, sale, settings);
     let tendered: Decimal | null = null;
@@ -421,7 +456,15 @@ export async function completeSale(
       const candidates = await tx
         .select({ id: packages.id, quantity: packages.quantity })
         .from(packages)
-        .where(and(eq(packages.orgId, actor.orgId), eq(packages.facilityId, actor.facilityId), eq(packages.itemId, line.itemId), eq(packages.status, "ACTIVE")))
+        .where(
+          and(
+            eq(packages.orgId, actor.orgId),
+            eq(packages.facilityId, actor.facilityId),
+            eq(packages.itemId, line.itemId),
+            eq(packages.status, "ACTIVE"),
+            labGate ? passedLab : undefined,
+          ),
+        )
         .orderBy(asc(packages.createdAt), asc(packages.id))
         .for("update");
       for (const candidate of candidates) {

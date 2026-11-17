@@ -146,7 +146,7 @@ export async function statusAction(_state: FormState, formData: FormData): Promi
     const status = field(formData, "status");
     const reason = field(formData, "reason");
     if (status === "DESTROYED") {
-      await destroyPackage(actorOf(session), { packageId, reason });
+      await destroyPackage(actorOf(session), { packageId, reason, mixedConfirmed: field(formData, "mixedConfirmed") === "yes" });
     } else {
       await setPackageStatus(actorOf(session), { packageId, status, reason });
     }

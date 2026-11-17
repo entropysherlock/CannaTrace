@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { drawerSessions, facilities, itemCategories, items, locations, organizations, packages, saleLinePackages, sales, users } from "@/db/schema";
 import { db, pool } from "@/lib/db";
 import { addDays, todayIn } from "@/lib/distribution-math";
-import { receivePackage, setPackageStatus, type Actor } from "@/lib/inventory";
+import { addLabResult, receivePackage as receiveRaw, setPackageStatus, type Actor } from "@/lib/inventory";
 import {
   addToCart,
   cancelCart,
@@ -41,6 +41,13 @@ const qty = async (id: string) => new Decimal((await db.select().from(packages).
 const sale = async (id: string) => (await db.select().from(sales).where(eq(sales.id, id)))[0];
 const lineId = async (saleId: string, itemId: string) =>
   (await db.execute<{ id: string }>(sql`select id from sale_lines where sale_id = ${saleId} and item_id = ${itemId}`)).rows[0].id;
+
+/** Stock as a New Mexico store has it: received, with a passing lab result. */
+async function receivePackage(...args: Parameters<typeof receiveRaw>) {
+  const pkg = await receiveRaw(...args);
+  await addLabResult(args[0], { packageId: pkg.id, labName: "Test Lab", status: "PASS", thcPercent: "20" });
+  return pkg;
+}
 
 describe.skipIf(!hasDb)("point of sale engine (database)", () => {
   beforeAll(async () => {
