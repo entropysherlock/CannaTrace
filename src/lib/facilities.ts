@@ -1,6 +1,6 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
-import { auditLogs, facilities, licenseTypeEnum } from "@/db/schema";
+import { auditLogs, facilities, licenseTypeEnum, organizations } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
 import { isSupportedState } from "./states";
@@ -57,4 +57,28 @@ export async function updateFacility(actor: FacilityActor, facilityId: string, i
     after: values,
   });
   return { stateChanged: before.state !== values.state };
+}
+
+/** Change the business's own name (not a facility's). */
+export async function renameBusiness(actor: FacilityActor, input: string): Promise<string> {
+  const name = input.trim().replace(/\s+/g, " ");
+  if (!name) throw new InventoryError("Enter the business name.");
+  if (name.length > 100) throw new InventoryError("Keep the business name under 100 characters.");
+  await db.transaction(async (tx) => {
+    const [before] = await tx.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, actor.orgId));
+    if (!before || before.name === name) return;
+    await tx.update(organizations).set({ name }).where(eq(organizations.id, actor.orgId));
+    await tx.insert(auditLogs).values({
+      orgId: actor.orgId,
+      facilityId: actor.facilityId,
+      userId: actor.userId,
+      userName: actor.userName,
+      entityType: "Business",
+      entityId: actor.orgId,
+      action: "RENAME",
+      before: { name: before.name },
+      after: { name },
+    });
+  });
+  return name;
 }

@@ -54,3 +54,24 @@ test("an owner adds a facility, switches to it, and changes its state", async ({
   await page.reload();
   await expect(card.getByTestId("facility-details")).toContainText("Michigan");
 });
+
+test("an owner renames the business without touching facility names", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("owner@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/dashboard/);
+  await page.goto("/settings");
+  const name = page.getByRole("textbox", { name: "Business name" });
+  await expect(name).toHaveValue("High Desert Demo Co.");
+  await name.fill(`High Desert Cannabis ${run}`);
+  await page.getByRole("button", { name: "Save name" }).click();
+  await expect(page.getByText(`Saved. Your business is now called High Desert Cannabis ${run}.`)).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Business name" })).toHaveValue(`High Desert Cannabis ${run}`);
+  await expect(page.getByText("Rio Grande Grow & Lab").filter({ visible: true }).first()).toBeVisible();
+  // Put it back for the other tests
+  await page.getByRole("textbox", { name: "Business name" }).fill("High Desert Demo Co.");
+  await page.getByRole("button", { name: "Save name" }).click();
+  await expect(page.getByText("Saved. Your business is now called High Desert Demo Co.")).toBeVisible();
+});

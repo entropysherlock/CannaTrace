@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { facilities } from "@/db/schema";
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { addFacility, updateFacility } from "@/lib/facilities";
+import { addFacility, renameBusiness, updateFacility } from "@/lib/facilities";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { createSession, requirePermission, requireSession } from "@/lib/session";
 import { stateName } from "@/lib/states";
@@ -50,6 +50,17 @@ export async function updateFacilityAction(_: FormState, formData: FormData): Pr
     );
     revalidatePath("/", "layout");
     return { ok: stateChanged ? `Saved. ${stateName(field(formData, "state"))}'s rules apply to this facility from now on.` : "Saved." };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
+export async function renameBusinessAction(_: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const session = await requirePermission("settings.manage");
+    const name = await renameBusiness({ orgId: session.orgId, userId: session.userId, userName: session.name, facilityId: session.facilityId }, field(formData, "name"));
+    revalidatePath("/", "layout");
+    return { ok: `Saved. Your business is now called ${name}.` };
   } catch (e) {
     return toFormError(e);
   }
