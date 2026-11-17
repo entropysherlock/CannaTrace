@@ -37,6 +37,15 @@ A new deployment starts empty. The first visitor is sent to **/setup** to enter 
 
 Before the register can sell, a manager must enter the store's real purchase limits and tax rates under **Register → Menu and store rules**. The register stays locked until then.
 
+## The assistant (Claude)
+
+Every page has an **Ask CannaTrace** button (or press Ctrl+J). People ask in plain English and Claude answers from the business's live data: inventory, sales, orders, unpaid invoices, plants, production, state reporting, and the audit trail.
+
+- **Turn it on:** create an API key at console.anthropic.com, add it in Vercel as `ANTHROPIC_API_KEY`, and redeploy. Set a monthly spending limit in the Anthropic Console. Optional: `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`).
+- **It only sees what the person can see:** their own business and facility, and only the tools their role allows.
+- **Changes wait for Confirm:** it can move packages, hold or release them, and correct quantities, but only by showing a card that the person must confirm within 15 minutes. The same inventory checks run, and the audit trail records "(via assistant)".
+- Automated tests use a scripted stand-in (`ASSISTANT_FAKE=1`), so they need no key.
+
 ## Demo data (local testing only)
 
 `npm run db:seed` loads a made-up company, "High Desert Demo Co.", for development and the automated tests. Every demo account (`owner@demo.test`, `manager@demo.test`, and so on) uses the password `demo1234`. Production never loads it, and a deploy removes it automatically if an older deploy did.

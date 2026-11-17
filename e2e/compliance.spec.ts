@@ -16,6 +16,10 @@ test("state reporting: practice mode sends, NMS2S lists records for hand entry",
   await expect(seen(page, "Practice mode. Records are marked as sent")).toBeVisible();
   await expect(seen(page, "Received package CT-000001: 4536 g")).toBeVisible();
 
+  // Send anything other tests left waiting, so the counts below are only this test's
+  await page.getByRole("button", { name: "Send now" }).click();
+  await expect(seen(page, /^Done/)).toBeVisible();
+
   // Switch to NMS2S and make a change
   await page.locator('select[name="system"]').selectOption("NMS2S");
   await page.getByRole("button", { name: "Save" }).click();

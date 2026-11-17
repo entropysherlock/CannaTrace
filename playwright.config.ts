@@ -17,5 +17,7 @@ export default defineConfig({
     url: "http://localhost:3100/login",
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
+    // The assistant uses a scripted stand-in for Claude in tests, so no API key or spending is needed.
+    env: { ASSISTANT_FAKE: "1" },
   },
 });
