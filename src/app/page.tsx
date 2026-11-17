@@ -29,6 +29,11 @@ export const metadata: Metadata = {
   description: "CannaTrace helps cannabis operators manage cultivation, inventory, compliance, manufacturing, distribution, and retail operations in one integrated platform.",
 };
 
+const CONTACT_EMAILS = ["calebwestfall1989@gmail.com", "ccwestfall85@gmail.com"];
+const mailto = (subject: string) => `mailto:${CONTACT_EMAILS.join(",")}?subject=${encodeURIComponent(subject)}`;
+const DEMO_LINK = mailto("CannaTrace demo request");
+const PRICING_LINK = mailto("CannaTrace pricing question");
+
 // Reads the sign-in cookie, so the buttons can say "Go to dashboard" for people already signed in.
 export const instant = false;
 
@@ -337,7 +342,7 @@ export default async function HomePage() {
                 Sign in
               </Link>
             )}
-            <a href="#demo" className="rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-brand-800">
+            <a href={DEMO_LINK} className="rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-brand-800">
               Book a Demo
             </a>
           </div>
@@ -441,9 +446,9 @@ export default async function HomePage() {
             <h2 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">See CannaTrace in Action</h2>
             <p className="mt-3 max-w-lg text-lg text-slate-700">Discover how CannaTrace can streamline your operations, ensure compliance, and help your cannabis business grow.</p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link href={cta.href} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-6 py-3 font-bold text-white shadow-sm hover:bg-brand-800">
-                {cta.label} <ArrowRight className="h-5 w-5" aria-hidden="true" />
-              </Link>
+              <a href={DEMO_LINK} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-6 py-3 font-bold text-white shadow-sm hover:bg-brand-800">
+                Book a Demo <ArrowRight className="h-5 w-5" aria-hidden="true" />
+              </a>
               <a href="#features" className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-6 py-2.5 font-bold text-slate-900 hover:border-brand-600">
                 <Play className="h-5 w-5" aria-hidden="true" /> Watch Product Tour
               </a>
@@ -459,8 +464,25 @@ export default async function HomePage() {
             <p className="mt-2 text-sm text-slate-600">Seed-to-sale software for licensed cannabis businesses.</p>
           </div>
           <div className="text-sm">
-            <p className="font-bold text-slate-950">Pricing and demos</p>
-            <p className="mt-1 text-slate-600">Online booking is coming soon. You can create an account and start using CannaTrace today.</p>
+            <p className="font-bold text-slate-950">Contact us</p>
+            <p className="mt-1 text-slate-600">Questions, pricing, or a demo? Email us and we&apos;ll get back to you.</p>
+            <ul className="mt-2 space-y-1">
+              {CONTACT_EMAILS.map((email) => (
+                <li key={email}>
+                  <a href={`mailto:${email}`} className="font-semibold text-brand-700 hover:underline">
+                    {email}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+              <a href={DEMO_LINK} className="font-semibold text-slate-800 hover:text-brand-700">
+                Book a demo
+              </a>
+              <a href={PRICING_LINK} className="font-semibold text-slate-800 hover:text-brand-700">
+                Ask about pricing
+              </a>
+            </p>
           </div>
           <div className="flex flex-col gap-2 text-sm sm:items-end">
             <Link href={cta.href} className="font-semibold text-brand-700 hover:underline">
