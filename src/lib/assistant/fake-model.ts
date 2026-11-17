@@ -32,6 +32,8 @@ export const fakeModel: Model = async ({ messages }, onText) => {
   const question = String(last.content).toLowerCase();
   const move = question.match(/move (\S+) to (.+)$/);
   if (move) return { content: toolUse("move_package", { tag: move[1], to_location: move[2].trim() }), stop_reason: "tool_use" };
+  const bulk = question.match(/change category of (.+) to (.+)$/);
+  if (bulk) return { content: toolUse("bulk_edit_items", { match: { name_contains: bulk[1].trim() }, changes: { category: bulk[2].trim() } }), stop_reason: "tool_use" };
   const labels = question.match(/(check|prepare) (package|product) labels? for (\S+)/);
   if (labels)
     return {

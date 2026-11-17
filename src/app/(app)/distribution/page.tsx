@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { DistributionTabs, Pill, usd } from "@/components/distribution-ui";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
-import { customers, orderLines, orders } from "@/db/schema";
+import { customers, destinations, orderLines, orders } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
@@ -27,11 +27,13 @@ export default async function OrdersPage() {
       .orderBy(desc(orders.createdAt))
       .limit(100),
     db
-      .select({ id: customers.id, name: customers.name })
-      .from(customers)
-      .where(and(eq(customers.orgId, session.orgId), eq(customers.active, true)))
-      .orderBy(asc(customers.name)),
+      .select({ id: destinations.id, name: destinations.name, license: destinations.licenseNumber, vendorId: customers.id, vendor: customers.name })
+      .from(destinations)
+      .innerJoin(customers, eq(customers.id, destinations.vendorId))
+      .where(and(eq(destinations.orgId, session.orgId), eq(destinations.active, true), eq(customers.active, true), eq(customers.weSellTo, true)))
+      .orderBy(asc(customers.name), asc(destinations.name)),
   ]);
+  const vendorsWithDestinations = [...new Map(customerRows.map((d) => [d.vendorId, d.vendor])).entries()];
 
   return (
     <>
@@ -67,23 +69,29 @@ export default async function OrdersPage() {
           <Card title="Start an order">
             {customerRows.length === 0 ? (
               <p className="text-sm text-slate-600">
-                Add a customer first on the{" "}
+                Add a vendor you sell to, with a destination, on the{" "}
                 <Link href="/distribution/customers" className="font-semibold text-brand-700 hover:underline">
-                  Customers
+                  Vendors
                 </Link>{" "}
                 tab.
               </p>
             ) : (
               <ActionForm action={orderAction} submitLabel="Start order">
-                <Field label="Customer">
-                  <select name="customerId" required defaultValue="" className={inputClass}>
+                <Field label="Ship to" hint="Vendor and destination. Its license is checked when the order ships.">
+                  <select name="destinationId" required defaultValue="" className={inputClass}>
                     <option value="" disabled>
-                      Choose a customer
+                      Choose a vendor and destination
                     </option>
-                    {customerRows.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
+                    {vendorsWithDestinations.map(([vendorId, vendor]) => (
+                      <optgroup key={vendorId} label={vendor}>
+                        {customerRows
+                          .filter((d) => d.vendorId === vendorId)
+                          .map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.name === vendor ? vendor : `${vendor} – ${d.name}`} ({d.license})
+                            </option>
+                          ))}
+                      </optgroup>
                     ))}
                   </select>
                 </Field>

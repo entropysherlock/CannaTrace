@@ -113,6 +113,13 @@
       "when": 1794936655834,
       "tag": "0015_tally_byok",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794941429301,
+      "tag": "0016_vendors_destinations",
+      "breakpoints": true
     }
   ]
 }

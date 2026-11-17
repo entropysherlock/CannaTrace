@@ -2,6 +2,7 @@ import Decimal from "decimal.js";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   auditLogs,
+  customers,
   cycleCountLines,
   cycleCounts,
   facilities,
@@ -263,9 +264,22 @@ export async function receivePackage(
     lotNumber?: string | null;
     costPerUnit?: unknown;
     note?: string | null;
+    /** The vendor it was bought from, if any. */
+    vendorId?: string | null;
   },
 ): Promise<Package> {
-  return db.transaction((tx) => createPackageInTx(tx, actor, { ...input, type: "RECEIVE", auditAction: "RECEIVE" }));
+  return db.transaction(async (tx) => {
+    let vendorName: string | null = null;
+    if (input.vendorId) {
+      const [v] = await tx.select({ name: customers.name }).from(customers).where(and(eq(customers.id, input.vendorId), eq(customers.orgId, actor.orgId)));
+      if (!v) throw new InventoryError("Pick the vendor from the list.");
+      vendorName = v.name;
+    }
+    const pkg = await createPackageInTx(tx, actor, { ...input, type: "RECEIVE", auditAction: "RECEIVE", auditExtra: vendorName ? { vendor: vendorName } : undefined });
+    if (!input.vendorId) return pkg;
+    const [withVendor] = await tx.update(packages).set({ vendorId: input.vendorId }).where(eq(packages.id, pkg.id)).returning();
+    return withVendor;
+  });
 }
 
 export async function movePackage(

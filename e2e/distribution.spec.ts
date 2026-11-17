@@ -26,14 +26,14 @@ test("sell wholesale: customer, order, pick, ship, manifest, invoice, payment", 
   await page.locator('input[name="licenseExpires"]').fill("2031-12-31");
   await page.locator('input[name="paymentTermsDays"]').fill("30");
   await page.locator('input[name="address"]').fill("1 Test Plaza, Santa Fe, NM");
-  await page.getByRole("button", { name: "Add customer" }).click();
+  await page.getByRole("button", { name: "Add vendor" }).click();
   await expect(page.getByRole("heading", { name: `Shop ${run}` })).toBeVisible();
   await expect(page.getByText("license has not been verified yet")).toBeVisible();
   const customerUrl = page.url();
 
   // Order: price comes from the default list; confirming is blocked until the license is verified
   await page.goto("/distribution");
-  await page.locator('select[name="customerId"]').selectOption({ label: `Shop ${run}` });
+  await page.locator('select[name="destinationId"]').selectOption({ label: `Shop ${run} (LIC-${run.toUpperCase()})` });
   await page.getByRole("button", { name: "Start order" }).click();
   await expect(page.getByRole("heading", { name: /^SO-\d{5}$/ })).toBeVisible();
   const orderUrl = page.url();
@@ -45,8 +45,8 @@ test("sell wholesale: customer, order, pick, ship, manifest, invoice, payment", 
   await expect(page.locator('form p[role="alert"]')).toContainText("license has not been verified yet");
 
   await page.goto(customerUrl);
-  await page.getByRole("button", { name: "Mark as verified" }).click();
-  await expect(page.getByText("License marked as verified.")).toBeVisible();
+  await page.getByRole("button", { name: "Mark license verified" }).click();
+  await expect(page.getByText("License verified.")).toBeVisible();
   await page.goto(orderUrl);
   await page.getByRole("button", { name: "Confirm order" }).click();
   await expect(page.getByText("Pick packages for each line")).toBeVisible();

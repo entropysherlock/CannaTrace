@@ -3,7 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/print-button";
-import { customers, drivers, facilities, items, orderAllocations, orders, packages, vehicles } from "@/db/schema";
+import { customers, destinations, drivers, facilities, items, orderAllocations, orders, packages, vehicles } from "@/db/schema";
 import { db } from "@/lib/db";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
@@ -12,15 +12,18 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
   const session = await requirePagePermission("sales.view");
   const { id } = await params;
   const [row] = await db
-    .select({ order: orders, customer: customers, facility: facilities, driver: drivers, vehicle: vehicles })
+    .select({ order: orders, customer: customers, destination: destinations, facility: facilities, driver: drivers, vehicle: vehicles })
     .from(orders)
     .innerJoin(customers, eq(customers.id, orders.customerId))
+    .leftJoin(destinations, eq(destinations.id, orders.destinationId))
     .innerJoin(facilities, eq(facilities.id, orders.facilityId))
     .innerJoin(drivers, eq(drivers.id, orders.driverId))
     .innerJoin(vehicles, eq(vehicles.id, orders.vehicleId))
     .where(and(eq(orders.id, id), eq(orders.orgId, session.orgId), eq(orders.facilityId, session.facilityId)));
   if (!row || !row.order.manifestNumber) notFound();
   const { order, customer, facility, driver, vehicle } = row;
+  // Ship to the destination's license and address; older orders have only the vendor's.
+  const to = row.destination ?? customer;
 
   const rows = await db
     .select({ tag: packages.tag, lotNumber: packages.lotNumber, quantity: orderAllocations.quantity, itemName: items.name, unit: items.unit })
@@ -62,11 +65,14 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
           </div>
           <div className={block}>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">To</p>
-            <p className="font-semibold">{customer.name}</p>
-            <p>
-              {customer.licenseType} license {customer.licenseNumber}
+            <p className="font-semibold">
+              {customer.name}
+              {row.destination && row.destination.name !== customer.name ? ` – ${row.destination.name}` : ""}
             </p>
-            <p>{customer.address ?? "No address on file"}</p>
+            <p>
+              {to.licenseType} license {to.licenseNumber}
+            </p>
+            <p>{to.address ?? "No address on file"}</p>
           </div>
           <div className={block}>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Driver</p>

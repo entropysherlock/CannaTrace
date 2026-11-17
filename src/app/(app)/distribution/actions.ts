@@ -8,6 +8,7 @@ import {
   cancelOrder,
   confirmOrder,
   createCustomer,
+  createDestination,
   createDriver,
   createOrder,
   createPriceList,
@@ -21,8 +22,14 @@ import {
   setPrice,
   shipOrder,
   unallocateFromOrder,
+  updateDestinations,
+  updateVendors,
   verifyCustomerLicense,
+  verifyDestinationLicense,
 } from "@/lib/distribution";
+import { and, eq } from "drizzle-orm";
+import { destinations } from "@/db/schema";
+import { db } from "@/lib/db";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { InventoryError, type Actor } from "@/lib/inventory";
 import { can, type Permission } from "@/lib/rbac";
@@ -52,6 +59,8 @@ export async function customerAction(_state: FormState, formData: FormData): Pro
       phone: field(formData, "phone"),
       address: field(formData, "address"),
       paymentTermsDays: field(formData, "paymentTermsDays"),
+      weSellTo: formData.get("weSellTo") === "on",
+      weBuyFrom: formData.get("weBuyFrom") === "on",
     });
     id = customer.id;
   } catch (error) {
@@ -129,7 +138,16 @@ export async function vehicleAction(_state: FormState, formData: FormData): Prom
 export async function orderAction(_state: FormState, formData: FormData): Promise<FormState> {
   let id: string;
   try {
-    const order = await createOrder(await seller(), { customerId: field(formData, "customerId"), notes: field(formData, "notes") });
+    const actor = await seller();
+    // The order form picks a destination; its vendor is the customer on the order.
+    const destinationId = field(formData, "destinationId");
+    let customerId = field(formData, "customerId");
+    if (destinationId) {
+      const [d] = await db.select({ vendorId: destinations.vendorId }).from(destinations).where(and(eq(destinations.id, destinationId), eq(destinations.orgId, actor.orgId)));
+      if (!d) return { error: "Pick a destination from the list." };
+      customerId = d.vendorId;
+    }
+    const order = await createOrder(actor, { customerId, destinationId: destinationId || undefined, notes: field(formData, "notes") });
     id = order.id;
   } catch (error) {
     return toFormError(error);
@@ -247,6 +265,65 @@ export async function paymentAction(_state: FormState, formData: FormData): Prom
     });
     refresh();
     return { ok: result.balance === "0.00" ? "Payment recorded. This invoice is paid in full." : `Payment recorded. $${result.balance} still owed.` };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function destinationAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await createDestination(await seller(), {
+      vendorId: field(formData, "vendorId"),
+      name: field(formData, "name"),
+      licenseNumber: field(formData, "licenseNumber"),
+      licenseType: field(formData, "licenseType"),
+      licenseExpires: field(formData, "licenseExpires"),
+      address: field(formData, "address"),
+      contactName: field(formData, "contactName"),
+      phone: field(formData, "phone"),
+      email: field(formData, "email"),
+    });
+    refresh();
+    return { ok: "Destination added. Verify its license before shipping there." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function verifyDestinationAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await verifyDestinationLicense(await seller(), { destinationId: field(formData, "destinationId"), licenseExpires: field(formData, "licenseExpires") });
+    refresh();
+    return { ok: "License verified." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function destinationActiveAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await updateDestinations(await seller(), [field(formData, "destinationId")], { active: field(formData, "active") === "true" });
+    refresh();
+    return null;
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function vendorDetailsAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await updateVendors(await seller(), [field(formData, "vendorId")], {
+      contactName: field(formData, "contactName"),
+      email: field(formData, "email"),
+      phone: field(formData, "phone"),
+      address: field(formData, "address"),
+      paymentTermsDays: field(formData, "paymentTermsDays") || "0",
+      weSellTo: formData.get("weSellTo") === "on",
+      weBuyFrom: formData.get("weBuyFrom") === "on",
+      active: formData.get("active") === "on",
+    });
+    refresh();
+    return { ok: "Saved." };
   } catch (error) {
     return toFormError(error);
   }

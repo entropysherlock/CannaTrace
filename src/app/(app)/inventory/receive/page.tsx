@@ -2,7 +2,7 @@ import { ActionForm } from "@/components/action-form";
 import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { and, asc, eq } from "drizzle-orm";
-import { items as itemsTable, locations as locationsTable } from "@/db/schema";
+import { customers, items as itemsTable, locations as locationsTable } from "@/db/schema";
 import { db } from "@/lib/db";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
@@ -10,7 +10,7 @@ import { receiveAction } from "../actions";
 
 export default async function ReceivePage() {
   const session = await requirePagePermission("inventory.write");
-  const [items, locations] = await Promise.all([
+  const [items, locations, vendors] = await Promise.all([
     db
       .select()
       .from(itemsTable)
@@ -21,6 +21,11 @@ export default async function ReceivePage() {
       .from(locationsTable)
       .where(and(eq(locationsTable.orgId, session.orgId), eq(locationsTable.facilityId, session.facilityId)))
       .orderBy(asc(locationsTable.name)),
+    db
+      .select({ id: customers.id, name: customers.name })
+      .from(customers)
+      .where(and(eq(customers.orgId, session.orgId), eq(customers.active, true), eq(customers.weBuyFrom, true)))
+      .orderBy(asc(customers.name)),
   ]);
 
   return (
@@ -59,6 +64,18 @@ export default async function ReceivePage() {
                 ))}
               </select>
             </Field>
+            {vendors.length ? (
+              <Field label="Bought from (optional)">
+                <select name="vendorId" defaultValue="" className={inputClass}>
+                  <option value="">Not bought from a vendor</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
             <Field label="Lot number (optional)">
               <input name="lotNumber" className={inputClass} />
             </Field>
