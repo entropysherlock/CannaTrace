@@ -30,9 +30,13 @@ export type Rule = Base &
         /** Most a single customer may buy in one transaction. Missing categories have no cap here. */
         kind: "PURCHASE_LIMIT";
         customer: "ADULT_USE" | "MEDICAL";
+        /** Per sale, or per day. The register enforces each sale; daily totals across visits need customer tracking (not yet). */
+        period: "TRANSACTION" | "DAY";
         flowerGrams?: number;
         concentrateGrams?: number;
         edibleMg?: number;
+        /** Flower and concentrate grams added together may not pass this (Michigan counts both toward 2.5 oz). */
+        combinedGrams?: number;
       }
     | { kind: "MIN_AGE"; customer: "ADULT_USE" | "MEDICAL"; years: number }
     /** Product must have a passing lab result before it can be sold at retail. */

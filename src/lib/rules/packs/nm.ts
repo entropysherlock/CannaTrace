@@ -17,6 +17,7 @@ export const NM: StatePack = {
       id: "nm-adult-limit",
       kind: "PURCHASE_LIMIT",
       customer: "ADULT_USE",
+      period: "TRANSACTION",
       flowerGrams: 56.7,
       concentrateGrams: 16,
       edibleMg: 800,
