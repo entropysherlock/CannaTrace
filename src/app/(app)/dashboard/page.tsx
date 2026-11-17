@@ -31,44 +31,37 @@ type Row = Record<string, string | number | null>;
 const q = async (query: ReturnType<typeof sql>) => (await db.execute<Row>(query)).rows;
 const n = (v: unknown) => Number(v ?? 0);
 
-type Tone = "green" | "forest" | "teal" | "outline";
-const TILE: Record<Tone, { box: string; icon: string; label: string }> = {
-  green: { box: "bg-brand-600 text-white", icon: "text-lime-200", label: "text-brand-100" },
-  forest: { box: "bg-brand-900 text-white", icon: "text-lime-200", label: "text-brand-100" },
-  teal: { box: "bg-teal-700 text-white", icon: "text-teal-100", label: "text-teal-100" },
-  outline: { box: "border-2 border-brand-500 bg-white text-brand-950", icon: "text-brand-600", label: "text-brand-700" },
-};
-
-function Tile({ icon: Icon, label, value, sub, href, tone }: { icon: LucideIcon; label: string; value: string; sub?: string; href: string; tone: Tone }) {
-  const t = TILE[tone];
+function Tile({ icon: Icon, label, value, sub, href }: { icon: LucideIcon; label: string; value: string; sub?: string; href: string }) {
   return (
-    <Link href={href} className={`group flex flex-col rounded-2xl p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${t.box}`}>
-      <Icon className={`h-7 w-7 ${t.icon}`} aria-hidden="true" />
-      <span className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">{value}</span>
-      <span className={`mt-0.5 text-sm font-semibold ${t.label}`}>{label}</span>
-      {sub ? <span className={`mt-1 text-xs ${t.label} opacity-90`}>{sub}</span> : null}
+    <Link href={href} className="flex items-center gap-4 rounded-2xl border border-brand-100 bg-white p-5 shadow-sm transition hover:border-brand-500">
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+        <Icon className="h-6 w-6" aria-hidden="true" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-2xl font-extrabold tracking-tight text-brand-950 sm:text-3xl">{value}</span>
+        <span className="block text-sm font-semibold text-slate-700">{label}</span>
+        {sub ? <span className="block text-xs text-slate-500">{sub}</span> : null}
+      </span>
     </Link>
   );
 }
 
-function ActionButton({ icon: Icon, label, href, primary }: { icon: LucideIcon; label: string; href: string; primary?: boolean }) {
+function ActionButton({ icon: Icon, label, href }: { icon: LucideIcon; label: string; href: string }) {
   return (
     <Link
       href={href}
-      className={`flex flex-col items-center justify-center gap-2 rounded-2xl px-3 py-4 text-sm font-bold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-        primary ? "bg-lime-400 text-brand-950 hover:bg-lime-300" : "border border-brand-100 bg-white text-brand-900 hover:border-brand-500"
-      }`}
+      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-200 bg-white px-3 text-sm font-semibold text-brand-800 shadow-sm transition hover:border-brand-500 hover:bg-brand-50"
     >
-      <Icon className="h-7 w-7" aria-hidden="true" />
+      <Icon className="h-4 w-4" aria-hidden="true" />
       {label}
     </Link>
   );
 }
 
 const ISSUE_STYLE = {
-  high: { icon: XCircle, tone: "text-red-600", pill: "bg-red-100 text-red-800", word: "Fix now" },
-  medium: { icon: AlertTriangle, tone: "text-amber-600", pill: "bg-amber-100 text-amber-900", word: "Fix" },
-  info: { icon: Info, tone: "text-sky-600", pill: "bg-sky-100 text-sky-900", word: "Note" },
+  high: { icon: XCircle, tone: "text-red-600", pill: "text-red-700", word: "Fix now" },
+  medium: { icon: AlertTriangle, tone: "text-amber-600", pill: "text-brand-700", word: "Fix" },
+  info: { icon: Info, tone: "text-slate-400", pill: "text-slate-500", word: "Note" },
 } as const;
 
 export default async function DashboardPage() {
@@ -170,23 +163,27 @@ export default async function DashboardPage() {
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-brand-950 sm:text-3xl">Dashboard</h1>
-          <p className="mt-1 text-sm font-medium text-brand-700">
-            {String(facility.name)} · license {String(facility.license_number)}
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-slate-600">
+            <span>
+              {String(facility.name)} · license {String(facility.license_number)}
+            </span>
+            <span className="inline-flex items-center gap-1 text-brand-700">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              {system === "MOCK" ? "Practice mode" : `${SYSTEM_LABELS[system]}: ${connection.ready ? "connected" : "not connected"}`} · {reportingText}
+            </span>
           </p>
         </div>
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-            system === "MOCK" ? "bg-amber-100 text-amber-900" : connection.ready ? "bg-brand-100 text-brand-900" : "bg-red-100 text-red-800"
-          }`}
-        >
-          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-          {system === "MOCK" ? "Practice mode" : `${SYSTEM_LABELS[system]}: ${connection.ready ? "connected" : "not connected"}`} · {reportingText}
-        </span>
+        {actions.length ? (
+          <div className="flex flex-wrap gap-2">
+            {actions.map((a) => (
+              <ActionButton key={a.href} icon={a.icon} label={a.label} href={a.href} />
+            ))}
+          </div>
+        ) : null}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Tile
-          tone="green"
           icon={Sprout}
           label="Plants growing"
           value={(n(counts.plants) + n(counts.untagged)).toLocaleString("en-US")}
@@ -194,16 +191,14 @@ export default async function DashboardPage() {
           href="/cultivation"
         />
         <Tile
-          tone="forest"
           icon={Boxes}
           label="Packages in stock"
           value={n(counts.packages).toLocaleString("en-US")}
           sub={n(counts.held) ? `${n(counts.held)} on hold` : "none on hold"}
           href="/inventory"
         />
-        <Tile tone="teal" icon={CircleDollarSign} label="Sales, last 30 days" value={usd(salesTotal)} sub="retail and wholesale" href="/reports" />
+        <Tile icon={CircleDollarSign} label="Sales, last 30 days" value={usd(salesTotal)} sub="retail and wholesale" href="/reports" />
         <Tile
-          tone="outline"
           icon={ShieldCheck}
           label="Compliance score"
           value={rulesScan.pack ? `${score}` : "—"}
@@ -211,14 +206,6 @@ export default async function DashboardPage() {
           href="/compliance/rules"
         />
       </div>
-
-      {actions.length ? (
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {actions.map((a, i) => (
-            <ActionButton key={a.href} icon={a.icon} label={a.label} href={a.href} primary={i === 0} />
-          ))}
-        </div>
-      ) : null}
 
       <div className="mt-4 grid gap-4 xl:grid-cols-3">
         <section className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
@@ -251,7 +238,7 @@ export default async function DashboardPage() {
                       <Icon className={`h-5 w-5 shrink-0 ${st.tone}`} aria-hidden="true" />
                       <span className="text-sm font-medium text-slate-800">{issue.title}</span>
                     </span>
-                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase ${st.pill}`}>{st.word}</span>
+                    <span className={`shrink-0 text-xs font-bold ${st.pill}`}>{st.word} ›</span>
                   </>
                 );
                 return (
@@ -282,10 +269,10 @@ export default async function DashboardPage() {
           <ol className="grid grid-cols-3 gap-y-4 sm:grid-cols-6">
             {stages.map((stage, i) => (
               <li key={stage.label} className="relative text-center">
-                {i > 0 ? <span className="absolute right-1/2 top-4 hidden h-1 w-full rounded bg-brand-100 sm:block" aria-hidden="true" /> : null}
+                {i > 0 ? <span className="absolute right-1/2 top-3.5 z-0 hidden h-1 w-full rounded bg-brand-100 sm:block" aria-hidden="true" /> : null}
                 <Link href={stage.href} className="relative flex flex-col items-center gap-1 hover:text-brand-700">
                   <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-extrabold ${
+                    className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-xs font-extrabold ${
                       stage.count > 0 ? "bg-brand-600 text-white" : "border-2 border-brand-200 bg-white text-brand-300"
                     }`}
                   >
@@ -305,7 +292,7 @@ export default async function DashboardPage() {
           <h2 className="mb-3 text-base font-bold text-brand-900">Plant tracking</h2>
           {topGroup ? (
             <Link href="/cultivation/plants" className="flex items-center gap-4 rounded-xl p-1 hover:bg-brand-50">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-lime-200">
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
                 <Leaf className="h-8 w-8" aria-hidden="true" />
               </span>
               <span className="min-w-0 text-sm">

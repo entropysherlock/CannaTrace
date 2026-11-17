@@ -430,11 +430,11 @@ export function AskButton() {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event("open-assistant"))}
-      className="hidden min-h-10 items-center gap-2 rounded-lg bg-lime-400 px-4 text-sm font-bold text-brand-950 shadow-sm transition hover:bg-lime-300 md:inline-flex"
+      className="hidden min-h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-brand-500 md:inline-flex"
     >
       <Sparkles className="h-4 w-4" aria-hidden="true" />
       Ask CannaTrace
-      <kbd className="rounded bg-brand-950/15 px-1.5 text-[10px] font-semibold text-brand-950">Ctrl J</kbd>
+      <kbd className="rounded bg-white/15 px-1.5 text-[10px] font-semibold text-white">Ctrl J</kbd>
     </button>
   );
 }
