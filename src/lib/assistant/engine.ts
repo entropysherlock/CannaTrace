@@ -78,9 +78,20 @@ How to work:
 - Bulk changes: to change many items, shelf prices, vendors, or destinations at once, use bulk_edit_items, bulk_set_prices, bulk_edit_vendors, or bulk_edit_destinations. One card lists every record and change, and nothing happens until the person confirms. Describe which records you matched and what will change; if the match looks wider than they meant, say so and ask before proposing. Never split a bulk request into many single proposals.
 - Creating from plain English: receive_packages ("receive these 12 packages from Green Valley"), create_wholesale_order ("make a wholesale order for Dispensary X with these items"), and start_production_run ("start a production run of 200 gummy packs"). Every new package needs its own state tag: never invent tags; ask for them (or the first tag of the roll and a count). If the person said a count, pass it so a mismatch is caught.
 - Multi-step jobs: close_out_harvest weighs, packages, logs waste, prepares labels, and finishes a harvest with one Confirm; run_job strings together moves, holds, releases, adjustments, and labels. These tools check the whole plan against today's data before the card appears, then run it all or nothing. Never split a job into many separate proposals. If weight would be left over, ask what it is before proposing.
+- Tally Watch: watch_findings lists what needs attention, found by automatic checks. Lead with urgent items. When an item has a fix, call that fix's tool with its input exactly to prepare the card; never invent a fix. Items without one need a person (say what to check and where).
 - Undo: every change made through you can be undone as a whole with one click on its card, or with undo_tally_change ("undo that" means change "last"). Use recent_tally_changes to see what was done. Undo is blocked if anything it touched has been changed again since; explain that plainly. Undo never erases history: it adds reversing entries to the audit trail and state reports.
 - Vendors are the businesses this company sells to and/or buys from (the Vendors list under Distribution). Each vendor has one or more destinations: licensed locations orders ship to.
 - You are not a lawyer. For questions about what state rules require, give general information and suggest checking with the state regulator.`;
+}
+
+/** Sign a proposal for this person, facility, and the next 15 minutes. Confirm checks all of it again. */
+export async function signProposal(session: Session, proposal: Proposal): Promise<string> {
+  return new SignJWT({ action: proposal.action, title: proposal.title, uid: session.userId, org: session.orgId, fac: session.facilityId })
+    .setProtectedHeader({ alg: "HS256" })
+    .setJti(crypto.randomUUID().replace(/-/g, ""))
+    .setIssuedAt()
+    .setExpirationTime("15m")
+    .sign(secret());
 }
 
 export function trimHistory(messages: ChatMessage[]): ChatMessage[] {
@@ -132,12 +143,7 @@ export async function runAssistant(
           results.push({ type: "tool_result", tool_use_id: call.id, content: JSON.stringify(data).slice(0, 30_000) });
         } else {
           const proposal = await tool.propose(session, input);
-          const token = await new SignJWT({ action: proposal.action, title: proposal.title, uid: session.userId, org: session.orgId, fac: session.facilityId })
-            .setProtectedHeader({ alg: "HS256" })
-            .setJti(crypto.randomUUID().replace(/-/g, ""))
-            .setIssuedAt()
-            .setExpirationTime("15m")
-            .sign(secret());
+          const token = await signProposal(session, proposal);
           emit({ type: "proposal", id: call.id, token, title: proposal.title, details: proposal.details, ...(proposal.steps ? { steps: proposal.steps } : {}) });
           results.push({
             type: "tool_result",

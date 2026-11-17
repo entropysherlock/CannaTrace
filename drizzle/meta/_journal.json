@@ -127,6 +127,13 @@
       "when": 1794945713342,
       "tag": "0017_tally_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794948286127,
+      "tag": "0018_tally_watch",
+      "breakpoints": true
     }
   ]
 }
