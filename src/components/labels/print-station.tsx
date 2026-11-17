@@ -8,7 +8,7 @@ import { Field, inputClass } from "@/components/ui";
 import type { LabelIssue, LabelKind } from "@/lib/labels/types";
 import { LABEL_KINDS } from "@/lib/labels/types";
 import { IssueList, type PackInfo } from "./issues";
-import { JobActions, newRequestKey } from "./job-actions";
+import { JobActions, newRequestKey, printJobPdf } from "./job-actions";
 
 export type TemplateOption = { id: string; name: string; kind: LabelKind; isDefault: boolean; jurisdiction: string | null; size: string };
 export type PrinterOption = { id: string; name: string; isDefault: boolean };
@@ -117,7 +117,10 @@ export function PrintStation({
         if (data.issues?.length && preview) setPreview({ ...preview, issues: data.issues, blocked: true });
         throw new Error(data.error);
       }
-      setJob({ ...data.job, duplicate: data.duplicate });
+      // One click: create the job, then go straight to the print dialog.
+      const printed = await printJobPdf(data.job.id);
+      setJob({ ...data.job, status: printed.ok ? "RENDERED" : "FAILED", duplicate: data.duplicate });
+      if (!printed.ok) setError(printed.error);
       router.refresh();
     } catch (e) {
       setError((e as Error).message || "The print job wasn't created.");
@@ -283,17 +286,17 @@ export function PrintStation({
             {job ? (
               <div className="space-y-2 rounded-lg border border-brand-200 bg-brand-50 p-3" data-testid="label-job">
                 <p className="text-sm font-semibold text-brand-900">
-                  {job.duplicate ? "This print was already started; here it is." : `Print job created for ${job.labelCount} label${job.labelCount === 1 ? "" : "s"}.`}
+                  {job.duplicate ? "This print was already started; here it is." : `Sent ${job.labelCount} label${job.labelCount === 1 ? "" : "s"} to the print dialog.`}
                 </p>
                 <p className="text-xs text-brand-900">
-                  In the print dialog pick your label printer, set paper to {preview.size.widthMm} × {preview.size.heightMm} mm, scale to 100% (Actual size), and margins to none. Then come back and tell us whether it printed.
+                  In the print dialog pick your label printer, set paper to {preview.size.widthMm} × {preview.size.heightMm} mm, scale to 100% (Actual size), and margins to none. Then tell us whether it printed. Closed the dialog by mistake? Press Print again.
                 </p>
                 <JobActions id={job.id} status={job.status} />
               </div>
             ) : (
               <button type="button" disabled={busy || preview.blocked} onClick={createJob} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">
                 <Printer className="h-4 w-4" aria-hidden="true" />
-                {preview.blocked ? "Fix the blocking problems to print" : `Create print job (${preview.count * copies} label${preview.count * copies === 1 ? "" : "s"})`}
+                {preview.blocked ? "Fix the blocking problems to print" : `Print ${preview.count * copies} label${preview.count * copies === 1 ? "" : "s"}`}
               </button>
             )}
           </>

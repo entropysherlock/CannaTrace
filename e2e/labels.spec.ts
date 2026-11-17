@@ -30,6 +30,8 @@ test("SmartLabel sits under Operations, directly below Register", async ({ page 
 });
 
 test("a new package's label fills in, checks, prints as an exact-size PDF, and reprints without touching inventory", async ({ page }) => {
+  // Headless browsers can't show a print dialog; record print requests instead.
+  await page.addInitScript(() => ((window as unknown as { __labelPrints: string[] }).__labelPrints = []));
   await signIn(page, "inventory@demo.test");
 
   // 1. Create a package
@@ -57,11 +59,14 @@ test("a new package's label fills in, checks, prints as an exact-size PDF, and r
   await expect(page.getByTestId("label-issues")).toContainText("No blocking problems in 1 label");
 
   // 6-7. Create the job and get a PDF the exact size of the 4" x 2" label
-  await page.getByRole("button", { name: /Create print job/ }).click();
-  const jobBox = page.getByTestId("label-job");
-  await expect(jobBox).toContainText("Print job created for 1 label.");
+  // One click creates the job and sends the PDF to the print dialog
   const pdfResponse = page.waitForResponse((r) => /\/api\/labels\/jobs\/[^/]+\/pdf$/.test(r.url()));
-  await jobBox.getByRole("button", { name: "Open PDF" }).click();
+  await page.getByRole("button", { name: "Print 1 label" }).click();
+  const jobBox = page.getByTestId("label-job");
+  await expect(jobBox).toContainText("Sent 1 label to the print dialog.");
+  await expect(page.locator("iframe#label-print-frame")).toHaveCount(1);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __labelPrints: string[] }).__labelPrints.length)).toBe(1);
+  await expect(jobBox.getByRole("button", { name: "Print again" }).or(jobBox.getByRole("button", { name: "Print", exact: true }))).toBeVisible();
   const res = await pdfResponse;
   expect(res.status()).toBe(200);
   expect(res.headers()["content-type"]).toBe("application/pdf");
