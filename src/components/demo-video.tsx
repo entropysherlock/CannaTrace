@@ -3,7 +3,8 @@
 import { Play, X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 
-export const TOUR_VIDEO = "/tour/cannatrace-tour.mp4";
+export const TOUR_VIDEO = "/tour/cannatrace-tour-professional.mp4";
+export const TOUR_VIDEO_FALLBACK = "/tour/cannatrace-tour.mp4";
 export const TOUR_POSTER = "/tour/poster.jpg";
 
 const OPEN_EVENT = "cannatrace:open-tour";
@@ -49,13 +50,15 @@ export function DemoVideoPlayer() {
       <div className="relative">
         <video
           ref={video}
-          src={TOUR_VIDEO}
           poster={TOUR_POSTER}
           controls
           playsInline
           preload="metadata"
           className="aspect-video w-full rounded-xl bg-black shadow-2xl"
-        />
+        >
+          <source src={TOUR_VIDEO} type="video/mp4" />
+          <source src={TOUR_VIDEO_FALLBACK} type="video/mp4" />
+        </video>
         <button
           type="button"
           onClick={close}
