@@ -29,12 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const tabs = (list: [string, string, boolean][]) => list.filter(([, , show]) => show).map(([href, label]) => ({ href, label }));
   const entry = (key: string, label: string, list: Tab[]): NavItem | null => (list.length ? { key, label, href: list[0].href, tabs: list } : null);
   const groups: NavGroup[] = [
-    {
-      items: [
-        { key: "dashboard", label: "Dashboard", href: "/dashboard" },
-        { key: "watch", label: "Tally Watch", href: "/watch" },
-      ],
-    },
+    { items: [{ key: "dashboard", label: "Dashboard", href: "/dashboard" }] },
     {
       heading: "Operations",
       items: [

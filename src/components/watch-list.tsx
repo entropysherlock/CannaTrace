@@ -40,6 +40,8 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 export function WatchList({ items, dismiss, sweep }: { items: WatchItem[]; dismiss: (state: null, form: FormData) => Promise<unknown>; sweep: () => Promise<void> }) {
   const router = useRouter();
   const [fixes, setFixes] = useState<Record<string, Fix>>({});
+  const [showAll, setShowAll] = useState(false);
+  const SHOWN = 6;
   const set = (id: string, fix: Fix) => setFixes((f) => ({ ...f, [id]: fix }));
 
   const open = async (item: WatchItem) => {
@@ -78,8 +80,9 @@ export function WatchList({ items, dismiss, sweep }: { items: WatchItem[]; dismi
     );
 
   return (
+    <>
     <ul className="space-y-3" data-watch-list>
-      {items.map((item) => {
+      {(showAll ? items : items.slice(0, SHOWN)).map((item) => {
         const look = LOOK[item.severity];
         const Icon = look.icon;
         const fix = fixes[item.id];
@@ -217,5 +220,11 @@ export function WatchList({ items, dismiss, sweep }: { items: WatchItem[]; dismi
         );
       })}
     </ul>
+    {items.length > SHOWN ? (
+      <button type="button" onClick={() => setShowAll((v) => !v)} className="mt-3 text-sm font-semibold text-brand-700 underline underline-offset-2">
+        {showAll ? "Show fewer" : `Show all ${items.length}`}
+      </button>
+    ) : null}
+    </>
   );
 }

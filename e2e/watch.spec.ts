@@ -7,8 +7,10 @@ test("Tally Watch matches against a state report, fixes a difference after one C
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/dashboard/);
 
-  await page.getByRole("link", { name: "Tally Watch" }).first().click();
-  await expect(page.getByRole("heading", { name: "Tally Watch" })).toBeVisible();
+  // Tally Watch lives on the Dashboard, not in its own tab
+  await expect(page.getByRole("link", { name: "Tally Watch" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: /^Tally Watch/ })).toBeVisible();
+  await page.getByText("Match against the state system").click();
 
   // Upload a state report where one package's count differs and one package exists only in the state system
   const only = `1A4E2E${Date.now().toString(36).toUpperCase()}`;
@@ -16,6 +18,8 @@ test("Tally Watch matches against a state report, fixes a difference after one C
   await page.getByLabel("State package report (CSV)").setInputFiles({ name: "metrc-packages.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await page.getByRole("button", { name: "Upload and compare" }).click();
   await expect(page.getByText(/Compared 2 state packages with CannaTrace/)).toBeVisible();
+  const showAll = page.getByRole("button", { name: /^Show all \d+$/ });
+  if (await showAll.isVisible()) await showAll.click();
   await expect(page.getByText(`Package ${only} is open in the state system but not in CannaTrace`)).toBeVisible();
 
   const item = page.locator("[data-watch-item]", { hasText: /CT-000008: CannaTrace has .* the state has 1,990 ea/ });
@@ -28,7 +32,8 @@ test("Tally Watch matches against a state report, fixes a difference after one C
   await card.getByRole("button", { name: "Undo this" }).click();
   await expect(card.getByText(/Undone: Match CT-000008 to the state/)).toBeVisible();
 
-  // The dashboard points to Tally Watch
-  await page.goto("/dashboard");
-  await expect(page.locator("[data-watch-summary]")).toContainText("Tally Watch found");
+  // After a reload the list is still on the Dashboard
+  await page.reload();
+  if (await showAll.isVisible()) await showAll.click();
+  await expect(page.locator("[data-watch-section]")).toContainText(`Package ${only} is open in the state system`);
 });
