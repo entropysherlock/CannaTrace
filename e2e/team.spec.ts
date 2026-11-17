@@ -76,7 +76,7 @@ test("the CannaTrace logo opens the homepage, which offers a way back to the das
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
   await page.getByTitle("CannaTrace home").filter({ visible: true }).first().click();
-  await expect(page.getByRole("heading", { name: /From Seed to Sale/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /From seed to sale/i })).toBeVisible();
   await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0);
   await page.getByRole("link", { name: "Go to dashboard" }).first().click();
   await expect(page).toHaveURL(/\/dashboard/);

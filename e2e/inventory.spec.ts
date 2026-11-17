@@ -204,8 +204,8 @@ test("a sign-in for an account that no longer exists is cleared instead of loopi
 
 test("the public homepage shows the product and leads to sign in", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /From Seed to Sale/ })).toBeVisible();
-  await expect(page.getByText("Example view. Figures are for illustration.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /From seed to sale/i })).toBeVisible();
+  await expect(page.getByText("Example screen. Figures are for illustration.")).toBeVisible();
   await page.getByRole("link", { name: "Get started" }).first().click();
   await expect(page).toHaveURL(/\/signup/);
 });

@@ -1,8 +1,10 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/bricolage-grotesque";
 
 @theme {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   /* CannaTrace greens */
   --color-brand-50: #eef7f1;
   --color-brand-100: #d7ecdf;
