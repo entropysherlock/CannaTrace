@@ -16,6 +16,11 @@ test("an owner adds a facility, switches to it, and changes its state", async ({
 
   // Add a Colorado store
   const add = page.locator("section", { has: page.getByRole("heading", { name: "Add a facility" }) });
+  // Only legal adult-use states with built-in rules are offered
+  await expect(add.locator('select[name="state"] option', { hasText: "Wyoming" })).toHaveCount(0);
+  await expect(add.locator('select[name="state"] option', { hasText: "Alabama" })).toHaveCount(0);
+  await expect(add.locator('select[name="state"] option', { hasText: "Ohio" })).toHaveCount(1);
+
   await add.locator('input[name="name"]').fill(`${run} Denver Store`);
   await add.locator('input[name="licenseNumber"]').fill(`${run}-CO`);
   await add.locator('select[name="licenseType"]').selectOption("RETAIL");

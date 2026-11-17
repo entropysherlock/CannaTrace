@@ -18,3 +18,7 @@ export const isStateCode = (code: string) => US_STATES.some((s) => s.code === co
 export const stateName = (code: string) => US_STATES.find((s) => s.code === code)?.name ?? code;
 /** Whether CannaTrace has a verified rule pack for the state (purchase limits, ages, testing, waste). */
 export const hasRulePack = (code: string) => Boolean(PACKS[code]);
+
+/** The states CannaTrace sells in: adult-use is legal there and the state's rules are built in. */
+export const SUPPORTED_STATES = US_STATES.filter((s) => hasRulePack(s.code));
+export const isSupportedState = (code: string) => SUPPORTED_STATES.some((s) => s.code === code);

@@ -35,7 +35,7 @@ function FacilityFields({ f }: { f?: { name: string; licenseNumber: string; lice
           ))}
         </select>
       </Field>
-      <Field label="State" hint="Decides which state's rules CannaTrace enforces here: purchase limits, minimum age, testing before sale, waste, and labels.">
+      <Field label="State" hint="States where adult-use sales are legal and CannaTrace has the state's rules built in. The state decides which rules apply here: purchase limits, minimum age, and testing before sale.">
         <StateSelect defaultValue={f?.state} />
       </Field>
     </div>

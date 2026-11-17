@@ -3,19 +3,20 @@ import { and, eq } from "drizzle-orm";
 import { auditLogs, facilities, licenseTypeEnum } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
-import { isStateCode } from "./states";
+import { isSupportedState } from "./states";
 
 export type FacilityActor = { orgId: string; userId: string; userName: string; facilityId: string };
 export type FacilityInput = { name: string; licenseNumber: string; licenseType: string; state: string };
 
-function clean(input: FacilityInput) {
+function clean(input: FacilityInput, keepState?: string) {
   const name = input.name.trim().slice(0, 100);
   if (!name) throw new InventoryError("Enter the facility's name.");
   const licenseNumber = input.licenseNumber.trim().toUpperCase().slice(0, 60);
   if (!licenseNumber) throw new InventoryError("Enter the facility's state license number.");
   if (!(licenseTypeEnum.enumValues as readonly string[]).includes(input.licenseType)) throw new InventoryError("Choose a license type.");
   const state = input.state.trim().toUpperCase();
-  if (!isStateCode(state)) throw new InventoryError("Choose the facility's state.");
+  // A facility may keep a state it already had; new choices must be a state CannaTrace supports.
+  if (!isSupportedState(state) && state !== keepState) throw new InventoryError("Choose one of the listed states. CannaTrace only supports states with legal adult-use sales and built-in rules.");
   return { name, licenseNumber, licenseType: input.licenseType as (typeof licenseTypeEnum.enumValues)[number], state };
 }
 
@@ -35,9 +36,9 @@ export async function addFacility(actor: FacilityActor, input: FacilityInput) {
 
 /** Changing the state switches which state's rules CannaTrace enforces at that facility from then on. */
 export async function updateFacility(actor: FacilityActor, facilityId: string, input: FacilityInput) {
-  const values = clean(input);
   const [before] = await db.select().from(facilities).where(and(eq(facilities.id, facilityId), eq(facilities.orgId, actor.orgId)));
   if (!before) throw new InventoryError("That facility was not found.");
+  const values = clean(input, before.state);
   try {
     await db.update(facilities).set(values).where(eq(facilities.id, facilityId));
   } catch (e) {

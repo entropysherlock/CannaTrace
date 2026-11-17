@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { auditLogs, facilities, licenseTypeEnum, organizations, users } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
+import { isSupportedState } from "./states";
 
 /** True until the first owner account exists. The setup screen only works while this is true. */
 export async function needsSetup(): Promise<boolean> {
@@ -54,7 +55,7 @@ export async function createBusiness(
   const licenseNumber = text(input.licenseNumber, "Enter the facility's state license number.", 60).toUpperCase();
   if (!(licenseTypeEnum.enumValues as readonly string[]).includes(input.licenseType)) throw new InventoryError("Choose the license type.");
   const state = input.state.trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(state)) throw new InventoryError("Enter the two-letter state code, for example NM.");
+  if (!isSupportedState(state)) throw new InventoryError("Choose one of the listed states. CannaTrace supports states with legal adult-use sales and built-in rules.");
   const ownerName = text(input.ownerName, "Enter your name.", 100);
   const email = checkEmail(input.email);
   if (input.password.length < MIN_PASSWORD)
