@@ -75,3 +75,37 @@ test("people who are not CannaTrace support cannot reach the console", async ({ 
   await page.goto("/support");
   await expect(page).toHaveURL(/\/dashboard/);
 });
+
+test("support sets up a new business for a customer, and the owner joins from the invite link", async ({ page, browser }) => {
+  const company = `Mesa Verde Cannabis ${run}`;
+  await signIn(page, "owner@demo.test");
+  await page.goto("/support");
+  const form = page.locator("details", { hasText: "Set up a new business" });
+  if (!(await form.evaluate((d) => (d as HTMLDetailsElement).open))) await form.getByText("Show").click();
+  await form.getByRole("textbox", { name: "Business (company) name" }).fill(company);
+  await form.getByRole("textbox", { name: "First facility name" }).fill("Durango Ave");
+  await form.getByRole("textbox", { name: "State license number" }).fill(`MV-${run}`);
+  await form.getByRole("combobox", { name: "License type" }).selectOption("RETAIL");
+  await form.locator('select[name="state"]').selectOption("CO");
+  await form.getByRole("textbox", { name: "Owner's email" }).fill(`mesa-${run}@e2e.test`);
+  await form.getByRole("button", { name: "Create business" }).click();
+  const done = form.getByRole("status");
+  await expect(done).toContainText(`Created ${company}.`);
+  const link = (await done.innerText()).match(/https?:\/\/\S+\/invite\/\S+/)![0];
+
+  // It is listed with its facility and can be opened before the owner joins
+  const row = page.getByRole("list", { name: `Facilities of ${company}` }).getByRole("listitem");
+  await expect(row).toContainText(`Colorado · retail · license MV-${run.toUpperCase()}`);
+
+  // The owner sets their password and lands in their new business
+  const owner = await browser.newPage();
+  await owner.goto(new URL(link).pathname);
+  await expect(owner.getByRole("heading", { name: `Join ${company}` })).toBeVisible();
+  await owner.locator('input[name="name"]').filter({ visible: true }).fill("Morgan Mesa");
+  await owner.locator('input[name="password"]').filter({ visible: true }).fill(PASSWORD);
+  await owner.locator('input[name="confirm"]').filter({ visible: true }).fill(PASSWORD);
+  await owner.getByRole("button", { name: "Join the team" }).click();
+  await expect(owner).toHaveURL(/\/dashboard/);
+  await expect(owner.getByText("Durango Ave · license")).toBeVisible();
+  await owner.close();
+});

@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { InventoryError } from "@/lib/inventory-math";
-import { addSupportAdmin, openSupportVisit, removeSupportAdmin } from "@/lib/platform-admin";
+import { headers } from "next/headers";
+import { addSupportAdmin, createCustomerBusiness, openSupportVisit, removeSupportAdmin } from "@/lib/platform-admin";
 import { createSession, requireSession } from "@/lib/session";
 
 async function admin() {
@@ -38,6 +39,27 @@ export async function removeAdminAction(_state: FormState, formData: FormData): 
     await removeSupportAdmin(await admin(), field(formData, "userId"));
     revalidatePath("/support");
     return { ok: "Support access removed." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function createBusinessAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const made = await createCustomerBusiness(await admin(), {
+      businessName: field(formData, "businessName"),
+      facilityName: field(formData, "facilityName"),
+      licenseNumber: field(formData, "licenseNumber"),
+      licenseType: field(formData, "licenseType"),
+      state: field(formData, "state"),
+      ownerEmail: field(formData, "ownerEmail"),
+    });
+    const h = await headers();
+    const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
+    revalidatePath("/support");
+    return {
+      ok: `Created ${made.businessName}. It is in the list below, and you can open it now.\nSend this link to ${made.ownerEmail} so they can set their password (works once, for 7 days):\n${origin}/invite/${made.inviteToken}`,
+    };
   } catch (error) {
     return toFormError(error);
   }
