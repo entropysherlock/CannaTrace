@@ -5,6 +5,43 @@ import { useState } from "react";
 
 export const newRequestKey = () => crypto.randomUUID().replace(/-/g, "");
 
+/**
+ * Build the job's PDF and send it straight to the browser's print dialog through a hidden frame.
+ * Errors come back as a message instead of an error page.
+ */
+export async function printJobPdf(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await fetch(`/api/labels/jobs/${id}/pdf`);
+  if (!res.ok) return { ok: false, error: (await res.json().catch(() => ({}))).error ?? "The labels could not be made." };
+  const url = URL.createObjectURL(await res.blob());
+  document.getElementById("label-print-frame")?.remove();
+  const frame = document.createElement("iframe");
+  frame.id = "label-print-frame";
+  frame.title = "Labels to print";
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  frame.src = url;
+  // Automated tests set this list instead of opening a real print dialog (headless browsers can't show one).
+  const testHook = (window as unknown as { __labelPrints?: string[] }).__labelPrints;
+  if (testHook) {
+    testHook.push(id);
+    document.body.appendChild(frame);
+    return { ok: true };
+  }
+  frame.onload = () => {
+    // Give the PDF viewer a moment to lay out the pages, and the screen a moment to update, before printing.
+    setTimeout(() => {
+      try {
+        frame.contentWindow?.focus();
+        frame.contentWindow?.print();
+      } catch {
+        // Some browsers won't print a PDF from a frame; open it so the person can print from there.
+        window.open(url, "_blank");
+      }
+    }, 500);
+  };
+  document.body.appendChild(frame);
+  return { ok: true };
+}
+
 const btn = "inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-bold transition disabled:opacity-50";
 
 /** What a person can do with a print job. PDF opening counts as an attempt; "It printed" is their confirmation. */
@@ -57,13 +94,36 @@ export function JobActions({ id, status: initial, blocked }: { id: string; statu
     }
   }
 
+  async function print() {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await printJobPdf(id);
+      if (!r.ok) {
+        setStatus("FAILED");
+        throw new Error(r.error);
+      }
+      if (status !== "PRINTED") setStatus("RENDERED");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+      router.refresh();
+    }
+  }
+
   const open = status !== "CANCELLED" && !(blocked && status === "FAILED");
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {open ? (
-        <button type="button" disabled={busy} onClick={openPdf} className={`${btn} bg-brand-600 text-white hover:bg-brand-700`}>
-          {status === "FAILED" ? "Try again" : status === "PRINTED" ? "Open PDF again" : "Open PDF"}
-        </button>
+        <>
+          <button type="button" disabled={busy} onClick={print} className={`${btn} bg-brand-600 text-white hover:bg-brand-700`}>
+            {status === "FAILED" ? "Try printing again" : status === "PRINTED" ? "Print again" : "Print"}
+          </button>
+          <button type="button" disabled={busy} onClick={openPdf} className={`${btn} border border-brand-300 bg-white text-brand-800 hover:border-brand-600`}>
+            Open PDF
+          </button>
+        </>
       ) : null}
       {status === "RENDERED" ? (
         <>
