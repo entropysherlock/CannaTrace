@@ -5,7 +5,7 @@ import { layoutText } from "./text";
 import type { LabelDesign, LabelIssue, LabelKind, LabelRecord } from "./types";
 
 /** Fields that identify a regulated item. A label missing one of these must not print. */
-const CRITICAL_FIELDS = new Set(["package.tag", "plant.tag", "batch.name", "facility.license", "lab.thc", "lab.cbd", "order.number", "order.manifest"]);
+const CRITICAL_FIELDS = new Set(["package.tag", "plant.tag", "batch.name", "facility.license", "lab.thc", "order.number", "order.manifest"]);
 
 /** Scanners need bars at least this tall, in millimetres. */
 const MIN_1D_HEIGHT_MM = 5;

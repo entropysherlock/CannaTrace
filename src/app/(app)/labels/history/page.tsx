@@ -61,7 +61,7 @@ export default async function LabelHistoryPage() {
                     </td>
                     <td>{job.userName}</td>
                     <td>
-                      <JobActions id={job.id} status={job.status} />
+                      <JobActions id={job.id} status={job.status} blocked={job.attempts === 0 && !!job.error?.startsWith("Blocked")} />
                     </td>
                   </tr>
                 ))}

@@ -73,7 +73,7 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
                   </p>
                   {job.error ? <p className="text-xs font-medium text-red-700">{job.error}</p> : null}
                 </div>
-                <JobActions id={job.id} status={job.status} />
+                <JobActions id={job.id} status={job.status} blocked={job.attempts === 0 && !!job.error?.startsWith("Blocked")} />
               </li>
             ))}
           </ul>

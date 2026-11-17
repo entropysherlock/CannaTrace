@@ -7,6 +7,7 @@ import { can, type Permission } from "@/lib/rbac";
 import { ENFORCEMENT } from "@/lib/rules";
 import { scanFacility } from "@/lib/rules/scan";
 import type { Session } from "@/lib/session";
+import { LABEL_TOOLS } from "./label-tools";
 
 /**
  * Everything the assistant can see or do. Each tool runs with the signed-in person's own
@@ -455,6 +456,7 @@ export const TOOLS: Tool[] = [
       return `Package ${pkg.tag} is now ${qty(pkg.quantity, pkg.unit)}.`;
     },
   },
+  ...LABEL_TOOLS,
 ];
 
 /** The tools this person may use. Others are never offered to the model at all. */

@@ -103,12 +103,11 @@ test("receive, move, adjust, split, hold, lab result, label, and count", async (
   await page.getByRole("button", { name: "Update status" }).click();
   await expect(page.getByText("Status updated and logged.")).toBeVisible();
 
-  // Label
-  await page.getByRole("link", { name: "Print label" }).click();
-  await expect(page).toHaveURL(/\/label$/);
-  await expect(page.locator("main svg:not(.lucide)").filter({ visible: true }).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Print label" })).toBeVisible();
-  await expect(page.locator("main p.font-mono")).toHaveText(`${run}-A`);
+  // Label: opens SmartLabel with this package chosen
+  await page.getByRole("link", { name: "Print package label" }).click();
+  await expect(page).toHaveURL(/\/labels\?kind=PACKAGE&ids=/);
+  await page.getByRole("button", { name: "Check and preview" }).click();
+  await expect(page.getByTestId("label-previews")).toContainText(`${run}-A`);
 
   // Search finds it
   await page.goto(`/inventory?q=${run}-B`);

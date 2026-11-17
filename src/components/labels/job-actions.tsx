@@ -8,7 +8,8 @@ export const newRequestKey = () => crypto.randomUUID().replace(/-/g, "");
 const btn = "inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-bold transition disabled:opacity-50";
 
 /** What a person can do with a print job. PDF opening counts as an attempt; "It printed" is their confirmation. */
-export function JobActions({ id, status: initial }: { id: string; status: string }) {
+/** `blocked` jobs failed the checks before any PDF was made; retrying can't help, so only Cancel is offered. */
+export function JobActions({ id, status: initial, blocked }: { id: string; status: string; blocked?: boolean }) {
   const router = useRouter();
   const [status, setStatus] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -56,7 +57,7 @@ export function JobActions({ id, status: initial }: { id: string; status: string
     }
   }
 
-  const open = status !== "CANCELLED";
+  const open = status !== "CANCELLED" && !(blocked && status === "FAILED");
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {open ? (
@@ -85,7 +86,7 @@ export function JobActions({ id, status: initial }: { id: string; status: string
       {status === "PRINTED" ? (
         <button type="button" disabled={busy} onClick={async () => {
             const data = await post(`/api/labels/jobs/${id}/reprint`, { idempotencyKey: reprintKey });
-            if (data) setNote(data.duplicate ? "Reprint already started; see the queue." : `Reprint queued: ${data.job.labelCount} labels. Open it from the queue.`);
+            if (data) setNote(data.duplicate ? "Reprint already started; see the queue." : `Reprint queued: ${data.job.labelCount} label${data.job.labelCount === 1 ? "" : "s"}. Open it from the Print queue.`);
           }} className={`${btn} border border-brand-300 bg-white text-brand-800 hover:border-brand-600`}>
           Reprint
         </button>
