@@ -223,6 +223,8 @@ export const packages = pgTable(
     unit: unitEnum("unit").notNull(),
     locationId: text("location_id").references(() => locations.id),
     status: packageStatusEnum("status").notNull().default("ACTIVE"),
+    /** When the package last went on hold or into quarantine; cleared on release. Used for waste hold periods. */
+    heldSince: timestamp("held_since", { withTimezone: true }),
     lotNumber: text("lot_number"),
     costPerUnit: qty("cost_per_unit"),
     createdAt: createdAt(),

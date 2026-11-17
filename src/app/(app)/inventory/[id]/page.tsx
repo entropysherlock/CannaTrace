@@ -8,6 +8,7 @@ import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, StatusBadge, inputClass } from "@/components/ui";
 import {
   auditLogs,
+  facilities,
   inventoryTransactions,
   itemCategories,
   items,
@@ -20,6 +21,7 @@ import {
 import { db } from "@/lib/db";
 import { ADJUST_REASONS, reasonLabel } from "@/lib/inventory";
 import { can } from "@/lib/rbac";
+import { packFor, wasteRule } from "@/lib/rules";
 import { requirePagePermission } from "@/lib/session";
 import { formatQty, unitLabel } from "@/lib/units";
 import { adjustAction, labResultAction, mergeAction, moveAction, splitAction, statusAction } from "../actions";
@@ -52,6 +54,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
       quantity: packages.quantity,
       unit: packages.unit,
       status: packages.status,
+      heldSince: packages.heldSince,
       locationId: packages.locationId,
       lotNumber: packages.lotNumber,
       costPerUnit: packages.costPerUnit,
@@ -115,6 +118,16 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
   const unit = pkg.unit;
   const num = (value: string) => new Decimal(value).toString();
   const editable = pkg.status !== "DESTROYED" && pkg.status !== "FINISHED";
+  const [facility] = await db.select({ state: facilities.state }).from(facilities).where(eq(facilities.id, session.facilityId));
+  const pack = packFor(facility?.state);
+  const wasteRuleHere = wasteRule(pack);
+  const waste = pack && wasteRuleHere ? { state: pack.name, holdHours: wasteRuleHere.holdHours, minMixPercent: wasteRuleHere.minMixPercent } : null;
+  const heldNote =
+    waste && pkg.heldSince && (pkg.status === "ON_HOLD" || pkg.status === "QUARANTINE")
+      ? `Held since ${pkg.heldSince.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" })}.`
+      : waste
+        ? "It isn't on hold yet."
+        : "";
   const canWrite = can(session, "inventory.write");
   const canAdjust = can(session, "inventory.adjust");
   const parents = lineage.filter((l) => l.childId === pkg.id);
@@ -280,6 +293,19 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                 <Field label="Reason" hint="Required. Shown in the audit trail.">
                   <input name="reason" required className={inputClass} />
                 </Field>
+                {waste ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <p>
+                      <strong>{waste.state} waste rule:</strong> hold it for {waste.holdHours} hours first, then make it unusable by mixing with at least{" "}
+                      {waste.minMixPercent}% non-cannabis material.
+                      {heldNote ? ` ${heldNote}` : ""}
+                    </p>
+                    <label className="mt-2 flex items-start gap-2">
+                      <input type="checkbox" name="mixedConfirmed" value="yes" className="mt-0.5 h-5 w-5 accent-brand-700" />
+                      <span>If destroying: it was mixed with at least {waste.minMixPercent}% non-cannabis material</span>
+                    </label>
+                  </div>
+                ) : null}
               </ActionForm>
             </Fold>
           ) : null}

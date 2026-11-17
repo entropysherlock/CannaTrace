@@ -4,6 +4,7 @@ import {
   auditLogs,
   cycleCountLines,
   cycleCounts,
+  facilities,
   inventoryTransactions,
   items,
   labResults,
@@ -14,6 +15,7 @@ import {
   type PackageStatus,
 } from "@/db/schema";
 import { db, type Tx } from "./db";
+import { packFor, wasteRule } from "./rules";
 import { enqueueSyncEvent } from "./sync";
 import { InventoryError, applyDelta, normalizeTag, parsePositiveQty, planSplit, weightedAverageCost } from "./inventory-math";
 import { roundQty } from "./units";
@@ -564,7 +566,9 @@ export async function setAllocatedInTx(tx: Tx, actor: Actor, pkg: Package, alloc
     throw new InventoryError(`Package ${pkg.tag} is ${pkg.status.replace("_", " ").toLowerCase()} and cannot be put on an order.`);
   }
   if (!allocated && pkg.status !== "ALLOCATED") return pkg;
-  const [updated] = await tx.update(packages).set({ status }).where(eq(packages.id, pkg.id)).returning();
+  // Start the hold clock when it first leaves active; keep it when switching between hold and quarantine.
+  const heldSince = status === "ACTIVE" ? null : pkg.status === "ON_HOLD" || pkg.status === "QUARANTINE" ? (pkg.heldSince ?? new Date()) : new Date();
+  const [updated] = await tx.update(packages).set({ status, heldSince }).where(eq(packages.id, pkg.id)).returning();
   await tx.insert(inventoryTransactions).values({
     orgId: actor.orgId,
     facilityId: actor.facilityId,
@@ -622,7 +626,9 @@ const HOLD_STATUSES = ["ACTIVE", "ON_HOLD", "QUARANTINE"] as const;
 export type HoldStatus = (typeof HOLD_STATUSES)[number];
 
 async function changeStatus(tx: Tx, actor: Actor, pkg: Package, status: HoldStatus, reason: string): Promise<Package> {
-  const [updated] = await tx.update(packages).set({ status }).where(eq(packages.id, pkg.id)).returning();
+  // Start the hold clock when it first leaves active; keep it when switching between hold and quarantine.
+  const heldSince = status === "ACTIVE" ? null : pkg.status === "ON_HOLD" || pkg.status === "QUARANTINE" ? (pkg.heldSince ?? new Date()) : new Date();
+  const [updated] = await tx.update(packages).set({ status, heldSince }).where(eq(packages.id, pkg.id)).returning();
   await tx.insert(inventoryTransactions).values({
     orgId: actor.orgId,
     facilityId: actor.facilityId,
@@ -667,7 +673,7 @@ export async function setPackageStatus(
 /** Record destruction of everything left in a package. Cannot be undone. */
 export async function destroyPackage(
   actor: Actor,
-  input: { packageId: string; reason: string },
+  input: { packageId: string; reason: string; mixedConfirmed?: boolean },
 ): Promise<Package> {
   const reason = input.reason.trim();
   if (!reason) throw new InventoryError("Say why and how the product was destroyed. It goes in the audit trail.");
@@ -675,6 +681,7 @@ export async function destroyPackage(
     const pkg = await lockPackage(tx, actor, input.packageId);
     assertEditable(pkg.status);
     assertNotAllocated(pkg);
+    await checkWasteRule(tx, actor, pkg, Boolean(input.mixedConfirmed));
     const [updated] = await tx
       .update(packages)
       .set({ quantity: "0", status: "DESTROYED" })
@@ -702,6 +709,26 @@ export async function destroyPackage(
     });
     return updated;
   });
+}
+
+/** The state's waste rule: a hold period first, and mixing to make it unusable. */
+async function checkWasteRule(tx: Tx, actor: Actor, pkg: Package, mixedConfirmed: boolean) {
+  const [facility] = await tx.select({ state: facilities.state }).from(facilities).where(eq(facilities.id, actor.facilityId));
+  const pack = packFor(facility?.state);
+  const rule = wasteRule(pack);
+  if (!pack || !rule) return;
+  const heldFor = pkg.heldSince && (pkg.status === "ON_HOLD" || pkg.status === "QUARANTINE") ? Date.now() - pkg.heldSince.getTime() : -1;
+  if (heldFor < rule.holdHours * 3_600_000) {
+    const when =
+      heldFor < 0
+        ? "Put it on hold or in quarantine first."
+        : `It can be destroyed after ${new Date(pkg.heldSince!.getTime() + rule.holdHours * 3_600_000).toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" })}.`;
+    throw new InventoryError(`${pack.name} requires waste to be held for ${rule.holdHours} hours before it is destroyed. ${when}`);
+  }
+  if (!mixedConfirmed)
+    throw new InventoryError(
+      `${pack.name} requires waste to be made unusable by mixing it with at least ${rule.minMixPercent}% non-cannabis material. Confirm that this was done.`,
+    );
 }
 
 /**

@@ -100,7 +100,11 @@ export function AssistantPanel({
         setOpen((o) => !o);
       } else if (e.key === "Escape") setOpen(false);
     };
-    const onOpen = () => setOpen(true);
+    const onOpen = (e: Event) => {
+      setOpen(true);
+      const prompt = (e as CustomEvent<string | undefined>).detail;
+      if (prompt) setTimeout(() => window.dispatchEvent(new CustomEvent("assistant-ask", { detail: prompt })), 50);
+    };
     window.addEventListener("keydown", onKey);
     window.addEventListener("open-assistant", onOpen);
     return () => {
@@ -172,6 +176,17 @@ export function AssistantPanel({
       abortRef.current = null;
     }
   };
+
+  // Buttons elsewhere on the page can ask a question through an "assistant-ask" event.
+  const sendRef = useRef(send);
+  useEffect(() => {
+    sendRef.current = send;
+  });
+  useEffect(() => {
+    const onAsk = (e: Event) => sendRef.current(String((e as CustomEvent<string>).detail ?? ""));
+    window.addEventListener("assistant-ask", onAsk);
+    return () => window.removeEventListener("assistant-ask", onAsk);
+  }, []);
 
   const setProposal = (id: string, change: Partial<Proposal>) =>
     setTurns((prev) =>
@@ -420,6 +435,20 @@ export function AskButton() {
       <Sparkles className="h-4 w-4" aria-hidden="true" />
       Ask CannaTrace
       <kbd className="rounded border border-brand-200 bg-white px-1.5 text-[10px] font-medium text-brand-700">Ctrl J</kbd>
+    </button>
+  );
+}
+
+/** A button that opens the assistant and asks it something about the page. */
+export function AskAboutButton({ prompt, label }: { prompt: string; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new CustomEvent("open-assistant", { detail: prompt }))}
+      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 text-sm font-semibold text-brand-800 transition hover:border-brand-500"
+    >
+      <Sparkles className="h-4 w-4" aria-hidden="true" />
+      {label}
     </button>
   );
 }

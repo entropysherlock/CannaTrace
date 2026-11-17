@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { ADJUST_REASONS, adjustPackage, movePackage, setPackageStatus, type Actor } from "@/lib/inventory";
 import { InventoryError } from "@/lib/inventory-math";
 import { can, type Permission } from "@/lib/rbac";
+import { ENFORCEMENT } from "@/lib/rules";
+import { scanFacility } from "@/lib/rules/scan";
 import type { Session } from "@/lib/session";
 
 /**
@@ -309,6 +311,25 @@ export const TOOLS: Tool[] = [
       needs_attention: await rows(sql`select summary, status, attempts, last_error_detail as error, to_char(created_at at time zone ${TZ}, 'YYYY-MM-DD HH24:MI') as created
         from sync_events where org_id = ${s.orgId} and facility_id = ${s.facilityId} and status in ('FAILED','MANUAL') order by seq desc limit 20`),
     }),
+  },
+  {
+    kind: "read",
+    name: "state_rules_check",
+    label: "Checking state rules",
+    permission: "compliance.view",
+    description:
+      "This facility's compliance check against its state's rules: a score out of 100, open issues with how to fix them, and every rule in effect with its legal citation and how CannaTrace enforces it. Use for 'are we compliant', 'what are the rules', purchase limits, waste, lab testing, or manifest questions.",
+    schema: obj({}),
+    run: async (s) => {
+      const result = await scanFacility(s.orgId, s.facilityId);
+      return {
+        state: result.state,
+        rule_pack: result.pack ? { name: result.pack.name, reviewed: result.pack.reviewed, coverage: result.pack.coverage, tracking_system: result.pack.trackingSystem } : null,
+        score: result.score,
+        issues: result.issues.map((i) => ({ severity: i.severity, title: i.title, detail: i.detail, fix_page: i.fix?.href })),
+        rules: result.pack?.rules.map((r) => ({ title: r.title, summary: r.summary, citation: r.source.citation, checked: r.source.checked, enforcement: ENFORCEMENT[r.kind] })) ?? [],
+      };
+    },
   },
   {
     kind: "read",

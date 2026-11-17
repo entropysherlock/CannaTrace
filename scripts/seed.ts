@@ -12,7 +12,7 @@ import {
   tagPlants,
 } from "@/lib/cultivation";
 import { expandTags } from "@/lib/cultivation-math";
-import { adjustPackage, movePackage, receivePackage, type Actor } from "@/lib/inventory";
+import { addLabResult, adjustPackage, movePackage, receivePackage, type Actor } from "@/lib/inventory";
 import { createCustomer, createDriver, createPriceList, createVehicle, setPrice, verifyCustomerLicense } from "@/lib/distribution";
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { createRecipe } from "@/lib/manufacturing";
@@ -164,6 +164,18 @@ export async function seedDemo(DEMO_PASSWORD: string): Promise<boolean> {
       note: "Opening inventory",
     });
     packageId[tag] = pkg.id;
+  }
+
+  // Finished products carry a passing lab result, as New Mexico requires before retail sale.
+  for (const [facilityId, tag, thc] of [
+    [grow.id, "CT-000003", "24.1"],
+    [grow.id, "CT-000004", "22.8"],
+    [grow.id, "CT-000007", "0.9"],
+    [shop.id, "CT-000101", "24.1"],
+    [shop.id, "CT-000102", "22.8"],
+    [shop.id, "CT-000103", "0.9"],
+  ] as const) {
+    await addLabResult(actor(facilityId), { packageId: packageId[tag], labName: "Demo Testing Lab", status: "PASS", thcPercent: thc });
   }
 
   await movePackage(actor(grow.id), {

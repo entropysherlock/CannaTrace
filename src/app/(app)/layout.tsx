@@ -63,6 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           "Compliance",
           tabs([
             ["/compliance", "State reporting", can(session, "compliance.view")],
+            ["/compliance/rules", "State rules", can(session, "compliance.view")],
             ["/audit", "Audit trail", can(session, "audit.view")],
           ]),
         ),
@@ -149,6 +150,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         isOwner={session.role === "OWNER" && !session.customRoleId}
         suggestions={[
           "Give me a quick rundown of where things stand",
+          can(session, "compliance.view") ? "Are we following our state's rules? What needs fixing?" : null,
           can(session, "inventory.view") ? "What's on hold or in quarantine right now?" : null,
           can(session, "reports.view") ? "What were our top sellers last week?" : null,
           can(session, "sales.view") ? "Which customers owe us money?" : null,
