@@ -15,7 +15,9 @@ import {
   drawerSummary,
   openDrawer,
   removeFromCart,
+  addScannedCode,
   saveRetailSettings,
+  setLineQuantity,
   setCartDiscount,
   setMenuItem,
   voidSale,
@@ -133,7 +135,7 @@ describe.skipIf(!hasDb)("point of sale engine (database)", () => {
     await removeFromCart(actor, { lineId: await lineId(cart.id, papers) });
     await setCartDiscount(actor, { saleId: cart.id, discountId });
 
-    await expect(completeSale(actor, { saleId: cart.id, paymentMethod: "BITCOIN" })).rejects.toThrow(/cash or debit/);
+    await expect(completeSale(actor, { saleId: cart.id, paymentMethod: "BITCOIN" })).rejects.toThrow(/cash, debit, or split/);
     await expect(completeSale(actor, { saleId: cart.id, paymentMethod: "CASH", cashTendered: "100" })).rejects.toThrow(/only \$100.00 was handed over/);
     expect(await qty(oldest.id)).toBe("2"); // a failed payment takes nothing
 
@@ -196,6 +198,28 @@ describe.skipIf(!hasDb)("point of sale engine (database)", () => {
     await cancelCart(actor, { saleId: second.id });
   });
 
+  it("adds by scanned tag or SKU, changes quantities, and takes a split payment", async () => {
+    const jars = await receivePackage(actor, { tag: tag(), itemId: jar, quantity: "5", locationId: shelf });
+    const cart = await checkInCustomer(actor, adult);
+    expect(await addScannedCode(actor, { saleId: cart.id, code: jars.tag.toLowerCase() })).toEqual({ itemName: "Jar 3.5" });
+    await addScannedCode(actor, { saleId: cart.id, code: " sku0 " });
+    const line = await lineId(cart.id, jar);
+    expect(new Decimal((await db.execute<{ quantity: string }>(sql`select quantity from sale_lines where id = ${line}`)).rows[0].quantity).toString()).toBe("2");
+    await expect(addScannedCode(actor, { saleId: cart.id, code: "NOPE-123" })).rejects.toThrow(/Nothing at this store matches "NOPE-123"/);
+    await expect(addScannedCode(actor, { saleId: cart.id, code: "SKU3" })).rejects.toThrow(/not on this store's menu/);
+    await expect(setLineQuantity(actor, { lineId: line, quantity: "17" })).rejects.toThrow(/59.5 g of flower|in stock/);
+    await setLineQuantity(actor, { lineId: line, quantity: "0" });
+    expect((await db.execute(sql`select 1 from sale_lines where sale_id = ${cart.id}`)).rows).toHaveLength(0);
+    await addScannedCode(actor, { saleId: cart.id, code: "SKU0" });
+
+    // 35 + excise 14% 4.90 + sales tax 7.625% 2.67 = 42.57
+    await expect(completeSale(actor, { saleId: cart.id, paymentMethod: "SPLIT", debitAmount: "42.57", cashTendered: "0" })).rejects.toThrow(/less than the total/);
+    await expect(completeSale(actor, { saleId: cart.id, paymentMethod: "SPLIT", debitAmount: "20", cashTendered: "10" })).rejects.toThrow(/\$22.57 is due in cash/);
+    const paid = await completeSale(actor, { saleId: cart.id, paymentMethod: "SPLIT", debitAmount: "20", cashTendered: "30" });
+    expect(paid).toMatchObject({ total: "42.57", changeDue: "7.43" });
+    expect(await sale(cart.id)).toMatchObject({ paymentMethod: "SPLIT", debitAmount: "20.00", cashTendered: "30.00" });
+  });
+
   it("voids a sale back into its packages, then closes the drawer with the right expected cash", async () => {
     const stock = await receivePackage(actor, { tag: tag(), itemId: gummies, quantity: "6", locationId: shelf });
     await db.execute(sql`update packages set status = 'ON_HOLD' where item_id = ${gummies} and id <> ${stock.id} and status = 'ACTIVE'`);
@@ -211,13 +235,15 @@ describe.skipIf(!hasDb)("point of sale engine (database)", () => {
 
     const [session] = await db.select().from(drawerSessions).where(eq(drawerSessions.id, cart.drawerSessionId));
     const summary = await drawerSummary(db, session);
-    // Completed: 142.29 cash, 16.66 debit, 8 papers debit (4 x 2 + taxes). The voided cash sale is excluded.
-    expect(summary.saleCount).toBe(3);
+    // Completed: 142.29 cash, 16.66 debit, 8 papers debit (4 x 2 + taxes), and 42.57 split
+    // (20.00 debit, 22.57 cash). The voided cash sale is excluded.
+    expect(summary.saleCount).toBe(4);
     expect(summary.voidCount).toBe(1);
-    expect(summary.cashTotal.toString()).toBe("142.29");
-    expect(summary.expectedCash.toString()).toBe("342.29");
+    expect(summary.cashTotal.toString()).toBe("164.86");
+    expect(summary.debitTotal.toFixed(2)).toBe(new Decimal(summary.total).sub("164.86").toFixed(2));
+    expect(summary.expectedCash.toString()).toBe("364.86");
 
-    const closed = await closeDrawer(actor, { countedCash: "340.29" });
+    const closed = await closeDrawer(actor, { countedCash: "362.86" });
     expect(closed.variance).toBe("-2.00");
     await expect(checkInCustomer(actor, adult)).rejects.toThrow(/Open the cash drawer/);
     await expect(voidSale(actor, { saleId: (await db.select().from(sales).where(eq(sales.drawerSessionId, session.id)))[0].id, reason: "late" })).rejects.toThrow();

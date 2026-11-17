@@ -106,7 +106,94 @@ export function changeDue(total: Decimal, tendered: Decimal): Decimal {
   return tendered.sub(total);
 }
 
-/** What should be in the till: the float plus cash sales (change already given back). */
-export function expectedCash(openingCash: Decimal.Value, cashSaleTotals: Decimal.Value[]): Decimal {
-  return cashSaleTotals.reduce<Decimal>((sum, total) => sum.add(total), new Decimal(openingCash));
+/** What should be in the till: the float plus the cash kept from each sale (change already given back). */
+export function expectedCash(openingCash: Decimal.Value, cashKept: Decimal.Value[]): Decimal {
+  return cashKept.reduce<Decimal>((sum, total) => sum.add(total), new Decimal(openingCash));
+}
+
+export type PaymentMethod = "CASH" | "DEBIT" | "SPLIT";
+
+export type Settlement = {
+  /** Cash the customer handed over, or null when none was. */
+  cashTendered: Decimal | null;
+  /** Charged to the customer's debit card. */
+  debit: Decimal;
+  /** Cash that stays in the till: the cash share of the total. */
+  cashKept: Decimal;
+  changeDue: Decimal;
+};
+
+/**
+ * Work out a payment. Cash pays the whole total; debit pays the whole total; split puts part on
+ * debit and the rest in cash. Throws a message for the budtender when the amounts do not cover the total.
+ */
+export function settlePayment(total: Decimal, method: PaymentMethod, amounts: { cashTendered?: Decimal | null; debit?: Decimal | null }): Settlement {
+  if (method === "DEBIT") return { cashTendered: null, debit: total, cashKept: new Decimal(0), changeDue: new Decimal(0) };
+  if (method === "CASH") {
+    const tendered = amounts.cashTendered ?? new Decimal(0);
+    return { cashTendered: tendered, debit: new Decimal(0), cashKept: total, changeDue: changeDue(total, tendered) };
+  }
+  const debit = amounts.debit ?? new Decimal(0);
+  if (debit.lte(0)) throw new InventoryError("Enter how much goes on the debit card.");
+  if (debit.gte(total)) throw new InventoryError(`The debit part must be less than the total of $${total.toFixed(2)}. To put it all on the card, choose Debit.`);
+  const cashShare = total.sub(debit);
+  const tendered = amounts.cashTendered ?? new Decimal(0);
+  if (tendered.lt(cashShare)) {
+    throw new InventoryError(`After $${debit.toFixed(2)} on debit, $${cashShare.toFixed(2)} is due in cash, but only $${tendered.toFixed(2)} was handed over.`);
+  }
+  return { cashTendered: tendered, debit, cashKept: cashShare, changeDue: tendered.sub(cashShare) };
+}
+
+/** Quick cash amounts a customer is likely to hand over for this total: exact, then the next round bills. */
+export function quickCashAmounts(total: Decimal.Value): string[] {
+  const t = new Decimal(total);
+  if (t.lte(0)) return [];
+  const out = new Set<string>([t.toFixed(2)]);
+  for (const step of [5, 10, 20, 50, 100]) {
+    const next = t.div(step).ceil().mul(step);
+    if (next.gt(t)) out.add(next.toFixed(2));
+  }
+  return [...out].sort((a, b) => Number(a) - Number(b)).slice(0, 5);
+}
+
+export type IdScan = { firstName: string | null; lastName: string | null; birthDate: string; idExpires: string; state: string | null };
+
+/** A YYYY-MM-DD date from an AAMVA 8-digit date, which is MMDDCCYY in the US and CCYYMMDD in Canada. */
+function aamvaDate(raw: string | undefined, canadian: boolean): string | null {
+  const d = raw?.replace(/\D/g, "");
+  if (!d || d.length !== 8) return null;
+  const valid = (y: number, m: number, day: number) => y >= 1900 && y <= 2200 && m >= 1 && m <= 12 && day >= 1 && day <= 31;
+  const asUs = [Number(d.slice(4)), Number(d.slice(0, 2)), Number(d.slice(2, 4))] as const;
+  const asCa = [Number(d.slice(0, 4)), Number(d.slice(4, 6)), Number(d.slice(6))] as const;
+  const pick = canadian ? (valid(...asCa) ? asCa : valid(...asUs) ? asUs : null) : valid(...asUs) ? asUs : valid(...asCa) ? asCa : null;
+  if (!pick) return null;
+  const [y, m, day] = pick;
+  return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
+ * Read the barcode on the back of a US or Canadian driver's license or state ID (the AAMVA PDF417
+ * format that ID scanners output). Returns null when the text is not an ID barcode or lacks the dates.
+ */
+export function parseIdBarcode(raw: string): IdScan | null {
+  if (!/ANSI|AAMVA/.test(raw) || !raw.includes("DBB")) return null;
+  // Dates are found by pattern, so this works even when a scanner drops the line breaks.
+  const canadian = /DCGCAN/.test(raw);
+  const birthDate = aamvaDate(/DBB(\d{8})/.exec(raw)?.[1], canadian);
+  const idExpires = aamvaDate(/DBA(\d{8})/.exec(raw)?.[1], canadian);
+  if (!birthDate || !idExpires) return null;
+  // Names need the line breaks: each field is on its own line, the first one glued to the subfile header.
+  const fields = new Map<string, string>();
+  for (const part of raw.split(/[\r\n\x1e\x1d]+/)) {
+    const match = /^(?:.*?(?:DL|ID))?(D[A-Z]{2})(.*)$/.exec(part.trim());
+    if (match && !fields.has(match[1])) fields.set(match[1], match[2].trim());
+  }
+  const title = (v: string | null | undefined) =>
+    v && v !== "NONE" && v !== "unavl" ? v.toLowerCase().replace(/(^|[\s'-])\p{L}/gu, (c) => c.toUpperCase()) : null;
+  let first = fields.get("DAC") ?? null;
+  let last = fields.get("DCS") ?? null;
+  // Older cards put the whole name in DAA as LAST,FIRST,MIDDLE.
+  if (!first && !last && fields.get("DAA")) [last, first] = fields.get("DAA")!.split(/[,$]/);
+  const state = /DAJ([A-Z]{2})/.exec(raw)?.[1] ?? null;
+  return { firstName: title(first), lastName: title(last), birthDate, idExpires, state };
 }

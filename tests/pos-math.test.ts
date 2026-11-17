@@ -95,3 +95,37 @@ describe("cash", () => {
     expect(() => parsePercent("-1", "Discount")).toThrow(InventoryError);
   });
 });
+
+describe("payments, quick cash, and ID barcodes", () => {
+  it("settles cash, debit, and split payments", async () => {
+    const { settlePayment } = await import("@/lib/pos-math");
+    const D = (v: string) => new Decimal(v);
+    expect(settlePayment(D("42.57"), "DEBIT", {})).toMatchObject({ cashTendered: null });
+    expect(settlePayment(D("42.57"), "CASH", { cashTendered: D("50") }).changeDue.toFixed(2)).toBe("7.43");
+    const split = settlePayment(D("42.57"), "SPLIT", { debit: D("20"), cashTendered: D("30") });
+    expect([split.debit.toFixed(2), split.cashKept.toFixed(2), split.changeDue.toFixed(2)]).toEqual(["20.00", "22.57", "7.43"]);
+    expect(() => settlePayment(D("42.57"), "SPLIT", { debit: D("0"), cashTendered: D("50") })).toThrow(/how much goes on the debit card/);
+    expect(() => settlePayment(D("42.57"), "CASH", { cashTendered: D("40") })).toThrow(/only \$40.00/);
+  });
+
+  it("offers exact change and the next round bills", async () => {
+    const { quickCashAmounts } = await import("@/lib/pos-math");
+    expect(quickCashAmounts("42.57")).toEqual(["42.57", "45.00", "50.00", "60.00", "100.00"]);
+    expect(quickCashAmounts("20")).toEqual(["20.00", "50.00", "100.00"]);
+    expect(quickCashAmounts("0")).toEqual([]);
+  });
+
+  it("reads US and Canadian ID barcodes, with or without line breaks", async () => {
+    const { parseIdBarcode } = await import("@/lib/pos-math");
+    const us = "@\n\x1e\rANSI 636014080102DL00410288ZC03290034DLDAQD1234562\nDCSPUBLIC\nDACJOHN\nDBB03141988\nDBA03142028\nDAJNM\nDCGUSA\n";
+    expect(parseIdBarcode(us)).toEqual({ firstName: "John", lastName: "Public", birthDate: "1988-03-14", idExpires: "2028-03-14", state: "NM" });
+    expect(parseIdBarcode(us.replace(/[\n\r\x1e]/g, ""))).toMatchObject({ birthDate: "1988-03-14", idExpires: "2028-03-14" });
+    expect(parseIdBarcode("@ANSI 636012DLDAQ1\nDCGCAN\nDBB19880314\nDBA20280314\nDAAPUBLIC,JANE,Q\n")).toMatchObject({
+      firstName: "Jane",
+      lastName: "Public",
+      birthDate: "1988-03-14",
+    });
+    expect(parseIdBarcode("CT-000101")).toBeNull();
+    expect(parseIdBarcode("@ANSI DLDAQ1\nDBB99999999\n")).toBeNull();
+  });
+});

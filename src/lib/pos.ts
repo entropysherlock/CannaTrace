@@ -23,19 +23,20 @@ import { nextNumber } from "./numbering";
 import { combinedCap, effectiveLimits, minimumAge, packFor, requiresLabBeforeRetail, type StatePack } from "./rules";
 import {
   cartTotals,
-  changeDue,
   checkInProblem,
   expectedCash,
   limitProblem,
   limitUsage,
   parsePercent,
+  settlePayment,
+  type PaymentMethod,
   type CustomerType,
   type LimitCategory,
   type Totals,
 } from "./pos-math";
 
 const store = (value: Decimal) => value.toFixed(4);
-export const SALE_PAYMENT_METHODS = ["CASH", "DEBIT"] as const;
+export const SALE_PAYMENT_METHODS = ["CASH", "DEBIT", "SPLIT"] as const;
 
 /** Until a manager saves real figures, a store has no limits or tax rates and cannot sell. */
 const UNSET = {
@@ -177,7 +178,9 @@ export async function drawerSummary(tx: Tx | typeof db, session: DrawerSession):
   const rows = await tx.select().from(sales).where(eq(sales.drawerSessionId, session.id));
   const done = rows.filter((s) => s.status === "COMPLETED");
   const sum = (pick: (s: Sale) => string | null) => done.reduce((acc, s) => acc.add(pick(s) ?? 0), new Decimal(0));
-  const cash = done.filter((s) => s.paymentMethod === "CASH");
+  // Debit share of each sale. Older sales have no debit amount saved: all-debit or all-cash.
+  const debitOf = (s: Sale) => new Decimal(s.debitAmount ?? (s.paymentMethod === "DEBIT" ? (s.total ?? 0) : 0));
+  const cashKept = done.map((s) => new Decimal(s.total ?? 0).sub(debitOf(s)));
   return {
     saleCount: done.length,
     voidCount: rows.filter((s) => s.status === "VOIDED").length,
@@ -186,9 +189,9 @@ export async function drawerSummary(tx: Tx | typeof db, session: DrawerSession):
     exciseTax: sum((s) => s.exciseTax),
     salesTax: sum((s) => s.salesTax),
     total: sum((s) => s.total),
-    cashTotal: cash.reduce((acc, s) => acc.add(s.total ?? 0), new Decimal(0)),
-    debitTotal: done.filter((s) => s.paymentMethod === "DEBIT").reduce((acc, s) => acc.add(s.total ?? 0), new Decimal(0)),
-    expectedCash: expectedCash(session.openingCash, cash.map((s) => s.total ?? "0")),
+    cashTotal: cashKept.reduce((acc, v) => acc.add(v), new Decimal(0)),
+    debitTotal: done.reduce((acc, s) => acc.add(debitOf(s)), new Decimal(0)),
+    expectedCash: expectedCash(session.openingCash, cashKept),
   };
 }
 
@@ -362,36 +365,89 @@ function limitCheck(lines: Parameters<typeof limitUsage>[0], settings: Awaited<R
   return broken && fromState.has(broken) ? problem.replace(/The limit is (.+) per purchase\.$/, `${pack.name} law allows $1 per purchase.`) : problem;
 }
 
+/** Put a menu item in the cart at an exact quantity (zero takes it out), checking stock and purchase limits. */
+async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, itemId: string, newQuantity: Decimal): Promise<string> {
+  const [item] = await tx
+    .select({ id: items.id, name: items.name, price: retailPrices.price })
+    .from(items)
+    .innerJoin(retailPrices, and(eq(retailPrices.itemId, items.id), eq(retailPrices.facilityId, actor.facilityId)))
+    .where(and(eq(items.id, itemId), eq(items.orgId, actor.orgId), eq(items.active, true)));
+  if (!item) throw new InventoryError("That item is not on this store's menu.");
+  const before = await cartLines(tx, sale.id);
+  const existing = before.find((line) => line.itemId === item.id);
+  if (newQuantity.lte(0)) {
+    if (existing) await tx.delete(saleLines).where(eq(saleLines.id, existing.id));
+    return item.name;
+  }
+  const pack = await storePack(tx, actor.facilityId);
+  const { sellable, waitingOnLab } = await inStock(tx, actor, item.id, pack);
+  if (newQuantity.gt(sellable)) {
+    const lab = waitingOnLab.gt(0) && pack ? ` ${waitingOnLab.toString()} more is waiting on a passing lab result, which ${pack.name} requires before sale.` : "";
+    throw new InventoryError(
+      `Only ${sellable.toString()} of ${item.name} ${lab ? "can be sold" : "is in stock"}${existing ? `, and ${new Decimal(existing.quantity).toString()} is already in the cart` : ""}.${lab}`,
+    );
+  }
+  if (existing) {
+    await tx.update(saleLines).set({ quantity: store(newQuantity) }).where(eq(saleLines.id, existing.id));
+  } else {
+    await tx.insert(saleLines).values({ saleId: sale.id, itemId: item.id, quantity: store(newQuantity), unitPrice: item.price });
+  }
+  const problem = limitCheck(await cartLines(tx, sale.id), await getRetailSettings(tx, actor.facilityId), pack, sale.customerType);
+  if (problem) throw new InventoryError(problem);
+  return item.name;
+}
+
 /** Add to the cart. Adding an item that is already there increases its quantity. */
 export async function addToCart(actor: Actor, input: { saleId: string; itemId: string; quantity: unknown }): Promise<void> {
   const quantity = parsePositiveQty(input.quantity);
   await db.transaction(async (tx) => {
     const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
-    const [item] = await tx
-      .select({ id: items.id, name: items.name, price: retailPrices.price })
-      .from(items)
-      .innerJoin(retailPrices, and(eq(retailPrices.itemId, items.id), eq(retailPrices.facilityId, actor.facilityId)))
-      .where(and(eq(items.id, input.itemId), eq(items.orgId, actor.orgId), eq(items.active, true)));
-    if (!item) throw new InventoryError("That item is not on this store's menu.");
+    const [existing] = await tx
+      .select({ quantity: saleLines.quantity })
+      .from(saleLines)
+      .where(and(eq(saleLines.saleId, sale.id), eq(saleLines.itemId, input.itemId)));
+    await setItemQuantityInTx(tx, actor, sale, input.itemId, quantity.add(existing?.quantity ?? 0));
+  });
+}
 
-    const before = await cartLines(tx, sale.id);
-    const existing = before.find((line) => line.itemId === item.id);
-    const newQuantity = quantity.add(existing?.quantity ?? 0);
-    const pack = await storePack(tx, actor.facilityId);
-    const { sellable, waitingOnLab } = await inStock(tx, actor, item.id, pack);
-    if (newQuantity.gt(sellable)) {
-      const lab = waitingOnLab.gt(0) && pack ? ` ${waitingOnLab.toString()} more is waiting on a passing lab result, which ${pack.name} requires before sale.` : "";
-      throw new InventoryError(
-        `Only ${sellable.toString()} of ${item.name} ${lab ? "can be sold" : "is in stock"}${existing ? `, and ${new Decimal(existing.quantity).toString()} is already in the cart` : ""}.${lab}`,
-      );
-    }
-    if (existing) {
-      await tx.update(saleLines).set({ quantity: store(newQuantity) }).where(eq(saleLines.id, existing.id));
-    } else {
-      await tx.insert(saleLines).values({ saleId: sale.id, itemId: item.id, quantity: store(quantity), unitPrice: item.price });
-    }
-    const problem = limitCheck(await cartLines(tx, sale.id), await getRetailSettings(tx, actor.facilityId), pack, sale.customerType);
-    if (problem) throw new InventoryError(problem);
+/** Change how much of a cart line is being bought. Zero removes the line. */
+export async function setLineQuantity(actor: Actor, input: { lineId: string; quantity: unknown }): Promise<void> {
+  const text = String(input.quantity ?? "").trim();
+  const quantity = text === "0" ? new Decimal(0) : parsePositiveQty(text);
+  await db.transaction(async (tx) => {
+    const [line] = await tx.select().from(saleLines).where(eq(saleLines.id, input.lineId));
+    if (!line) throw new InventoryError("That line is no longer in the cart.");
+    const sale = await lockSale(tx, actor, line.saleId, ["OPEN"], "changed");
+    await setItemQuantityInTx(tx, actor, sale, line.itemId, quantity);
+  });
+}
+
+/**
+ * Add one unit of whatever a scanned barcode points to: a package tag at this store, or an item SKU.
+ * Returns the item's name so the register can say what was added.
+ */
+export async function addScannedCode(actor: Actor, input: { saleId: string; code: string }): Promise<{ itemName: string }> {
+  const code = input.code.trim();
+  if (!code) throw new InventoryError("Scan or type a tag or SKU.");
+  return db.transaction(async (tx) => {
+    const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
+    const [byTag] = await tx
+      .select({ itemId: packages.itemId })
+      .from(packages)
+      .where(and(eq(packages.orgId, actor.orgId), eq(packages.facilityId, actor.facilityId), sql`upper(${packages.tag}) = upper(${code})`));
+    const [bySku] = byTag
+      ? [byTag]
+      : await tx
+          .select({ itemId: items.id })
+          .from(items)
+          .where(and(eq(items.orgId, actor.orgId), eq(items.active, true), sql`upper(${items.sku}) = upper(${code})`));
+    if (!bySku) throw new InventoryError(`Nothing at this store matches "${code.slice(0, 40)}". Check the label, or search the menu by name.`);
+    const [existing] = await tx
+      .select({ quantity: saleLines.quantity })
+      .from(saleLines)
+      .where(and(eq(saleLines.saleId, sale.id), eq(saleLines.itemId, bySku.itemId)));
+    const itemName = await setItemQuantityInTx(tx, actor, sale, bySku.itemId, new Decimal(1).add(existing?.quantity ?? 0));
+    return { itemName };
   });
 }
 
@@ -432,9 +488,10 @@ export async function cancelCart(actor: Actor, input: { saleId: string }): Promi
 /** Take payment. Stock comes out of the oldest packages first, and each package used is recorded. */
 export async function completeSale(
   actor: Actor,
-  input: { saleId: string; paymentMethod: string; cashTendered?: unknown },
+  input: { saleId: string; paymentMethod: string; cashTendered?: unknown; debitAmount?: unknown },
 ): Promise<{ number: string; total: string; changeDue: string }> {
-  if (!(SALE_PAYMENT_METHODS as readonly string[]).includes(input.paymentMethod)) throw new InventoryError("Choose cash or debit.");
+  if (!(SALE_PAYMENT_METHODS as readonly string[]).includes(input.paymentMethod)) throw new InventoryError("Choose cash, debit, or split.");
+  const method = input.paymentMethod as PaymentMethod;
   return db.transaction(async (tx) => {
     const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "paid again");
     const [session] = await tx.select().from(drawerSessions).where(eq(drawerSessions.id, sale.drawerSessionId));
@@ -448,12 +505,12 @@ export async function completeSale(
     const labGate = requiresLabBeforeRetail(pack);
 
     const totals = saleTotals(lines, sale, settings);
-    let tendered: Decimal | null = null;
-    let change = new Decimal(0);
-    if (input.paymentMethod === "CASH") {
-      tendered = parseMoney(input.cashTendered, "Cash handed over", { allowZero: totals.total.isZero() });
-      change = changeDue(totals.total, tendered);
-    }
+    const blank = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
+    const settled = settlePayment(totals.total, method, {
+      cashTendered: method === "DEBIT" || (blank(input.cashTendered) && totals.total.isZero()) ? null : parseMoney(input.cashTendered, "Cash handed over", { allowZero: true }),
+      debit: method === "SPLIT" ? parseMoney(input.debitAmount, "Debit amount", { allowZero: true }) : null,
+    });
+    const change = settled.changeDue;
 
     for (const line of lines) {
       let need = new Decimal(line.quantity);
@@ -492,8 +549,9 @@ export async function completeSale(
         exciseTax: totals.exciseTax.toFixed(2),
         salesTax: totals.salesTax.toFixed(2),
         total: totals.total.toFixed(2),
-        paymentMethod: input.paymentMethod,
-        cashTendered: tendered?.toFixed(2) ?? null,
+        paymentMethod: method,
+        cashTendered: settled.cashTendered?.toFixed(2) ?? null,
+        debitAmount: settled.debit.toFixed(2),
         changeDue: change.toFixed(2),
         completedAt: new Date(),
       })
@@ -502,7 +560,7 @@ export async function completeSale(
       entityType: "Sale",
       entityId: sale.id,
       action: "COMPLETE",
-      after: { number: sale.number, total: totals.total.toFixed(2), paymentMethod: input.paymentMethod, lines: lines.length },
+      after: { number: sale.number, total: totals.total.toFixed(2), paymentMethod: method, debit: settled.debit.toFixed(2), lines: lines.length },
     });
     return { number: sale.number, total: totals.total.toFixed(2), changeDue: change.toFixed(2) };
   });
@@ -535,4 +593,14 @@ export async function voidSale(actor: Actor, input: { saleId: string; reason: st
     await tx.update(sales).set({ status: "VOIDED", voidReason: reason }).where(eq(sales.id, sale.id));
     await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "VOID", after: { number: sale.number, total: sale.total }, reason });
   });
+}
+
+/** True when a moment is within the last few seconds or minutes, for "just paid" screens. */
+export function happenedWithin(when: Date | null, ms: number): boolean {
+  return Boolean(when) && Date.now() - when!.getTime() < ms;
+}
+
+/** The moment a given number of milliseconds ago. */
+export function msAgo(ms: number): Date {
+  return new Date(Date.now() - ms);
 }

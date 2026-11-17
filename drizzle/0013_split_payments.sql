@@ -1,0 +1,1 @@
+ALTER TABLE "sales" ADD COLUMN "debit_amount" numeric(18, 2);

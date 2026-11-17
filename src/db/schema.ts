@@ -910,8 +910,11 @@ export const sales = pgTable(
     exciseTax: money("excise_tax"),
     salesTax: money("sales_tax"),
     total: money("total"),
+    /** CASH, DEBIT, or SPLIT (part debit, part cash). */
     paymentMethod: text("payment_method"),
     cashTendered: money("cash_tendered"),
+    /** The amount charged to debit. Null on sales from before split payments existed. */
+    debitAmount: money("debit_amount"),
     changeDue: money("change_due"),
     voidReason: text("void_reason"),
     userId: text("user_id").notNull(),
