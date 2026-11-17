@@ -19,12 +19,16 @@ export async function printJobPdf(id: string): Promise<{ ok: true } | { ok: fals
   frame.title = "Labels to print";
   frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
   frame.src = url;
+  // Automated tests set this list instead of opening a real print dialog (headless browsers can't show one).
+  const testHook = (window as unknown as { __labelPrints?: string[] }).__labelPrints;
+  if (testHook) {
+    testHook.push(id);
+    document.body.appendChild(frame);
+    return { ok: true };
+  }
   frame.onload = () => {
     // Give the PDF viewer a moment to lay out the pages, and the screen a moment to update, before printing.
     setTimeout(() => {
-      // Automated tests set this list instead of opening a real print dialog (headless browsers can't show one).
-      const testHook = (window as unknown as { __labelPrints?: string[] }).__labelPrints;
-      if (testHook) return void testHook.push(id);
       try {
         frame.contentWindow?.focus();
         frame.contentWindow?.print();
