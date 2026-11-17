@@ -3,8 +3,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import { and, eq } from "drizzle-orm";
-import { customRoles, users } from "@/db/schema";
+import { customRoles, organizations, users } from "@/db/schema";
 import { db } from "./db";
+import { InventoryError } from "./inventory-math";
 import { ROLE_LABELS, can, cleanPermissions, permissionsFor, type Permission, type Role } from "./rbac";
 
 export const SESSION_COOKIE = "ct_session";
@@ -25,6 +26,8 @@ export type Session = SessionToken & {
   /** The role name to show, custom or built-in. */
   roleName: string;
   customRoleId: string | null;
+  /** Signed in to the public live demo's sample business. */
+  isDemo?: boolean;
 };
 
 function secret(): Uint8Array {
@@ -93,8 +96,9 @@ export async function requireSession(): Promise<Session> {
 
 async function resolve(session: SessionToken): Promise<Session | null> {
   const [user] = await db
-    .select({ role: users.role, name: users.name, customRoleId: users.customRoleId, customName: customRoles.name, customPermissions: customRoles.permissions })
+    .select({ role: users.role, name: users.name, customRoleId: users.customRoleId, customName: customRoles.name, customPermissions: customRoles.permissions, isDemo: organizations.isDemo })
     .from(users)
+    .innerJoin(organizations, eq(organizations.id, users.orgId))
     .leftJoin(customRoles, and(eq(customRoles.id, users.customRoleId), eq(customRoles.orgId, users.orgId)))
     .where(and(eq(users.id, session.userId), eq(users.orgId, session.orgId), eq(users.active, true)));
   if (!user) return null;
@@ -106,13 +110,20 @@ async function resolve(session: SessionToken): Promise<Session | null> {
     customRoleId: custom ? user.customRoleId : null,
     permissions: custom ? cleanPermissions(user.customPermissions ?? []) : permissionsFor(user.role),
     roleName: custom ? String(user.customName) : ROLE_LABELS[user.role],
+    isDemo: user.isDemo,
   };
 }
 
 export class PermissionError extends Error {}
 
+/** Things a visitor to the shared live demo may look at but not change: the team, the business, and outside connections. */
+const LOCKED_IN_DEMO: readonly Permission[] = ["users.manage", "settings.manage", "integrations.manage"];
+export const DEMO_LOCKED_MESSAGE =
+  "That is switched off in the live demo, because everyone shares this sample business. Create your own account to use it.";
+
 export async function requirePermission(permission: Permission): Promise<Session> {
   const session = await requireSession();
+  if (session.isDemo && LOCKED_IN_DEMO.includes(permission)) throw new InventoryError(DEMO_LOCKED_MESSAGE);
   if (!can(session, permission)) {
     throw new PermissionError("Your role does not allow this action. Ask an owner or manager for access.");
   }

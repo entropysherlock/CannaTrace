@@ -289,7 +289,15 @@ function NavMenu({ label, items }: { label: string; items: [string, string][] })
   );
 }
 
-export default async function HomePage() {
+const DEMO_NOTICES: Record<string, string> = {
+  off: "The live demo is switched off right now. Email us and we'll walk you through it.",
+  busy: "The live demo is still being set up. Try again in a few seconds.",
+  error: "The live demo could not open just now. Try again in a minute, or email us.",
+};
+
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ demo?: string | string[] }> }) {
+  const demoParam = (await searchParams).demo;
+  const demoNotice = typeof demoParam === "string" ? DEMO_NOTICES[demoParam] : undefined;
   const signedIn = Boolean(await getSession());
   const cta = signedIn ? { href: "/dashboard", label: "Go to Dashboard" } : { href: "/signup", label: "Get Started" };
 
@@ -367,9 +375,13 @@ export default async function HomePage() {
               <Link href={cta.href} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-7 py-3.5 text-base font-bold text-white shadow-sm hover:bg-brand-800">
                 {cta.label} <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </Link>
-              <a href="#demo" className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-7 py-3 text-base font-bold text-slate-900 hover:border-brand-600">
-                <Play className="h-5 w-5" aria-hidden="true" /> View Demo
-              </a>
+              <Link
+                href="/demo"
+                prefetch={false}
+                className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-7 py-3 text-base font-bold text-slate-900 hover:border-brand-600"
+              >
+                <Play className="h-5 w-5" aria-hidden="true" /> Try the Live Demo
+              </Link>
             </div>
             <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-700">
               {["Compliance built in", "Scalable", "Secure", "Built for Cannabis"].map((item) => (
@@ -444,15 +456,29 @@ export default async function HomePage() {
           <TabletCultivation />
           <div className="relative">
             <h2 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">See CannaTrace in Action</h2>
-            <p className="mt-3 max-w-lg text-lg text-slate-700">Discover how CannaTrace can streamline your operations, ensure compliance, and help your cannabis business grow.</p>
+            <p className="mt-3 max-w-lg text-lg text-slate-700">
+              Click around a working sample business: plants, inventory, lab results, labels, wholesale orders, and the register. No sign-up needed.
+            </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <a href={DEMO_LINK} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-6 py-3 font-bold text-white shadow-sm hover:bg-brand-800">
+              <Link
+                href="/demo"
+                prefetch={false}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-6 py-3 font-bold text-white shadow-sm hover:bg-brand-800"
+              >
+                <Play className="h-5 w-5" aria-hidden="true" /> Open the Live Demo
+              </Link>
+              <a href={DEMO_LINK} className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-6 py-2.5 font-bold text-slate-900 hover:border-brand-600">
                 Book a Demo <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </a>
-              <a href="#features" className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-6 py-2.5 font-bold text-slate-900 hover:border-brand-600">
-                <Play className="h-5 w-5" aria-hidden="true" /> Watch Product Tour
-              </a>
             </div>
+            <p className="mt-3 max-w-lg text-sm text-slate-600">
+              The demo is a shared sandbox filled with made-up data. Other visitors may be in it too, and it starts fresh every day.
+            </p>
+            {demoNotice ? (
+              <p role="status" className="mt-3 max-w-lg rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+                {demoNotice}
+              </p>
+            ) : null}
           </div>
         </div>
       </section>

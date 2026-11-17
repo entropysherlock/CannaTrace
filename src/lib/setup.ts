@@ -7,7 +7,15 @@ import { isSupportedState } from "./states";
 
 /** True until the first owner account exists. The setup screen only works while this is true. */
 export async function needsSetup(): Promise<boolean> {
-  return (await db.$count(users)) === 0;
+  return (await realUserCount(db)) === 0;
+}
+
+/** Accounts in real businesses. The live demo's sample business does not count. */
+async function realUserCount(tx: Pick<typeof db, "execute">): Promise<number> {
+  const { rows } = await tx.execute<{ n: number }>(
+    sql`select count(*)::int as n from users u join organizations o on o.id = u.org_id where not o.is_demo`,
+  );
+  return rows[0].n;
 }
 
 export const MIN_PASSWORD = 12;
@@ -67,9 +75,9 @@ export async function createBusiness(
     // One new business at a time, so the checks below cannot race each other.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('first-owner-setup'))`);
     if (options.onlyIfEmpty) {
-      if ((await tx.$count(users)) > 0) throw new InventoryError("This system is already set up. Sign in instead.");
+      if ((await realUserCount(tx)) > 0) throw new InventoryError("This system is already set up. Sign in instead.");
     } else {
-      const recent = await tx.$count(organizations, sql`${organizations.createdAt} > now() - interval '1 hour'`);
+      const recent = await tx.$count(organizations, sql`${organizations.createdAt} > now() - interval '1 hour' and not ${organizations.isDemo}`);
       if (recent >= SIGNUPS_PER_HOUR) throw new InventoryError("Too many new sign-ups right now. Please try again in an hour.");
     }
     if ((await tx.$count(users, sql`${users.email} = ${email}`)) > 0)

@@ -75,6 +75,13 @@ export const limitCategoryEnum = pgEnum("limit_category", ["NONE", "FLOWER", "CO
 export const organizations = pgTable("organizations", {
   id: id(),
   name: text("name").notNull(),
+  /** A sample business for the public live demo. Never a real customer. */
+  isDemo: boolean("is_demo").notNull().default(false),
+  /** For the live demo: the UTC day it was made for (one per day), and whether its sample data finished loading. */
+  demoDay: text("demo_day").unique(),
+  demoReady: boolean("demo_ready").notNull().default(false),
+  /** Tally questions asked in this demo day, so a public demo cannot run up the AI bill. */
+  demoAssistantCalls: integer("demo_assistant_calls").notNull().default(0),
   createdAt: createdAt(),
 });
 

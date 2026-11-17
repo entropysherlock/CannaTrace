@@ -165,6 +165,7 @@ export async function labResultAction(_state: FormState, formData: FormData): Pr
     const file = formData.get("coa");
     let coa: { name: string; type: string; data: Buffer } | null = null;
     if (file instanceof File && file.size > 0) {
+      if (session.isDemo) throw new InventoryError("File uploads are switched off in the live demo. Save the result without the COA file.");
       if (file.size > COA_MAX_BYTES) throw new InventoryError("The COA file is larger than 4 MB. Compress it and try again.");
       coa = { name: file.name, type: file.type, data: Buffer.from(await file.arrayBuffer()) };
     }

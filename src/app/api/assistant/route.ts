@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { InventoryError } from "@/lib/inventory-math";
 import { assistantEnabled, runAssistant, type AssistantEvent, type ChatMessage } from "@/lib/assistant/engine";
 import { currentSession } from "@/lib/session";
+import { takeDemoAssistantCall } from "@/lib/demo/live-demo";
 
 export const maxDuration = 60;
 
@@ -10,6 +11,8 @@ export async function POST(request: Request) {
   const session = await currentSession();
   if (!session) return NextResponse.json({ error: "Sign in again." }, { status: 401 });
   if (!assistantEnabled()) return NextResponse.json({ error: "The assistant is not turned on yet." }, { status: 503 });
+  if (session.isDemo && !(await takeDemoAssistantCall(session.orgId)))
+    return NextResponse.json({ error: "Tally has answered all the live demo questions it can for today. Try again tomorrow, or create your own account." }, { status: 429 });
   let messages: ChatMessage[];
   try {
     const body = (await request.json()) as { messages?: ChatMessage[] };
