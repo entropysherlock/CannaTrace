@@ -15,6 +15,7 @@ import {
   type Package,
   type PackageStatus,
 } from "@/db/schema";
+import { noteAudit } from "./audit-recorder";
 import { db, type Tx } from "./db";
 import { packFor, wasteRule } from "./rules";
 import { enqueueSyncEvent } from "./sync";
@@ -62,18 +63,22 @@ export async function audit(
   actor: Actor,
   entry: { entityType: string; entityId: string; action: string; before?: unknown; after?: unknown; reason?: string | null },
 ) {
-  await tx.insert(auditLogs).values({
-    orgId: actor.orgId,
-    facilityId: actor.facilityId,
-    userId: actor.userId,
-    userName: actor.userName,
-    entityType: entry.entityType,
-    entityId: entry.entityId,
-    action: entry.action,
-    before: entry.before ?? null,
-    after: entry.after ?? null,
-    reason: entry.reason?.trim() || null,
-  });
+  const [row] = await tx
+    .insert(auditLogs)
+    .values({
+      orgId: actor.orgId,
+      facilityId: actor.facilityId,
+      userId: actor.userId,
+      userName: actor.userName,
+      entityType: entry.entityType,
+      entityId: entry.entityId,
+      action: entry.action,
+      before: entry.before ?? null,
+      after: entry.after ?? null,
+      reason: entry.reason?.trim() || null,
+    })
+    .returning({ id: auditLogs.id });
+  noteAudit(row?.id);
   await enqueueSyncEvent(tx, actor, entry);
 }
 
@@ -327,7 +332,14 @@ export async function movePackage(
 /** Set a package to a newly counted quantity. A reason code is required. */
 export async function adjustPackage(
   actor: Actor,
-  input: { packageId: string; newQuantity: unknown; reasonCode: string; note?: string | null },
+  input: {
+    packageId: string;
+    newQuantity: unknown;
+    reasonCode: string;
+    note?: string | null;
+    /** Undo only: a package emptied by the change being undone may be refilled, back to this status. */
+    reopenAs?: PackageStatus;
+  },
 ): Promise<Package> {
   if (!ADJUST_REASONS.some((r) => r.code === input.reasonCode)) {
     throw new InventoryError("Choose a reason for the adjustment.");
@@ -342,14 +354,15 @@ export async function adjustPackage(
 
   return db.transaction(async (tx) => {
     const pkg = await lockPackage(tx, actor, input.packageId);
-    assertEditable(pkg.status);
+    const reopening = Boolean(input.reopenAs) && pkg.status === "FINISHED";
+    if (!reopening) assertEditable(pkg.status);
     assertNotAllocated(pkg);
     const change = applyDelta(pkg.quantity, target.sub(pkg.quantity));
     if (change.delta.isZero()) throw new InventoryError("The new quantity is the same as the current one.");
 
     const [updated] = await tx
       .update(packages)
-      .set({ quantity: store(change.after), status: change.after.isZero() ? "FINISHED" : pkg.status })
+      .set({ quantity: store(change.after), status: change.after.isZero() ? "FINISHED" : reopening ? input.reopenAs! : pkg.status })
       .where(eq(packages.id, pkg.id))
       .returning();
     await tx.insert(inventoryTransactions).values({

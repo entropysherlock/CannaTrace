@@ -29,6 +29,8 @@ const EVENT_TYPES: Record<string, string> = {
   "Harvest:CREATE": "HARVEST_CREATED",
   "Harvest:WASTE": "HARVEST_WASTE_RECORDED",
   "Harvest:FINISH": "HARVEST_FINISHED",
+  "Harvest:REOPEN": "HARVEST_UNFINISHED",
+  "Harvest:WASTE_REVERSED": "HARVEST_WASTE_REVERSED",
   "Order:SHIP": "TRANSFER_SHIPPED",
   "Order:DELIVER": "TRANSFER_DELIVERED",
   "Sale:COMPLETE": "RETAIL_SALE",
@@ -97,6 +99,10 @@ export function describeEvent(type: string, before: Json, after: Json): string {
       return `Retail sale ${str(a.number)} for $${str(a.total)}`;
     case "RETAIL_SALE_VOIDED":
       return `Voided retail sale ${str(a.number)}`;
+    case "HARVEST_UNFINISHED":
+      return "Reopened a finished harvest";
+    case "HARVEST_WASTE_REVERSED":
+      return `Took back ${amount(String(a.wasteGrams ?? "").replace("-", ""))} g of harvest waste logged in error`;
     default:
       return type.replaceAll("_", " ").toLowerCase();
   }

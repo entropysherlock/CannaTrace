@@ -68,11 +68,11 @@ describe.skipIf(!hasDb)("assistant tools and confirmations", () => {
     await expect(confirmProposal(as(owner, "READ_ONLY"), proposal.token)).rejects.toThrow(/no longer allows/);
     await expect(confirmProposal(owner, `${proposal.token}x`)).rejects.toThrow(/expired/);
 
-    expect(await confirmProposal(owner, proposal.token)).toMatch(/Moved package/);
+    expect((await confirmProposal(owner, proposal.token)).message).toMatch(/Moved package/);
     const [after] = await db.select().from(packages).where(eq(packages.id, pkg.id));
     expect(after.locationId).toBe(dest.id);
     // Confirming twice does not move it twice.
-    await expect(confirmProposal(owner, proposal.token)).rejects.toThrow(/already in that location/);
+    expect((await confirmProposal(owner, proposal.token)).message).toMatch(/^Already done: Moved package/); // a second Confirm does nothing
   });
 
   it("explains instead of proposing when details are wrong", async () => {

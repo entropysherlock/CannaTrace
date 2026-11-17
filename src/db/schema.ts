@@ -160,6 +160,37 @@ export const aiConnections = pgTable("ai_connections", {
   maxAnswerTokens: integer("max_answer_tokens").notNull().default(2048),
 });
 
+/**
+ * One row per change Tally made after a Confirm. It points at the audit entries the change wrote,
+ * which is what Undo reverses. The key comes from the signed proposal, so confirming twice does nothing.
+ */
+export const tallyChanges = pgTable(
+  "tally_changes",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id").notNull(),
+    userId: text("user_id").notNull(),
+    userName: text("user_name").notNull(),
+    key: text("key").notNull(),
+    tool: text("tool").notNull(),
+    title: text("title").notNull(),
+    result: text("result").notNull(),
+    /** Audit entry ids written by this change, oldest first. */
+    auditIds: jsonb("audit_ids").notNull().$type<string[]>(),
+    /** DONE, or UNDONE once reversed. */
+    status: text("status").notNull().default("DONE"),
+    /** Why it can't be undone, when the change includes something Undo can't reverse. */
+    notUndoableReason: text("not_undoable_reason"),
+    undoneAt: timestamp("undone_at", { withTimezone: true }),
+    undoneByName: text("undone_by_name"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("tally_changes_org_key").on(t.orgId, t.key), index("tally_changes_scope_idx").on(t.orgId, t.facilityId, t.createdAt)],
+);
+
+export type TallyChange = typeof tallyChanges.$inferSelect;
+
 /** One row per Tally question: who asked, which account paid, tokens used, and how it ended. */
 export const aiUsage = pgTable(
   "ai_usage",

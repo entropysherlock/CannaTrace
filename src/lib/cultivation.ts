@@ -526,3 +526,90 @@ export async function completeTask(actor: Actor, input: { taskId: string }): Pro
     .set({ done: true, doneAt: sql`now()`, doneByName: actor.userName })
     .where(and(eq(cultivationTasks.id, input.taskId), scoped(cultivationTasks, actor), eq(cultivationTasks.done, false)));
 }
+
+// ---------- Reversals, used by Undo. Each writes its own audit entry; nothing is erased. ----------
+
+/** Put a harvest's dry weight back to what it was (or to not yet weighed). */
+export async function restoreDryWeight(actor: Actor, input: { harvestId: string; dryWeightGrams: string | null; reason: string }): Promise<void> {
+  await db.transaction(async (tx) => {
+    const harvest = await lockHarvest(tx, actor, input.harvestId);
+    const target = input.dryWeightGrams === null ? null : new Decimal(input.dryWeightGrams);
+    const used = new Decimal(harvest.wasteWeight).add(harvest.packagedWeight);
+    if (target && target.lt(used)) throw new InventoryError(`Harvest ${harvest.name} already has ${used.toString()} g packaged or wasted, more than its old dry weight.`);
+    await tx.update(harvests).set({ dryWeight: target ? store(target) : null }).where(eq(harvests.id, harvest.id));
+    await audit(tx, actor, {
+      entityType: "Harvest",
+      entityId: harvest.id,
+      action: "DRY_WEIGHT",
+      before: { dryWeightGrams: harvest.dryWeight },
+      after: { dryWeightGrams: target?.toString() ?? null },
+      reason: input.reason,
+    });
+  });
+}
+
+/** Take back waste logged against a harvest: the weight returns to the harvest, and a negative waste line keeps the log honest. */
+export async function reverseHarvestWaste(actor: Actor, input: { harvestId: string; grams: string; reason: string }): Promise<void> {
+  const grams = new Decimal(input.grams);
+  await db.transaction(async (tx) => {
+    const harvest = await lockHarvest(tx, actor, input.harvestId);
+    if (grams.gt(harvest.wasteWeight)) throw new InventoryError(`Harvest ${harvest.name} only has ${new Decimal(harvest.wasteWeight).toString()} g of waste logged.`);
+    const [updated] = await tx
+      .update(harvests)
+      .set({ wasteWeight: store(new Decimal(harvest.wasteWeight).sub(grams)) })
+      .where(eq(harvests.id, harvest.id))
+      .returning();
+    await tx.insert(wasteLogs).values({
+      orgId: actor.orgId,
+      facilityId: actor.facilityId,
+      sourceType: "HARVEST",
+      sourceId: harvest.id,
+      weightGrams: store(grams.neg()),
+      reason: input.reason,
+      userId: actor.userId,
+      userName: actor.userName,
+    });
+    await audit(tx, actor, {
+      entityType: "Harvest",
+      entityId: harvest.id,
+      action: "WASTE_REVERSED",
+      after: { wasteGrams: grams.neg().toString(), totalWasteGrams: new Decimal(updated.wasteWeight).toString() },
+      reason: input.reason,
+    });
+  });
+}
+
+/** Give a package's weight back to the harvest it was made from. The package itself is emptied separately. */
+export async function reverseHarvestPackage(actor: Actor, input: { harvestId: string; packageTag: string; grams: string; reason: string }): Promise<void> {
+  const grams = new Decimal(input.grams);
+  await db.transaction(async (tx) => {
+    const harvest = await lockHarvest(tx, actor, input.harvestId);
+    if (grams.gt(harvest.packagedWeight)) throw new InventoryError(`Harvest ${harvest.name} only has ${new Decimal(harvest.packagedWeight).toString()} g packaged.`);
+    await tx
+      .update(harvests)
+      .set({ packagedWeight: store(new Decimal(harvest.packagedWeight).sub(grams)) })
+      .where(eq(harvests.id, harvest.id));
+    await audit(tx, actor, {
+      entityType: "Harvest",
+      entityId: harvest.id,
+      action: "PACKAGE_REVERSED",
+      after: { packageTag: input.packageTag, grams: grams.neg().toString() },
+      reason: input.reason,
+    });
+  });
+}
+
+/** Reopen a finished harvest so it can be changed again. */
+export async function reopenHarvest(actor: Actor, input: { harvestId: string; reason: string }): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [harvest] = await tx
+      .select()
+      .from(harvests)
+      .where(and(eq(harvests.id, input.harvestId), scoped(harvests, actor)))
+      .for("update");
+    if (!harvest) throw new InventoryError("That harvest was not found at this facility.");
+    if (harvest.status !== "FINISHED") return;
+    await tx.update(harvests).set({ status: "DRYING", moistureLoss: null, finishedAt: null }).where(eq(harvests.id, harvest.id));
+    await audit(tx, actor, { entityType: "Harvest", entityId: harvest.id, action: "REOPEN", reason: input.reason });
+  });
+}

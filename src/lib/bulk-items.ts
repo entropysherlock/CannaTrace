@@ -106,3 +106,28 @@ export async function updateItems(actor: Actor, itemIds: string[], raw: Record<s
     return n;
   });
 }
+
+/** Undo: put one item's fields (and shelf price) back to what an earlier change recorded as "before". */
+export async function restoreItem(actor: Actor, itemId: string, before: Record<string, unknown>, reason: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(items).where(and(eq(items.id, itemId), eq(items.orgId, actor.orgId))).for("update");
+    if (!current) throw new InventoryError("That item no longer exists.");
+    const set: Partial<typeof items.$inferInsert> = {};
+    for (const key of ["categoryId", "strain", "active", "limitCategory", "limitPerUnit"] as const)
+      if (key in before) (set as Record<string, unknown>)[key] = before[key];
+    if (Object.keys(set).length) await tx.update(items).set(set).where(eq(items.id, itemId));
+    let priceNow: string | null = null;
+    if ("retailPrice" in before) {
+      const [p] = await tx.select({ price: retailPrices.price }).from(retailPrices).where(and(eq(retailPrices.facilityId, actor.facilityId), eq(retailPrices.itemId, itemId)));
+      priceNow = p ? new Decimal(p.price).toFixed(2) : null;
+      if (before.retailPrice === null) await tx.delete(retailPrices).where(and(eq(retailPrices.facilityId, actor.facilityId), eq(retailPrices.itemId, itemId)));
+      else
+        await tx
+          .insert(retailPrices)
+          .values({ facilityId: actor.facilityId, itemId, price: String(before.retailPrice) })
+          .onConflictDoUpdate({ target: [retailPrices.facilityId, retailPrices.itemId], set: { price: String(before.retailPrice) } });
+    }
+    const was = Object.fromEntries(Object.keys(set).map((k) => [k, current[k as keyof typeof current]]));
+    await audit(tx, actor, { entityType: "Item", entityId: itemId, action: "UPDATE", before: { ...was, ...("retailPrice" in before ? { retailPrice: priceNow } : {}) }, after: before, reason });
+  });
+}

@@ -1,6 +1,7 @@
 import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { noteAudit } from "@/lib/audit-recorder";
 import { auditLogs, labelTemplates, labelTemplateVersions, printJobs, printerProfiles } from "@/db/schema";
 import { loadLabelRecords, type Scope } from "./data";
 import { starterTemplates } from "./defaults";
@@ -25,17 +26,21 @@ export const MAX_ATTEMPTS = 5;
 export const MAX_LABELS_PER_JOB = 2000;
 
 async function log(actor: LabelActor, entityType: string, entityId: string, action: string, after?: unknown, reason?: string) {
-  await db.insert(auditLogs).values({
-    orgId: actor.orgId,
-    facilityId: actor.facilityId,
-    userId: actor.userId,
-    userName: actor.userName,
-    entityType,
-    entityId,
-    action,
-    after: after ?? null,
-    reason: reason ?? null,
-  });
+  const [row] = await db
+    .insert(auditLogs)
+    .values({
+      orgId: actor.orgId,
+      facilityId: actor.facilityId,
+      userId: actor.userId,
+      userName: actor.userName,
+      entityType,
+      entityId,
+      action,
+      after: after ?? null,
+      reason: reason ?? null,
+    })
+    .returning({ id: auditLogs.id });
+  noteAudit(row?.id);
 }
 
 // ---------------------------------------------------------------- templates

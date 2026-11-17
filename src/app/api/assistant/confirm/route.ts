@@ -9,9 +9,9 @@ export async function POST(request: Request) {
   if (!session) return NextResponse.json({ error: "Sign in again." }, { status: 401 });
   try {
     const { token } = (await request.json()) as { token?: string };
-    const message = await confirmProposal(session, String(token ?? ""));
+    const outcome = await confirmProposal(session, String(token ?? ""));
     revalidatePath("/", "layout");
-    return NextResponse.json({ ok: message });
+    return NextResponse.json({ ok: outcome.message, changeId: outcome.undoable ? outcome.changeId : null });
   } catch (error) {
     if (error instanceof InventoryError) return NextResponse.json({ error: error.message }, { status: 422 });
     console.error("assistant confirm failed", error);

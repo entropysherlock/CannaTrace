@@ -8,7 +8,20 @@ import remarkGfm from "remark-gfm";
 
 type Detail = { label: string; value: string };
 type ProposalState = "waiting" | "working" | "done" | "cancelled" | "failed";
-type Proposal = { id: string; token: string; title: string; details: Detail[]; state: ProposalState; result?: string };
+type UndoState = "ready" | "working" | "done" | "failed";
+type Proposal = {
+  id: string;
+  token: string;
+  title: string;
+  details: Detail[];
+  steps?: string[];
+  state: ProposalState;
+  result?: string;
+  /** Set when the change can be undone in one click. */
+  changeId?: string | null;
+  undo?: UndoState;
+  undoResult?: string;
+};
 type Turn =
   | { role: "user"; content: string }
   | { role: "assistant"; content: string; status?: string; proposals: Proposal[]; error?: string; streaming?: boolean };
@@ -48,7 +61,10 @@ function transcript(turns: Turn[]) {
           role: "assistant" as const,
           content: [
             t.content,
-            ...t.proposals.map((p) => `[${p.title}: ${p.details.map((d) => `${d.label} ${d.value}`).join("; ")} — ${p.state === "done" ? `confirmed and done: ${p.result}` : p.state}]`),
+            ...t.proposals.map(
+              (p) =>
+                `[${p.title}: ${p.details.map((d) => `${d.label} ${d.value}`).join("; ")} — ${p.state === "done" ? `confirmed and done: ${p.result}` : p.state}${p.undo === "done" ? `; then undone: ${p.undoResult}` : ""}]`,
+            ),
           ]
             .filter(Boolean)
             .join("\n"),
@@ -179,7 +195,7 @@ export function AssistantPanel({
           if (event.type === "text") updateLast((t) => ({ ...t, content: t.content + event.text, status: undefined }));
           else if (event.type === "status") updateLast((t) => ({ ...t, status: event.label }));
           else if (event.type === "proposal")
-            updateLast((t) => ({ ...t, status: undefined, proposals: [...t.proposals, { id: event.id, token: event.token, title: event.title, details: event.details, state: "waiting" }] }));
+            updateLast((t) => ({ ...t, status: undefined, proposals: [...t.proposals, { id: event.id, token: event.token, title: event.title, details: event.details, steps: event.steps, state: "waiting" }] }));
           else if (event.type === "error") updateLast((t) => ({ ...t, error: event.message, status: undefined }));
         }
       }
@@ -212,12 +228,26 @@ export function AssistantPanel({
     setProposal(p.id, { state: "working" });
     try {
       const res = await fetch("/api/assistant/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: p.token }) });
-      const body = (await res.json()) as { ok?: string; error?: string };
+      const body = (await res.json()) as { ok?: string; error?: string; changeId?: string | null };
       if (!res.ok || !body.ok) throw new Error(body.error ?? "That did not go through.");
-      setProposal(p.id, { state: "done", result: body.ok });
+      setProposal(p.id, { state: "done", result: body.ok, changeId: body.changeId ?? null, undo: body.changeId ? "ready" : undefined });
       router.refresh();
     } catch (error) {
       setProposal(p.id, { state: "failed", result: (error as Error).message });
+    }
+  };
+
+  const undo = async (p: Proposal) => {
+    if (!p.changeId) return;
+    setProposal(p.id, { undo: "working" });
+    try {
+      const res = await fetch("/api/assistant/undo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ changeId: p.changeId }) });
+      const body = (await res.json()) as { ok?: string; error?: string };
+      if (!res.ok || !body.ok) throw new Error(body.error ?? "The undo did not go through.");
+      setProposal(p.id, { undo: "done", undoResult: body.ok });
+      router.refresh();
+    } catch (error) {
+      setProposal(p.id, { undo: "failed", undoResult: (error as Error).message });
     }
   };
 
@@ -299,7 +329,7 @@ export function AssistantPanel({
           ) : turns.length === 0 ? (
             <div className="mt-6">
               <p className="text-xl font-semibold tracking-tight text-slate-900">Hi {firstName}, what can I help with?</p>
-              <p className="mt-1 text-sm text-slate-600">Ask about inventory, sales, plants, orders, or state reporting. I can also move packages, put them on hold, and fix quantities after you confirm.</p>
+              <p className="mt-1 text-sm text-slate-600">Ask about inventory, sales, plants, orders, or state reporting. I can also receive packages, start orders and production runs, close out harvests, and fix quantities. You approve the plan once, and every change has an Undo.</p>
               <div className="mt-5 grid gap-2">
                 {suggestions.map((s) => (
                   <button
@@ -348,6 +378,16 @@ export function AssistantPanel({
                               </div>
                             ))}
                           </dl>
+                          {p.steps?.length ? (
+                            <details className="border-t border-slate-100 px-4 py-2" open={p.steps.length <= 8}>
+                              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-500">The plan · {p.steps.length} step{p.steps.length === 1 ? "" : "s"}</summary>
+                              <ol className="mt-2 max-h-56 list-decimal space-y-1 overflow-y-auto pl-5 text-[13px] text-slate-700" data-plan-steps>
+                                {p.steps.map((step, i) => (
+                                  <li key={i}>{step}</li>
+                                ))}
+                              </ol>
+                            </details>
+                          ) : null}
                           <div className="border-t border-slate-100 px-4 py-3">
                             {p.state === "waiting" || p.state === "working" ? (
                               <div className="flex gap-2">
@@ -370,9 +410,35 @@ export function AssistantPanel({
                                 </button>
                               </div>
                             ) : p.state === "done" ? (
-                              <p className="flex items-center gap-2 font-medium text-brand-700">
-                                <Check className="h-4 w-4" aria-hidden="true" /> {p.result}
-                              </p>
+                              <div className="space-y-2">
+                                <p className={`flex items-center gap-2 font-medium ${p.undo === "done" ? "text-slate-500 line-through" : "text-brand-700"}`}>
+                                  <Check className="h-4 w-4 shrink-0" aria-hidden="true" /> {p.result}
+                                </p>
+                                {p.undo === "ready" || p.undo === "working" ? (
+                                  <button
+                                    type="button"
+                                    disabled={p.undo === "working"}
+                                    onClick={() => undo(p)}
+                                    className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                  >
+                                    {p.undo === "working" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RotateCcw className="h-4 w-4" aria-hidden="true" />}
+                                    Undo this
+                                  </button>
+                                ) : p.undo === "done" ? (
+                                  <p className="flex items-center gap-2 font-medium text-slate-700">
+                                    <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" /> {p.undoResult}
+                                  </p>
+                                ) : p.undo === "failed" ? (
+                                  <div className="space-y-2">
+                                    <p className="flex items-start gap-2 font-medium text-red-700">
+                                      <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> {p.undoResult}
+                                    </p>
+                                    <button type="button" onClick={() => undo(p)} className="text-sm font-semibold text-brand-700 underline underline-offset-2">
+                                      Try undo again
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </div>
                             ) : p.state === "failed" ? (
                               <p className="flex items-center gap-2 font-medium text-red-700">
                                 <XCircle className="h-4 w-4" aria-hidden="true" /> {p.result}
