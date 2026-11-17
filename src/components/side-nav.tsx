@@ -1,104 +1,166 @@
 "use client";
 
 import {
-  ArrowDownToLine,
   BarChart3,
   Boxes,
-  ClipboardList,
   Factory,
-  FileSpreadsheet,
   LayoutDashboard,
-  MapPin,
-  Plug,
-  ScrollText,
+  Menu,
   Settings,
   ShieldCheck,
   Sprout,
   Store,
-  Tag,
   Truck,
-  Users,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 const ICONS: Record<string, LucideIcon> = {
-  "/dashboard": LayoutDashboard,
-  "/inventory": Boxes,
-  "/inventory/receive": ArrowDownToLine,
-  "/cultivation": Sprout,
-  "/manufacturing": Factory,
-  "/distribution": Truck,
-  "/pos": Store,
-  "/counts": ClipboardList,
-  "/catalog": Tag,
-  "/locations": MapPin,
-  "/reports": BarChart3,
-  "/data": FileSpreadsheet,
-  "/compliance": ShieldCheck,
-  "/audit": ScrollText,
-  "/integrations": Plug,
-  "/team": Users,
-  "/settings": Settings,
+  dashboard: LayoutDashboard,
+  cultivation: Sprout,
+  inventory: Boxes,
+  manufacturing: Factory,
+  distribution: Truck,
+  register: Store,
+  reports: BarChart3,
+  compliance: ShieldCheck,
+  settings: Settings,
 };
 
-type Item = { href: string; label: string };
+export type Tab = { href: string; label: string };
+/** One sidebar entry. When it has tabs, it opens the first tab and stays lit on any of them. */
+export type NavItem = { key: string; label: string; href: string; tabs?: Tab[] };
+export type NavGroup = { heading?: string; items: NavItem[] };
 
-/** The most specific nav entry that matches the current page is the active one. */
-function activeHref(items: Item[], pathname: string): string | null {
-  const matches = items.filter((i) => pathname === i.href || pathname.startsWith(`${i.href}/`));
-  return matches.sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
+const matches = (href: string, pathname: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+/** The most specific link that matches the current page. */
+function best<T extends { href: string }>(links: T[], pathname: string): T | null {
+  return links.filter((l) => matches(l.href, pathname)).sort((a, b) => b.href.length - a.href.length)[0] ?? null;
 }
 
-export function SideNav({ items }: { items: Item[] }) {
-  const pathname = usePathname();
-  const active = activeHref(items, pathname);
+function activeItem(groups: NavGroup[], pathname: string): NavItem | null {
+  const all = groups.flatMap((g) => g.items);
+  const candidates = all.flatMap((item) => [item, ...(item.tabs ?? [])].map((link) => ({ href: link.href, item })));
+  return best(candidates, pathname)?.item ?? null;
+}
+
+function NavLink({ item, on, onClick }: { item: NavItem; on: boolean; onClick?: () => void }) {
+  const Icon = ICONS[item.key] ?? LayoutDashboard;
   return (
-    <nav className="flex flex-col gap-0.5">
-      {items.map((item) => {
-        const Icon = ICONS[item.href] ?? LayoutDashboard;
-        const on = item.href === active;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={on ? "page" : undefined}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              on ? "bg-brand-600 text-white shadow-sm" : "text-brand-100 hover:bg-brand-900 hover:text-white"
-            }`}
-          >
-            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-            {item.label}
-          </Link>
-        );
-      })}
+    <Link
+      href={item.href}
+      onClick={onClick}
+      aria-current={on ? "page" : undefined}
+      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+        on ? "bg-brand-600 text-white shadow-sm" : "text-brand-100 hover:bg-brand-900 hover:text-white"
+      }`}
+    >
+      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+      {item.label}
+    </Link>
+  );
+}
+
+export function SideNav({ groups }: { groups: NavGroup[] }) {
+  const pathname = usePathname();
+  const active = activeItem(groups, pathname);
+  return (
+    <nav className="flex flex-col gap-5" aria-label="Main">
+      {groups.map((group, i) => (
+        <div key={group.heading ?? i} className="flex flex-col gap-0.5">
+          {group.heading ? <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-brand-200/70">{group.heading}</p> : null}
+          {group.items.map((item) => (
+            <NavLink key={item.key} item={item} on={item.key === active?.key} />
+          ))}
+        </div>
+      ))}
     </nav>
   );
 }
 
-export function BottomNav({ items }: { items: Item[] }) {
+/** Tabs across the top of pages that share one sidebar entry, such as Inventory's Packages, Receive, and Counts. */
+export function SectionTabs({ groups }: { groups: NavGroup[] }) {
   const pathname = usePathname();
-  const active = activeHref(items, pathname);
+  const item = activeItem(groups, pathname);
+  if (!item?.tabs || item.tabs.length < 2) return null;
+  const current = best(item.tabs, pathname);
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-10 flex overflow-x-auto border-t border-slate-200 bg-white md:hidden print:hidden">
-      {items.map((item) => {
-        const Icon = ICONS[item.href] ?? LayoutDashboard;
-        const on = item.href === active;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={on ? "page" : undefined}
-            className={`flex min-h-14 shrink-0 grow basis-20 flex-col items-center justify-center gap-0.5 px-1 text-center text-[11px] font-semibold ${
-              on ? "text-brand-700" : "text-slate-600"
-            }`}
-          >
-            <Icon className="h-5 w-5" aria-hidden="true" />
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav aria-label={`${item.label} sections`} className="-mt-2 mb-5 overflow-x-auto border-b border-slate-200">
+      <ul className="flex min-w-max gap-1">
+        {item.tabs.map((tab) => {
+          const on = tab.href === current?.href;
+          return (
+            <li key={tab.href}>
+              <Link
+                href={tab.href}
+                aria-current={on ? "page" : undefined}
+                className={`-mb-px inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-semibold transition-colors ${
+                  on ? "border-brand-600 text-brand-800" : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </nav>
+  );
+}
+
+/** Phones: the four most used places, plus Menu for everything else. */
+export function BottomNav({ groups }: { groups: NavGroup[] }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const active = activeItem(groups, pathname);
+  const all = groups.flatMap((g) => g.items);
+  const quick = all.slice(0, 4);
+
+  return (
+    <>
+      <nav aria-label="Quick" className="fixed inset-x-0 bottom-0 z-20 flex border-t border-slate-200 bg-white md:hidden print:hidden">
+        {quick.map((item) => {
+          const Icon = ICONS[item.key] ?? LayoutDashboard;
+          const on = item.key === active?.key && !open;
+          return (
+            <Link
+              key={item.key}
+              href={item.href}
+              aria-current={on ? "page" : undefined}
+              className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${on ? "text-brand-700" : "text-slate-600"}`}
+            >
+              <Icon className="h-5 w-5" aria-hidden="true" />
+              {item.label}
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${open || (active && !quick.includes(active)) ? "text-brand-700" : "text-slate-600"}`}
+        >
+          {open ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
+          Menu
+        </button>
+      </nav>
+      {open ? (
+        <div
+          className="fixed inset-x-0 bottom-14 top-0 z-10 overflow-y-auto bg-brand-950 p-4 md:hidden"
+          role="dialog"
+          aria-label="Menu"
+          // Close once a link is chosen.
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("a")) setOpen(false);
+          }}
+        >
+          <SideNav groups={groups} />
+        </div>
+      ) : null}
+    </>
   );
 }

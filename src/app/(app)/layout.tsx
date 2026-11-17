@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AskButton, AssistantPanel } from "@/components/assistant-panel";
 import { Logo } from "@/components/logo";
 import { assistantEnabled } from "@/lib/assistant/engine";
-import { BottomNav, SideNav } from "@/components/side-nav";
+import { BottomNav, SectionTabs, SideNav, type NavGroup, type NavItem, type Tab } from "@/components/side-nav";
 import { asc, eq } from "drizzle-orm";
 import { facilities as facilitiesTable } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -22,27 +22,67 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .where(eq(facilitiesTable.orgId, session.orgId))
     .orderBy(asc(facilitiesTable.name));
 
-  const nav = [
-    { href: "/dashboard", label: "Dashboard", show: true },
-    { href: "/inventory", label: "Inventory", show: can(session, "inventory.view") },
-    { href: "/inventory/receive", label: "Receive", show: can(session, "inventory.write") },
-    { href: "/cultivation", label: "Cultivation", show: can(session, "cultivation.view") },
-    { href: "/manufacturing", label: "Manufacturing", show: can(session, "inventory.view") },
-    { href: "/distribution", label: "Distribution", show: can(session, "sales.view") },
-    { href: "/pos", label: "Register", show: can(session, "pos.use") },
-    { href: "/counts", label: "Counts", show: can(session, "inventory.adjust") },
-    { href: "/catalog", label: "Items", show: can(session, "catalog.manage") },
-    { href: "/locations", label: "Locations", show: can(session, "catalog.manage") },
-    { href: "/reports", label: "Reports", show: can(session, "reports.view") },
-    { href: "/data", label: "Import and export", show: can(session, "inventory.view") },
-    { href: "/compliance", label: "State reporting", show: can(session, "compliance.view") },
-    { href: "/audit", label: "Audit trail", show: can(session, "audit.view") },
-    { href: "/integrations", label: "Integrations", show: can(session, "integrations.manage") },
-    { href: "/team", label: "Team", show: can(session, "users.manage") },
-    { href: "/settings", label: "Settings", show: can(session, "settings.manage") },
-  ].filter((item) => item.show);
-
-  const items = nav.map(({ href, label }) => ({ href, label }));
+  // Related pages share one sidebar entry and show as tabs at the top of the page.
+  const tabs = (list: [string, string, boolean][]) => list.filter(([, , show]) => show).map(([href, label]) => ({ href, label }));
+  const entry = (key: string, label: string, list: Tab[]): NavItem | null => (list.length ? { key, label, href: list[0].href, tabs: list } : null);
+  const groups: NavGroup[] = [
+    { items: [{ key: "dashboard", label: "Dashboard", href: "/dashboard" }] },
+    {
+      heading: "Operations",
+      items: [
+        entry("cultivation", "Cultivation", tabs([["/cultivation", "Cultivation", can(session, "cultivation.view")]])),
+        entry(
+          "inventory",
+          "Inventory",
+          tabs([
+            ["/inventory", "Packages", can(session, "inventory.view")],
+            ["/inventory/receive", "Receive", can(session, "inventory.write")],
+            ["/counts", "Counts", can(session, "inventory.adjust")],
+            ["/catalog", "Items", can(session, "catalog.manage")],
+            ["/locations", "Locations", can(session, "catalog.manage")],
+          ]),
+        ),
+        entry("manufacturing", "Manufacturing", tabs([["/manufacturing", "Manufacturing", can(session, "inventory.view")]])),
+        entry("distribution", "Distribution", tabs([["/distribution", "Distribution", can(session, "sales.view")]])),
+        entry("register", "Register", tabs([["/pos", "Register", can(session, "pos.use")]])),
+      ].filter((x): x is NavItem => Boolean(x)),
+    },
+    {
+      heading: "Insights",
+      items: [
+        entry(
+          "reports",
+          "Reports",
+          tabs([
+            ["/reports", "Reports", can(session, "reports.view")],
+            ["/data", "Import and export", can(session, "inventory.view")],
+          ]),
+        ),
+        entry(
+          "compliance",
+          "Compliance",
+          tabs([
+            ["/compliance", "State reporting", can(session, "compliance.view")],
+            ["/audit", "Audit trail", can(session, "audit.view")],
+          ]),
+        ),
+      ].filter((x): x is NavItem => Boolean(x)),
+    },
+    {
+      heading: "Admin",
+      items: [
+        entry(
+          "settings",
+          "Settings",
+          tabs([
+            ["/settings", "Business", can(session, "settings.manage")],
+            ["/team", "Team", can(session, "users.manage")],
+            ["/integrations", "Integrations", can(session, "integrations.manage")],
+          ]),
+        ),
+      ].filter((x): x is NavItem => Boolean(x)),
+    },
+  ].filter((g) => g.items.length);
 
   return (
     <div className="min-h-screen md:flex">
@@ -51,7 +91,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Logo tone="light" />
         </Link>
         <div className="-mx-1 flex-1 overflow-y-auto px-1">
-          <SideNav items={items} />
+          <SideNav groups={groups} />
         </div>
         <div className="mt-4 border-t border-brand-800 px-2 pt-4 text-sm">
           <p className="font-medium">{session.name}</p>
@@ -96,10 +136,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </button>
           </form>
         </header>
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
+          <SectionTabs groups={groups} />
+          {children}
+        </main>
       </div>
 
-      <BottomNav items={items} />
+      <BottomNav groups={groups} />
       <AssistantPanel
         enabled={assistantEnabled()}
         firstName={session.name.split(" ")[0]}

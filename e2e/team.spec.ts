@@ -21,6 +21,7 @@ test("a new business signs up, builds a role, invites someone, and they join wit
   await expect(page).toHaveURL(/\/dashboard/);
 
   // Build a custom role from the Manager template, minus adjustments
+  await page.getByRole("link", { name: "Settings" }).first().click();
   await page.getByRole("link", { name: "Team" }).first().click();
   await expect(page.getByRole("heading", { name: "Team" })).toBeVisible();
   await page.getByRole("link", { name: "Build a role" }).click();
