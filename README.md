@@ -37,6 +37,15 @@ A new deployment starts empty. The first visitor is sent to **/setup** to enter 
 
 Before the register can sell, a manager must enter the store's real purchase limits and tax rates under **Register → Menu and store rules**. The register stays locked until then.
 
+## State rules (compliance guard)
+
+Each state is a rule pack in `src/lib/rules/packs/`: plain data where every rule carries its citation, a link to the official text, and the date it was checked. Packs today: **New Mexico, California, Michigan, Colorado**. The facility's state picks the pack.
+
+- **Register:** the stricter of the store's and the state's purchase limits (including Michigan's combined flower-plus-concentrate cap), the state's minimum age, and no sale of product without a passing lab result where the state requires testing.
+- **Destroying waste:** the state's hold period and mixing confirmation (New Mexico: 72 hours, 50%).
+- **Compliance → State rules:** a score out of 100, issues to fix, and every rule with its source. The dashboard shows the score; the assistant can explain it.
+- **Adding a state:** read the regulator's official text, write a pack with citations, add it to `PACKS`, and extend `tests/rules-engine.test.ts`. Never add a number you have not checked against the official source.
+
 ## The assistant (Claude)
 
 Every page has an **Ask CannaTrace** button (or press Ctrl+J). People ask in plain English and Claude answers from the business's live data: inventory, sales, orders, unpaid invoices, plants, production, state reporting, and the audit trail.

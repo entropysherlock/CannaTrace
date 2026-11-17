@@ -1,4 +1,7 @@
 import Decimal from "decimal.js";
+import { CA } from "./packs/ca";
+import { CO } from "./packs/co";
+import { MI } from "./packs/mi";
 import { NM } from "./packs/nm";
 import type { Rule, StatePack } from "./types";
 
@@ -6,7 +9,7 @@ export type { Rule, StatePack } from "./types";
 export { ENFORCEMENT } from "./types";
 
 /** Every state with a rule pack. Add a state by writing its pack and listing it here. */
-export const PACKS: Record<string, StatePack> = { NM };
+export const PACKS: Record<string, StatePack> = { NM, CA, MI, CO };
 
 export function packFor(state: string | null | undefined): StatePack | null {
   return state ? (PACKS[state.toUpperCase()] ?? null) : null;
@@ -44,6 +47,12 @@ export function effectiveLimits(store: LimitMap, pack: StatePack | null, custome
     }
   }
   return { limits, fromState };
+}
+
+/** A cap on flower and concentrate grams together, where the state has one. */
+export function combinedCap(pack: StatePack | null, customer: "ADULT_USE" | "MEDICAL"): Decimal | null {
+  const rule = rulesOf(pack, "PURCHASE_LIMIT").find((r) => r.customer === customer);
+  return rule?.combinedGrams !== undefined ? new Decimal(rule.combinedGrams) : null;
 }
 
 /** The youngest a customer may be, taking the stricter of the store's setting and the state's rule. */

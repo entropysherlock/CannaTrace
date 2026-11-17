@@ -20,7 +20,7 @@ import { parseDate, parseMoney, parsePrice, todayIn } from "./distribution-math"
 import { InventoryError, audit, consumeFromPackageInTx, returnToPackageInTx, type Actor } from "./inventory";
 import { parsePositiveQty } from "./inventory-math";
 import { nextNumber } from "./numbering";
-import { effectiveLimits, minimumAge, packFor, requiresLabBeforeRetail, type StatePack } from "./rules";
+import { combinedCap, effectiveLimits, minimumAge, packFor, requiresLabBeforeRetail, type StatePack } from "./rules";
 import {
   cartTotals,
   changeDue,
@@ -353,6 +353,10 @@ function limitCheck(lines: Parameters<typeof limitUsage>[0], settings: Awaited<R
   const { limits, fromState } = effectiveLimits(limitsOf(settings), pack, customer);
   const usage = limitUsage(lines);
   const problem = limitProblem(usage, limits);
+  const together = combinedCap(pack, customer);
+  if (!problem && pack && together && usage.FLOWER.add(usage.CONCENTRATE).gt(together)) {
+    return `That puts the cart at ${usage.FLOWER.add(usage.CONCENTRATE).toString()} g of flower and concentrate together. ${pack.name} law allows ${together.toString()} g per purchase.`;
+  }
   if (!problem || !pack) return problem;
   const broken = (["FLOWER", "CONCENTRATE", "EDIBLE"] as const).find((k) => usage[k].gt(limits[k]));
   return broken && fromState.has(broken) ? problem.replace(/The limit is (.+) per purchase\.$/, `${pack.name} law allows $1 per purchase.`) : problem;

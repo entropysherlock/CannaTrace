@@ -202,7 +202,12 @@ export default async function StateRulesPage() {
                   className="grid gap-2 py-3 sm:grid-cols-[1fr_auto] sm:gap-6"
                 >
                   <div>
-                    <p className="font-semibold text-slate-900">{rule.title}</p>
+                    <p className="font-semibold text-slate-900">
+                    {rule.title}
+                    {rule.kind === "PURCHASE_LIMIT" && rule.period === "DAY" ? (
+                      <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Per day: checked on each sale</span>
+                    ) : null}
+                  </p>
                     <p className="mt-0.5 text-sm text-slate-600">
                       {rule.summary}
                     </p>

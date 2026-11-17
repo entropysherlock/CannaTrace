@@ -5,7 +5,7 @@ import { db, pool } from "@/lib/db";
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { addLabResult, receivePackage, type Actor } from "@/lib/inventory";
 import { addToCart, checkInCustomer, openDrawer, saveRetailSettings, setMenuItem } from "@/lib/pos";
-import { PACKS, effectiveLimits, minimumAge, packFor, requiresLabBeforeRetail } from "@/lib/rules";
+import { PACKS, combinedCap, effectiveLimits, minimumAge, packFor, requiresLabBeforeRetail } from "@/lib/rules";
 import { scanFacility, scoreOf } from "@/lib/rules/scan";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
@@ -38,6 +38,23 @@ describe("state rule packs", () => {
     expect(minimumAge(25, nm, "ADULT_USE")).toBe(25);
     expect(requiresLabBeforeRetail(nm)).toBe(true);
     expect(packFor("WY")).toBeNull();
+  });
+
+  it("has packs for New Mexico, California, Michigan, and Colorado with the confirmed numbers", () => {
+    expect(Object.keys(PACKS).sort()).toEqual(["CA", "CO", "MI", "NM"]);
+    const store = { FLOWER: new Decimal(1000), CONCENTRATE: new Decimal(1000), EDIBLE: new Decimal(100000) };
+    const cap = (state: string, customer: "ADULT_USE" | "MEDICAL") => {
+      const { limits } = effectiveLimits(store, packFor(state), customer);
+      return [limits.FLOWER.toNumber(), limits.CONCENTRATE.toNumber(), limits.EDIBLE.toNumber()];
+    };
+    expect(cap("CA", "ADULT_USE")).toEqual([28.5, 8, 100000]);
+    expect(cap("CA", "MEDICAL")).toEqual([226.8, 1000, 100000]);
+    expect(cap("MI", "ADULT_USE")).toEqual([70.87, 15, 100000]);
+    expect(combinedCap(packFor("MI"), "ADULT_USE")?.toNumber()).toBe(70.87);
+    expect(combinedCap(packFor("CA"), "ADULT_USE")).toBeNull();
+    expect(cap("CO", "ADULT_USE")).toEqual([28.35, 8, 100000]);
+    expect(minimumAge(16, packFor("CA"), "MEDICAL")).toBe(18);
+    expect(requiresLabBeforeRetail(packFor("CO"))).toBe(false);
   });
 
   it("scores issues", () => {
@@ -91,6 +108,34 @@ describe.skipIf(!hasDb)("state rules at the register and in the daily check (dat
     const cart = await checkInCustomer(actor, adult);
     await addToCart(actor, { saleId: cart.id, itemId: jar, quantity: "2" });
     await expect(addToCart(actor, { saleId: cart.id, itemId: jar, quantity: "1" })).rejects.toThrow(/New Mexico law allows 56\.7 g per purchase/);
+  });
+
+  it("counts flower and concentrate together where Michigan requires it", async () => {
+    const [mi] = await db.insert(facilities).values({ orgId: actor.orgId, name: "Detroit", licenseNumber: `${run}-MI`, licenseType: "RETAIL", state: "MI" }).returning();
+    const miActor = { ...actor, facilityId: mi.id };
+    const [floor] = await db.insert(locations).values({ orgId: actor.orgId, facilityId: mi.id, name: "Floor", type: "ROOM" }).returning();
+    const [cat] = await db.insert(itemCategories).values({ orgId: actor.orgId, name: `MI ${run}` }).returning();
+    const [flower, wax] = await db
+      .insert(items)
+      .values([
+        { orgId: actor.orgId, name: "Big Bag", sku: `${run}-BB`, categoryId: cat.id, unit: "EACH" as const },
+        { orgId: actor.orgId, name: "Wax", sku: `${run}-WX`, categoryId: cat.id, unit: "EACH" as const },
+      ])
+      .returning();
+    await saveRetailSettings(miActor, { flowerLimitGrams: "500", concentrateLimitGrams: "500", edibleLimitMg: "5000", exciseTaxPercent: "10", salesTaxPercent: "6", medicalTaxExempt: true });
+    await setMenuItem(miActor, { itemId: flower.id, price: "200", limitCategory: "FLOWER", limitPerUnit: "30" });
+    await setMenuItem(miActor, { itemId: wax.id, price: "40", limitCategory: "CONCENTRATE", limitPerUnit: "14" });
+    for (const [itemId, tag] of [
+      [flower.id, `${run}-MIF`],
+      [wax.id, `${run}-MIW`],
+    ]) {
+      const pkg = await receivePackage(miActor, { tag, itemId, quantity: "10", locationId: floor.id });
+      await addLabResult(miActor, { packageId: pkg.id, labName: "Lab", status: "PASS", thcPercent: "20" });
+    }
+    await openDrawer(miActor, { openingCash: "0" });
+    const cart = await checkInCustomer(miActor, adult);
+    await addToCart(miActor, { saleId: cart.id, itemId: flower.id, quantity: "2" });
+    await expect(addToCart(miActor, { saleId: cart.id, itemId: wax.id, quantity: "1" })).rejects.toThrow(/74 g of flower and concentrate together\. Michigan law allows 70\.87 g/);
   });
 
   it("says plainly when a state has no rule pack", async () => {
