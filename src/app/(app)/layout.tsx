@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AskButton, AssistantPanel } from "@/components/assistant-panel";
+import { AssistantPanel } from "@/components/assistant-panel";
 import { Logo } from "@/components/logo";
 import { assistantEnabled } from "@/lib/assistant/engine";
 import { BottomNav, SectionTabs, SideNav, type NavGroup, type NavItem, type Tab } from "@/components/side-nav";
@@ -130,7 +130,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Switch
             </button>
           </form>
-          <AskButton />
           <form action={signOut} className="md:hidden">
             <button type="submit" className="text-sm font-medium text-brand-200">
               Sign out
