@@ -135,7 +135,7 @@ export default function HomePage() {
             <Link href="/login" className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
               Sign in
             </Link>
-            <Link href="/login" className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-800">
+            <Link href="/signup" className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-800">
               Get started
             </Link>
           </div>
@@ -156,7 +156,7 @@ export default function HomePage() {
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
-                href="/login"
+                href="/signup"
                 className="inline-flex items-center gap-2 rounded-lg bg-brand-700 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-brand-800"
               >
                 Get started <ArrowRight className="h-5 w-5" aria-hidden="true" />
@@ -239,7 +239,7 @@ export default function HomePage() {
           <h2 className="mt-4 text-3xl font-bold tracking-tight">Run your whole operation in one place</h2>
           <p className="mx-auto mt-2 max-w-xl text-brand-100">Set up your business, add your licenses, and start tracking today.</p>
           <Link
-            href="/login"
+            href="/signup"
             className="mt-6 inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-semibold text-brand-900 shadow-sm hover:bg-brand-50"
           >
             Get started <ArrowRight className="h-5 w-5" aria-hidden="true" />

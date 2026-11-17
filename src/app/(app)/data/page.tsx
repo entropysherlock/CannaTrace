@@ -17,7 +17,7 @@ const EXPORTS: { table: string; label: string; permission: Permission }[] = [
 
 export default async function DataPage() {
   const session = await requirePagePermission("inventory.view");
-  const canImport = ["catalog.manage", "sales.write", "inventory.write"].some((p) => can(session.role, p as Permission));
+  const canImport = ["catalog.manage", "sales.write", "inventory.write"].some((p) => can(session, p as Permission));
 
   return (
     <>
@@ -25,7 +25,7 @@ export default async function DataPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title="Download">
           <ul className="divide-y divide-slate-100 text-sm">
-            {EXPORTS.filter((e) => can(session.role, e.permission)).map((e) => (
+            {EXPORTS.filter((e) => can(session, e.permission)).map((e) => (
               <li key={e.table} className="flex items-center justify-between gap-3 py-2">
                 <span className="text-slate-900">{e.label}</span>
                 <a href={`/export/${e.table}`} className="font-semibold text-brand-700 hover:underline">

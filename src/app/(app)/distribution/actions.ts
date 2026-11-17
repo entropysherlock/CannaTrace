@@ -30,7 +30,7 @@ import { PermissionError, requireSession } from "@/lib/session";
 
 async function actorWith(...anyOf: Permission[]): Promise<Actor> {
   const session = await requireSession();
-  if (!anyOf.some((permission) => can(session.role, permission))) {
+  if (!anyOf.some((permission) => can(session, permission))) {
     throw new PermissionError("Your role does not allow this action. Ask an owner or manager for access.");
   }
   return { userId: session.userId, userName: session.name, orgId: session.orgId, facilityId: session.facilityId };

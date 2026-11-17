@@ -37,7 +37,7 @@ export default async function RegisterPage() {
         .limit(40)
     : [];
   const openCarts = recent.filter((s) => s.status === "OPEN");
-  const canManage = can(session.role, "pos.manage");
+  const canManage = can(session, "pos.manage");
 
   return (
     <>

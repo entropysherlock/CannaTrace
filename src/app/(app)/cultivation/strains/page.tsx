@@ -36,7 +36,7 @@ export default async function StrainsPage() {
             )}
           </Card>
         </div>
-        {can(session.role, "cultivation.write") ? (
+        {can(session, "cultivation.write") ? (
           <Card title="Add a strain">
             <ActionForm action={strainAction} submitLabel="Add strain">
               <Field label="Name">

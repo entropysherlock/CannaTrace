@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { toCsv } from "@/lib/csv";
 import { db } from "@/lib/db";
 import { can, type Permission } from "@/lib/rbac";
-import { getSession } from "@/lib/session";
+import { currentSession } from "@/lib/session";
 
 type Spec = { permission: Permission; headers: string[]; query: (org: string, fac: string) => ReturnType<typeof sql> };
 
@@ -63,12 +63,12 @@ const TABLES: Record<string, Spec> = {
 };
 
 export async function GET(_request: Request, { params }: { params: Promise<{ table: string }> }) {
-  const session = await getSession();
+  const session = await currentSession();
   if (!session) return new Response("Sign in to download this file.", { status: 401 });
   const { table } = await params;
   const spec = TABLES[table];
   if (!spec) return new Response("Unknown export.", { status: 404 });
-  if (!can(session.role, spec.permission)) return new Response("Your role cannot download this.", { status: 403 });
+  if (!can(session, spec.permission)) return new Response("Your role cannot download this.", { status: 403 });
   const result = await db.execute(spec.query(session.orgId, session.facilityId));
   // Columns are aliased c1..cN in header order, so two source columns with the same name cannot collide.
   const csv = toCsv(

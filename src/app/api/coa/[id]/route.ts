@@ -2,11 +2,11 @@ import { and, eq } from "drizzle-orm";
 import { labResults } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
-import { getSession } from "@/lib/session";
+import { currentSession } from "@/lib/session";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session || !can(session.role, "inventory.view")) return new Response("Sign in to view this file.", { status: 401 });
+  const session = await currentSession();
+  if (!session || !can(session, "inventory.view")) return new Response("Sign in to view this file.", { status: 401 });
   const { id } = await params;
   const [result] = await db
     .select({ name: labResults.coaFileName, type: labResults.coaMimeType, data: labResults.coaData })

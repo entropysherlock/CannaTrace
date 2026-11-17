@@ -17,6 +17,7 @@ import {
   Store,
   Tag,
   Truck,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -38,6 +39,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/compliance": ShieldCheck,
   "/audit": ScrollText,
   "/integrations": Plug,
+  "/team": Users,
   "/settings": Settings,
 };
 

@@ -4,7 +4,7 @@ import { BottomNav, SideNav } from "@/components/side-nav";
 import { asc, eq } from "drizzle-orm";
 import { facilities as facilitiesTable } from "@/db/schema";
 import { db } from "@/lib/db";
-import { ROLE_LABELS, can } from "@/lib/rbac";
+import { can } from "@/lib/rbac";
 import { requireSession } from "@/lib/session";
 import { signOut } from "../login/actions";
 import { switchFacility } from "./settings/actions";
@@ -22,21 +22,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const nav = [
     { href: "/dashboard", label: "Dashboard", show: true },
-    { href: "/inventory", label: "Inventory", show: can(session.role, "inventory.view") },
-    { href: "/inventory/receive", label: "Receive", show: can(session.role, "inventory.write") },
-    { href: "/cultivation", label: "Cultivation", show: can(session.role, "cultivation.view") },
-    { href: "/manufacturing", label: "Manufacturing", show: can(session.role, "inventory.view") },
-    { href: "/distribution", label: "Distribution", show: can(session.role, "sales.view") },
-    { href: "/pos", label: "Register", show: can(session.role, "pos.use") },
-    { href: "/counts", label: "Counts", show: can(session.role, "inventory.adjust") },
-    { href: "/catalog", label: "Items", show: can(session.role, "catalog.manage") },
-    { href: "/locations", label: "Locations", show: can(session.role, "catalog.manage") },
-    { href: "/reports", label: "Reports", show: can(session.role, "reports.view") },
-    { href: "/data", label: "Import and export", show: can(session.role, "inventory.view") },
-    { href: "/compliance", label: "State reporting", show: can(session.role, "compliance.view") },
-    { href: "/audit", label: "Audit trail", show: can(session.role, "audit.view") },
-    { href: "/integrations", label: "Integrations", show: can(session.role, "integrations.manage") },
-    { href: "/settings", label: "Settings", show: can(session.role, "settings.manage") },
+    { href: "/inventory", label: "Inventory", show: can(session, "inventory.view") },
+    { href: "/inventory/receive", label: "Receive", show: can(session, "inventory.write") },
+    { href: "/cultivation", label: "Cultivation", show: can(session, "cultivation.view") },
+    { href: "/manufacturing", label: "Manufacturing", show: can(session, "inventory.view") },
+    { href: "/distribution", label: "Distribution", show: can(session, "sales.view") },
+    { href: "/pos", label: "Register", show: can(session, "pos.use") },
+    { href: "/counts", label: "Counts", show: can(session, "inventory.adjust") },
+    { href: "/catalog", label: "Items", show: can(session, "catalog.manage") },
+    { href: "/locations", label: "Locations", show: can(session, "catalog.manage") },
+    { href: "/reports", label: "Reports", show: can(session, "reports.view") },
+    { href: "/data", label: "Import and export", show: can(session, "inventory.view") },
+    { href: "/compliance", label: "State reporting", show: can(session, "compliance.view") },
+    { href: "/audit", label: "Audit trail", show: can(session, "audit.view") },
+    { href: "/integrations", label: "Integrations", show: can(session, "integrations.manage") },
+    { href: "/team", label: "Team", show: can(session, "users.manage") },
+    { href: "/settings", label: "Settings", show: can(session, "settings.manage") },
   ].filter((item) => item.show);
 
   const items = nav.map(({ href, label }) => ({ href, label }));
@@ -52,7 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         <div className="mt-4 border-t border-brand-800 px-2 pt-4 text-sm">
           <p className="font-medium">{session.name}</p>
-          <p className="text-brand-200">{ROLE_LABELS[session.role]}</p>
+          <p className="text-brand-200">{session.roleName}</p>
           <form action={signOut}>
             <button type="submit" className="mt-2 font-medium text-brand-200 hover:text-white hover:underline">
               Sign out

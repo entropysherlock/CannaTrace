@@ -27,7 +27,13 @@ Generate an `AUTH_SECRET` with `openssl rand -base64 32`.
 
 ## First sign-in
 
-A new deployment starts empty. The first visitor is sent to **/setup** to enter the business name, the first licensed facility, and the owner account. That screen closes for good once any account exists. The owner then adds staff under Settings.
+A new deployment starts empty. The first visitor is sent to **/setup** to enter the business name, the first licensed facility, and the owner account. That screen closes for good once any account exists.
+
+## Accounts, teams, and roles
+
+- **Sign up (/signup):** any business can create its own account. It becomes the owner of a separate business; nobody sees another business's data. New sign-ups are limited to `SIGNUPS_PER_HOUR` (default 20) across the site, and one account per email.
+- **Invites (Team page):** an owner creates a one-time link for a person and a role, then sends it by text or email. The link works once, expires in 7 days, and can be cancelled. Only a hash of it is stored, so a lost link means making a new invite. CannaTrace does not send email itself yet.
+- **Roles:** seven built-in roles, plus roles you build by ticking exactly what they allow. Changes apply on the person's next click. Only an owner can hand out team management, API keys, or the Owner role, and a business always keeps at least one active owner.
 
 Before the register can sell, a manager must enter the store's real purchase limits and tax rates under **Register → Menu and store rules**. The register stays locked until then.
 

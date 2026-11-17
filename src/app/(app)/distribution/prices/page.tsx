@@ -26,7 +26,7 @@ export default async function PricesPage() {
       .where(and(eq(items.orgId, session.orgId), eq(items.active, true)))
       .orderBy(asc(items.name)),
   ]);
-  const canWrite = can(session.role, "sales.write");
+  const canWrite = can(session, "sales.write");
 
   return (
     <>

@@ -3,19 +3,28 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import { and, eq } from "drizzle-orm";
-import { users } from "@/db/schema";
+import { customRoles, users } from "@/db/schema";
 import { db } from "./db";
-import { can, type Permission, type Role } from "./rbac";
+import { ROLE_LABELS, can, cleanPermissions, permissionsFor, type Permission, type Role } from "./rbac";
 
 export const SESSION_COOKIE = "ct_session";
 const MAX_AGE_SECONDS = 60 * 60 * 12;
 
-export type Session = {
+/** What goes in the sign-in cookie. Permissions are never stored there; they are looked up on every request. */
+export type SessionToken = {
   userId: string;
   orgId: string;
   facilityId: string;
   role: Role;
   name: string;
+};
+
+export type Session = SessionToken & {
+  /** Everything this person may do: their custom role's list if they have one, else their built-in role's. */
+  permissions: Permission[];
+  /** The role name to show, custom or built-in. */
+  roleName: string;
+  customRoleId: string | null;
 };
 
 function secret(): Uint8Array {
@@ -26,8 +35,9 @@ function secret(): Uint8Array {
   return new TextEncoder().encode(value);
 }
 
-export async function createSession(session: Session): Promise<void> {
-  const token = await new SignJWT({ ...session })
+export async function createSession(session: SessionToken): Promise<void> {
+  const { userId, orgId, facilityId, role, name } = session;
+  const token = await new SignJWT({ userId, orgId, facilityId, role, name })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE_SECONDS}s`)
@@ -46,7 +56,7 @@ export async function destroySession(): Promise<void> {
   (await cookies()).delete(SESSION_COOKIE);
 }
 
-export async function readToken(token: string | undefined): Promise<Session | null> {
+export async function readToken(token: string | undefined): Promise<SessionToken | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
@@ -60,29 +70,50 @@ export async function readToken(token: string | undefined): Promise<Session | nu
   }
 }
 
-export async function getSession(): Promise<Session | null> {
+export async function getSession(): Promise<SessionToken | null> {
   return readToken((await cookies()).get(SESSION_COOKIE)?.value);
+}
+
+/** The signed-in, still-active person with their current permissions, or null. Never redirects. */
+export async function currentSession(): Promise<Session | null> {
+  const session = await getSession();
+  return session ? resolve(session) : null;
 }
 
 /** Session for a signed-in, still-active user. Role is re-read so demotions apply immediately. */
 export async function requireSession(): Promise<Session> {
   const session = await getSession();
   if (!session) redirect("/login");
-  const [user] = await db
-    .select({ role: users.role, name: users.name })
-    .from(users)
-    .where(and(eq(users.id, session.userId), eq(users.orgId, session.orgId), eq(users.active, true)));
+  const full = await resolve(session);
   // The cookie is genuine but its account is gone or switched off: clear it, or sign-in and the
   // dashboard would keep sending the visitor to each other.
-  if (!user) redirect("/signout");
-  return { ...session, role: user.role, name: user.name };
+  if (!full) redirect("/signout");
+  return full;
+}
+
+async function resolve(session: SessionToken): Promise<Session | null> {
+  const [user] = await db
+    .select({ role: users.role, name: users.name, customRoleId: users.customRoleId, customName: customRoles.name, customPermissions: customRoles.permissions })
+    .from(users)
+    .leftJoin(customRoles, and(eq(customRoles.id, users.customRoleId), eq(customRoles.orgId, users.orgId)))
+    .where(and(eq(users.id, session.userId), eq(users.orgId, session.orgId), eq(users.active, true)));
+  if (!user) return null;
+  const custom = user.customRoleId && user.customPermissions;
+  return {
+    ...session,
+    role: user.role,
+    name: user.name,
+    customRoleId: custom ? user.customRoleId : null,
+    permissions: custom ? cleanPermissions(user.customPermissions ?? []) : permissionsFor(user.role),
+    roleName: custom ? String(user.customName) : ROLE_LABELS[user.role],
+  };
 }
 
 export class PermissionError extends Error {}
 
 export async function requirePermission(permission: Permission): Promise<Session> {
   const session = await requireSession();
-  if (!can(session.role, permission)) {
+  if (!can(session, permission)) {
     throw new PermissionError("Your role does not allow this action. Ask an owner or manager for access.");
   }
   return session;
@@ -91,6 +122,6 @@ export async function requirePermission(permission: Permission): Promise<Session
 /** For pages: send people without access back to the dashboard instead of showing an error. */
 export async function requirePagePermission(permission: Permission): Promise<Session> {
   const session = await requireSession();
-  if (!can(session.role, permission)) redirect("/dashboard");
+  if (!can(session, permission)) redirect("/dashboard");
   return session;
 }

@@ -207,5 +207,5 @@ test("the public homepage shows the product and leads to sign in", async ({ page
   await expect(page.getByRole("heading", { name: /From Seed to Sale/ })).toBeVisible();
   await expect(page.getByText("Example view. Figures are for illustration.")).toBeVisible();
   await page.getByRole("link", { name: "Get started" }).first().click();
-  await expect(page).toHaveURL(/\/login/);
+  await expect(page).toHaveURL(/\/signup/);
 });

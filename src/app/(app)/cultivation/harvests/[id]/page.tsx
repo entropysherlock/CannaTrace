@@ -52,7 +52,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
   ]);
   const onHand = harvestOnHand(harvest);
   const open = harvest.status === "DRYING";
-  const canWrite = open && can(session.role, "cultivation.write");
+  const canWrite = open && can(session, "cultivation.write");
   const hidden = <input type="hidden" name="harvestId" value={harvest.id} />;
   const moisture =
     harvest.moistureLoss ?? (harvest.dryWeight ? new Decimal(harvest.wetWeight).sub(harvest.dryWeight).toString() : null);

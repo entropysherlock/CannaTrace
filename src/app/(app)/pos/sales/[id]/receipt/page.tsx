@@ -40,7 +40,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
       .where(eq(saleLines.saleId, sale.id))
       .orderBy(asc(packages.tag)),
   ]);
-  const canVoid = sale.status === "COMPLETED" && row.drawerStatus === "OPEN" && can(session.role, "pos.manage");
+  const canVoid = sale.status === "COMPLETED" && row.drawerStatus === "OPEN" && can(session, "pos.manage");
 
   return (
     <div className="mx-auto grid max-w-3xl gap-5 md:grid-cols-5">

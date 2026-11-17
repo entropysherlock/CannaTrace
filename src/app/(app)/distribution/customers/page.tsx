@@ -46,7 +46,7 @@ export default async function CustomersPage() {
             </ul>
           )}
         </div>
-        {can(session.role, "sales.write") ? (
+        {can(session, "sales.write") ? (
           <Card title="Add a customer">
             <ActionForm action={customerAction} submitLabel="Add customer">
               <Field label="Business name">

@@ -106,10 +106,51 @@ export const users = pgTable(
     name: text("name").notNull(),
     passwordHash: text("password_hash").notNull(),
     role: roleEnum("role").notNull().default("READ_ONLY"),
+    /** When set, this role's permissions replace the built-in role's. */
+    customRoleId: text("custom_role_id").references(() => customRoles.id),
     active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
   },
   (t) => [index("users_org_idx").on(t.orgId)],
+);
+
+/** A role a business builds itself: a name and the exact list of things it allows. */
+export const customRoles = pgTable(
+  "custom_roles",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    permissions: jsonb("permissions").$type<string[]>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("custom_roles_org_name_key").on(t.orgId, t.name)],
+);
+
+/** A one-time link that lets someone create their own account in a business. Only a hash of the link is kept. */
+export const invites = pgTable(
+  "invites",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    email: text("email").notNull(),
+    role: roleEnum("role").notNull(),
+    customRoleId: text("custom_role_id").references(() => customRoles.id),
+    tokenHash: text("token_hash").notNull().unique(),
+    invitedBy: text("invited_by")
+      .notNull()
+      .references(() => users.id),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("invites_org_idx").on(t.orgId)],
 );
 
 export const locations = pgTable(

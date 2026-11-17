@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const PUBLIC_PATHS = ["/", "/login", "/setup"];
+const PUBLIC_PATHS = ["/", "/login", "/setup", "/signup"];
 
 async function isSignedIn(request: NextRequest): Promise<boolean> {
   const token = request.cookies.get("ct_session")?.value;
@@ -23,6 +23,8 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith("/api/v1/")) return NextResponse.next();
   // Clearing a stale sign-in must work whether or not the cookie looks valid.
   if (pathname === "/signout") return NextResponse.next();
+  // Invite links must open even for someone already signed in on this browser (an owner testing one, say).
+  if (pathname.startsWith("/invite/")) return NextResponse.next();
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const signedIn = await isSignedIn(request);
   if (!signedIn && !isPublic) return NextResponse.redirect(new URL("/login", request.url));
