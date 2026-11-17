@@ -7,6 +7,7 @@ import { asc, eq } from "drizzle-orm";
 import { facilities as facilitiesTable } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
+import { isPlatformAdmin } from "@/lib/platform-admin";
 import { requireSession } from "@/lib/session";
 import { leaveDemo, signOut } from "../login/actions";
 import { switchFacility } from "./settings/actions";
@@ -16,6 +17,7 @@ export const instant = false;
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
+  const supportAdmin = !session.support && (await isPlatformAdmin(session.userId));
   const facilities = await db
     .select({ id: facilitiesTable.id, name: facilitiesTable.name, licenseNumber: facilitiesTable.licenseNumber })
     .from(facilitiesTable)
@@ -92,6 +94,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             ["/integrations", "Integrations", can(session, "integrations.manage")],
           ]),
         ),
+        entry("support", "Support console", tabs([["/support", "Support console", supportAdmin]])),
       ].filter((x): x is NavItem => Boolean(x)),
     },
   ].filter((g) => g.items.length);
@@ -149,7 +152,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </button>
           </form>
         </header>
-        {session.isDemo ? (
+        {session.supportVisit ? (
+          <div role="note" aria-label="Support view" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-violet-700 px-4 py-2 text-center text-sm text-white print:hidden">
+            <span>
+              <strong>Support view:</strong> you are inside <strong>{session.supportVisit.orgName}</strong> as CannaTrace support. Changes are saved under your
+              name and the visit is in their audit trail. Ends at{" "}
+              {new Date(session.supportVisit.until).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Denver" })}.
+            </span>
+            <form action="/support/return" method="post">
+              <button type="submit" className="rounded-md bg-white px-3 py-1 font-bold text-violet-800 hover:bg-violet-50">
+                Exit support view
+              </button>
+            </form>
+          </div>
+        ) : null}
+        {session.isDemo && !session.supportVisit ? (
           <div role="note" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-amber-100 px-4 py-2 text-center text-sm text-amber-950 print:hidden">
             <span>
               <strong>Live demo.</strong> Everything here is made-up sample data in a sandbox shared with other visitors. It starts fresh every day.

@@ -121,6 +121,18 @@ export const users = pgTable(
   (t) => [index("users_org_idx").on(t.orgId)],
 );
 
+/**
+ * CannaTrace staff who may open any customer's account to help them (the support console).
+ * Granted only by another support admin; never from inside a customer's own settings.
+ */
+export const platformAdmins = pgTable("platform_admins", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id),
+  addedByName: text("added_by_name").notNull(),
+  createdAt: createdAt(),
+});
+
 /** A role a business builds itself: a name and the exact list of things it allows. */
 export const customRoles = pgTable(
   "custom_roles",

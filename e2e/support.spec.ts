@@ -1,0 +1,76 @@
+import { expect, test, type Page } from "@playwright/test";
+
+const run = Date.now().toString(36);
+const PASSWORD = "a-long-test-password";
+const BUSINESS = `Support Test Co ${run}`;
+
+async function signIn(page: Page, email: string, password = "demo1234") {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+}
+
+test("CannaTrace support opens a customer's account, sees it as they do, and every visit is logged", async ({ page, browser }) => {
+  // A customer signs up
+  const customer = await browser.newPage();
+  await customer.goto("/signup");
+  await customer.locator('input[name="businessName"]').filter({ visible: true }).fill(BUSINESS);
+  await customer.locator('input[name="facilityName"]').filter({ visible: true }).fill("Canyon Road Store");
+  await customer.locator('input[name="licenseNumber"]').filter({ visible: true }).fill(`SUP-${run}`);
+  await customer.locator('select[name="licenseType"]').filter({ visible: true }).selectOption("RETAIL");
+  await customer.locator('select[name="state"]').filter({ visible: true }).selectOption("NM");
+  await customer.locator('input[name="ownerName"]').filter({ visible: true }).fill("Casey Customer");
+  await customer.locator('input[name="email"]').filter({ visible: true }).fill(`casey-${run}@e2e.test`);
+  await customer.locator('input[name="password"]').filter({ visible: true }).fill(PASSWORD);
+  await customer.locator('input[name="confirm"]').filter({ visible: true }).fill(PASSWORD);
+  await customer.getByRole("button", { name: "Create my account" }).click();
+  await expect(customer).toHaveURL(/\/dashboard/);
+
+  // Support (the local demo owner is a support admin) finds the business
+  await signIn(page, "owner@demo.test");
+  await page.getByRole("link", { name: "Support console" }).first().click();
+  await expect(page.getByRole("heading", { name: "Support console" })).toBeVisible();
+  await page.getByLabel("Search businesses").fill(`casey-${run}`);
+  await page.getByRole("button", { name: "Search" }).click();
+  const row = page.locator("li", { hasText: BUSINESS });
+  await expect(row).toContainText("Canyon Road Store (New Mexico, retail)");
+
+  // A reason is required, then the account opens
+  await row.getByRole("button", { name: "Open account" }).click();
+  await expect(row.getByLabel(`Reason for opening ${BUSINESS}`)).toBeFocused();
+  await row.getByLabel(`Reason for opening ${BUSINESS}`).fill("Helping set up their first facility");
+  await row.getByRole("button", { name: "Open account" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  const banner = page.getByRole("note", { name: "Support view" });
+  await expect(banner).toContainText(`you are inside ${BUSINESS} as CannaTrace support`);
+  await expect(page.getByText("Canyon Road Store · license")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Support console" })).toHaveCount(0);
+
+  // Support can act with owner access; it is recorded under support's name
+  await page.goto("/settings/facilities");
+  await expect(page.getByRole("heading", { name: "Facilities" })).toBeVisible();
+  await page.goto("/audit");
+  await expect(page.getByText("Olivia Owner (CannaTrace support)").first()).toBeVisible();
+  await expect(page.getByText("Helping set up their first facility").first()).toBeVisible();
+
+  // Leave: back in support's own account and console
+  await banner.getByRole("button", { name: "Exit support view" }).click();
+  await expect(page).toHaveURL(/\/support$/);
+  await expect(page.getByRole("note", { name: "Support view" })).toHaveCount(0);
+  await expect(page.locator("li", { hasText: BUSINESS }).filter({ hasText: "opened by Olivia Owner" })).toContainText("Helping set up their first facility");
+  await expect(page.locator("li", { hasText: BUSINESS }).filter({ hasText: "left by Olivia Owner" })).toBeVisible();
+
+  // The customer sees the visit in their own audit trail
+  await customer.goto("/audit");
+  await expect(customer.getByText("Olivia Owner (CannaTrace support)").first()).toBeVisible();
+  await customer.close();
+});
+
+test("people who are not CannaTrace support cannot reach the console", async ({ page }) => {
+  await signIn(page, "manager@demo.test");
+  await expect(page.getByRole("link", { name: "Support console" })).toHaveCount(0);
+  await page.goto("/support");
+  await expect(page).toHaveURL(/\/dashboard/);
+});
