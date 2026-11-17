@@ -11,92 +11,147 @@ async function signInAtShop(page: Page, email: string) {
   await expect(page.getByText("Sandia Storefront · license DEMO-RET-0002")).toBeVisible();
 }
 
-async function checkIn(page: Page, birthDate: string) {
-  await page.goto("/pos");
-  await page.locator('input[name="birthDate"]').fill(birthDate);
-  await page.locator('input[name="idExpires"]').fill("2031-06-30");
-  await page.getByRole("button", { name: "Start cart" }).click();
+/** What a 2D scanner types when it reads the back of a New Mexico driver's license. */
+const LICENSE = (birth: string) =>
+  `@\n\x1e\rANSI 636014080102DL00410288ZC03290034DLDAQD1234562\nDCSRIVERA\nDACMARISOL\nDBB${birth}\nDBA03142031\nDAJNM\nDCGUSA\n`;
+
+/** A scanner types fast and ends with Enter. Click empty space first so no text box has focus. */
+async function scan(page: Page, text: string) {
+  await page.locator("body").click({ position: { x: 2, y: 400 } });
+  await page.keyboard.type(text, { delay: 2 });
 }
 
-// Next.js keeps the previous page in the document, hidden. Only look at what is on screen.
-const seen = (page: Page, text: string) => page.getByText(text).filter({ visible: true }).first();
+async function typeDates(page: Page, birth: string, expires = "2031-06-30") {
+  await page.getByRole("button", { name: /Type the dates/ }).click();
+  await page.getByLabel("Date of birth on the ID").fill(birth);
+  await page.getByLabel("ID expiry date").fill(expires);
+}
 
-const addItem = async (page: Page, name: string, quantity: string) => {
-  const row = page.locator("li", { hasText: name }).filter({ has: page.getByRole("button", { name: "Add" }) });
-  await row.getByLabel(`Quantity of ${name}`).fill(quantity);
-  await row.getByRole("button", { name: "Add" }).click();
-};
+const cart = (page: Page) => page.getByRole("complementary", { name: "Cart" });
+const qtyOf = (page: Page, name: string) => cart(page).getByRole("group", { name: `Quantity of ${name}` }).getByTestId("line-qty");
 
-test("a full shift: open drawer, age check, limits, discount, cash sale, void, debit sale, close out", async ({ page }) => {
+test("a full shift on the touch register: ID scan, barcode scan, limits, discount, cash, void, split, hold, close out", async ({ page }) => {
+  test.setTimeout(180_000);
   await signInAtShop(page, "manager@demo.test");
-
   await page.goto("/pos");
-  await page.locator('input[name="openingCash"]').fill("200");
+
+  // Open the drawer
+  await page.getByLabel("Starting cash").fill("200");
   await page.getByRole("button", { name: "Open drawer" }).click();
-  await expect(page.getByRole("heading", { name: "Check in a customer" })).toBeVisible();
+  await expect(page.getByText("Scan the barcode on the back of the ID")).toBeVisible();
 
-  // Under 21 is refused
+  // Under 21, typed by hand: refused, and the sale cannot start
   const year = new Date().getFullYear();
-  await checkIn(page, `${year - 20}-01-01`);
-  await expect(page.locator('form p[role="alert"]')).toContainText("The minimum age is 21");
+  await typeDates(page, `${year - 20}-01-01`);
+  await expect(page.getByRole("alert").filter({ hasText: "The minimum age is 21" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start sale" })).toBeDisabled();
+  await page.getByRole("button", { name: "Clear" }).click();
 
-  // Adult: build a cart
-  await checkIn(page, "1988-03-14");
+  // Driver's license scan fills in the check
+  await scan(page, LICENSE("03141988"));
+  await expect(page.getByText("Marisol Rivera")).toBeVisible();
+  await expect(page.getByText(/Age \d+ · OK to serve/)).toBeVisible();
+  await page.getByRole("button", { name: "Start sale" }).click();
   await expect(page.getByRole("heading", { name: /^Cart S-\d{5}$/ })).toBeVisible();
-  await addItem(page, "Blue Mesa 3.5 g Jar", "17");
-  await expect(page.locator('form p[role="alert"]')).toContainText("59.5 g of flower. The limit is 56.7 g per purchase");
-  await addItem(page, "Blue Mesa 3.5 g Jar", "2");
-  await expect(page.getByText("2 × $35.00 = $70.00")).toBeVisible();
-  await addItem(page, "Prickly Pear Gummies 10-pack", "1");
-  await expect(page.getByText("7 of 56.7 g")).toBeVisible();
-  await expect(page.getByText("100 of 800 mg")).toBeVisible();
 
-  await page.locator('select[name="discountId"]').selectOption({ label: "Veteran (10%)" });
-  await page.getByRole("button", { name: "Apply discount" }).click();
-  // 92.00 - 9.20 = 82.80; excise 12% = 9.94; sales tax 7.5% = 6.21; total 98.95
-  await expect(page.getByText("-$9.20")).toBeVisible();
-  await expect(page.getByText("$98.95").first()).toBeVisible();
+  // A barcode scan by SKU adds one
+  await scan(page, "FLW-BM-35\n");
+  await expect(page.getByRole("status").filter({ hasText: "Added Blue Mesa 3.5 g Jar" })).toBeVisible();
+  await expect(qtyOf(page, "Blue Mesa 3.5 g Jar")).toHaveText("1");
 
-  await page.locator('input[name="cashTendered"]').fill("90");
-  await page.getByRole("button", { name: /Complete sale/ }).click();
-  await expect(page.locator('form p[role="alert"]')).toContainText("only $90.00 was handed over");
-  await page.locator('input[name="cashTendered"]').fill("100");
-  await page.getByRole("button", { name: /Complete sale/ }).click();
+  // Purchase limit: 16 jars is 56 g; a 17th would be 59.5 g, over 56.7 g
+  for (let n = 2; n <= 16; n++) {
+    await cart(page).getByRole("button", { name: "One more Blue Mesa 3.5 g Jar" }).click();
+    await expect(qtyOf(page, "Blue Mesa 3.5 g Jar")).toHaveText(String(n));
+  }
+  await cart(page).getByRole("button", { name: "One more Blue Mesa 3.5 g Jar" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "59.5 g of flower. The limit is 56.7 g per purchase" })).toBeVisible();
+  await expect(qtyOf(page, "Blue Mesa 3.5 g Jar")).toHaveText("16");
+  await cart(page).getByRole("button", { name: "Remove Blue Mesa 3.5 g Jar" }).click();
+  await expect(qtyOf(page, "Blue Mesa 3.5 g Jar")).toHaveCount(0);
 
-  // Receipt
+  // Tap products on the grid
+  await page.getByRole("button", { name: /^Add Blue Mesa 3.5 g Jar/ }).click();
+  await expect(qtyOf(page, "Blue Mesa 3.5 g Jar")).toHaveText("1");
+  await page.getByRole("button", { name: /^Add Blue Mesa 3.5 g Jar/ }).click();
+  await expect(qtyOf(page, "Blue Mesa 3.5 g Jar")).toHaveText("2");
+  await page.getByRole("tab", { name: "Edibles" }).click();
+  await expect(page.getByRole("button", { name: /^Add Blue Mesa/ })).toHaveCount(0);
+  await page.getByRole("button", { name: /^Add Prickly Pear Gummies 10-pack/ }).click();
+  await expect(cart(page).getByText("7 of 56.7 g")).toBeVisible();
+  await expect(cart(page).getByText("100 of 800 mg")).toBeVisible();
+
+  // Discount: 92.00 - 9.20 = 82.80; excise 12% = 9.94; sales tax 7.5% = 6.21; total 98.95
+  await page.getByRole("radio", { name: "Veteran 10%" }).click();
+  await expect(cart(page).getByText("-$9.20")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Pay.*\$98\.95/ })).toBeVisible();
+
+  // The customer screen shows the cart
+  const display = await page.context().newPage();
+  await display.goto("/pos/display");
+  await expect(display.getByText("Prickly Pear Gummies 10-pack")).toBeVisible();
+  await expect(display.getByText("$98.95")).toBeVisible();
+
+  // Pay cash with F2: too little cannot complete; then change is shown
+  await page.bringToFront();
+  await page.keyboard.press("F2");
+  const pay = page.getByRole("dialog", { name: "Take payment" });
+  await pay.getByLabel("Cash received").fill("90");
+  await expect(pay.getByRole("button", { name: /Complete sale/ })).toBeDisabled();
+  await pay.getByLabel("Cash received").fill("100");
+  await expect(pay.getByTestId("change-due")).toHaveText("$1.05");
+  await pay.getByRole("button", { name: /Complete sale/ }).click();
   await expect(page).toHaveURL(/\/receipt$/);
-  await expect(page.getByRole("button", { name: "Print receipt" })).toBeVisible();
-  await expect(seen(page, "$98.95")).toBeVisible();
-  await expect(seen(page, "$1.05")).toBeVisible();
-  await expect(seen(page, "CT-000101")).toBeVisible();
+  await expect(page.getByText("Change due $1.05")).toBeVisible();
+  await expect(display.getByText("Your change: $1.05")).toBeVisible({ timeout: 10_000 });
+  await display.close();
 
-  // Void it: the stock comes back and the sale drops out of the totals
+  // Void it: stock comes back
   await page.locator('input[name="reason"]').fill("Customer changed their mind at the counter");
   await page.getByRole("button", { name: "Void sale" }).click();
-  await expect(seen(page, "Voided: Customer changed their mind at the counter")).toBeVisible();
+  await expect(page.getByText("Voided: Customer changed their mind at the counter")).toBeVisible();
   await page.goto("/inventory?q=CT-000101");
-  await expect(seen(page, "96 ea")).toBeVisible();
+  await expect(page.getByText("96 ea").filter({ visible: true }).first()).toBeVisible();
 
-  // Debit sale
-  await checkIn(page, "1975-09-02");
-  await expect(page.getByRole("heading", { name: /^Cart S-\d{5}$/ })).toBeVisible();
-  await addItem(page, "Desert Haze 1 g Pre-roll", "1");
-  await expect(page.getByText("1 × $8.00 = $8.00")).toBeVisible();
-  await page.locator('select[name="paymentMethod"]').selectOption("DEBIT");
-  await page.getByRole("button", { name: /Complete sale/ }).click();
+  // Split payment: 8.00 + 0.96 + 0.60 = 9.56; $5 on debit, $10 cash for the $4.56 left
+  await page.goto("/pos");
+  await typeDates(page, "1975-09-02");
+  await page.getByRole("button", { name: "Start sale" }).click();
+  await page.getByRole("button", { name: /^Add Desert Haze 1 g Pre-roll/ }).click();
+  await expect(page.getByRole("button", { name: /Pay.*\$9\.56/ })).toBeVisible();
+  await page.getByRole("button", { name: /Pay/ }).click();
+  await pay.getByRole("radio", { name: "Split" }).click();
+  await pay.getByLabel("On the debit card").fill("5");
+  await pay.getByLabel(/Cash received/).fill("10");
+  await expect(pay.getByTestId("change-due")).toHaveText("$5.44");
+  await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/receipt$/);
-  await expect(seen(page, "$9.56")).toBeVisible(); // 8.00 + 0.96 + 0.60
+  await expect(page.getByText("Paid by debit")).toBeVisible();
+  await expect(page.getByText("Paid by cash")).toBeVisible();
 
-  // Close out: only the float should be in the drawer
+  // Hold a cart, serve from the held list, then cancel it
+  await page.getByRole("button", { name: "Next customer" }).click();
+  await typeDates(page, "1980-02-02");
+  await page.getByRole("button", { name: "Start sale" }).click();
+  await page.getByRole("button", { name: /^Add Desert Haze 1 g Pre-roll/ }).click();
+  await expect(qtyOf(page, "Desert Haze 1 g Pre-roll")).toHaveText("1");
+  await page.keyboard.press("F4");
+  await expect(page.getByRole("heading", { name: "Next customer" })).toBeVisible();
+  await page.getByRole("link", { name: /^Resume S-\d{5}/ }).click();
+  await expect(qtyOf(page, "Desert Haze 1 g Pre-roll")).toHaveText("1");
+  await page.getByRole("button", { name: "Cancel cart" }).click();
+  await page.getByRole("button", { name: "Yes, cancel cart" }).click();
+  await expect(page.getByRole("heading", { name: "Next customer" })).toBeVisible();
+  await expect(page.getByText("Held carts (0)")).toBeVisible();
+
+  // Close out: float plus the $4.56 cash share of the split sale
   await page.goto("/pos/drawer");
-  await expect(seen(page, "Cash that should be in the drawer")).toBeVisible();
-  await expect(page.locator("dd", { hasText: "$200.00" }).filter({ visible: true }).last()).toBeVisible();
-  await page.locator('input[name="countedCash"]').fill("195");
+  await expect(page.getByText("Cash that should be in the drawer").filter({ visible: true })).toBeVisible();
+  await expect(page.locator("dd", { hasText: "$204.56" }).filter({ visible: true }).last()).toBeVisible();
+  await page.locator('input[name="countedCash"]').fill("200");
   await page.getByRole("button", { name: "Close drawer" }).click();
   await expect(page.getByRole("heading", { name: "End-of-day report" })).toBeVisible();
-  await expect(seen(page, "short by $5.00")).toBeVisible();
-  await expect(seen(page, "$9.56")).toBeVisible();
-  await expect(page.getByText("voided", { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByText("short by $4.56").filter({ visible: true })).toBeVisible();
 
   await page.goto("/pos");
   await expect(page.getByRole("button", { name: "Open drawer" })).toBeVisible();
@@ -105,8 +160,12 @@ test("a full shift: open drawer, age check, limits, discount, cash sale, void, d
 test("a budtender can use the register but not change the menu or store rules", async ({ page }) => {
   await signInAtShop(page, "budtender@demo.test");
   await page.getByRole("link", { name: "Register" }).first().click();
-  await expect(page.getByRole("heading", { name: "Register" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Menu and store rules" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Open the drawer" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Menu" })).toHaveCount(0);
   await page.goto("/pos/menu");
+  await expect(page).toHaveURL(/\/dashboard/);
+  // Exit returns to the rest of CannaTrace
+  await page.goto("/pos");
+  await page.getByRole("link", { name: "Exit" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
 });
