@@ -169,3 +169,24 @@ test("a budtender can use the register but not change the menu or store rules", 
   await page.getByRole("link", { name: "Exit" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
 });
+
+test("a manager fills the store's purchase limits from the state's rules", async ({ page }) => {
+  await signInAtShop(page, "manager@demo.test");
+  await page.goto("/pos/menu");
+  await expect(page.getByLabel("State for purchase limits")).toHaveValue("NM");
+  await page.getByRole("textbox", { name: "Flower limit per purchase, in grams" }).fill("");
+  await page.getByRole("button", { name: "Fill in" }).click();
+  const note = page.getByRole("status").filter({ hasText: "Filled from New Mexico adult-use law" });
+  await expect(note).toBeVisible();
+  await expect(note.getByRole("link", { name: /NMAC/ })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Flower limit per purchase, in grams" })).not.toHaveValue("");
+  // Another state with a combined cap says so
+  await page.getByLabel("State for purchase limits").selectOption("MI");
+  await page.getByRole("button", { name: "Fill in" }).click();
+  await expect(page.getByText(/Michigan also caps flower and concentrate together/)).toBeVisible();
+  // Put New Mexico back and save
+  await page.getByLabel("State for purchase limits").selectOption("NM");
+  await page.getByRole("button", { name: "Fill in" }).click();
+  await page.getByRole("button", { name: "Save store rules" }).click();
+  await expect(page.getByText("Store rules saved.")).toBeVisible();
+});
