@@ -1,19 +1,19 @@
 import Decimal from "decimal.js";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { ActionForm } from "@/components/action-form";
 import { ManufacturingTabs } from "@/components/manufacturing-tabs";
-import { Card, Field, PageHeader, inputBase, inputClass } from "@/components/ui";
-import { bomLines, boms, items } from "@/db/schema";
+import { RecipeForm } from "@/components/recipe-form";
+import { Card, PageHeader } from "@/components/ui";
+import { bomLines, boms, itemCategories, items } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
-import { recipeAction, recipeActiveAction } from "../actions";
+import { recipeActiveAction } from "../actions";
 
 export default async function RecipesPage() {
   const session = await requirePagePermission("inventory.view");
-  const [recipes, itemRows] = await Promise.all([
+  const [recipes, itemRows, categories] = await Promise.all([
     db
       .select({ id: boms.id, name: boms.name, outputQuantity: boms.outputQuantity, active: boms.active, itemName: items.name, unit: items.unit })
       .from(boms)
@@ -25,6 +25,7 @@ export default async function RecipesPage() {
       .from(items)
       .where(and(eq(items.orgId, session.orgId), eq(items.active, true)))
       .orderBy(asc(items.name)),
+    db.select({ name: itemCategories.name }).from(itemCategories).where(eq(itemCategories.orgId, session.orgId)).orderBy(asc(itemCategories.name)),
   ]);
   const inputItem = alias(items, "input_item");
   const lines = recipes.length
@@ -36,11 +37,6 @@ export default async function RecipesPage() {
         .orderBy(asc(inputItem.name))
     : [];
   const canWrite = can(session, "manufacturing.write");
-  const itemOptions = itemRows.map((item) => (
-    <option key={item.id} value={item.id}>
-      {item.name} ({unitLabel(item.unit)})
-    </option>
-  ));
 
   return (
     <>
@@ -89,35 +85,7 @@ export default async function RecipesPage() {
         </div>
         {canWrite ? (
           <Card title="New recipe">
-            <ActionForm action={recipeAction} submitLabel="Save recipe">
-              <Field label="Recipe name">
-                <input name="name" required className={inputClass} />
-              </Field>
-              <Field label="What it makes">
-                <select name="outputItemId" required defaultValue="" className={inputClass}>
-                  <option value="" disabled>
-                    Choose an item
-                  </option>
-                  {itemOptions}
-                </select>
-              </Field>
-              <Field label="How much one batch makes" hint="In that item's unit of measure.">
-                <input name="outputQuantity" inputMode="decimal" required className={inputClass} />
-              </Field>
-              <fieldset className="space-y-2">
-                <legend className="mb-1 text-sm font-medium text-slate-700">What one batch uses</legend>
-                {[1, 2, 3, 4, 5].map((row) => (
-                  <div key={row} className="flex gap-2">
-                    <select name="inputItemId" defaultValue="" aria-label={`Input item ${row}`} className={`${inputBase} flex-1`}>
-                      <option value="">{row === 1 ? "Choose an item" : "None"}</option>
-                      {itemOptions}
-                    </select>
-                    <input name="inputQuantity" aria-label={`Input quantity ${row}`} placeholder="Qty" inputMode="decimal" className={`${inputBase} w-24 shrink-0`} />
-                  </div>
-                ))}
-                <p className="text-xs text-slate-500">Quantities are in each item&apos;s own unit. Leave unused rows empty.</p>
-              </fieldset>
-            </ActionForm>
+            <RecipeForm items={itemRows.map((item) => ({ id: item.id, label: `${item.name} (${unitLabel(item.unit)})` }))} categories={categories.map((c) => c.name)} />
           </Card>
         ) : null}
       </div>

@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { field, toFormError, type FormState } from "@/lib/form";
 import type { Actor } from "@/lib/inventory";
 import { addRunInput, cancelRun, completeRun, createRecipe, removeRunInput, setRecipeActive, startRun } from "@/lib/manufacturing";
+import { quickAddItem } from "@/lib/quick-item";
 import { requirePermission } from "@/lib/session";
+import { unitLabel } from "@/lib/units";
 
 async function maker(): Promise<Actor> {
   const session = await requirePermission("manufacturing.write");
@@ -105,5 +107,17 @@ export async function cancelRunAction(_state: FormState, formData: FormData): Pr
     return null;
   } catch (error) {
     return toFormError(error);
+  }
+}
+
+/** Add a catalog item from the recipe form, so a recipe can name products that don't exist yet. */
+export async function newRecipeItemAction(input: { name: string; unit: string; category: string }): Promise<{ item?: { id: string; label: string }; error?: string }> {
+  try {
+    const item = await quickAddItem(await maker(), input);
+    revalidatePath("/catalog");
+    revalidatePath("/manufacturing", "layout");
+    return { item: { id: item.id, label: `${item.name} (${unitLabel(item.unit)})` } };
+  } catch (error) {
+    return { error: toFormError(error)?.error ?? "Could not add the item." };
   }
 }

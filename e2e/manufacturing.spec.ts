@@ -94,3 +94,40 @@ test("save a recipe, run production, and get yield and cost", async ({ page }) =
   await expect(page.getByText("Made from:")).toBeVisible();
   await expect(page.getByRole("link", { name: `${run}-FLOWER` })).toBeVisible();
 });
+
+test("a recipe can add the items it needs without leaving the form", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("owner@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  await page.goto("/manufacturing/recipes");
+
+  await page.locator('input[name="name"]').fill(`Rosin ${run}`);
+  // What it makes: a brand-new product
+  await page.getByLabel("What it makes").selectOption({ label: "+ New item…" });
+  await page.getByLabel("New item name").fill(`Live Rosin ${run}`);
+  await page.getByLabel("New item unit").selectOption("G");
+  await page.getByLabel("New item category").fill("Concentrates");
+  await page.getByRole("button", { name: "Add item" }).click();
+  await expect(page.getByLabel("What it makes")).toHaveValue(/.+/);
+  await expect(page.getByLabel("What it makes").locator("option:checked")).toHaveText(`Live Rosin ${run} (g)`);
+  await page.locator('input[name="outputQuantity"]').fill("20");
+
+  // Input 1: another new item; input 2: an existing one, which can now be picked in any row
+  await page.getByLabel("Input item 1").selectOption({ label: "+ New item…" });
+  await page.getByLabel("New item name").fill(`Fresh Frozen ${run}`);
+  await page.getByRole("button", { name: "Add item" }).click();
+  await expect(page.getByLabel("Input item 1").locator("option:checked")).toHaveText(`Fresh Frozen ${run} (g)`);
+  await page.getByLabel("Input quantity 1").fill("100");
+  await page.getByLabel("Input item 2").selectOption({ label: "Empty 3.5 g Jar with Lid (ea)" });
+  await page.getByLabel("Input quantity 2").fill("20");
+  await page.getByRole("button", { name: "Save recipe" }).click();
+  await expect(page.getByText(`Saved recipe Rosin ${run}.`)).toBeVisible();
+  await expect(page.getByText(`100 g of Fresh Frozen ${run}`)).toBeVisible();
+
+  // Both new items are in the catalog
+  await page.goto("/catalog");
+  await expect(page.getByText(`Live Rosin ${run}`)).toBeVisible();
+  await expect(page.getByText(`Fresh Frozen ${run}`)).toBeVisible();
+});
