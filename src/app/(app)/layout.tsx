@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { AskButton, AssistantPanel } from "@/components/assistant-panel";
 import { Logo } from "@/components/logo";
+import { assistantEnabled } from "@/lib/assistant/engine";
 import { BottomNav, SideNav } from "@/components/side-nav";
 import { asc, eq } from "drizzle-orm";
 import { facilities as facilitiesTable } from "@/db/schema";
@@ -87,6 +89,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Switch
             </button>
           </form>
+          <AskButton />
           <form action={signOut} className="md:hidden">
             <button type="submit" className="text-sm font-medium text-brand-700">
               Sign out
@@ -97,6 +100,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
 
       <BottomNav items={items} />
+      <AssistantPanel
+        enabled={assistantEnabled()}
+        firstName={session.name.split(" ")[0]}
+        isOwner={session.role === "OWNER" && !session.customRoleId}
+        suggestions={[
+          "Give me a quick rundown of where things stand",
+          can(session, "inventory.view") ? "What's on hold or in quarantine right now?" : null,
+          can(session, "reports.view") ? "What were our top sellers last week?" : null,
+          can(session, "sales.view") ? "Which customers owe us money?" : null,
+          can(session, "cultivation.view") ? "What's flowering, and how far along is it?" : null,
+          can(session, "compliance.view") ? "Did any state reports fail?" : null,
+        ]
+          .filter((x): x is string => Boolean(x))
+          .slice(0, 4)}
+      />
     </div>
   );
 }
