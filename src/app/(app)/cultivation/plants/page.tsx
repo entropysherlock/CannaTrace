@@ -1,5 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
+import { LabelLink } from "@/components/labels/label-link";
 import { ActionForm } from "@/components/action-form";
 import { CultivationTabs, daysSince } from "@/components/cultivation-ui";
 import { PlantBulkFields } from "@/components/plant-bulk-fields";
@@ -86,6 +87,13 @@ export default async function PlantsPage({
       <PageHeader
         title="Plants"
         subtitle={`${rows.length}${rows.length === LIMIT ? "+" : ""} active tagged plant${rows.length === 1 ? "" : "s"} shown`}
+        action={
+          can(session, "labels.print") ? (
+            <LabelLink kind="PLANT" batch={batch || undefined}>
+              {batch ? "Print tags for this batch" : "Print plant tags"}
+            </LabelLink>
+          ) : null
+        }
       />
       <CultivationTabs current="/cultivation/plants" />
       <form className="mb-4 flex flex-wrap gap-2">

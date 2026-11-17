@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { and, asc, desc, eq, or } from "drizzle-orm";
 import Link from "next/link";
+import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { ActionForm } from "@/components/action-form";
@@ -140,10 +141,17 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
         title={pkg.tag}
         subtitle={`${pkg.itemName} · ${pkg.categoryName}`}
         action={
-          <div className="flex items-center gap-4 text-sm font-semibold text-brand-700">
-            <Link href={`/inventory/${pkg.id}/label`} className="hover:underline">
-              Print label
-            </Link>
+          <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-brand-700">
+            {can(session, "labels.print") ? (
+              <>
+                <LabelLink kind="PACKAGE" ids={[pkg.id]}>
+                  Print package label
+                </LabelLink>
+                <LabelLink kind="PRODUCT" ids={[pkg.id]}>
+                  Print product label
+                </LabelLink>
+              </>
+            ) : null}
             <Link href="/inventory" className="hover:underline">
               Back to inventory
             </Link>

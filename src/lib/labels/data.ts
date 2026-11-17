@@ -207,3 +207,45 @@ export async function loadLabelRecords(scope: Scope, kind: LabelKind, ids: strin
       return transferRecords(scope, unique, fac);
   }
 }
+
+export type Candidate = { id: string; ref: string; detail: string; status?: string };
+
+/** Records that can be labeled at this facility, newest first, for the record picker. */
+export async function labelCandidates(scope: Scope): Promise<Record<LabelKind, Candidate[]>> {
+  const pkgRows = await db
+    .select({ id: packages.id, tag: packages.tag, status: packages.status, qty: packages.quantity, unit: packages.unit, item: items.name })
+    .from(packages)
+    .innerJoin(items, eq(items.id, packages.itemId))
+    .where(and(eq(packages.orgId, scope.orgId), eq(packages.facilityId, scope.facilityId), inArray(packages.status, ["ACTIVE", "ALLOCATED", "ON_HOLD", "QUARANTINE"])))
+    .orderBy(desc(packages.createdAt))
+    .limit(500);
+  const pkgs = pkgRows.map((p) => ({ id: p.id, ref: p.tag, detail: `${p.item} · ${trimNum(p.qty)} ${UNIT[p.unit] ?? p.unit}`, status: p.status }));
+  const plantRows = await db
+    .select({ id: plants.id, tag: plants.tag, strain: strains.name, phase: plants.phase })
+    .from(plants)
+    .innerJoin(strains, eq(strains.id, plants.strainId))
+    .where(and(eq(plants.orgId, scope.orgId), eq(plants.facilityId, scope.facilityId), eq(plants.status, "ACTIVE")))
+    .orderBy(desc(plants.createdAt))
+    .limit(500);
+  const batchRows = await db
+    .select({ id: plantBatches.id, name: plantBatches.name, strain: strains.name, n: plantBatches.untaggedCount })
+    .from(plantBatches)
+    .innerJoin(strains, eq(strains.id, plantBatches.strainId))
+    .where(and(eq(plantBatches.orgId, scope.orgId), eq(plantBatches.facilityId, scope.facilityId), eq(plantBatches.status, "ACTIVE")))
+    .orderBy(desc(plantBatches.createdAt))
+    .limit(300);
+  const orderRows = await db
+    .select({ id: orders.id, number: orders.number, status: orders.status, customer: customers.name })
+    .from(orders)
+    .innerJoin(customers, eq(customers.id, orders.customerId))
+    .where(and(eq(orders.orgId, scope.orgId), eq(orders.facilityId, scope.facilityId), inArray(orders.status, ["CONFIRMED", "PACKED", "SHIPPED"])))
+    .orderBy(desc(orders.createdAt))
+    .limit(200);
+  return {
+    PACKAGE: pkgs,
+    PRODUCT: pkgs,
+    PLANT: plantRows.map((p) => ({ id: p.id, ref: p.tag, detail: `${p.strain} · ${title(p.phase)}` })),
+    BATCH: batchRows.map((b) => ({ id: b.id, ref: b.name, detail: `${b.strain} · ${b.n} untagged` })),
+    TRANSFER: orderRows.map((o) => ({ id: o.id, ref: o.number, detail: o.customer, status: o.status })),
+  };
+}

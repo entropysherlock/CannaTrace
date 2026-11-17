@@ -2,6 +2,7 @@
 
 import {
   BarChart3,
+  Tag,
   Boxes,
   Factory,
   LayoutDashboard,
@@ -25,6 +26,7 @@ const ICONS: Record<string, LucideIcon> = {
   manufacturing: Factory,
   distribution: Truck,
   register: Store,
+  labels: Tag,
   reports: BarChart3,
   compliance: ShieldCheck,
   settings: Settings,

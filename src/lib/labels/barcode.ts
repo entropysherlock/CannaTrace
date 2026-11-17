@@ -55,10 +55,10 @@ export function encode(format: BarcodeFormat | "qrcode", value: string): Barcode
 export function placement(sym: BarcodeSymbol, box: { x: number; y: number; w: number; h: number }) {
   if (sym.kind === "linear") {
     const total = sym.modules + QUIET_ZONE_MODULES * 2;
-    const module = box.w / total;
-    return { module, x0: box.x + QUIET_ZONE_MODULES * module, y0: box.y, height: box.h };
+    const unit = box.w / total;
+    return { module: unit, x0: box.x + QUIET_ZONE_MODULES * unit, y0: box.y, height: box.h };
   }
   const side = Math.min(box.w, box.h);
-  const module = side / (Math.max(sym.cols, sym.rows) + sym.quiet * 2);
-  return { module, x0: box.x + (box.w - module * sym.cols) / 2, y0: box.y + (box.h - module * sym.rows) / 2, height: side };
+  const unit = side / (Math.max(sym.cols, sym.rows) + sym.quiet * 2);
+  return { module: unit, x0: box.x + (box.w - unit * sym.cols) / 2, y0: box.y + (box.h - unit * sym.rows) / 2, height: side };
 }

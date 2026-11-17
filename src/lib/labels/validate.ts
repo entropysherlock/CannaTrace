@@ -102,11 +102,11 @@ export function checkRecord(design: LabelDesign, kind: LabelKind, record: LabelR
       }
       try {
         const sym = encode(format, filled.text);
-        const { module } = placement(sym, el);
-        if (module < 0.19) {
-          issues.push({ code: "BARCODE_DENSE", severity: "block", category: "BARCODE", recordRef: ref, elementId: el.id, message: `${ref}: the barcode's thinnest bar would be ${module.toFixed(2)} mm, too thin for label printers to print cleanly.`, fix: `Widen the barcode to at least ${Math.ceil((el.w * MIN_MODULE_MM) / module)} mm or shorten the data.` });
-        } else if (module < MIN_MODULE_MM) {
-          issues.push({ code: "BARCODE_TIGHT", severity: "warn", category: "BARCODE", recordRef: ref, elementId: el.id, message: `${ref}: the barcode's thinnest bar is ${module.toFixed(2)} mm. A 203 dpi printer may smear it.`, fix: `Widen it to about ${Math.ceil((el.w * MIN_MODULE_MM) / module)} mm for reliable scans.` });
+        const { module: unit } = placement(sym, el);
+        if (unit < 0.19) {
+          issues.push({ code: "BARCODE_DENSE", severity: "block", category: "BARCODE", recordRef: ref, elementId: el.id, message: `${ref}: the barcode's thinnest bar would be ${unit.toFixed(2)} mm, too thin for label printers to print cleanly.`, fix: `Widen the barcode to at least ${Math.ceil((el.w * MIN_MODULE_MM) / unit)} mm or shorten the data.` });
+        } else if (unit < MIN_MODULE_MM) {
+          issues.push({ code: "BARCODE_TIGHT", severity: "warn", category: "BARCODE", recordRef: ref, elementId: el.id, message: `${ref}: the barcode's thinnest bar is ${unit.toFixed(2)} mm. A 203 dpi printer may smear it.`, fix: `Widen it to about ${Math.ceil((el.w * MIN_MODULE_MM) / unit)} mm for reliable scans.` });
         }
       } catch (e) {
         issues.push({ code: "BARCODE_DATA", severity: "block", category: "BARCODE", recordRef: ref, elementId: el.id, message: `${ref}: ${e instanceof BarcodeError ? e.message : "the barcode could not be made."}` });

@@ -397,3 +397,27 @@ export async function listJobs(scope: Scope, limit = 50) {
     .orderBy(desc(printJobs.createdAt))
     .limit(limit);
 }
+
+/**
+ * A calibration label: a box 1 mm inside each edge, centre lines, and 10 mm ticks.
+ * If the box is off-centre on the printed sticker, the difference is the printer offset to save.
+ */
+export async function testPrint(actor: LabelActor, input: { widthMm: number; heightMm: number; printerId?: string | null }) {
+  const { widthMm: W, heightMm: H } = input;
+  if (!(W >= 10 && W <= 300 && H >= 10 && H <= 300)) throw new LabelError("Test labels must be 10 to 300 mm on each side.");
+  const printer = input.printerId ? await printerFor(actor, input.printerId) : null;
+  const elements: LabelDesign["elements"] = [
+    { id: "box", type: "box", x: 1, y: 1, w: W - 2, h: H - 2, stroke: 0.3 },
+    { id: "h", type: "line", x: 1, y: H / 2, w: W - 2, h: 0.2, stroke: 0.2 },
+    { id: "v", type: "line", x: W / 2, y: 1, w: 0.2, h: H - 2, stroke: 0.2 },
+  ];
+  for (let x = 10; x < W - 1; x += 10) elements.push({ id: `t${x}`, type: "line", x, y: 1, w: 0.2, h: 3, stroke: 0.2 });
+  elements.push({ id: "txt", type: "text", x: 3, y: 4.5, w: Math.max(6, W / 2 - 4), h: Math.max(4, H / 2 - 6), text: `Test ${W} × ${H} mm. Box should sit 1 mm in from every edge.`, fontSize: Math.min(7, Math.max(4, W / 14)) });
+  const pdf = await renderLabelsPdf({ widthMm: W, heightMm: H, elements }, [{ ref: "test", sourceId: "test", values: {} }], {
+    offsetXMm: printer ? Number(printer.offsetXMm) : 0,
+    offsetYMm: printer ? Number(printer.offsetYMm) : 0,
+    title: "CannaTrace test label",
+  });
+  await log(actor, "printer", printer?.id ?? "none", "labels.test_print", { widthMm: W, heightMm: H });
+  return pdf;
+}

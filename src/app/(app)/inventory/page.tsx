@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LabelLink } from "@/components/labels/label-link";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { ScanInput } from "@/components/scan-input";
 import { buttonLinkClass, inputBase, PageHeader, StatusBadge } from "@/components/ui";
@@ -57,11 +58,18 @@ export default async function InventoryPage({
         title="Inventory"
         subtitle={`${rows.length} package${rows.length === 1 ? "" : "s"} shown`}
         action={
-          can(session, "inventory.write") ? (
-            <Link href="/inventory/receive" className={buttonLinkClass}>
-              Receive package
-            </Link>
-          ) : null
+          <div className="flex flex-wrap items-center gap-2">
+            {can(session, "labels.print") ? (
+              <LabelLink kind="PACKAGE" ids={rows.length && rows.length <= 100 ? rows.map((r) => r.id) : undefined}>
+                {rows.length && rows.length <= 100 ? `Print labels for ${rows.length === 1 ? "this package" : `these ${rows.length}`}` : "Print labels"}
+              </LabelLink>
+            ) : null}
+            {can(session, "inventory.write") ? (
+              <Link href="/inventory/receive" className={buttonLinkClass}>
+                Receive package
+              </Link>
+            ) : null}
+          </div>
         }
       />
       <form className="mb-4 flex flex-wrap items-start gap-2">

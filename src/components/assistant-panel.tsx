@@ -213,7 +213,7 @@ export function AssistantPanel({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Ask CannaTrace"
+        aria-label="Ask Cousin Towel"
         className={`fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-900 text-white shadow-lg shadow-brand-900/30 transition hover:scale-105 md:bottom-6 md:right-6 print:hidden ${open ? "pointer-events-none scale-75 opacity-0" : ""}`}
       >
         <Sparkles className="h-6 w-6" aria-hidden="true" />
@@ -226,20 +226,19 @@ export function AssistantPanel({
       />
       <aside
         role="dialog"
-        aria-label="CannaTrace assistant"
+        aria-label="Cousin Towel, the CannaTrace assistant"
         aria-hidden={!open}
         inert={!open}
         className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-out sm:w-[440px] print:hidden ${open ? "translate-x-0" : "translate-x-full"}`}
       >
         <header className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-brand-900 text-white">
-            <Sparkles className="h-5 w-5" aria-hidden="true" />
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/mascot.webp" alt="" className="h-10 w-10 rounded-xl border border-brand-100 bg-brand-50 object-cover object-top" />
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 font-semibold text-slate-900">
-              CannaTrace Assistant <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">Claude</span>
+              Cousin Towel <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">Claude</span>
             </p>
-            <p className="text-xs text-slate-500">Answers from your live data</p>
+            <p className="text-xs text-slate-500">Your CannaTrace assistant · answers from live data</p>
           </div>
           {turns.length ? (
             <button
@@ -433,7 +432,7 @@ export function AskButton() {
       className="hidden min-h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-brand-500 md:inline-flex"
     >
       <Sparkles className="h-4 w-4" aria-hidden="true" />
-      Ask CannaTrace
+      Ask Cousin Towel
       <kbd className="rounded bg-white/15 px-1.5 text-[10px] font-semibold text-white">Ctrl J</kbd>
     </button>
   );

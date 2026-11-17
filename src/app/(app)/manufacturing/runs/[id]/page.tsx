@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
+import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { ManufacturingTabs } from "@/components/manufacturing-tabs";
@@ -76,6 +77,18 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
       <PageHeader
         title={run.name}
         subtitle={`${row.recipeName} × ${num(run.batches)} · makes ${row.itemName} · started by ${run.userName} on ${run.createdAt.toLocaleDateString("en-US")}`}
+        action={
+          output && can(session, "labels.print") ? (
+            <div className="flex flex-wrap gap-2">
+              <LabelLink kind="PACKAGE" ids={[output.id]}>
+                Print package label
+              </LabelLink>
+              <LabelLink kind="PRODUCT" ids={[output.id]}>
+                Print product label
+              </LabelLink>
+            </div>
+          ) : null
+        }
       />
       <ManufacturingTabs current="/manufacturing" />
 
