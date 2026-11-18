@@ -5,7 +5,7 @@ import { field, toFormError, type FormState } from "@/lib/form";
 import { IMPORT_KINDS, importCsv, type ImportKind } from "@/lib/importer";
 import { InventoryError } from "@/lib/inventory-math";
 import { importInventory, previewImport, readReport, type DutchieResult } from "@/lib/importers/dutchie";
-import type { Source } from "@/lib/importers/dutchie-parse";
+import { isSource, SOURCE_NAME, type Source } from "@/lib/importers/dutchie-parse";
 import { can } from "@/lib/rbac";
 import { requirePermission } from "@/lib/session";
 
@@ -34,10 +34,11 @@ export type DutchieState = { error?: string; preview?: DutchieResult; imported?:
 async function dutchieInput(formData: FormData) {
   const session = await requirePermission("inventory.write");
   if (!can(session, "catalog.manage")) throw new InventoryError("Switching systems also adds products, so it needs permission to manage items. Ask an owner or manager.");
-  const source: Source = field(formData, "source") === "flourish" ? "flourish" : "dutchie";
+  const raw = field(formData, "source");
+  const source: Source = isSource(raw) ? raw : "dutchie";
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0)
-    throw new InventoryError(`Choose the inventory file you exported from ${source === "flourish" ? "Flourish" : "Dutchie"}.`);
+    throw new InventoryError(`Choose the inventory file you exported from ${SOURCE_NAME[source]}.`);
   const table = await readReport(file.name, Buffer.from(await file.arrayBuffer()));
   return { source, actor: { userId: session.userId, userName: session.name, orgId: session.orgId, facilityId: session.facilityId }, table };
 }

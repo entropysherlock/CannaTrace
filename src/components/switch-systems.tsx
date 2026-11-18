@@ -5,8 +5,9 @@ import { ArrowRightLeft } from "lucide-react";
 export const SWITCH_HREF = "/data#switch-systems";
 export const DUTCHIE_HREF = "/data#switch-from-dutchie";
 export const FLOURISH_HREF = "/data#switch-from-flourish";
+export const NMS2S_HREF = "/data#switch-from-nms2s";
 
-/** On an empty facility's dashboard: the first step for a business moving over from Dutchie or Flourish. */
+/** On an empty facility's dashboard: the first step for a business moving over from NMS2S, Dutchie, or Flourish. */
 export function SwitchBanner() {
   return (
     <section
@@ -16,11 +17,14 @@ export function SwitchBanner() {
       <div className="flex min-w-0 items-start gap-3">
         <ArrowRightLeft className="mt-0.5 h-5 w-5 shrink-0 text-brand-700" aria-hidden="true" />
         <div className="min-w-0">
-          <p className="font-bold text-brand-950">Coming from Dutchie or Flourish? Bring your inventory with you.</p>
-          <p className="text-sm text-brand-900">Upload your inventory export and your products, rooms, and packages load in one step. You see everything before it&apos;s saved.</p>
+          <p className="font-bold text-brand-950">Coming from another system? Bring your inventory with you.</p>
+          <p className="text-sm text-brand-900">Upload your inventory from New Mexico&apos;s state system (NMS2S), Dutchie, or Flourish, and your products, rooms, and packages load in one step. You see everything before it&apos;s saved.</p>
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
+        <Link href={NMS2S_HREF} className="inline-flex min-h-11 items-center rounded-lg bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700">
+          Bring my data from NMS2S
+        </Link>
         <Link href={DUTCHIE_HREF} className="inline-flex min-h-11 items-center rounded-lg bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700">
           Bring my data from Dutchie
         </Link>

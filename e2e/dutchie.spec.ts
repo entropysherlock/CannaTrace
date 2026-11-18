@@ -21,6 +21,7 @@ test("a store switching from Dutchie checks its inventory report, then imports i
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Switching from another system?" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Switch from Flourish" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Switch from NMS2S" })).toBeVisible();
   await page.goto("/dashboard");
   await page.getByTestId("switch-banner").getByRole("link", { name: "Bring my data from Dutchie" }).click();
   await expect(page).toHaveURL(/\/data#switch-from-dutchie$/);
@@ -49,6 +50,13 @@ test("a store switching from Dutchie checks its inventory report, then imports i
   await flourish.locator('input[name="file"]').setInputFiles("tests/fixtures/flourish-all-packages.csv");
   await flourish.getByRole("button", { name: "Check the file" }).click();
   await expect(flourish.getByTestId("switch-preview")).toContainText("Ready to import: 5 packages");
+
+  // So does the NMS2S box, with the state system's 16-digit IDs
+  const state = page.locator("section", { has: page.getByRole("heading", { name: "Switch from NMS2S (state system)" }) });
+  await state.locator('input[name="file"]').setInputFiles("tests/fixtures/nms2s-inventory-room.csv");
+  await state.getByRole("button", { name: "Check the file" }).click();
+  await expect(state.getByTestId("switch-preview")).toContainText("Ready to import: 5 packages");
+  await expect(state.getByTestId("switch-preview")).toContainText("scheduled for destruction");
 
   // Once there's inventory, the dashboard stops suggesting it
   await page.goto("/dashboard");
