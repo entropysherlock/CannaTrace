@@ -87,10 +87,11 @@ test("a big multi-store file: pick the store, it's compressed on the way up, and
   const card = page.locator("section", { has: page.getByRole("heading", { name: "Switch from Dutchie" }) });
   await card.locator('input[name="file"]').setInputFiles({ name: "big-store.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await card.getByRole("button", { name: "Check the file" }).click();
-  await expect(card.getByRole("alert")).toContainText("This file has 2 stores", { timeout: 60_000 });
+  await expect(card.getByTestId("switch-store-picker")).toContainText("Your file has 2 stores", { timeout: 60_000 });
+  await expect(card.getByRole("alert")).toHaveCount(0);
 
+  // Picking the store checks the file straight away
   await card.getByTestId("switch-store").selectOption("Big Store");
-  await card.getByRole("button", { name: "Check the file" }).click();
   await expect(card.getByTestId("switch-preview")).toContainText("Ready to import: 4,000 packages", { timeout: 60_000 });
   await expect(card.getByTestId("switch-preview")).toContainText("80 packages come in quarantined");
   await card.getByRole("button", { name: "Import 4,000 packages" }).click();

@@ -134,6 +134,8 @@ export function DutchieImport({ preview, run, source = "dutchie" }: { preview: A
       if (next?.preview?.stores.length) setStores(next.preview.stores);
     });
   const ready = state?.preview && !state.preview.problems.length && state.preview.packages > 0;
+  // Choosing a store isn't something wrong with the file: the picker above asks for it instead of a red box.
+  const needsStore = Boolean(state?.preview && stores.length > 1 && state.preview.problems.length === 1 && state.preview.stores.length > 1);
   return (
     <form ref={form} className="space-y-4" onSubmit={(e) => e.preventDefault()}>
       <input type="hidden" name="source" value={source} />
@@ -158,9 +160,22 @@ export function DutchieImport({ preview, run, source = "dutchie" }: { preview: A
         />
       </label>
       {stores.length > 1 ? (
-        <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-slate-800">Which store goes into this facility?</span>
-          <select name="store" defaultValue="" data-testid="switch-store" className={inputClass} onChange={() => setState(null)}>
+        <label className="block rounded-xl border-2 border-amber-300 bg-amber-50 p-4" data-testid="switch-store-picker">
+          <span className="block text-sm font-bold text-amber-950">
+            Your file has {stores.length} stores. Pick the one that goes into this facility.
+          </span>
+          <span className="mb-2 block text-xs text-amber-900">CannaTrace checks it right away. To bring in another store, switch facilities and upload the same file again.</span>
+          <select
+            name="store"
+            defaultValue=""
+            data-testid="switch-store"
+            className={inputClass}
+            disabled={pending}
+            onChange={() => {
+              setState(null);
+              go(preview);
+            }}
+          >
             <option value="" disabled>
               Choose a store from the file
             </option>
@@ -197,7 +212,7 @@ export function DutchieImport({ preview, run, source = "dutchie" }: { preview: A
           {state.error}
         </p>
       ) : null}
-      {state?.preview?.problems.length ? (
+      {state?.preview?.problems.length && !needsStore ? (
         <div role="alert" className="rounded-lg border-l-4 border-red-600 bg-red-50 px-3 py-2 text-sm text-red-900">
           <p className="font-semibold">Fix these in the file, then check it again. Nothing was saved.</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-5">
