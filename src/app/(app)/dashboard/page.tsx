@@ -33,6 +33,7 @@ import { TallyDock, type Takeaway } from "@/components/dashboard/tally-dock";
 import { SwitchBanner } from "@/components/switch-systems";
 import { ShowMeHowButton } from "@/components/walkthrough";
 import { facilities as facilitiesTable } from "@/db/schema";
+import { SEVERITY_LABEL } from "@/lib/watch/groups";
 import { commandCenter, summarize, toRange, usd } from "@/lib/dashboard";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
@@ -82,7 +83,7 @@ function Kpi({ icon: Icon, value, label, sub, href, tone = "brand" }: { icon: Lu
     >
       <Icon className={`mt-1 h-7 w-7 shrink-0 ${tone === "red" ? "text-red-600" : "text-brand-600"}`} aria-hidden="true" />
       <span className="min-w-0">
-        <span className={`block text-2xl font-extrabold tracking-tight ${tone === "red" ? "text-red-700" : "text-slate-950"}`}>{value}</span>
+        <span className={`block text-2xl font-extrabold tracking-tight ${tone === "red" ? "text-red-700" : "text-slate-950"}`} data-testid="kpi-value">{value}</span>
         <span className="block text-sm text-slate-600">{label}</span>
         <span className="mt-1 block">{sub}</span>
       </span>
@@ -125,7 +126,8 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   const scope = params.scope === "all" && facilities.length > 1 ? "all" : "one";
   const days = toRange(params.days);
   const ids = scope === "all" ? facilities.map((f) => f.id) : [session.facilityId];
-  const c = await commandCenter(session.orgId, ids, days);
+  // Alerts count only what this person may see, exactly like the bell and the Tally Watch page.
+  const c = await commandCenter(session.orgId, ids, days, (permission) => !permission || can(session, permission as Parameters<typeof can>[1]));
 
   const fmtDay = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" });
   const end = new Date();
@@ -139,8 +141,8 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   const empty = c.plants.total + c.packages.total === 0;
 
   const takeaways: Takeaway[] = [
-    { icon: c.sales.change !== null && c.sales.change < 0 ? "down" : "up", text: `Sales: ${usd(c.sales.total)}${c.sales.change !== null ? ` (${c.sales.change > 0 ? "+" : ""}${c.sales.change}%)` : ""}` },
-    { icon: "packages", text: `Inventory: ${num(c.packages.total)} packages (${c.packages.availablePct}% available)` },
+    { icon: c.sales.change !== null && c.sales.change < 0 ? "down" : "up", text: `Sales, last ${days} days: ${usd(c.sales.total)}${c.sales.change !== null ? ` (${c.sales.change > 0 ? "+" : ""}${c.sales.change}%)` : ""}` },
+    { icon: "packages", text: `Inventory: ${num(c.packages.total)} packages in stock, ${num(c.packages.available)} available (${c.packages.availablePct}%)` },
     { icon: "production", text: `Production: ${num(c.production.units)} units${c.production.inProgress ? `, ${c.production.inProgress} run${c.production.inProgress === 1 ? "" : "s"} going` : ""}` },
     c.alerts.open
       ? { icon: "alert", text: `Action needed: ${c.alerts.open} Tally Watch item${c.alerts.open === 1 ? "" : "s"}` }
@@ -166,7 +168,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   };
   const flow = [
     { icon: Sprout, label: "Cultivation", value: `${num(c.plants.total)} plants`, href: links.cultivation },
-    { icon: Boxes, label: "Inventory", value: `${num(c.packages.active)} packages`, href: links.inventory },
+    { icon: Boxes, label: "Inventory", value: `${num(c.packages.total)} packages`, href: links.inventory },
     { icon: FlaskConical, label: "Manufacturing", value: `${num(c.production.inProgress)} run${c.production.inProgress === 1 ? "" : "s"} going`, href: links.manufacturing },
     { icon: Truck, label: "Distribution", value: `${num(c.orders.open)} open order${c.orders.open === 1 ? "" : "s"}`, href: links.distribution },
     { icon: Store, label: "Retail", value: `${usd(c.sales.today)} today`, href: links.retail },
@@ -204,17 +206,21 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
 
       {empty && scope === "one" && can(session, "inventory.write") && can(session, "catalog.manage") ? <SwitchBanner /> : null}
 
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6" data-testid="kpis">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" data-testid="kpis">
         <Kpi icon={Sprout} value={num(c.plants.total)} label="Plants" href={links.cultivation} sub={<span className="text-xs text-slate-500">{num(c.plants.tagged)} tagged · {num(c.plants.young)} young</span>} />
         <Kpi
           icon={Boxes}
-          value={num(c.packages.active)}
-          label="Active packages"
+          value={num(c.packages.total)}
+          label="Packages in stock"
           href={links.inventory}
-          sub={<span className="text-xs text-slate-500">{c.packages.held ? `${num(c.packages.held)} on hold or quarantined` : "none on hold"}</span>}
+          sub={
+            <span className="text-xs text-slate-500">
+              {num(c.packages.available)} available{c.packages.held ? ` · ${num(c.packages.held)} on hold` : ""}
+            </span>
+          }
         />
         <Kpi icon={Truck} value={num(c.orders.open)} label="Open wholesale orders" href={links.distribution} sub={<span className="text-xs text-slate-500">{num(c.orders.toShip)} to pick or ship</span>} />
-        <Kpi icon={CircleDollarSign} value={usd(c.sales.today)} label="Sales today" href={links.reports} sub={<span className="text-xs text-slate-500">{num(c.sales.todayTickets)} sale{c.sales.todayTickets === 1 ? "" : "s"} and invoices</span>} />
+        <Kpi icon={CircleDollarSign} value={usd(c.sales.today)} label="Sales today" href={links.reports} sub={<span className="text-xs text-slate-500">{num(c.sales.todayTickets)} sale{c.sales.todayTickets === 1 ? "" : "s"} and invoice{c.sales.todayTickets === 1 ? "" : "s"}</span>} />
         <Kpi
           icon={FileText}
           value={num(c.reporting.pending + c.reporting.failed)}
@@ -232,8 +238,10 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
         />
       </div>
 
-      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-4">
+      {/* From 1400px wide, Tally sits beside the cards; the right padding keeps it clear of the floating Tally button. */}
+      <div className="grid gap-4 min-[1400px]:grid-cols-[minmax(0,1fr)_340px] min-[1400px]:pr-[4.5rem] min-[1700px]:grid-cols-[minmax(0,1fr)_380px]">
+        {/* Card rows follow the width this column actually has, not the screen width. */}
+        <div className="@container min-w-0 space-y-4">
           <Card
             title={
               <span>
@@ -276,7 +284,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
             </ol>
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 @lg:grid-cols-2 @2xl:grid-cols-3">
             <Card title="Sales trend" sub={`Retail and wholesale, last ${days} days`} action={links.reports ? <Link href={links.reports} className="text-xs font-bold text-brand-700 hover:underline">Reports</Link> : null}>
               <p className="flex flex-wrap items-baseline gap-x-3">
                 <span className="text-2xl font-extrabold text-slate-950">{usd(c.sales.total)}</span>
@@ -319,7 +327,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
             </Card>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 @lg:grid-cols-2 @2xl:grid-cols-3 @lg:[&>*:nth-child(3)]:col-span-2 @2xl:[&>*:nth-child(3)]:col-span-1">
             <Card title="Facilities and operations" sub={`${facilities.length} facilit${facilities.length === 1 ? "y" : "ies"} · last ${days} days`}>
               <ul className="space-y-2" data-testid="facility-list">
                 {c.facilities.map((f) => (
@@ -346,21 +354,21 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
                   {c.alerts.open ? <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold text-white">{c.alerts.open}</span> : null}
                 </span>
               }
-              sub="Things that need attention, found on their own"
+              sub={scope === "all" ? "Grouped by cause, across every facility. Tally Watch lists the facility you're in." : "Grouped by cause, most urgent first"}
             >
-              {c.alerts.top.length ? (
+              {c.alerts.groups.length ? (
+                // Grouped by root cause and severity; each group opens on the Tally Watch page with every alert in it.
                 <ul className="divide-y divide-slate-100" data-testid="watch-top">
-                  {c.alerts.top.map((a) => {
-                    const st = SEVERITY[a.severity] ?? SEVERITY.info;
+                  {c.alerts.groups.map((g) => {
+                    const st = SEVERITY[g.severity] ?? SEVERITY.info;
                     return (
-                      <li key={a.id}>
-                        <Link href={a.href} className="flex items-start gap-3 py-2.5 hover:bg-slate-50">
+                      <li key={g.key}>
+                        <Link href={`/watch#${g.key}`} className="flex items-start gap-3 py-2.5 hover:bg-slate-50" data-testid="watch-group">
                           <st.icon className={`mt-0.5 h-5 w-5 shrink-0 ${st.tone}`} aria-hidden="true" />
                           <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-semibold text-slate-900">{a.title}</span>
+                            <span className="block text-sm font-semibold text-slate-900">{g.label}</span>
                             <span className="block text-xs text-slate-500">
-                              {scope === "all" ? `${a.facility} · ` : ""}
-                              {ago(a.at)}
+                              {SEVERITY_LABEL[g.severity]} · <span data-testid="group-count">{g.count}</span> alert{g.count === 1 ? "" : "s"}
                             </span>
                           </span>
                           <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
@@ -375,7 +383,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
                 </p>
               )}
               <Link href="/watch" className="mt-auto pt-2 text-sm font-bold text-brand-700 hover:underline">
-                {c.alerts.open > 3 ? `View all ${c.alerts.open}` : "Open Tally Watch"} →
+                {c.alerts.open ? `View all ${c.alerts.open} alerts` : "Open Tally Watch"} →
               </Link>
             </Card>
 
@@ -425,7 +433,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
             </Card>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 @lg:grid-cols-2">
             <Card
               title={
                 <span className="flex items-center gap-2">
@@ -516,7 +524,8 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
           </div>
         </div>
 
-        <div className="2xl:sticky 2xl:top-20 2xl:self-start">
+        {/* Scrolls with the page (never clipped); the floating Tally button is always there below it. */}
+        <div className="min-w-0 min-[1400px]:self-start">
           <TallyDock name={session.name.split(" ")[0]} summary={summarize(c)} takeaways={takeaways} prompts={prompts} />
         </div>
       </div>

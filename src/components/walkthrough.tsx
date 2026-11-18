@@ -483,7 +483,7 @@ export function WalkthroughProvider({
       {finished ? (
         <div
           role="status"
-          className="fixed inset-x-3 bottom-24 z-50 mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-brand-900 px-5 py-4 text-white shadow-2xl md:bottom-8 print:hidden"
+          className="fixed bottom-24 left-3 right-20 z-50 mx-auto flex max-w-md items-center gap-3 md:inset-x-3 rounded-2xl bg-brand-900 px-5 py-4 text-white shadow-2xl md:bottom-8 print:hidden"
         >
           <CheckCircle2
             className="h-6 w-6 shrink-0 text-amber-300"
@@ -540,7 +540,7 @@ function Bubble({
         role="dialog"
         aria-label={`${walk.title}, step ${i + 1} of ${walk.steps.length}`}
         data-testid="walk-bubble"
-        className="fixed bottom-24 left-3 z-50 flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-full border border-amber-300 bg-white py-1.5 pl-4 pr-1.5 shadow-2xl md:bottom-6 md:left-auto md:right-24 print:hidden"
+        className="fixed bottom-24 left-3 z-50 flex max-w-[calc(100vw-6rem)] md:max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-full border border-amber-300 bg-white py-1.5 pl-4 pr-1.5 shadow-2xl md:bottom-6 md:left-auto md:right-24 print:hidden"
       >
         <span className="truncate text-sm font-bold text-brand-950">
           {i + 1}/{walk.steps.length} · {step.title}
@@ -594,7 +594,7 @@ function Bubble({
       aria-label={`${walk.title}, step ${i + 1} of ${walk.steps.length}`}
       data-testid="walk-bubble"
       style={style}
-      className={`fixed z-50 rounded-2xl border border-amber-200 bg-white p-4 shadow-2xl print:hidden ${style ? "" : "inset-x-3 bottom-24 mx-auto max-w-md md:bottom-8"}`}
+      className={`fixed z-50 rounded-2xl border border-amber-200 bg-white p-4 shadow-2xl print:hidden ${style ? "" : "bottom-24 left-3 right-20 mx-auto max-w-md md:inset-x-3 md:bottom-8"}`}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-xs font-bold uppercase tracking-wide text-brand-700">

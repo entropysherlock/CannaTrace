@@ -94,6 +94,27 @@ export function AssistantPanel({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
+  // Where keyboard focus was before the panel opened, so closing puts it back.
+  const returnFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (open) {
+      const el = document.activeElement as HTMLElement | null;
+      if (el && !panelRef.current?.contains(el)) returnFocus.current = el;
+      // On phones the panel covers the screen: keep the page behind it from scrolling.
+      if (window.matchMedia("(max-width: 767px)").matches) {
+        const html = document.documentElement;
+        const before = html.style.overflow;
+        html.style.overflow = "hidden";
+        return () => {
+          html.style.overflow = before;
+        };
+      }
+      return;
+    }
+    const el = returnFocus.current;
+    returnFocus.current = null;
+    if (el?.isConnected && panelRef.current?.contains(document.activeElement)) el.focus({ preventScroll: true });
+  }, [open]);
 
   // Clicking anywhere outside the panel slides it closed. Buttons that open the assistant are left alone.
   useEffect(() => {
@@ -135,7 +156,7 @@ export function AssistantPanel({
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") {
         e.preventDefault();
         setOpen((o) => !o);
-      } else if (e.key === "Escape") setOpen(false);
+      } else if (e.key === "Escape" && !e.defaultPrevented) setOpen(false);
     };
     const onOpen = (e: Event) => {
       setOpen(true);
@@ -223,7 +244,11 @@ export function AssistantPanel({
     sendRef.current = send;
   });
   useEffect(() => {
-    const onAsk = (e: Event) => sendRef.current(String((e as CustomEvent<string>).detail ?? ""));
+    // Asking from elsewhere (a Tally Watch item, say) also opens the panel, so the answer is seen.
+    const onAsk = (e: Event) => {
+      setOpen(true);
+      sendRef.current(String((e as CustomEvent<string>).detail ?? ""));
+    };
     window.addEventListener("assistant-ask", onAsk);
     return () => window.removeEventListener("assistant-ask", onAsk);
   }, []);
@@ -269,7 +294,9 @@ export function AssistantPanel({
         data-assistant-trigger
         onClick={() => setOpen(true)}
         aria-label="Ask Tally"
-        className={`fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-900 text-white shadow-lg shadow-brand-900/30 transition hover:scale-105 md:bottom-6 md:right-6 print:hidden 2xl:[body:has([data-wide])_&]:hidden ${open ? "pointer-events-none scale-75 opacity-0" : ""}`}
+        data-testid="tally-launcher"
+        // Bottom-right of the screen, above the phone tab bar, clear of the iPhone home bar and notch.
+        className={`fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-900 text-white shadow-lg shadow-brand-900/30 transition hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-300 md:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:right-[calc(1.5rem+env(safe-area-inset-right))] print:hidden ${open ? "pointer-events-none scale-75 opacity-0" : ""}`}
       >
         <Sparkles className="h-6 w-6" aria-hidden="true" />
       </button>
@@ -285,7 +312,7 @@ export function AssistantPanel({
         aria-label="Tally, the CannaTrace assistant"
         aria-hidden={!open}
         inert={!open}
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-out sm:w-[440px] print:hidden ${open ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col overscroll-contain border-l border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl transition-[transform,visibility] duration-300 ease-out sm:w-[440px] print:hidden ${open ? "visible translate-x-0" : "invisible translate-x-full"}`}
         onDragOver={(e) => {
           if (!enabled || busy || !Array.from(e.dataTransfer.types).includes("Files")) return;
           e.preventDefault();

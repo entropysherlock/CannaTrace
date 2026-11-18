@@ -6,7 +6,8 @@ export const metadata: Metadata = {
   description: "Seed-to-sale inventory and compliance for licensed cannabis operators.",
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1 };
+// viewport-fit=cover lets fixed controls use the safe-area insets on phones with a notch or home bar.
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

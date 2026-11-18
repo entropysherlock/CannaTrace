@@ -22,6 +22,7 @@ export async function WatchSection({ session, findings }: { session: Session; fi
     fixLabel: f.fix?.label ?? null,
     ask: f.ask,
     since: when(f.firstSeenAt),
+    check: f.check,
   }));
   const urgent = items.filter((i) => i.severity === "critical").length;
 

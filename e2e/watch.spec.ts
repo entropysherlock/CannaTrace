@@ -19,8 +19,13 @@ test("Tally Watch matches against a state report, fixes a difference after one C
   await page.getByLabel("State package report (CSV)").setInputFiles({ name: "metrc-packages.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await page.getByRole("button", { name: "Upload and compare" }).click();
   await expect(page.getByText(/Compared 2 state packages with CannaTrace/)).toBeVisible();
-  const showAll = page.getByRole("button", { name: /^Show all \d+$/ });
-  if (await showAll.isVisible()) await showAll.click();
+  // Alerts are grouped by cause; open every group in full
+  const showAll = page.getByRole("button", { name: /^Show all \d+ in this group$/ });
+  const openAll = async () => {
+    while (await showAll.count()) await showAll.first().click();
+  };
+  await openAll();
+  await expect(page.locator(`[data-watch-group="state_only"]`)).toContainText("Open in the state system, not in CannaTrace");
   await expect(page.getByText(`Package ${only} is open in the state system but not in CannaTrace`)).toBeVisible();
 
   const item = page.locator("[data-watch-item]", { hasText: /CT-000008: CannaTrace has .* the state has 1,990 ea/ });
@@ -35,6 +40,6 @@ test("Tally Watch matches against a state report, fixes a difference after one C
 
   // After a reload the list is still on the Dashboard
   await page.reload();
-  if (await showAll.isVisible()) await showAll.click();
+  await openAll();
   await expect(page.locator("[data-watch-section]")).toContainText(`Package ${only} is open in the state system`);
 });

@@ -133,7 +133,7 @@ export function BottomNav({ groups }: { groups: NavGroup[] }) {
 
   return (
     <>
-      <nav aria-label="Quick" className="fixed inset-x-0 bottom-0 z-20 flex border-t border-slate-200 bg-white md:hidden print:hidden">
+      <nav aria-label="Quick" className="fixed inset-x-0 bottom-0 z-20 flex border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden print:hidden">
         {quick.map((item) => {
           const Icon = ICONS[item.key] ?? LayoutDashboard;
           const on = item.key === active?.key && !open;
