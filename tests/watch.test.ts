@@ -62,7 +62,7 @@ describe.skipIf(!hasDb)("Tally Watch (database)", () => {
     expect((await sweepFacility({ orgId: demo.orgId, facilityId: demo.id })).failedChecks).toEqual([]);
   });
 
-  it("finds a failed-lab package still for sale, fixes it with one approved hold, resolves, and reopens on Undo", async () => {
+  it("finds a failed-lab package still for sale, fixes it with one approved hold, and won't Undo it back on sale until a retest passes", async () => {
     const pkg = await receivePackage(actor, { tag: `${run}-FAIL`, itemId: jar, quantity: "10", locationId: vault });
     await db.insert(labResults).values({ orgId: actor.orgId, facilityId: actor.facilityId, packageId: pkg.id, labName: "Mesa Labs", status: "FAIL", sampleDate: "2026-11-10", userId: actor.userId });
     await sweepFacility(owner);
@@ -76,11 +76,14 @@ describe.skipIf(!hasDb)("Tally Watch (database)", () => {
     expect((await sweepFacility(owner)).resolved).toBeGreaterThanOrEqual(1);
     expect(await finding("lab_fail")).toBeUndefined();
 
-    // Undo puts it back on sale, so the next sweep raises it again.
+    // Undo would put failed product back on sale, so it is refused until a retest passes.
+    await expect(fetchUndo(owner, done.changeId!)).rejects.toThrow(/failed its most recent lab test/);
+    await db.insert(labResults).values({ orgId: actor.orgId, facilityId: actor.facilityId, packageId: pkg.id, labName: "Mesa Labs", status: "PASS", sampleDate: "2026-11-12", userId: actor.userId });
     const res = await fetchUndo(owner, done.changeId!);
     expect(res).toMatch(/^Undone/);
+    expect((await db.select().from(packages).where(eq(packages.id, pkg.id)))[0].status).toBe("ACTIVE");
     await sweepFacility(owner);
-    expect(await finding("lab_fail")).toBeDefined();
+    expect(await finding("lab_fail")).toBeUndefined();
   });
 
   it("flags new packages with no label and prepares one print job for all of them", async () => {

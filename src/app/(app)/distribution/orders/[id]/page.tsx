@@ -10,10 +10,12 @@ import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { customers, destinations, drivers, invoices, items, orderAllocations, orderLines, orders, packages, vehicles } from "@/db/schema";
 import { db } from "@/lib/db";
-import { licenseProblem, lineTotal, todayIn } from "@/lib/distribution-math";
+import { licenseProblem, lineTotal } from "@/lib/distribution-math";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
+import { facilityToday } from "@/lib/time";
+import { facilityZone } from "@/lib/time";
 import {
   allocateAction,
   deliverAction,
@@ -35,6 +37,8 @@ const NEXT_STEP: Record<string, string> = {
 
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("sales.view");
+  const zone = await facilityZone(session.facilityId);
+  const today = await facilityToday(session.facilityId);
   const { id } = await params;
   const [row] = await db
     .select({ order: orders, customer: customers, destination: destinations })
@@ -71,7 +75,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const canSell = can(session, "sales.write");
   const canFulfil = canSell || can(session, "inventory.write");
   // The destination's license is the one checked when the order ships.
-  const problem = row.destination ? licenseProblem({ ...row.destination, name: `${customer.name} (${row.destination.name})` }, todayIn()) : licenseProblem(customer, todayIn());
+  const problem = row.destination ? licenseProblem({ ...row.destination, name: `${customer.name} (${row.destination.name})` }, today) : licenseProblem(customer, today);
   const hidden = <input type="hidden" name="orderId" value={order.id} />;
   const pickedFor = (lineId: string) =>
     allocations.filter((a) => a.lineId === lineId).reduce((sum, a) => sum.add(a.quantity), new Decimal(0));
@@ -90,7 +94,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     <>
       <PageHeader
         title={order.number}
-        subtitle={`${customer.name}${row.destination && row.destination.name !== customer.name ? ` – ${row.destination.name}` : ""} · started by ${order.userName} on ${order.createdAt.toLocaleDateString("en-US")}`}
+        subtitle={`${customer.name}${row.destination && row.destination.name !== customer.name ? ` – ${row.destination.name}` : ""} · started by ${order.userName} on ${order.createdAt.toLocaleDateString("en-US", { timeZone: zone })}`}
         action={
           <div className="flex flex-wrap items-center gap-3">
             {allocations.length && can(session, "labels.print") && !["DRAFT", "CANCELLED"].includes(order.status) ? (
@@ -200,7 +204,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 <dd className="text-right">{order.departAt?.replace("T", " at ")}</dd>
                 <dt className="text-slate-600">Delivered</dt>
                 <dd className="text-right">
-                  {order.deliveredAt ? `${order.deliveredAt.toLocaleString("en-US")}, received by ${order.receivedBy}` : "not yet"}
+                  {order.deliveredAt ? `${order.deliveredAt.toLocaleString("en-US", { timeZone: zone })}, received by ${order.receivedBy}` : "not yet"}
                 </dd>
               </dl>
             </Card>

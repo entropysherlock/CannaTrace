@@ -12,6 +12,7 @@ import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 import { startRunAction } from "./actions";
+import { facilityZone } from "@/lib/time";
 
 const STATUSES = [
   { key: "", label: "All" },
@@ -28,7 +29,7 @@ const BADGE = {
 
 const num = (v: Decimal.Value) => new Decimal(v).toString();
 const money = (v: Decimal.Value) => `$${new Decimal(v).toNumber().toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const day = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" });
+const day = (d: Date, zone: string) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: zone });
 
 function Tile({ icon: Icon, label, value, sub }: { icon: LucideIcon; label: string; value: string; sub: string }) {
   return (
@@ -57,6 +58,7 @@ function href(status: string, q: string, extra = "") {
 
 export default async function ManufacturingPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string; new?: string }> }) {
   const session = await requirePagePermission("inventory.view");
+  const zone = await facilityZone(session.facilityId);
   const params = await searchParams;
   const status = STATUSES.some((s) => s.key === params.status) ? (params.status as string) : "";
   const q = (params.q ?? "").trim().slice(0, 80);
@@ -132,7 +134,7 @@ export default async function ManufacturingPage({ searchParams }: { searchParams
             <ActionForm action={startRunAction} submitLabel="Start run">
               <div className="grid gap-4 md:grid-cols-3">
                 <Field label="Run name or number" hint="Suggested for today. Change it to your own batch number if you have one.">
-                  <input name="name" required maxLength={80} defaultValue={suggestRunName(runs.map((r) => r.run.name))} className={inputClass} />
+                  <input name="name" required maxLength={80} defaultValue={suggestRunName(runs.map((r) => r.run.name), new Date(), zone)} className={inputClass} />
                 </Field>
                 <Field label="Recipe">
                   <select name="recipeId" required defaultValue="" className={inputClass}>
@@ -267,7 +269,7 @@ export default async function ManufacturingPage({ searchParams }: { searchParams
                           {run.costPerUnit ? <span className="font-semibold text-slate-900">{money(run.costPerUnit)}</span> : <span className="text-slate-400">—</span>}
                         </td>
                         <td className="hidden whitespace-nowrap px-4 py-3 text-right text-slate-600 lg:table-cell">
-                          {day(run.createdAt)}
+                          {day(run.createdAt, zone)}
                           <span className="block text-xs text-slate-500">{run.userName}</span>
                         </td>
                       </tr>

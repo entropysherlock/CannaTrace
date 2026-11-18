@@ -5,6 +5,7 @@ import { db } from "./db";
 import { InventoryError } from "./inventory-math";
 import { isRoomArea, roomAreaLabel } from "./rooms";
 import { isSupportedState } from "./states";
+import { forgetFacilityZone } from "./time";
 
 export type FacilityActor = { orgId: string; userId: string; userName: string; facilityId: string };
 export type FacilityInput = { name: string; licenseNumber: string; licenseType: string; state: string };
@@ -42,6 +43,7 @@ export async function updateFacility(actor: FacilityActor, facilityId: string, i
   const values = clean(input, before.state);
   try {
     await db.update(facilities).set(values).where(eq(facilities.id, facilityId));
+    forgetFacilityZone(facilityId);
   } catch (e) {
     if (duplicate(e)) throw new InventoryError(`License ${values.licenseNumber} is already on another facility.`);
     throw e;

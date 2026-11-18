@@ -14,12 +14,14 @@ import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 import { addInputAction, cancelRunAction, completeRunAction, removeInputAction } from "../../actions";
+import { facilityZone } from "@/lib/time";
 
 const money = (value: Decimal.Value) => `$${new Decimal(value).toFixed(2)}`;
 const num = (value: Decimal.Value) => new Decimal(value).toString();
 
 export default async function RunPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("inventory.view");
+  const zone = await facilityZone(session.facilityId);
   const { id } = await params;
   const [row] = await db
     .select({ run: productionRuns, recipeName: boms.name, itemName: items.name, unit: items.unit })
@@ -76,7 +78,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
     <>
       <PageHeader
         title={run.name}
-        subtitle={`${row.recipeName} × ${num(run.batches)} · makes ${row.itemName} · started by ${run.userName} on ${run.createdAt.toLocaleDateString("en-US")}`}
+        subtitle={`${row.recipeName} × ${num(run.batches)} · makes ${row.itemName} · started by ${run.userName} on ${run.createdAt.toLocaleDateString("en-US", { timeZone: zone })}`}
         action={
           output && can(session, "labels.print") ? (
             <div className="flex flex-wrap gap-2">

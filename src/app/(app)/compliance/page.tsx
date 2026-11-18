@@ -9,6 +9,7 @@ import { jobStatus } from "@/lib/job-runs";
 import { ADAPTERS } from "@/lib/sync";
 import { SYSTEM_LABELS, explainError, type SystemName } from "@/lib/sync-math";
 import { resolveAction, retryAction, sendNowAction, systemAction } from "./actions";
+import { facilityZone } from "@/lib/time";
 
 const STATUS_STYLE: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800",
@@ -27,6 +28,7 @@ const STATUS_TEXT: Record<string, string> = {
 
 export default async function CompliancePage() {
   const session = await requirePagePermission("compliance.view");
+  const zone = await facilityZone(session.facilityId);
   const [facility] = await db.select().from(facilities).where(eq(facilities.id, session.facilityId));
   const scope = and(eq(syncEvents.orgId, session.orgId), eq(syncEvents.facilityId, session.facilityId));
   const [counts, attention, recent] = await Promise.all([
@@ -53,7 +55,7 @@ export default async function CompliancePage() {
   // Practice mode marks records done but sends nothing: never call them "sent".
   const practice = system === "MOCK";
   const job = await jobStatus("sync");
-  const when = (d: Date) => d.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" });
+  const when = (d: Date) => d.toLocaleString("en-US", { timeZone: zone, dateStyle: "medium", timeStyle: "short" });
   const statusText = (status: string, eventSystem: string) => (status === "SENT" && eventSystem === "MOCK" ? "practice, not sent" : STATUS_TEXT[status]);
   const statusStyle = (status: string, eventSystem: string) => (status === "SENT" && eventSystem === "MOCK" ? "bg-slate-100 text-slate-700" : STATUS_STYLE[status]);
 
@@ -99,7 +101,7 @@ export default async function CompliancePage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-red-700">Failed · tried {event.attempts} time{event.attempts === 1 ? "" : "s"}</p>
                 <h2 className="mt-1 text-base font-semibold text-slate-900">{help.title}</h2>
                 <p className="mt-1 text-sm text-slate-700">
-                  <span className="font-medium">Record:</span> {event.summary} ({event.createdAt.toLocaleString("en-US")})
+                  <span className="font-medium">Record:</span> {event.summary} ({event.createdAt.toLocaleString("en-US", { timeZone: zone })})
                 </p>
                 <p className="mt-2 text-sm text-slate-700">
                   <span className="font-medium">What it means:</span> {help.meaning}
@@ -137,7 +139,7 @@ export default async function CompliancePage() {
                       <div className="min-w-0">
                         <p className="font-medium text-slate-900">{event.summary}</p>
                         <p className="text-slate-500">
-                          {event.createdAt.toLocaleString("en-US")} · by {String((event.payload as { by?: string }).by ?? "")}
+                          {event.createdAt.toLocaleString("en-US", { timeZone: zone })} · by {String((event.payload as { by?: string }).by ?? "")}
                         </p>
                       </div>
                       {canManage ? (
@@ -162,7 +164,7 @@ export default async function CompliancePage() {
                   <li key={event.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                     <span className="min-w-0 text-slate-900">{event.summary}</span>
                     <span className="flex items-center gap-2 text-slate-500">
-                      {event.createdAt.toLocaleTimeString("en-US")}
+                      {event.createdAt.toLocaleTimeString("en-US", { timeZone: zone })}
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusStyle(event.status, event.system)}`}>{statusText(event.status, event.system)}</span>
                     </span>
                   </li>
@@ -200,7 +202,7 @@ export default async function CompliancePage() {
               ) : null}
             </div>
             {oldestWaiting ? (
-              <p className="mt-2 text-sm text-slate-600">Oldest waiting record: {oldestWaiting.createdAt.toLocaleString("en-US")}</p>
+              <p className="mt-2 text-sm text-slate-600">Oldest waiting record: {oldestWaiting.createdAt.toLocaleString("en-US", { timeZone: zone })}</p>
             ) : null}
             {canManage ? (
               <div className="mt-4">

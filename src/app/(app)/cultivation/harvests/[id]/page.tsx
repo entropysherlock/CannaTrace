@@ -14,9 +14,11 @@ import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 import { dryWeightAction, finishHarvestAction, packageHarvestAction, wasteAction } from "../../actions";
+import { facilityZone } from "@/lib/time";
 
 export default async function HarvestPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("cultivation.view");
+  const zone = await facilityZone(session.facilityId);
   const { id } = await params;
   const [row] = await db
     .select({ harvest: harvests, strainName: strains.name, roomName: locations.name })
@@ -62,7 +64,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
     <>
       <PageHeader
         title={harvest.name}
-        subtitle={`${row.strainName} · ${harvest.plantCount} plant${harvest.plantCount === 1 ? "" : "s"} · harvested ${harvest.harvestedAt.toLocaleDateString("en-US")} · ${row.roomName}`}
+        subtitle={`${row.strainName} · ${harvest.plantCount} plant${harvest.plantCount === 1 ? "" : "s"} · harvested ${harvest.harvestedAt.toLocaleDateString("en-US", { timeZone: zone })} · ${row.roomName}`}
       />
       <CultivationTabs current="/cultivation/harvests" />
       <div className="grid gap-5 lg:grid-cols-3">
@@ -194,7 +196,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
                       <span className="font-semibold">{grams(entry.weightGrams)}</span>
                     </div>
                     <p className="text-slate-500">
-                      {entry.userName} · {entry.createdAt.toLocaleString("en-US")}
+                      {entry.userName} · {entry.createdAt.toLocaleString("en-US", { timeZone: zone })}
                     </p>
                   </li>
                 ))}

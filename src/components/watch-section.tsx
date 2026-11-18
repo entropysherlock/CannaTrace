@@ -6,12 +6,13 @@ import type { WatchFinding } from "@/db/schema";
 import { can } from "@/lib/rbac";
 import type { Session } from "@/lib/session";
 import { lastSweep, latestStateReport } from "@/lib/watch";
+import { facilityZone } from "@/lib/time";
 
-const TZ = "America/Denver";
-const when = (d: Date) => d.toLocaleString("en-US", { timeZone: TZ, dateStyle: "medium", timeStyle: "short" });
+const when = (d: Date, zone: string) => d.toLocaleString("en-US", { timeZone: zone, dateStyle: "medium", timeStyle: "short" });
 
 /** Tally Watch on the Dashboard: what needs attention, each with its fix ready to approve. */
 export async function WatchSection({ session, findings }: { session: Session; findings: WatchFinding[] }) {
+  const zone = await facilityZone(session.facilityId);
   const [sweep, report] = await Promise.all([lastSweep(session), latestStateReport(session)]);
   const items: WatchItem[] = findings.map((f) => ({
     id: f.id,
@@ -21,7 +22,7 @@ export async function WatchSection({ session, findings }: { session: Session; fi
     href: f.href,
     fixLabel: f.fix?.label ?? null,
     ask: f.ask,
-    since: when(f.firstSeenAt),
+    since: when(f.firstSeenAt, zone),
   }));
   const urgent = items.filter((i) => i.severity === "critical").length;
 
@@ -33,7 +34,7 @@ export async function WatchSection({ session, findings }: { session: Session; fi
             Tally Watch{items.length ? ` · ${items.length} to look at${urgent ? `, ${urgent} urgent` : ""}` : ""}
           </h2>
           <p className="text-xs text-slate-500">
-            Tally checks the business on its own{sweep ? `; last checked ${when(sweep.createdAt)}` : ""}. You approve every fix, and every fix can be undone.
+            Tally checks the business on its own{sweep ? `; last checked ${when(sweep.createdAt, zone)}` : ""}. You approve every fix, and every fix can be undone.
           </p>
         </div>
         <form action={sweepNowAction}>
@@ -46,7 +47,7 @@ export async function WatchSection({ session, findings }: { session: Session; fi
       {can(session, "compliance.view") ? (
         <details className="mt-3 rounded-2xl border border-brand-100 bg-white px-5 py-3 shadow-sm">
           <summary className="cursor-pointer text-sm font-semibold text-brand-800">
-            Match against the state system{report ? ` · last report ${when(report.createdAt)}, ${report.count.toLocaleString("en-US")} packages` : ""}
+            Match against the state system{report ? ` · last report ${when(report.createdAt, zone)}, ${report.count.toLocaleString("en-US")} packages` : ""}
           </summary>
           <p className="mt-2 text-sm text-slate-600">
             Export your Packages list from the state system (for example Metrc → Packages → Active → Export as CSV) and upload it here. Tally Watch flags every package

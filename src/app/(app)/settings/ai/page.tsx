@@ -6,11 +6,12 @@ import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { CONSOLE_LINKS, getConnection, usageSummary } from "@/lib/ai/connection";
 import { requirePagePermission } from "@/lib/session";
 import { checkKeyAction, connectKeyAction, disconnectAction, limitsAction, modelAction } from "./actions";
+import { facilityZone } from "@/lib/time";
 
 export const metadata = { title: "Tally AI · CannaTrace" };
 
-const when = (d: Date | null) =>
-  d ? d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Denver" }) : "never";
+const when = (d: Date | null, zone: string) =>
+  d ? d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: zone }) : "never";
 const n = (v: number) => v.toLocaleString("en-US");
 
 const STATUS: Record<string, { label: string; tone: "ok" | "bad" }> = {
@@ -100,6 +101,7 @@ function ConnectForm({ label, replacing }: { label: string; replacing: boolean }
 
 export default async function TallyAiSettingsPage() {
   const session = await requirePagePermission("ai.manage");
+  const zone = await facilityZone(session.facilityId);
   const [conn, usage] = await Promise.all([getConnection(session.orgId), usageSummary(session.orgId)]);
   const status = conn.status ? (STATUS[conn.status] ?? STATUS.ERROR) : null;
 
@@ -158,10 +160,10 @@ export default async function TallyAiSettingsPage() {
                   <dd>{conn.availableModels.find((m) => m.id === conn.model)?.name ?? conn.model}</dd>
                   <dt className="text-slate-600">Connected by</dt>
                   <dd>
-                    {conn.connectedByName} · {when(conn.connectedAt)}
+                    {conn.connectedByName} · {when(conn.connectedAt, zone)}
                   </dd>
                   <dt className="text-slate-600">Last checked</dt>
-                  <dd>{when(conn.checkedAt)}</dd>
+                  <dd>{when(conn.checkedAt, zone)}</dd>
                 </dl>
                 <ActionForm action={checkKeyAction} submitLabel="Check connection" quiet>
                   <p className="text-xs text-slate-500">Asks Anthropic whether the key still works. Free: it doesn&apos;t use credits.</p>
@@ -248,7 +250,7 @@ export default async function TallyAiSettingsPage() {
                 <ul className="mt-1 space-y-0.5">
                   {usage.recentProblems.map((p, i) => (
                     <li key={i}>
-                      {when(p.at)} · {STATUS[p.outcome]?.label ?? p.outcome.toLowerCase()} · {p.name}
+                      {when(p.at, zone)} · {STATUS[p.outcome]?.label ?? p.outcome.toLowerCase()} · {p.name}
                     </li>
                   ))}
                 </ul>

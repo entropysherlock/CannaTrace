@@ -2,7 +2,8 @@
 
 import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { facilities } from "@/db/schema";
+import { facilities, users } from "@/db/schema";
+import { canUseFacility } from "@/lib/facility-access";
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { addFacility, addRoom, renameBusiness, updateFacility, updateRoom } from "@/lib/facilities";
@@ -18,7 +19,11 @@ export async function switchFacility(formData: FormData): Promise<void> {
     .select({ id: facilities.id })
     .from(facilities)
     .where(and(eq(facilities.id, field(formData, "facilityId")), eq(facilities.orgId, session.orgId)));
-  if (facility) await createSession({ ...session, facilityId: facility.id });
+  if (facility && canUseFacility(session, facility.id)) {
+    await createSession({ ...session, facilityId: facility.id });
+    // Remember it, so signing in next time comes back here.
+    if (!session.support) await db.update(users).set({ lastFacilityId: facility.id }).where(eq(users.id, session.userId));
+  }
   redirect("/dashboard");
 }
 

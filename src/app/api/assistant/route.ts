@@ -5,6 +5,7 @@ import { explainProviderError, markHealthy, markProblem, reserveUsage, resolveTa
 import { takeDemoAssistantCall } from "@/lib/demo/live-demo";
 import { can } from "@/lib/rbac";
 import { currentSession } from "@/lib/session";
+import { inFacilityZone } from "@/lib/time";
 
 export const maxDuration = 60;
 
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
       const emit = (event: AssistantEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       let outcome = "OK";
       try {
-        await runAssistant(session, messages, emit, request.signal, model, usage);
+        await inFacilityZone(session.facilityId, () => runAssistant(session, messages, emit, request.signal, model, usage));
         emit({ type: "done" });
         if (route.kind === "customer") await markHealthy(session.orgId);
       } catch (error) {

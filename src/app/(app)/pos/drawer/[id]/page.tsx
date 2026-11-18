@@ -1,16 +1,19 @@
 import Decimal from "decimal.js";
 import { and, asc, eq } from "drizzle-orm";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Pill, usd } from "@/components/distribution-ui";
 import { PrintButton } from "@/components/print-button";
 import { drawerSessions, facilities, sales } from "@/db/schema";
 import { db } from "@/lib/db";
 import { drawerSummary } from "@/lib/pos";
+import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
+import { facilityZone } from "@/lib/time";
 
 export default async function DrawerReportPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("pos.use");
+  const zone = await facilityZone(session.facilityId);
   const { id } = await params;
   const [row] = await db
     .select({ drawer: drawerSessions, facility: facilities })
@@ -19,6 +22,9 @@ export default async function DrawerReportPage({ params }: { params: Promise<{ i
     .where(and(eq(drawerSessions.id, id), eq(drawerSessions.orgId, session.orgId), eq(drawerSessions.facilityId, session.facilityId)));
   if (!row) notFound();
   const { drawer, facility } = row;
+  // Blind counts: before a drawer is closed, only managers may see what it should hold; clerks see their own reports only.
+  const manager = can(session, "pos.manage");
+  if (!manager && (drawer.status === "OPEN" || (drawer.userId !== null && drawer.userId !== session.userId))) redirect("/pos/drawer");
   const [summary, rows] = await Promise.all([
     drawerSummary(db, drawer),
     db.select().from(sales).where(eq(sales.drawerSessionId, drawer.id)).orderBy(asc(sales.createdAt)),
@@ -46,8 +52,8 @@ export default async function DrawerReportPage({ params }: { params: Promise<{ i
           {facility.name} · license {facility.licenseNumber}
         </p>
         <p className="text-slate-600">
-          Opened {drawer.openedAt.toLocaleString("en-US")} by {drawer.openedByName}
-          {drawer.closedAt ? ` · closed ${drawer.closedAt.toLocaleString("en-US")} by ${drawer.closedByName}` : " · still open"}
+          Opened {drawer.openedAt.toLocaleString("en-US", { timeZone: zone })} by {drawer.openedByName}
+          {drawer.closedAt ? ` · closed ${drawer.closedAt.toLocaleString("en-US", { timeZone: zone })} by ${drawer.closedByName}` : " · still open"}
         </p>
 
         <div className="mt-5 grid gap-6 sm:grid-cols-2">
@@ -101,7 +107,7 @@ export default async function DrawerReportPage({ params }: { params: Promise<{ i
                   </Link>{" "}
                   {sale.status !== "COMPLETED" ? <Pill status={sale.status} /> : null}
                 </td>
-                <td className="py-2 pr-2">{sale.createdAt.toLocaleTimeString("en-US")}</td>
+                <td className="py-2 pr-2">{sale.createdAt.toLocaleTimeString("en-US", { timeZone: zone })}</td>
                 <td className="py-2 pr-2">{sale.userName}</td>
                 <td className="py-2 pr-2">{sale.paymentMethod?.toLowerCase() ?? ""}</td>
                 <td className="py-2 text-right">{sale.total ? usd(sale.total) : ""}</td>

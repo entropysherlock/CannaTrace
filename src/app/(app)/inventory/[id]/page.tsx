@@ -27,6 +27,7 @@ import { packFor, wasteRule } from "@/lib/rules";
 import { requirePagePermission } from "@/lib/session";
 import { formatQty, unitLabel } from "@/lib/units";
 import { adjustAction, labResultAction, mergeAction, moveAction, splitAction, statusAction } from "../actions";
+import { facilityZone } from "@/lib/time";
 
 function Fold({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -68,6 +69,7 @@ const labProfile = (lab: LabProfileRow) =>
 
 export default async function PackagePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("inventory.view");
+  const zone = await facilityZone(session.facilityId);
   const { id } = await params;
   const [pkg] = await db
     .select({
@@ -154,7 +156,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
   const waste = pack && wasteRuleHere ? { state: pack.name, holdHours: wasteRuleHere.holdHours, minMixPercent: wasteRuleHere.minMixPercent } : null;
   const heldNote =
     waste && pkg.heldSince && (pkg.status === "ON_HOLD" || pkg.status === "QUARANTINE")
-      ? `Held since ${pkg.heldSince.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" })}.`
+      ? `Held since ${pkg.heldSince.toLocaleString("en-US", { timeZone: zone, dateStyle: "medium", timeStyle: "short" })}.`
       : waste
         ? "It isn't on hold yet."
         : "";
@@ -206,7 +208,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
               <dt className="text-slate-600">Cost per {unitLabel(unit)}</dt>
               <dd className="text-right text-slate-900">{pkg.costPerUnit ? `$${new Decimal(pkg.costPerUnit).toFixed(2)}` : "Not set"}</dd>
               <dt className="text-slate-600">Created</dt>
-              <dd className="text-right text-slate-900">{pkg.createdAt.toLocaleDateString("en-US")}</dd>
+              <dd className="text-right text-slate-900">{pkg.createdAt.toLocaleDateString("en-US", { timeZone: zone })}</dd>
             </dl>
             {parents.length || children.length ? (
               <div className="mt-3 border-t border-slate-100 pt-3 text-sm">
@@ -417,7 +419,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                         <span className={`font-bold ${LAB_STYLES[lab.status]}`}>{lab.status.toLowerCase()}</span>{" "}
                         <span className="text-slate-900">· {lab.labName}</span>
                       </span>
-                      <span className="text-slate-500">{lab.sampleDate ?? lab.createdAt.toLocaleDateString("en-US")}</span>
+                      <span className="text-slate-500">{lab.sampleDate ?? lab.createdAt.toLocaleDateString("en-US", { timeZone: zone })}</span>
                     </div>
                     <p className="text-slate-700">
                       {lab.thcPercent ? `THC ${num(lab.thcPercent)}%` : "THC not recorded"}
@@ -448,7 +450,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                 <li key={t.id} className="py-2">
                   <div className="flex flex-wrap justify-between gap-2">
                     <span className="font-semibold text-slate-900">{t.type.replace("_", " ").toLowerCase()}</span>
-                    <time className="text-slate-500">{t.createdAt.toLocaleString("en-US")}</time>
+                    <time className="text-slate-500">{t.createdAt.toLocaleString("en-US", { timeZone: zone })}</time>
                   </div>
                   {t.type === "MOVE" ? (
                     <p className="text-slate-700">
@@ -480,7 +482,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                         <span className="font-semibold text-slate-900">{entry.userName}</span>{" "}
                         <span className="text-slate-600">{entry.action.replaceAll("_", " ").toLowerCase()}</span>
                       </span>
-                      <time className="text-slate-500">{entry.createdAt.toLocaleString("en-US")}</time>
+                      <time className="text-slate-500">{entry.createdAt.toLocaleString("en-US", { timeZone: zone })}</time>
                     </div>
                     {entry.reason ? <p className="text-slate-600">{entry.reason}</p> : null}
                   </li>

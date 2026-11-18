@@ -4,6 +4,7 @@ import { Card, PageHeader } from "@/components/ui";
 import { listJobs } from "@/lib/labels/service";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
+import { facilityZone } from "@/lib/time";
 
 export const instant = false;
 
@@ -18,6 +19,7 @@ const LABEL: Record<string, string> = { QUEUED: "queued", RENDERED: "pdf opened"
 
 export default async function LabelHistoryPage() {
   const session = await requirePagePermission("labels.print");
+  const zone = await facilityZone(session.facilityId);
   const jobs = await listJobs(session, 200);
   return (
     <div className="space-y-6">
@@ -45,7 +47,7 @@ export default async function LabelHistoryPage() {
               <tbody>
                 {jobs.map(({ job, template }) => (
                   <tr key={job.id}>
-                    <td className="whitespace-nowrap">{job.createdAt.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "short", timeStyle: "short" })}</td>
+                    <td className="whitespace-nowrap">{job.createdAt.toLocaleString("en-US", { timeZone: zone, dateStyle: "short", timeStyle: "short" })}</td>
                     <td>
                       {template} <span className="text-xs text-slate-500">v{job.templateVersion}</span>
                       {job.reprintOf ? <span className="ml-1 text-xs font-semibold text-brand-700">reprint</span> : null}

@@ -10,6 +10,10 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel("Password").fill("demo1234");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
+  // Signing in returns people to the facility they last used; these checks are about the demo grow.
+  await page.locator('select[name="facilityId"]').selectOption({ label: "Rio Grande Grow & Lab · DEMO-CULT-0001" });
+  await page.getByRole("button", { name: "Switch" }).click();
+  await expect(page.getByText("Rio Grande Grow & Lab · license DEMO-CULT-0001")).toBeVisible();
 }
 
 test("reports, CSV export and import, API keys, and the REST API", async ({ page, request }) => {

@@ -8,14 +8,17 @@ import { PrintButton } from "@/components/print-button";
 import { Card, Field, inputClass } from "@/components/ui";
 import { customers, facilities, invoices, items, orderAllocations, orderLines, orders, payments } from "@/db/schema";
 import { db } from "@/lib/db";
-import { PAYMENT_METHODS, invoiceBalance, lineTotal, todayIn } from "@/lib/distribution-math";
+import { PAYMENT_METHODS, invoiceBalance, lineTotal } from "@/lib/distribution-math";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 import { creditMemoAction, paymentAction } from "../../../actions";
+import { facilityToday } from "@/lib/time";
+import { facilityZone } from "@/lib/time";
 
 export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("sales.view");
+  const zone = await facilityZone(session.facilityId);
   const { id } = await params;
   const [row] = await db
     .select({ invoice: invoices, order: orders, customer: customers, facility: facilities })
@@ -43,7 +46,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
       .orderBy(asc(items.name)),
     db.select().from(payments).where(eq(payments.invoiceId, invoice.id)).orderBy(asc(payments.createdAt)),
   ]);
-  const today = todayIn();
+  const today = await facilityToday(session.facilityId);
   const { balance, state, paid: paidTotal } = invoiceBalance(invoice.total, paid.map((p) => p.amount));
   const overdue = state !== "PAID" && invoice.dueDate < today;
 
@@ -61,7 +64,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
             <div>
               <h1 className="text-xl font-bold">Invoice {invoice.number}</h1>
               <p>
-                Order {order.number} · issued {invoice.createdAt.toLocaleDateString("en-US")}
+                Order {order.number} · issued {invoice.createdAt.toLocaleDateString("en-US", { timeZone: zone })}
               </p>
             </div>
             <p className="text-right">

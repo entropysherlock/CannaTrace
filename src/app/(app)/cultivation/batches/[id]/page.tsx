@@ -11,9 +11,11 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { destroyBatchAction, tagPlantsAction } from "../../actions";
+import { facilityZone } from "@/lib/time";
 
 export default async function BatchPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("cultivation.view");
+  const zone = await facilityZone(session.facilityId);
   const { id } = await params;
   const [batch] = await db
     .select({
@@ -55,7 +57,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
     <>
       <PageHeader
         title={batch.name}
-        subtitle={`${batch.strainName} · started from ${batch.source.toLowerCase()}s on ${batch.createdAt.toLocaleDateString("en-US")}`}
+        subtitle={`${batch.strainName} · started from ${batch.source.toLowerCase()}s on ${batch.createdAt.toLocaleDateString("en-US", { timeZone: zone })}`}
         action={
           <div className="flex flex-wrap items-center gap-3">
             {can(session, "labels.print") ? (

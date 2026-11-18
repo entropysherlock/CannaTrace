@@ -25,6 +25,7 @@ import { NextCustomer } from "@/components/register/next-customer";
 import { RegisterShell } from "@/components/register/shell";
 import { returnSaleAction, voidSaleAction } from "../../../actions";
 import { shellInfo } from "../../../shell-info";
+import { facilityZone } from "@/lib/time";
 
 export default async function ReceiptPage({
   params,
@@ -32,6 +33,7 @@ export default async function ReceiptPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await requirePagePermission("pos.use");
+  const zone = await facilityZone(session.facilityId);
   const { id } = await params;
   const [row] = await db
     .select({
@@ -131,7 +133,7 @@ export default async function ReceiptPage({
                 <p>License {facility.licenseNumber}</p>
                 <p className="mt-2">
                   Sale {sale.number} ·{" "}
-                  {(sale.completedAt ?? sale.createdAt).toLocaleString("en-US")}
+                  {(sale.completedAt ?? sale.createdAt).toLocaleString("en-US", { timeZone: zone })}
                 </p>
                 <p>Served by {sale.userName.split(" ")[0]}</p>
                 {sale.status !== "COMPLETED" ? (
@@ -220,7 +222,7 @@ export default async function ReceiptPage({
                         {returns.map((r) => (
                           <li key={r.id} className="flex justify-between gap-3">
                             <span>
-                              {r.number} · {r.createdAt.toLocaleDateString("en-US")} · {r.refundMethod === "CASH" ? "cash" : "card"} refund
+                              {r.number} · {r.createdAt.toLocaleDateString("en-US", { timeZone: zone })} · {r.refundMethod === "CASH" ? "cash" : "card"} refund
                               <span className="block text-xs text-slate-500">
                                 {r.disposition === "RESTOCK" ? "Back to stock" : "Written off"}: {r.reason}
                               </span>

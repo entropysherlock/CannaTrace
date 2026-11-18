@@ -8,6 +8,7 @@ import { can } from "@/lib/rbac";
 import { currentSession } from "@/lib/session";
 import { tallyChanges } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { inFacilityZone } from "@/lib/time";
 
 /** One-click Undo for a change Tally made. Same permissions as making it; all or nothing. */
 export async function POST(request: Request) {
@@ -21,9 +22,8 @@ export async function POST(request: Request) {
       .where(and(eq(tallyChanges.id, String(changeId ?? "")), eq(tallyChanges.orgId, session.orgId), eq(tallyChanges.facilityId, session.facilityId)));
     if (!change) throw new InventoryError("That Tally change was not found at this facility.");
     if (!undoPermissions(change.tool).every((p) => can(session, p))) throw new InventoryError("Undoing this needs the same permission as making it, and your role doesn't have it.");
-    const message = await undoChange(
-      { userId: session.userId, userName: `${session.name} (undo via assistant)`, orgId: session.orgId, facilityId: session.facilityId },
-      String(changeId),
+    const message = await inFacilityZone(session.facilityId, () =>
+      undoChange({ userId: session.userId, userName: `${session.name} (undo via assistant)`, orgId: session.orgId, facilityId: session.facilityId }, String(changeId)),
     );
     revalidatePath("/", "layout");
     return NextResponse.json({ ok: message });

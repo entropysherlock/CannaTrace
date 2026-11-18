@@ -10,6 +10,7 @@ import { createPrintJob, defaultTemplateId, getTemplate, LabelError, listTemplat
 import type { LabelIssue, LabelKind } from "@/lib/labels/types";
 import type { Session } from "@/lib/session";
 import type { Tool } from "./tools";
+import { currentZone } from "@/lib/time";
 
 /**
  * Tally's label tools. Every number comes from the deterministic label checker, never
@@ -43,7 +44,7 @@ function kindOf(v: unknown): LabelKind {
   return k;
 }
 
-const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Denver" });
+const today = () => new Date().toLocaleDateString("en-CA", { timeZone: currentZone() });
 
 /** Find record ids from what a person typed: tags, batch names, or order numbers. Or every active package, or today's new ones. */
 async function resolveRecords(s: Session, kind: LabelKind, input: Input): Promise<{ ids: string[]; how: string }> {
@@ -70,7 +71,7 @@ async function resolveRecords(s: Session, kind: LabelKind, input: Input): Promis
   }
   if ((kind === "PACKAGE" || kind === "PRODUCT") && (input.created_today === true || input.all_active === true)) {
     const where = [eq(packages.orgId, scope.org), eq(packages.facilityId, scope.fac), inArray(packages.status, ["ACTIVE", "ALLOCATED"])];
-    if (input.created_today === true) where.push(gte(packages.createdAt, sql`(${today()}::date)::timestamp at time zone 'America/Denver'`));
+    if (input.created_today === true) where.push(gte(packages.createdAt, sql`(${today()}::date)::timestamp at time zone ${currentZone()}`));
     const rows = await db.select({ id: packages.id }).from(packages).where(and(...where)).limit(1000);
     if (!rows.length) throw new InventoryError(input.created_today === true ? "No active packages were created at this facility today." : "There are no active packages at this facility.");
     return { ids: rows.map((r) => r.id), how: input.created_today === true ? `packages created today (${today()})` : "all active packages" };

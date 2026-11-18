@@ -5,6 +5,7 @@ import { usd } from "@/components/distribution-ui";
 import { Card, PageHeader } from "@/components/ui";
 import { db } from "@/lib/db";
 import { requirePagePermission } from "@/lib/session";
+import { facilityZone } from "@/lib/time";
 
 type Row = Record<string, string | number | null>;
 const rows = async (query: ReturnType<typeof sql>) => (await db.execute<Row>(query)).rows;
@@ -43,6 +44,7 @@ function Table({ head, body, empty }: { head: string[]; body: (string | number)[
 
 export default async function ReportsPage() {
   const session = await requirePagePermission("reports.view");
+  const zone = await facilityZone(session.facilityId);
   const org = session.orgId;
   const fac = session.facilityId;
   const onHand = sql`p.org_id = ${org} and p.facility_id = ${fac} and p.status in ('ACTIVE','ALLOCATED','ON_HOLD','QUARANTINE')`;
@@ -63,7 +65,7 @@ export default async function ReportsPage() {
              coalesce(sum(p.quantity * p.cost_per_unit), 0) as value
       from packages p where ${onHand} group by 1 order by oldest desc`),
     rows(sql`
-      select to_char(date_trunc('day', completed_at at time zone 'America/Denver'), 'YYYY-MM-DD') as day,
+      select to_char(date_trunc('day', completed_at at time zone ${zone}), 'YYYY-MM-DD') as day,
              count(*)::int as sales, sum(total) as total, sum(discount_total) as discounts,
              sum(excise_tax + sales_tax) as tax
       from sales where org_id = ${org} and facility_id = ${fac} and status = 'COMPLETED'
@@ -72,7 +74,7 @@ export default async function ReportsPage() {
     rows(sql`
       select coalesce(sum(i.total) filter (where i.created_at > now() - interval '30 days'), 0) as invoiced_30,
              coalesce(sum(i.total - coalesce(p.paid, 0)), 0) as outstanding,
-             coalesce(sum(i.total - coalesce(p.paid, 0)) filter (where i.due_date < to_char(now() at time zone 'America/Denver', 'YYYY-MM-DD')), 0) as overdue
+             coalesce(sum(i.total - coalesce(p.paid, 0)) filter (where i.due_date < to_char(now() at time zone ${zone}, 'YYYY-MM-DD')), 0) as overdue
       from invoices i left join (select invoice_id, sum(amount) as paid from payments group by invoice_id) p on p.invoice_id = i.id
       where i.org_id = ${org} and i.facility_id = ${fac}`),
     rows(sql`

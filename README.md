@@ -41,7 +41,8 @@ Before the register can sell, a manager must enter the store's real purchase lim
 
 Each state is a rule pack in `src/lib/rules/packs/`: plain data where every rule carries its citation, a link to the official text, and the date it was checked. Packs today: **New Mexico, California, Michigan, Colorado**. The facility's state picks the pack.
 
-- **Register:** the stricter of the store's and the state's purchase limits (including Michigan's combined flower-plus-concentrate cap), the state's minimum age, and no sale of product without a passing lab result where the state requires testing.
+- **Register:** the stricter of the store's and the state's purchase limits (including Michigan's combined flower-plus-concentrate cap), the state's minimum age, and no sale of product without a passing lab result where the state requires testing. Product whose latest lab result failed is never sold, in any state.
+- **Failed lab results:** a package whose latest result failed (or that was split from one) can't be released, picked for an order, shipped, or used in production until a retest passes. Tally Watch raises a critical recall finding for failed product that already shipped or sold, naming the manifests and receipts.
 - **Destroying waste:** the state's hold period and mixing confirmation (New Mexico: 72 hours, 50%).
 - **Compliance → State rules:** a score out of 100, issues to fix, and every rule with its source. The dashboard shows the score; the assistant can explain it.
 - **Adding a state:** read the regulator's official text, write a pack with citations, add it to `PACKS`, and extend `tests/rules-engine.test.ts`. Never add a number you have not checked against the official source.
@@ -103,7 +104,8 @@ Every deploy runs `npm run vercel-build`, which updates the database tables befo
 
 ### Phase 1: Foundation
 - [x] Organizations, facilities (licenses), users, seven roles with a permission table
-- [x] Sign-in, sign-out, protected routes, facility switcher
+- [x] Sign-in, sign-out, protected routes, facility switcher; owners can limit each person to some facilities, and sign-in returns people to the facility they last used
+- [x] Each facility keeps time in its state's time zone (ages, daily limits, license expiry, invoices, end of day, dates sent to the state)
 - [x] App shell with desktop sidebar and phone bottom navigation
 - [x] Demo seed data
 - [x] CI: lint, typecheck, tests, migrate, seed, build, browser tests
@@ -116,7 +118,7 @@ Every deploy runs `npm run vercel-build`, which updates the database tables befo
 - [x] Split into new packages and merge same-lot packages (weighted average cost)
 - [x] Hold, quarantine, release, and destroy, each with a required reason
 - [x] Cycle counts by location, with automatic corrections
-- [x] Lab results with COA upload (PDF, PNG, JPEG up to 4 MB); a failing result quarantines the package
+- [x] Lab results with COA upload (PDF, PNG, JPEG up to 4 MB); a failing result quarantines the package, and it stays out of sales, orders and production until a retest passes
 - [x] Search by tag, item, SKU, or lot; works with keyboard-style barcode scanners
 - [x] Phone camera scanning (see "Known limits")
 - [x] Printable Code 128 package labels
@@ -171,11 +173,11 @@ Every deploy runs `npm run vercel-build`, which updates the database tables befo
 - [x] Cannabis excise tax and sales tax, with an optional medical exemption
 - [x] Cash (with change) and debit payments
 - [x] Stock sold oldest package first, with every package tag on the receipt
-- [x] Cash drawer: opening float, expected cash, counted cash, and the difference
+- [x] Cash drawers per person: each person opens and counts their own; clerks count blind (expected cash shows only on the report after closing); managers see every open drawer and can close one left open
 - [x] Printable receipt and end-of-day report
 - [x] Voiding a sale during the same shift puts the product back in stock
 - [x] Returns on any day, partial or whole: sealed items back to stock or opened items written off; cash refunds from the open drawer, card refunds recorded (done on the card terminal)
-- [ ] More than one register per store
+- [x] More than one person ringing at once, each into their own drawer
 - [x] Limits per customer per day (optional, by a one-way code of the ID number; ID scans fill it in)
 - [ ] Loyalty and customer profiles
 
@@ -225,7 +227,7 @@ State reports and webhooks are sent by calling `GET /api/sync/run` with `Authori
 ### Known limits
 - Camera scanning has not been tested on a real phone. It needs HTTPS (or localhost) and camera permission.
 - COA files are stored in the database. That is fine to start; move them to file storage before heavy use.
-- Returned items don't reduce a customer's daily total (the stricter reading). Password reset links are made by an owner; there's no email sending yet.
+- A scanned ID's earlier purchases that day always count toward its limits, even with the daily setting off; the setting adds the same for IDs typed by hand (it then asks for the ID number). Returned items don't reduce a customer's daily total (the stricter reading). Password reset links are made by an owner; there's no email sending yet.
 - Merging refuses packages from different lots. Some states allow it under conditions; that rule is not modelled.
 - Locations cannot be renamed or removed yet.
 - Harvests can only be packaged into items tracked by weight. Pre-packaged units (jars, pre-rolls) come in Phase 4.

@@ -5,8 +5,9 @@ import { DistributionTabs, Pill, usd } from "@/components/distribution-ui";
 import { PageHeader } from "@/components/ui";
 import { customers, invoices, payments } from "@/db/schema";
 import { db } from "@/lib/db";
-import { invoiceBalance, todayIn } from "@/lib/distribution-math";
+import { invoiceBalance } from "@/lib/distribution-math";
 import { requirePagePermission } from "@/lib/session";
+import { facilityToday } from "@/lib/time";
 
 export default async function InvoicesPage() {
   const session = await requirePagePermission("sales.view");
@@ -25,7 +26,7 @@ export default async function InvoicesPage() {
     .where(and(eq(invoices.orgId, session.orgId), eq(invoices.facilityId, session.facilityId)))
     .orderBy(desc(invoices.createdAt))
     .limit(200);
-  const today = todayIn();
+  const today = await facilityToday(session.facilityId);
   const withState = rows.map((row) => ({ ...row, ...invoiceBalance(row.total, [row.paid]) }));
   const owed = withState.reduce((sum, row) => sum.add(Decimal.max(row.balance, 0)), new Decimal(0));
 

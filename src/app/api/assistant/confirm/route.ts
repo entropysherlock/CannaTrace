@@ -3,13 +3,14 @@ import { NextResponse } from "next/server";
 import { confirmProposal } from "@/lib/assistant/engine";
 import { InventoryError } from "@/lib/inventory-math";
 import { currentSession } from "@/lib/session";
+import { inFacilityZone } from "@/lib/time";
 
 export async function POST(request: Request) {
   const session = await currentSession();
   if (!session) return NextResponse.json({ error: "Sign in again." }, { status: 401 });
   try {
     const { token } = (await request.json()) as { token?: string };
-    const outcome = await confirmProposal(session, String(token ?? ""));
+    const outcome = await inFacilityZone(session.facilityId, () => confirmProposal(session, String(token ?? "")));
     revalidatePath("/", "layout");
     return NextResponse.json({ ok: outcome.message, changeId: outcome.undoable ? outcome.changeId : null });
   } catch (error) {

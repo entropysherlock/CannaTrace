@@ -4,13 +4,14 @@ import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { InviteForm, type RoleOption } from "@/components/invite-form";
 import { Card, PageHeader, buttonLinkClass, inputBase } from "@/components/ui";
-import { customRoles, invites, users } from "@/db/schema";
+import { customRoles, facilities, invites, users } from "@/db/schema";
 import { db } from "@/lib/db";
 import { OWNER_ONLY, ROLES, ROLE_LABELS, cleanPermissions, permissionsFor } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { isOwner } from "@/lib/team";
 import { ResetLinkButton } from "@/components/reset-link-button";
-import { changeRoleAction, inviteAction, resetLinkAction, revokeInviteAction, setActiveAction } from "./actions";
+import { changeRoleAction, inviteAction, resetLinkAction, revokeInviteAction, setActiveAction, setFacilitiesAction } from "./actions";
+import { facilityZone } from "@/lib/time";
 
 const BUILT_IN_HINTS: Record<string, string> = {
   OWNER: "Everything, including the team and API keys.",
@@ -22,14 +23,24 @@ const BUILT_IN_HINTS: Record<string, string> = {
   READ_ONLY: "Can look, cannot change anything.",
 };
 
-const date = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" });
+const date = (d: Date, zone: string) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: zone });
 
 export default async function TeamPage() {
   const session = await requirePagePermission("users.manage");
+  const zone = await facilityZone(session.facilityId);
   const owner = isOwner(session);
   const [people, roles, pending, counts] = await Promise.all([
     db
-      .select({ id: users.id, name: users.name, email: users.email, role: users.role, customRoleId: users.customRoleId, active: users.active, customName: customRoles.name })
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+        customRoleId: users.customRoleId,
+        active: users.active,
+        customName: customRoles.name,
+        facilityIds: users.facilityIds,
+      })
       .from(users)
       .leftJoin(customRoles, eq(customRoles.id, users.customRoleId))
       .where(eq(users.orgId, session.orgId))
@@ -48,6 +59,11 @@ export default async function TeamPage() {
       .groupBy(users.customRoleId),
   ]);
   const peopleWith = new Map(counts.map((c) => [c.id, c.n]));
+  const sites = await db
+    .select({ id: facilities.id, name: facilities.name })
+    .from(facilities)
+    .where(eq(facilities.orgId, session.orgId))
+    .orderBy(asc(facilities.name));
 
   // Only offer roles this person is allowed to hand out; the server checks again.
   const builtIn: RoleOption[] = ROLES.filter((r) => owner || (r !== "OWNER" && !permissionsFor(r).some((p) => OWNER_ONLY.includes(p)))).map((r) => ({
@@ -110,6 +126,33 @@ export default async function TeamPage() {
                           <input type="hidden" name="active" value={p.active ? "false" : "true"} />
                         </ActionForm>
                         {p.active ? <ResetLinkButton userId={p.id} name={p.name} action={resetLinkAction} /> : null}
+                        {sites.length > 1 && !(p.role === "OWNER" && !p.customRoleId) ? (
+                          <details className="w-full basis-full">
+                            <summary className="cursor-pointer text-sm font-semibold text-brand-700">
+                              Works at: {p.facilityIds?.length ? sites.filter((f) => p.facilityIds!.includes(f.id)).map((f) => f.name).join(", ") : "All facilities"}
+                            </summary>
+                            <ActionForm action={setFacilitiesAction} submitLabel="Save facilities" quiet className="mt-2 space-y-1">
+                              <input type="hidden" name="userId" value={p.id} />
+                              <label className="flex items-center gap-2">
+                                <input type="checkbox" name="all" defaultChecked={!p.facilityIds?.length} className="h-4 w-4 accent-brand-700" />
+                                All facilities, including new ones
+                              </label>
+                              {sites.map((f) => (
+                                <label key={f.id} className="flex items-center gap-2 pl-6">
+                                  <input
+                                    type="checkbox"
+                                    name="facilityIds"
+                                    value={f.id}
+                                    defaultChecked={Boolean(p.facilityIds?.includes(f.id))}
+                                    aria-label={`${p.name} works at ${f.name}`}
+                                    className="h-4 w-4 accent-brand-700"
+                                  />
+                                  {f.name}
+                                </label>
+                              ))}
+                            </ActionForm>
+                          </details>
+                        ) : null}
                       </div>
                     )}
                   </li>
@@ -174,7 +217,7 @@ export default async function TeamPage() {
                     <div className="min-w-0">
                       <p className="truncate font-medium text-slate-900">{i.email}</p>
                       <p className="text-slate-600">
-                        {i.customName ?? ROLE_LABELS[i.role]} · link expires {date(i.expiresAt)}
+                        {i.customName ?? ROLE_LABELS[i.role]} · link expires {date(i.expiresAt, zone)}
                       </p>
                     </div>
                     <ActionForm action={revokeInviteAction} submitLabel="Cancel" quiet className="flex items-start">

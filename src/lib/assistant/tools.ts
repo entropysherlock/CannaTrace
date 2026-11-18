@@ -13,6 +13,7 @@ import { previewUndo, recentChanges, undoChange } from "./changes";
 import { openFindings, sweepIfStale } from "@/lib/watch";
 import { JOB_TOOLS, permissionsFor, type JobStep } from "./jobs";
 import { LABEL_TOOLS } from "./label-tools";
+import { currentZone } from "@/lib/time";
 
 /**
  * Everything the assistant can see or do. Each tool runs with the signed-in person's own
@@ -62,7 +63,6 @@ type ActionTool = {
 
 export type Tool = ReadTool | ActionTool;
 
-const TZ = "America/Denver";
 const rows = async (query: SQL) => (await db.execute<Row>(query)).rows;
 const str = (v: unknown, max = 100) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const limitOf = (v: unknown, max = 50) => Math.min(Math.max(Number(v) || 20, 1), max);
@@ -73,7 +73,7 @@ const UNIT: Record<string, string> = { EACH: "ea", G: "g", KG: "kg", MG: "mg", O
 const qty = (amount: string | number, unit: string) => `${Number(amount).toLocaleString("en-US", { maximumFractionDigits: 4 })} ${UNIT[unit] ?? unit}`;
 
 function dateRange(input: Input, defaultDays: number): { start: string; end: string } {
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: currentZone() });
   const end = DATE.test(str(input.end_date)) ? str(input.end_date) : today;
   const fallback = new Date(Date.parse(`${end}T12:00:00Z`) - (defaultDays - 1) * 86_400_000).toISOString().slice(0, 10);
   const start = DATE.test(str(input.start_date)) ? str(input.start_date) : fallback;
@@ -117,9 +117,9 @@ export const TOOLS: Tool[] = [
         (select count(*) from production_runs where org_id = ${s.orgId} and facility_id = ${s.facilityId} and status = 'IN_PROGRESS')::int as runs_in_progress,
         (select count(*) from orders where org_id = ${s.orgId} and facility_id = ${s.facilityId} and status in ('CONFIRMED','PACKED','SHIPPED'))::int as open_orders,
         (select count(*) from sales where org_id = ${s.orgId} and facility_id = ${s.facilityId} and status = 'COMPLETED'
-           and (completed_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date)::int as sales_today,
+           and (completed_at at time zone ${currentZone()})::date = (now() at time zone ${currentZone()})::date)::int as sales_today,
         (select coalesce(sum(total),0) from sales where org_id = ${s.orgId} and facility_id = ${s.facilityId} and status = 'COMPLETED'
-           and (completed_at at time zone ${TZ})::date = (now() at time zone ${TZ})::date)::text as sales_today_total,
+           and (completed_at at time zone ${currentZone()})::date = (now() at time zone ${currentZone()})::date)::text as sales_today_total,
         (select count(*) from sync_events where org_id = ${s.orgId} and facility_id = ${s.facilityId} and status = 'FAILED')::int as state_reports_failed,
         (select count(*) from sync_events where org_id = ${s.orgId} and facility_id = ${s.facilityId} and status = 'MANUAL')::int as state_reports_to_enter_by_hand,
         (select count(*) from sync_events where org_id = ${s.orgId} and facility_id = ${s.facilityId} and status = 'PENDING')::int as state_reports_waiting`);
@@ -145,7 +145,7 @@ export const TOOLS: Tool[] = [
       return rows(sql`
         select p.tag, i.name as item, i.strain, p.quantity::text, p.unit, p.status, l.name as location, p.lot_number,
           (select lr.status from lab_results lr where lr.package_id = p.id order by lr.created_at desc limit 1) as lab,
-          to_char(p.created_at at time zone ${TZ}, 'YYYY-MM-DD') as received
+          to_char(p.created_at at time zone ${currentZone()}, 'YYYY-MM-DD') as received
         from packages p join items i on i.id = p.item_id left join locations l on l.id = p.location_id
         where p.org_id = ${s.orgId} and p.facility_id = ${s.facilityId}
           ${search ? sql`and (p.tag ilike ${like(search)} or i.name ilike ${like(search)} or coalesce(i.strain,'') ilike ${like(search)} or coalesce(p.lot_number,'') ilike ${like(search)})` : sql``}
@@ -163,11 +163,11 @@ export const TOOLS: Tool[] = [
     schema: obj({ tag: text("The package tag.") }, ["tag"]),
     run: async (s, input) => {
       const pkg = await packageByTag(s, str(input.tag, 60));
-      const [detail] = await rows(sql`select p.lot_number, p.cost_per_unit::text, to_char(p.created_at at time zone ${TZ}, 'YYYY-MM-DD') as received
+      const [detail] = await rows(sql`select p.lot_number, p.cost_per_unit::text, to_char(p.created_at at time zone ${currentZone()}, 'YYYY-MM-DD') as received
         from packages p where p.id = ${pkg.id}`);
       const labs = await rows(sql`select lab_name, status, thc_percent::text, cbd_percent::text, to_char(sample_date, 'YYYY-MM-DD') as sampled
         from lab_results where package_id = ${pkg.id} order by created_at desc limit 5`);
-      const history = await rows(sql`select to_char(t.created_at at time zone ${TZ}, 'YYYY-MM-DD HH24:MI') as at, t.type, t.quantity_delta::text as change,
+      const history = await rows(sql`select to_char(t.created_at at time zone ${currentZone()}, 'YYYY-MM-DD HH24:MI') as at, t.type, t.quantity_delta::text as change,
           t.quantity_after::text as after, t.reason_code, t.note, u.name as by
         from inventory_transactions t left join users u on u.id = t.user_id
         where t.package_id = ${pkg.id} order by t.created_at desc limit 15`);
@@ -207,7 +207,7 @@ export const TOOLS: Tool[] = [
     }),
     run: async (s, input) => {
       const { start, end } = dateRange(input, 7);
-      const day = sql`(sa.completed_at at time zone ${TZ})::date`;
+      const day = sql`(sa.completed_at at time zone ${currentZone()})::date`;
       const where = sql`sa.org_id = ${s.orgId} and sa.facility_id = ${s.facilityId} and sa.status = 'COMPLETED' and ${day} between ${start}::date and ${end}::date`;
       const totals = (await rows(sql`select count(*)::int as sales, coalesce(sum(total),0)::text as total, coalesce(sum(discount_total),0)::text as discounts,
           coalesce(sum(excise_tax + sales_tax),0)::text as taxes from sales sa where ${where}`))[0];
@@ -239,7 +239,7 @@ export const TOOLS: Tool[] = [
       return rows(sql`
         select o.number, c.name as customer, o.status, o.manifest_number,
           (select coalesce(sum(ol.quantity * ol.unit_price),0) from order_lines ol where ol.order_id = o.id)::text as value,
-          to_char(o.created_at at time zone ${TZ}, 'YYYY-MM-DD') as created, to_char(o.shipped_at at time zone ${TZ}, 'YYYY-MM-DD') as shipped
+          to_char(o.created_at at time zone ${currentZone()}, 'YYYY-MM-DD') as created, to_char(o.shipped_at at time zone ${currentZone()}, 'YYYY-MM-DD') as shipped
         from orders o join customers c on c.id = o.customer_id
         where o.org_id = ${s.orgId} and o.facility_id = ${s.facilityId}
           ${status ? sql`and o.status = ${status}` : sql``} ${customer ? sql`and c.name ilike ${like(customer)}` : sql``}
@@ -257,7 +257,7 @@ export const TOOLS: Tool[] = [
       rows(sql`
         select inv.number, c.name as customer, inv.total::text, coalesce(sum(p.amount),0)::text as paid,
           (inv.total - coalesce(sum(p.amount),0))::text as balance, to_char(inv.due_date, 'YYYY-MM-DD') as due,
-          greatest(0, (now() at time zone ${TZ})::date - inv.due_date)::int as days_overdue
+          greatest(0, (now() at time zone ${currentZone()})::date - inv.due_date)::int as days_overdue
         from invoices inv join customers c on c.id = inv.customer_id left join payments p on p.invoice_id = inv.id
         where inv.org_id = ${s.orgId} and inv.facility_id = ${s.facilityId}
         group by inv.id, c.name having inv.total - coalesce(sum(p.amount),0) > 0
@@ -292,7 +292,7 @@ export const TOOLS: Tool[] = [
         group by st.name, l.name, p.phase, st.flowering_days order by count(*) desc limit 50`),
       batches: await rows(sql`select b.name, st.name as strain, b.untagged_count as young_plants, b.source
         from plant_batches b join strains st on st.id = b.strain_id where b.org_id = ${s.orgId} and b.facility_id = ${s.facilityId} and b.status = 'ACTIVE' limit 30`),
-      drying: await rows(sql`select h.name, st.name as strain, h.plant_count, h.wet_weight::text, h.dry_weight::text, to_char(h.created_at at time zone ${TZ}, 'YYYY-MM-DD') as harvested
+      drying: await rows(sql`select h.name, st.name as strain, h.plant_count, h.wet_weight::text, h.dry_weight::text, to_char(h.created_at at time zone ${currentZone()}, 'YYYY-MM-DD') as harvested
         from harvests h join strains st on st.id = h.strain_id where h.org_id = ${s.orgId} and h.facility_id = ${s.facilityId} and h.status = 'DRYING' limit 30`),
     }),
   },
@@ -306,7 +306,7 @@ export const TOOLS: Tool[] = [
     run: (s, input) => {
       const status = str(input.status);
       return rows(sql`select r.name, i.name as output_item, r.status, r.planned_output::text, r.actual_output::text, r.cost_per_unit::text,
-          to_char(r.created_at at time zone ${TZ}, 'YYYY-MM-DD') as started, to_char(r.completed_at at time zone ${TZ}, 'YYYY-MM-DD') as completed
+          to_char(r.created_at at time zone ${currentZone()}, 'YYYY-MM-DD') as started, to_char(r.completed_at at time zone ${currentZone()}, 'YYYY-MM-DD') as completed
         from production_runs r join items i on i.id = r.output_item_id
         where r.org_id = ${s.orgId} and r.facility_id = ${s.facilityId} ${status ? sql`and r.status = ${status}` : sql``}
         order by r.created_at desc limit 30`);
@@ -321,7 +321,7 @@ export const TOOLS: Tool[] = [
     schema: obj({}),
     run: async (s) => ({
       counts: await rows(sql`select status, count(*)::int as reports from sync_events where org_id = ${s.orgId} and facility_id = ${s.facilityId} group by status`),
-      needs_attention: await rows(sql`select summary, status, attempts, last_error_detail as error, to_char(created_at at time zone ${TZ}, 'YYYY-MM-DD HH24:MI') as created
+      needs_attention: await rows(sql`select summary, status, attempts, last_error_detail as error, to_char(created_at at time zone ${currentZone()}, 'YYYY-MM-DD HH24:MI') as created
         from sync_events where org_id = ${s.orgId} and facility_id = ${s.facilityId} and status in ('FAILED','MANUAL') order by seq desc limit 20`),
     }),
   },
@@ -355,7 +355,7 @@ export const TOOLS: Tool[] = [
       const person = str(input.person);
       const type = str(input.record_type, 40);
       const days = Math.min(Math.max(Number(input.days) || 7, 1), 90);
-      return rows(sql`select to_char(created_at at time zone ${TZ}, 'YYYY-MM-DD HH24:MI') as at, user_name as person, entity_type as record, action, reason
+      return rows(sql`select to_char(created_at at time zone ${currentZone()}, 'YYYY-MM-DD HH24:MI') as at, user_name as person, entity_type as record, action, reason
         from audit_logs where org_id = ${s.orgId} and (facility_id = ${s.facilityId} or facility_id is null)
           and created_at > now() - make_interval(days => ${days})
           ${person ? sql`and user_name ilike ${like(person)}` : sql``} ${type ? sql`and entity_type ilike ${type}` : sql``}
@@ -504,7 +504,7 @@ export const TOOLS: Tool[] = [
         what: c.title,
         result: c.result,
         by: c.userName,
-        at: c.createdAt.toLocaleString("en-US", { timeZone: TZ, dateStyle: "medium", timeStyle: "short" }),
+        at: c.createdAt.toLocaleString("en-US", { timeZone: currentZone(), dateStyle: "medium", timeStyle: "short" }),
         status: c.status === "UNDONE" ? `undone by ${c.undoneByName}` : c.notUndoableReason ? `can't be undone: ${c.notUndoableReason}` : "can be undone",
       })),
   },
@@ -531,7 +531,7 @@ export const TOOLS: Tool[] = [
       return {
         title: `Undo: ${change.title}`,
         details: [
-          { label: "Done by", value: `${change.userName.replace(" (via assistant)", "")}, ${change.createdAt.toLocaleString("en-US", { timeZone: TZ, dateStyle: "medium", timeStyle: "short" })}` },
+          { label: "Done by", value: `${change.userName.replace(" (via assistant)", "")}, ${change.createdAt.toLocaleString("en-US", { timeZone: currentZone(), dateStyle: "medium", timeStyle: "short" })}` },
           { label: "Was", value: change.result.slice(0, 160) },
           { label: "Reverses", value: `${steps.length} step${steps.length === 1 ? "" : "s"}, all or nothing` },
           { label: "Audit trail", value: "Kept; the undo is added on top" },

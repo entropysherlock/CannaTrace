@@ -67,8 +67,9 @@ export function licenseProblem(
   today: string,
 ): string | null {
   if (!customer.active) return `${customer.name} is marked inactive.`;
-  if (!customer.licenseVerifiedAt) return `${customer.name}'s license has not been verified yet. Verify it on the customer's page.`;
+  // An expired license is the bigger problem, so it is named first, even before it has been verified.
   if (customer.licenseExpires < today) return `${customer.name}'s license expired on ${customer.licenseExpires}. Update it before selling to them.`;
+  if (!customer.licenseVerifiedAt) return `${customer.name}'s license has not been verified yet. Verify it on the customer's page.`;
   return null;
 }
 

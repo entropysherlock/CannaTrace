@@ -7,13 +7,16 @@ import { DistributionTabs, Pill } from "@/components/distribution-ui";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { customers, destinations, orders, priceLists } from "@/db/schema";
 import { db } from "@/lib/db";
-import { licenseProblem, todayIn } from "@/lib/distribution-math";
+import { licenseProblem } from "@/lib/distribution-math";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { customerPriceListAction, destinationAction, destinationActiveAction, vendorDetailsAction, verifyDestinationAction } from "../../actions";
+import { facilityToday } from "@/lib/time";
+import { facilityZone } from "@/lib/time";
 
 export default async function VendorPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("sales.view");
+  const zone = await facilityZone(session.facilityId);
   const { id } = await params;
   const [vendor] = await db.select().from(customers).where(and(eq(customers.id, id), eq(customers.orgId, session.orgId)));
   if (!vendor) notFound();
@@ -28,7 +31,7 @@ export default async function VendorPage({ params }: { params: Promise<{ id: str
       .limit(20),
     db.select().from(destinations).where(and(eq(destinations.vendorId, vendor.id), eq(destinations.orgId, session.orgId))).orderBy(asc(destinations.createdAt)),
   ]);
-  const today = todayIn();
+  const today = await facilityToday(session.facilityId);
   const canWrite = can(session, "sales.write");
   const roles = [vendor.weSellTo ? "We sell to them" : null, vendor.weBuyFrom ? "We buy from them" : null].filter(Boolean).join(" · ");
 
@@ -59,7 +62,7 @@ export default async function VendorPage({ params }: { params: Promise<{ id: str
                           <p className="text-sm text-slate-600">{[d.contactName, d.phone, d.email].filter(Boolean).join(" · ")}</p>
                         ) : null}
                         <p className={`mt-1 text-sm font-semibold ${problem ? "text-red-700" : "text-brand-700"}`}>
-                          {problem ?? `License verified ${d.licenseVerifiedAt?.toLocaleDateString("en-US")} by ${d.licenseVerifiedBy}`}
+                          {problem ?? `License verified ${d.licenseVerifiedAt?.toLocaleDateString("en-US", { timeZone: zone })} by ${d.licenseVerifiedBy}`}
                         </p>
                       </div>
                       {canWrite ? (
@@ -129,7 +132,7 @@ export default async function VendorPage({ params }: { params: Promise<{ id: str
                     </Link>
                     <span className="flex items-center gap-2 text-slate-600">
                       {order.destination ? `${order.destination} · ` : ""}
-                      {order.createdAt.toLocaleDateString("en-US")} <Pill status={order.status} />
+                      {order.createdAt.toLocaleDateString("en-US", { timeZone: zone })} <Pill status={order.status} />
                     </span>
                   </li>
                 ))}

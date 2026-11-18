@@ -26,7 +26,9 @@ const refresh = () => revalidatePath("/pos", "layout");
 export async function closeDrawerAction(_state: FormState, formData: FormData): Promise<FormState> {
   let id: string;
   try {
-    id = (await closeDrawer(await clerk(), { countedCash: field(formData, "countedCash") })).id;
+    // Closing someone else's drawer (they left without counting) is a manager's job.
+    const drawerId = field(formData, "drawerId") || undefined;
+    id = (await closeDrawer(await (drawerId ? manager() : clerk()), { countedCash: field(formData, "countedCash"), drawerId })).id;
   } catch (error) {
     return toFormError(error);
   }

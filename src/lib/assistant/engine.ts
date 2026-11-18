@@ -12,6 +12,7 @@ import { loadAttachments, MAX_PER_MESSAGE } from "./attachments/store";
 import { APP_GUIDE } from "./app-guide";
 import { fakeModel } from "./fake-model";
 import { TOOLS, toolsFor, type Proposal, type Tool } from "./tools";
+import { currentZone } from "@/lib/time";
 
 /** What the panel receives, one JSON object per line. */
 export type AssistantEvent =
@@ -64,7 +65,7 @@ async function systemPrompt(session: Session, tools: Tool[]): Promise<string> {
       select o.name as business, f.name as facility, f.license_number as license, f.license_type as type, f.state
       from facilities f join organizations o on o.id = f.org_id where f.id = ${session.facilityId}`)
   ).rows;
-  const now = new Date().toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "full", timeStyle: "short" });
+  const now = new Date().toLocaleString("en-US", { timeZone: currentZone(), dateStyle: "full", timeStyle: "short" });
   const actions = tools.filter((t) => t.kind === "action").map((t) => t.name);
   return `You are Tally, the CannaTrace assistant (the friendly towel mascot), built into CannaTrace, seed-to-sale software for licensed cannabis businesses.
 

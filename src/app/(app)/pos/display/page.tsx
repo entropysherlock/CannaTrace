@@ -1,9 +1,9 @@
 import Decimal from "decimal.js";
 import { and, desc, eq, gt } from "drizzle-orm";
 import { CustomerDisplay, type DisplayView } from "@/components/register/customer-display";
-import { drawerSessions, facilities, sales } from "@/db/schema";
+import { facilities, sales } from "@/db/schema";
 import { db } from "@/lib/db";
-import { cartLines, getRetailSettings, msAgo, saleTotals } from "@/lib/pos";
+import { cartLines, getRetailSettings, msAgo, myOpenDrawer, saleTotals } from "@/lib/pos";
 import { requirePagePermission } from "@/lib/session";
 
 /** The screen that faces the customer: what is in their cart and what they owe. Refreshes itself. */
@@ -11,10 +11,8 @@ export default async function CustomerDisplayPage() {
   const session = await requirePagePermission("pos.use");
   const [[facility], [drawer]] = await Promise.all([
     db.select({ name: facilities.name }).from(facilities).where(eq(facilities.id, session.facilityId)),
-    db
-      .select({ id: drawerSessions.id })
-      .from(drawerSessions)
-      .where(and(eq(drawerSessions.orgId, session.orgId), eq(drawerSessions.facilityId, session.facilityId), eq(drawerSessions.status, "OPEN"))),
+    // The customer screen follows the drawer of the person signed in at this register.
+    myOpenDrawer(db, { userId: session.userId, userName: session.name, orgId: session.orgId, facilityId: session.facilityId }).then((d) => [d ?? undefined]),
   ]);
   let view: DisplayView = { store: facility?.name ?? "", state: "welcome" };
   if (drawer) {

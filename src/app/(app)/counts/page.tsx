@@ -4,9 +4,11 @@ import { Card, PageHeader } from "@/components/ui";
 import { cycleCounts, locations, packages } from "@/db/schema";
 import { db } from "@/lib/db";
 import { requirePagePermission } from "@/lib/session";
+import { facilityZone } from "@/lib/time";
 
 export default async function CountsPage() {
   const session = await requirePagePermission("inventory.adjust");
+  const zone = await facilityZone(session.facilityId);
   const [rows, recent] = await Promise.all([
     db
       .select({
@@ -72,7 +74,7 @@ export default async function CountsPage() {
                 <li key={count.id} className="py-2">
                   <div className="flex flex-wrap justify-between gap-2">
                     <span className="font-medium text-slate-900">{count.locationName}</span>
-                    <time className="text-slate-500">{count.createdAt.toLocaleString("en-US")}</time>
+                    <time className="text-slate-500">{count.createdAt.toLocaleString("en-US", { timeZone: zone })}</time>
                   </div>
                   <p className="text-slate-600">
                     {count.userName} · {count.packagesCounted} counted ·{" "}

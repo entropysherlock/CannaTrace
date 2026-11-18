@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { scanFacility } from "@/lib/rules/scan";
+import { DEFAULT_ZONE, facilityZone } from "./time";
 
 /**
  * Everything on the Command Center (the dashboard), for one facility or every facility in the business,
@@ -14,7 +15,6 @@ export const toRange = (v: unknown): Range => (RANGES.includes(Number(v) as Rang
 type Row = Record<string, string | number | null>;
 const q = async (query: ReturnType<typeof sql>) => (await db.execute<Row>(query)).rows;
 const n = (v: unknown) => Number(v ?? 0);
-const TZ = "America/Denver";
 
 /** Percent change from the earlier period to this one; null when there's nothing to compare with. */
 export function change(now: number, before: number): number | null {
@@ -44,13 +44,15 @@ export type CommandCenter = Awaited<ReturnType<typeof commandCenter>>;
 /**
  * One definition per number, shared by every card, the facility list, and Tally's summary:
  * plants are tagged plants plus young (untagged) plants in active batches; sales are completed register
- * sales plus invoices, by Mountain-time day; alerts are open Tally Watch items this person may see (canSee
+ * sales plus invoices, by the facility's local day; alerts are open Tally Watch items this person may see (canSee
  * is the same test the bell and the Tally Watch page use).
  */
 export async function commandCenter(orgId: string, facilityIds: string[], days: Range, canSee: (permission: string | null) => boolean = () => true) {
   const ids = facilityIds;
   // The facilities as one Postgres array (ids are UUIDs, so a comma can't appear inside one).
   const inIds = sql`string_to_array(${ids.join(",")}, ',')`;
+  // Days are counted in the first facility's own time zone (a business's stores are normally in one state).
+  const TZ = ids.length ? await facilityZone(ids[0]) : DEFAULT_ZONE;
   const start = sql`(now() at time zone ${TZ})::date - ${days - 1}::int`;
   const prevStart = sql`(now() at time zone ${TZ})::date - ${2 * days - 1}::int`;
   const local = (col: ReturnType<typeof sql>) => sql`(${col} at time zone ${TZ})::date`;

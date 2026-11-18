@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { requirePermission } from "@/lib/session";
-import { changeUserRole, createInvite, createPasswordReset, deleteCustomRole, revokeInvite, saveCustomRole, setUserActive } from "@/lib/team";
+import { changeUserRole, createInvite, createPasswordReset, deleteCustomRole, revokeInvite, saveCustomRole, setUserActive, setUserFacilities } from "@/lib/team";
 
 export type InviteState = (FormState & { link?: string }) | null;
 
@@ -57,6 +57,19 @@ export async function changeRoleAction(_state: FormState, formData: FormData): P
     await changeUserRole(await requirePermission("users.manage"), field(formData, "userId"), field(formData, "role"));
     revalidatePath("/team");
     return { ok: "Role changed. It applies right away." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function setFacilitiesAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const all = formData.get("all") === "on";
+    const chosen = all ? [] : formData.getAll("facilityIds").map(String).filter(Boolean);
+    if (!all && chosen.length === 0) return { error: "Tick at least one facility, or All facilities." };
+    await setUserFacilities(await requirePermission("users.manage"), field(formData, "userId"), chosen);
+    revalidatePath("/team");
+    return { ok: all ? "They can work at every facility." : "Facilities saved. It applies on their next click." };
   } catch (error) {
     return toFormError(error);
   }

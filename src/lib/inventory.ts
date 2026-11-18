@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   auditLogs,
   customers,
@@ -20,7 +20,8 @@ import { db, type Tx } from "./db";
 import { generateTags, tagOrGenerate } from "./ids";
 import { packFor, wasteRule } from "./rules";
 import { enqueueSyncEvent } from "./sync";
-import { InventoryError, applyDelta, normalizeTag, parsePositiveQty, planSplit, weightedAverageCost } from "./inventory-math";
+import { InventoryError, MAX_QTY, applyDelta, assertWholeForUnit, normalizeTag, parsePositiveQty, planSplit, weightedAverageCost } from "./inventory-math";
+import { facilityToday, facilityZone } from "./time";
 import { roundQty } from "./units";
 
 export { InventoryError };
@@ -140,6 +141,7 @@ export async function createPackageInTx(
     .from(items)
     .where(and(eq(items.id, input.itemId), eq(items.orgId, actor.orgId), eq(items.active, true)));
   if (!item) throw new InventoryError("Pick an item from the list.");
+  assertWholeForUnit(item.unit, quantity);
   await assertLocation(tx, actor, input.locationId);
 
   const [pkg] = await tx
@@ -182,6 +184,38 @@ export async function createPackageInTx(
   return pkg;
 }
 
+/**
+ * The most recent lab result that applies to a package: its own, or, when it has none, its closest source
+ * packages' (a split or a picked part keeps the parent's result). FAIL when any of those closest sources failed.
+ */
+export async function latestLabStatus(tx: Tx, packageId: string): Promise<"PASS" | "FAIL" | "PENDING" | null> {
+  const result = await tx.execute(sql`
+    with recursive ancestors(id, depth) as (
+      select ${packageId}::text, 0
+      union all
+      select l.parent_id, a.depth + 1 from ${packageLineage} l join ancestors a on l.child_id = a.id where a.depth < 25
+    ),
+    latest as (
+      select distinct on (a.id) a.id, a.depth, lr.status::text as status
+      from ancestors a join ${labResults} lr on lr.package_id = a.id
+      order by a.id, lr.created_at desc
+    )
+    select status from latest where depth = (select min(depth) from latest)`);
+  const statuses = (result.rows as { status: string }[]).map((r) => r.status);
+  if (statuses.length === 0) return null;
+  if (statuses.includes("FAIL")) return "FAIL";
+  return statuses.includes("PENDING") ? "PENDING" : "PASS";
+}
+
+/** Product that failed its latest lab test stays put until a retest passes or it is destroyed. */
+export async function assertNotFailedLab(tx: Tx, pkg: Package, verb: string): Promise<void> {
+  if ((await latestLabStatus(tx, pkg.id)) === "FAIL") {
+    throw new InventoryError(
+      `Package ${pkg.tag} failed its most recent lab test, so it cannot be ${verb}. Record a passing retest first, or destroy it.`,
+    );
+  }
+}
+
 /** Take quantity out of an active package for production. Empties are marked finished. */
 export async function consumeFromPackageInTx(
   tx: Tx,
@@ -196,6 +230,8 @@ export async function consumeFromPackageInTx(
       `Package ${pkg.tag} is ${pkg.status.replace("_", " ").toLowerCase()} and cannot be ${sale ? "sold" : "used in production"}.`,
     );
   }
+  await assertNotFailedLab(tx, pkg, sale ? "sold" : "used in production");
+  assertWholeForUnit(pkg.unit, quantity);
   const change = applyDelta(pkg.quantity, quantity.neg());
   const [updated] = await tx
     .update(packages)
@@ -354,12 +390,14 @@ export async function adjustPackage(
     throw new InventoryError("New quantity must be a number, for example 12.5.");
   }
   if (!target.isFinite() || target.lt(0)) throw new InventoryError("New quantity must be zero or more.");
+  if (target.gt(MAX_QTY)) throw new InventoryError("New quantity is too large. Check the number and try again.");
 
   return db.transaction(async (tx) => {
     const pkg = await lockPackage(tx, actor, input.packageId);
     const reopening = Boolean(input.reopenAs) && pkg.status === "FINISHED";
     if (!reopening) assertEditable(pkg.status);
     assertNotAllocated(pkg);
+    assertWholeForUnit(pkg.unit, target, "New quantity");
     const change = applyDelta(pkg.quantity, target.sub(pkg.quantity));
     if (change.delta.isZero()) throw new InventoryError("The new quantity is the same as the current one.");
 
@@ -420,6 +458,7 @@ export async function splitPackageInTx(
     const source = await lockPackage(tx, actor, input.packageId);
     assertActive(source, "split");
     const plan = planSplit(source.quantity, parts.map((p) => p.quantity as Decimal.Value));
+    plan.parts.forEach((part) => assertWholeForUnit(source.unit, part, "Each split quantity"));
 
     const children = await tx
       .insert(packages)
@@ -633,6 +672,7 @@ export async function shipPackageInTx(tx: Tx, actor: Actor, packageId: string, n
   if (pkg.status !== "ALLOCATED") {
     throw new InventoryError(`Package ${pkg.tag} is no longer set aside for this order. Check the order's packages and try again.`);
   }
+  await assertNotFailedLab(tx, pkg, "shipped");
   const [updated] = await tx.update(packages).set({ quantity: "0", status: "FINISHED" }).where(eq(packages.id, pkg.id)).returning();
   await tx.insert(inventoryTransactions).values({
     orgId: actor.orgId,
@@ -701,6 +741,7 @@ export async function setPackageStatus(
     assertEditable(pkg.status);
     assertNotAllocated(pkg);
     if (pkg.status === status) throw new InventoryError("The package already has that status.");
+    if (status === "ACTIVE") await assertNotFailedLab(tx, pkg, "released");
     return changeStatus(tx, actor, pkg, status, reason);
   });
 }
@@ -757,7 +798,7 @@ async function checkWasteRule(tx: Tx, actor: Actor, pkg: Package, mixedConfirmed
     const when =
       heldFor < 0
         ? "Put it on hold or in quarantine first."
-        : `It can be destroyed after ${new Date(pkg.heldSince!.getTime() + rule.holdHours * 3_600_000).toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" })}.`;
+        : `It can be destroyed after ${new Date(pkg.heldSince!.getTime() + rule.holdHours * 3_600_000).toLocaleString("en-US", { timeZone: await facilityZone(actor.facilityId, tx), dateStyle: "medium", timeStyle: "short" })}.`;
     throw new InventoryError(`${pack.name} requires waste to be held for ${rule.holdHours} hours before it is destroyed. ${when}`);
   }
   if (!mixedConfirmed)
@@ -922,6 +963,8 @@ export async function addLabResult(
 
   return db.transaction(async (tx) => {
     const pkg = await lockPackage(tx, actor, input.packageId);
+    if (sampleDate && sampleDate > (await facilityToday(actor.facilityId, tx)))
+      throw new InventoryError(`The sample date ${sampleDate} is in the future. Enter the date the lab took the sample.`);
     const [result] = await tx
       .insert(labResults)
       .values({

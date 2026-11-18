@@ -7,6 +7,7 @@ import { facilities, users } from "@/db/schema";
 import { db } from "@/lib/db";
 import { field, type FormState } from "@/lib/form";
 import { canSignIn, INVITE_ONLY_MESSAGE } from "@/lib/access";
+import { homeFacility } from "@/lib/facility-access";
 import { createSession, destroySession } from "@/lib/session";
 
 export async function signIn(_state: FormState, formData: FormData): Promise<FormState> {
@@ -20,12 +21,9 @@ export async function signIn(_state: FormState, formData: FormData): Promise<For
   // Invite-only: only the listed accounts may sign in (the demo business only while the live demo is on).
   if (!canSignIn(user.email)) return { error: INVITE_ONLY_MESSAGE };
 
-  const [facility] = await db
-    .select({ id: facilities.id })
-    .from(facilities)
-    .where(eq(facilities.orgId, user.orgId))
-    .orderBy(asc(facilities.createdAt))
-    .limit(1);
+  // Back to where they last worked, if they still may; otherwise the first facility they may use.
+  const ordered = await db.select({ id: facilities.id }).from(facilities).where(eq(facilities.orgId, user.orgId)).orderBy(asc(facilities.createdAt));
+  const facility = homeFacility(ordered, user, user.lastFacilityId);
   if (!facility) return { error: "Your organization has no facility yet. Ask the owner to add one." };
 
   await createSession({

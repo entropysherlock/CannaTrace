@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import Decimal from "decimal.js";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import {
   discountPresets,
   drawerSessions,
@@ -21,9 +21,10 @@ import {
 import { atomically, db, type Tx } from "./db";
 import { parseDate, parseMoney, parsePrice, todayIn } from "./distribution-math";
 import { InventoryError, adjustPackage, audit, consumeFromPackageInTx, lockPackage, returnToPackageInTx, type Actor } from "./inventory";
-import { parsePositiveQty } from "./inventory-math";
+import { assertWholeForUnit, parsePositiveQty } from "./inventory-math";
 import { nextNumber } from "./numbering";
 import { combinedCap, effectiveLimits, minimumAge, packFor, requiresLabBeforeRetail, type StatePack } from "./rules";
+import { facilityToday, facilityZone } from "./time";
 import {
   cartTotals,
   checkInProblem,
@@ -154,24 +155,64 @@ export async function createDiscount(actor: Actor, input: { name: string; percen
 
 // ---------- Cash drawer ----------
 
+/**
+ * This person's open drawer at this store. Each person who rings sales counts their own drawer. A drawer
+ * opened before drawers were per person (no owner recorded) is shared until it is closed.
+ */
 async function lockOpenDrawer(tx: Tx, actor: Actor): Promise<DrawerSession | null> {
   const [session] = await tx
     .select()
     .from(drawerSessions)
-    .where(and(eq(drawerSessions.orgId, actor.orgId), eq(drawerSessions.facilityId, actor.facilityId), eq(drawerSessions.status, "OPEN")))
+    .where(
+      and(
+        eq(drawerSessions.orgId, actor.orgId),
+        eq(drawerSessions.facilityId, actor.facilityId),
+        eq(drawerSessions.status, "OPEN"),
+        or(eq(drawerSessions.userId, actor.userId), isNull(drawerSessions.userId)),
+      ),
+    )
+    .orderBy(sql`${drawerSessions.userId} is null`)
+    .limit(1)
     .for("update");
   return session ?? null;
+}
+
+/** Every open drawer at this store, for managers. */
+export async function openDrawers(tx: Tx | typeof db, actor: Pick<Actor, "orgId" | "facilityId">): Promise<DrawerSession[]> {
+  return tx
+    .select()
+    .from(drawerSessions)
+    .where(and(eq(drawerSessions.orgId, actor.orgId), eq(drawerSessions.facilityId, actor.facilityId), eq(drawerSessions.status, "OPEN")))
+    .orderBy(drawerSessions.openedAt);
+}
+
+/** The open drawer this person rings into, if any. */
+export async function myOpenDrawer(tx: Tx | typeof db, actor: Actor): Promise<DrawerSession | null> {
+  const [own] = await tx
+    .select()
+    .from(drawerSessions)
+    .where(
+      and(
+        eq(drawerSessions.orgId, actor.orgId),
+        eq(drawerSessions.facilityId, actor.facilityId),
+        eq(drawerSessions.status, "OPEN"),
+        or(eq(drawerSessions.userId, actor.userId), isNull(drawerSessions.userId)),
+      ),
+    )
+    .orderBy(sql`${drawerSessions.userId} is null`)
+    .limit(1);
+  return own ?? null;
 }
 
 export async function openDrawer(actor: Actor, input: { openingCash: unknown }): Promise<DrawerSession> {
   const openingCash = parseMoney(input.openingCash, "Opening cash", { allowZero: true });
   return db.transaction(async (tx) => {
-    // Serialise drawer opening per facility so two people cannot open two drawers at once.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`drawer:${actor.facilityId}`}))`);
-    if (await lockOpenDrawer(tx, actor)) throw new InventoryError("The drawer is already open at this store.");
+    // Serialise drawer opening per person and store so a double tap cannot open two drawers.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`drawer:${actor.facilityId}:${actor.userId}`}))`);
+    if (await lockOpenDrawer(tx, actor)) throw new InventoryError("Your drawer is already open at this store.");
     const [session] = await tx
       .insert(drawerSessions)
-      .values({ orgId: actor.orgId, facilityId: actor.facilityId, openingCash: openingCash.toFixed(2), openedByName: actor.userName })
+      .values({ orgId: actor.orgId, facilityId: actor.facilityId, userId: actor.userId, openingCash: openingCash.toFixed(2), openedByName: actor.userName })
       .returning();
     await audit(tx, actor, { entityType: "Drawer", entityId: session.id, action: "OPEN", after: { openingCash: openingCash.toFixed(2) } });
     return session;
@@ -222,11 +263,30 @@ export async function drawerSummary(tx: Tx | typeof db, session: DrawerSession):
   };
 }
 
-/** Close the drawer with a cash count. Open carts must be finished or cancelled first. */
-export async function closeDrawer(actor: Actor, input: { countedCash: unknown }): Promise<{ id: string; variance: string }> {
+/**
+ * Close a drawer with a cash count. Open carts must be finished or cancelled first. Without `drawerId` it is
+ * the person's own drawer; a manager passes `drawerId` to close someone else's (the caller checks that role).
+ */
+export async function closeDrawer(actor: Actor, input: { countedCash: unknown; drawerId?: string }): Promise<{ id: string; variance: string }> {
   const counted = parseMoney(input.countedCash, "Counted cash", { allowZero: true });
   return db.transaction(async (tx) => {
-    const session = await lockOpenDrawer(tx, actor);
+    let session: DrawerSession | null;
+    if (input.drawerId) {
+      [session] = await tx
+        .select()
+        .from(drawerSessions)
+        .where(
+          and(
+            eq(drawerSessions.id, input.drawerId),
+            eq(drawerSessions.orgId, actor.orgId),
+            eq(drawerSessions.facilityId, actor.facilityId),
+            eq(drawerSessions.status, "OPEN"),
+          ),
+        )
+        .for("update");
+    } else {
+      session = await lockOpenDrawer(tx, actor);
+    }
     if (!session) throw new InventoryError("There is no open drawer to close.");
     const openCarts = await tx.$count(sales, and(eq(sales.drawerSessionId, session.id), eq(sales.status, "OPEN")));
     if (openCarts > 0) {
@@ -275,7 +335,7 @@ export async function checkInCustomer(
     }
     const pack = await storePack(tx, actor.facilityId);
     const ages = { adultMinAge: minimumAge(settings.adultMinAge, pack, "ADULT_USE"), medicalMinAge: minimumAge(settings.medicalMinAge, pack, "MEDICAL") };
-    const problem = checkInProblem({ birthDate, idExpires, customerType }, ages, todayIn());
+    const problem = checkInProblem({ birthDate, idExpires, customerType }, ages, await facilityToday(actor.facilityId, tx));
     if (problem) throw new InventoryError(problem);
     const idNumber = (input.idNumber ?? "").trim();
     if (settings.dailyLimits && !idNumber)
@@ -368,6 +428,9 @@ export async function storePack(tx: Tx | typeof db, facilityId: string): Promise
 /** A package's most recent lab result passed. */
 const passedLab = sql`(select lr.status from lab_results lr where lr.package_id = ${packages.id} order by lr.created_at desc limit 1) = 'PASS'`;
 
+/** A package's most recent lab result did not fail (no result counts as not failed). Failed product is never sold, in any state. */
+const notFailedLab = sql`coalesce((select lr.status::text from lab_results lr where lr.package_id = ${packages.id} order by lr.created_at desc limit 1), '') <> 'FAIL'`;
+
 /** Sellable stock of an item at this store: active packages, and only lab-passed ones where the state requires testing. */
 async function inStock(tx: Tx, actor: Actor, itemId: string, pack: StatePack | null): Promise<{ sellable: Decimal; waitingOnLab: Decimal }> {
   const gate = requiresLabBeforeRetail(pack);
@@ -377,7 +440,7 @@ async function inStock(tx: Tx, actor: Actor, itemId: string, pack: StatePack | n
       passed: sql<string>`coalesce(sum(${packages.quantity}) filter (where ${passedLab}), 0)`,
     })
     .from(packages)
-    .where(and(eq(packages.orgId, actor.orgId), eq(packages.facilityId, actor.facilityId), eq(packages.itemId, itemId), eq(packages.status, "ACTIVE")));
+    .where(and(eq(packages.orgId, actor.orgId), eq(packages.facilityId, actor.facilityId), eq(packages.itemId, itemId), eq(packages.status, "ACTIVE"), notFailedLab));
   const total = new Decimal(row.total);
   const sellable = gate ? new Decimal(row.passed) : total;
   return { sellable, waitingOnLab: total.sub(sellable) };
@@ -398,8 +461,11 @@ export function customerKeyFor(orgId: string, idNumber: string): string {
 type LimitLine = Parameters<typeof limitUsage>[0][number];
 
 /** What this customer already bought today at completed sales anywhere in the business, for daily limits. */
-async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" | "customerKey">, settings: { dailyLimits: boolean }): Promise<LimitLine[]> {
-  if (!settings.dailyLimits || !sale.customerKey) return [];
+async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" | "customerKey" | "facilityId">): Promise<LimitLine[]> {
+  // Whenever the customer's ID number is known, today's earlier purchases count: a second cart is not a fresh limit.
+  if (!sale.customerKey) return [];
+  // "Today" is the store's own day, in its state's time zone.
+  const zone = await facilityZone(sale.facilityId, tx);
   return tx
     .select({ quantity: saleLines.quantity, limitCategory: items.limitCategory, limitPerUnit: items.limitPerUnit })
     .from(saleLines)
@@ -411,7 +477,7 @@ async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" 
         eq(sales.customerKey, sale.customerKey),
         eq(sales.status, "COMPLETED"),
         sql`${sales.id} <> ${sale.id}`,
-        sql`(${sales.completedAt} at time zone 'America/Denver')::date = ${todayIn()}::date`,
+        sql`(${sales.completedAt} at time zone ${zone})::date = ${todayIn(zone)}::date`,
       ),
     );
 }
@@ -451,11 +517,12 @@ function limitCheck(
 /** Put a menu item in the cart at an exact quantity (zero takes it out), checking stock and purchase limits. */
 async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, itemId: string, newQuantity: Decimal): Promise<string> {
   const [item] = await tx
-    .select({ id: items.id, name: items.name, price: retailPrices.price })
+    .select({ id: items.id, name: items.name, price: retailPrices.price, unit: items.unit })
     .from(items)
     .innerJoin(retailPrices, and(eq(retailPrices.itemId, items.id), eq(retailPrices.facilityId, actor.facilityId)))
     .where(and(eq(items.id, itemId), eq(items.orgId, actor.orgId), eq(items.active, true)));
   if (!item) throw new InventoryError("That item is not on this store's menu.");
+  assertWholeForUnit(item.unit, newQuantity);
   const before = await cartLines(tx, sale.id);
   const existing = before.find((line) => line.itemId === item.id);
   if (newQuantity.lte(0)) {
@@ -476,7 +543,7 @@ async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, itemId: str
     await tx.insert(saleLines).values({ saleId: sale.id, itemId: item.id, quantity: store(newQuantity), unitPrice: item.price });
   }
   const settings = await getRetailSettings(tx, actor.facilityId);
-  const problem = limitCheck(await cartLines(tx, sale.id), settings, pack, sale.customerType, await earlierToday(tx, sale, settings));
+  const problem = limitCheck(await cartLines(tx, sale.id), settings, pack, sale.customerType, await earlierToday(tx, sale));
   if (problem) throw new InventoryError(problem);
   return item.name;
 }
@@ -585,8 +652,8 @@ export async function completeSale(
     const settings = await getRetailSettings(tx, actor.facilityId);
     const pack = await storePack(tx, actor.facilityId);
     // Lock out a second register finishing a sale for the same customer at the same moment.
-    if (sale.customerKey && settings.dailyLimits) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`daily:${sale.orgId}:${sale.customerKey}`}))`);
-    const problem = limitCheck(lines, settings, pack, sale.customerType, await earlierToday(tx, sale, settings));
+    if (sale.customerKey) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`daily:${sale.orgId}:${sale.customerKey}`}))`);
+    const problem = limitCheck(lines, settings, pack, sale.customerType, await earlierToday(tx, sale));
     if (problem) throw new InventoryError(problem);
     const labGate = requiresLabBeforeRetail(pack);
 
@@ -609,6 +676,7 @@ export async function completeSale(
             eq(packages.facilityId, actor.facilityId),
             eq(packages.itemId, line.itemId),
             eq(packages.status, "ACTIVE"),
+            notFailedLab,
             labGate ? passedLab : undefined,
           ),
         )

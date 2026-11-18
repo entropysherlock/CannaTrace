@@ -191,6 +191,21 @@ export async function changeUserRole(session: Session, userId: string, roleChoic
   });
 }
 
+/** Limit a person to some facilities, or give them every facility (an empty list). Owners always have every facility. */
+export async function setUserFacilities(session: Session, userId: string, facilityIds: string[]): Promise<void> {
+  needTeamAccess(session);
+  await db.transaction(async (tx) => {
+    const target = await lockTarget(tx, session, userId);
+    if (target.role === "OWNER" && !target.customRoleId) throw new InventoryError("Owners always work at every facility.");
+    const real = facilityIds.length
+      ? (await tx.select({ id: facilities.id }).from(facilities).where(eq(facilities.orgId, session.orgId))).map((f) => f.id).filter((id) => facilityIds.includes(id))
+      : [];
+    if (facilityIds.length && real.length === 0) throw new InventoryError("Choose at least one facility, or All facilities.");
+    await tx.update(users).set({ facilityIds: real.length ? real : null }).where(eq(users.id, target.id));
+    await log(tx, session, "User", target.id, "FACILITIES", { facilityIds: real.length ? real : "all" }, { facilityIds: target.facilityIds ?? "all" });
+  });
+}
+
 export async function setUserActive(session: Session, userId: string, active: boolean): Promise<void> {
   needTeamAccess(session);
   await db.transaction(async (tx) => {
