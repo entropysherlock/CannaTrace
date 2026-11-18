@@ -91,7 +91,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
                 <ActionForm action={dryWeightAction} submitLabel="Save dry weight">
                   {hidden}
                   <Field label="Weight after drying" hint="The whole harvest, before trimming off waste.">
-                    <WeightInput name="weight" unitName="unit" required />
+                    <WeightInput name="weight" unitName="unit" required remember="dry" />
                   </Field>
                 </ActionForm>
               </Card>
@@ -173,7 +173,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
               <ActionForm action={wasteAction} submitLabel="Log waste">
                 {hidden}
                 <Field label="Waste weight">
-                  <WeightInput name="weight" unitName="unit" required />
+                  <WeightInput name="weight" unitName="unit" required remember="waste" />
                 </Field>
                 <Field label="What it was" hint="For example stems, fan leaves, or mold.">
                   <input name="reason" required className={inputClass} />
