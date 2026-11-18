@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { IMPORT_KINDS, importCsv, type ImportKind } from "@/lib/importer";
 import { InventoryError } from "@/lib/inventory-math";
+import { importDutchie, previewDutchie, readReport, type DutchieResult } from "@/lib/importers/dutchie";
+import { can } from "@/lib/rbac";
 import { requirePermission } from "@/lib/session";
 
 export async function importAction(_state: FormState, formData: FormData): Promise<FormState> {
@@ -23,5 +25,37 @@ export async function importAction(_state: FormState, formData: FormData): Promi
     return { ok: `Imported ${result.count} ${IMPORT_KINDS[kind].label.toLowerCase()} row${result.count === 1 ? "" : "s"}.` };
   } catch (error) {
     return toFormError(error);
+  }
+}
+
+export type DutchieState = { error?: string; preview?: DutchieResult; imported?: DutchieResult } | null;
+
+async function dutchieInput(formData: FormData) {
+  const session = await requirePermission("inventory.write");
+  if (!can(session, "catalog.manage")) throw new InventoryError("Importing from Dutchie also adds products, so it needs permission to manage items. Ask an owner or manager.");
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) throw new InventoryError("Choose the inventory report you exported from Dutchie.");
+  const table = await readReport(file.name, Buffer.from(await file.arrayBuffer()));
+  return { actor: { userId: session.userId, userName: session.name, orgId: session.orgId, facilityId: session.facilityId }, table };
+}
+
+/** Check the report and show what would come in. Nothing is saved. */
+export async function previewDutchieAction(formData: FormData): Promise<DutchieState> {
+  try {
+    const { actor, table } = await dutchieInput(formData);
+    return { preview: await previewDutchie(actor, table) };
+  } catch (error) {
+    return { error: toFormError(error)?.error };
+  }
+}
+
+export async function importDutchieAction(formData: FormData): Promise<DutchieState> {
+  try {
+    const { actor, table } = await dutchieInput(formData);
+    const imported = await importDutchie(actor, table);
+    revalidatePath("/", "layout");
+    return { imported };
+  } catch (error) {
+    return { error: toFormError(error)?.error };
   }
 }

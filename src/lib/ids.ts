@@ -1,6 +1,8 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { idCounters, items, packages, plants } from "@/db/schema";
-import { type Tx } from "./db";
+import { type db, type Tx } from "./db";
+
+type Q = Tx | typeof db;
 import { InventoryError, normalizeTag } from "./inventory-math";
 
 /**
@@ -17,7 +19,7 @@ export type TagKind = keyof typeof TAG_PREFIX;
 const MAX_ROUNDS = 20;
 
 /** Reserve `count` consecutive numbers for this business and kind. */
-async function reserve(tx: Tx, orgId: string, kind: string, count: number): Promise<number> {
+async function reserve(tx: Q, orgId: string, kind: string, count: number): Promise<number> {
   const rows = await tx
     .insert(idCounters)
     .values({ orgId, kind, nextValue: count + 1 })
@@ -26,7 +28,7 @@ async function reserve(tx: Tx, orgId: string, kind: string, count: number): Prom
   return rows[0].next - count;
 }
 
-async function takeUnused(tx: Tx, orgId: string, kind: string, count: number, format: (n: number) => string, taken: (candidates: string[]) => Promise<Set<string>>) {
+async function takeUnused(tx: Q, orgId: string, kind: string, count: number, format: (n: number) => string, taken: (candidates: string[]) => Promise<Set<string>>) {
   const out: string[] = [];
   for (let round = 0; round < MAX_ROUNDS && out.length < count; round++) {
     const need = count - out.length;
@@ -40,7 +42,7 @@ async function takeUnused(tx: Tx, orgId: string, kind: string, count: number, fo
 }
 
 /** New, unused tags for plants or packages in this business. */
-export async function generateTags(tx: Tx, orgId: string, kind: TagKind, count: number): Promise<string[]> {
+export async function generateTags(tx: Q, orgId: string, kind: TagKind, count: number): Promise<string[]> {
   if (!Number.isInteger(count) || count < 1 || count > 2000) throw new InventoryError("Generate between 1 and 2,000 tags at a time.");
   const table = kind === "PLANT" ? plants : packages;
   return takeUnused(
@@ -54,7 +56,7 @@ export async function generateTags(tx: Tx, orgId: string, kind: TagKind, count: 
 }
 
 /** The tag typed or scanned, or a newly generated one when the box was left blank. */
-export async function tagOrGenerate(tx: Tx, orgId: string, kind: TagKind, raw: unknown): Promise<string> {
+export async function tagOrGenerate(tx: Q, orgId: string, kind: TagKind, raw: unknown): Promise<string> {
   return String(raw ?? "").trim() ? normalizeTag(raw) : (await generateTags(tx, orgId, kind, 1))[0];
 }
 
@@ -65,7 +67,7 @@ export function skuPrefix(category: string): string {
 }
 
 /** A new, unused SKU for an item in this category. */
-export async function generateSku(tx: Tx, orgId: string, category: string): Promise<string> {
+export async function generateSku(tx: Q, orgId: string, category: string): Promise<string> {
   const prefix = skuPrefix(category);
   const [sku] = await takeUnused(
     tx,
