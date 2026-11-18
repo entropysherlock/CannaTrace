@@ -489,6 +489,6 @@ export function planImport(source: Source, table: string[][], options: { store?:
     );
   if (cols.room === undefined) warnings.push(`There's no room column, so everything goes into a new room called "${IMPORT_ROOM}". You can move packages afterwards.`);
   if (cols.tag === undefined && cols.externalTag === undefined) warnings.push("There's no package ID column, so every package gets a new CannaTrace ID (PKG-…).");
-  if (pendingLab) warnings.push(`${pendingLab} package${pendingLab === 1 ? " has" : "s have"} THC or CBD numbers. They're saved as pending lab results: confirm each with its certificate before it can go on a retail label.`);
+  if (pendingLab) warnings.push(`${pendingLab.toLocaleString("en-US")} package${pendingLab === 1 ? " has" : "s have"} THC or CBD numbers. They're saved as pending lab results: confirm each with its certificate before it can go on a retail label.`);
   return { matched, rows, problems, warnings, stores };
 }
