@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUp, Check, Loader2, RotateCcw, Sparkles, Square, X, XCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -93,6 +93,9 @@ export function AssistantPanel({
   const [dragging, setDragging] = useState(false);
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Only the Command Center docks Tally beside its cards (on wide screens), so only there is the floating button hidden.
+  // Go by the address, not the page contents: visited pages stay loaded in the background.
+  const docked = usePathname() === "/dashboard";
   const panelRef = useRef<HTMLElement>(null);
 
   // Clicking anywhere outside the panel slides it closed. Buttons that open the assistant are left alone.
@@ -269,7 +272,8 @@ export function AssistantPanel({
         data-assistant-trigger
         onClick={() => setOpen(true)}
         aria-label="Ask Tally"
-        className={`fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-900 text-white shadow-lg shadow-brand-900/30 transition hover:scale-105 md:bottom-6 md:right-6 print:hidden 2xl:[body:has([data-wide])_&]:hidden ${open ? "pointer-events-none scale-75 opacity-0" : ""}`}
+        data-testid="tally-launcher"
+        className={`fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-900 text-white shadow-lg shadow-brand-900/30 transition hover:scale-105 md:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:right-[calc(1.5rem+env(safe-area-inset-right))] print:hidden ${docked ? "2xl:hidden" : ""} ${open ? "pointer-events-none scale-75 opacity-0" : ""}`}
       >
         <Sparkles className="h-6 w-6" aria-hidden="true" />
       </button>

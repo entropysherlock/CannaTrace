@@ -3,6 +3,7 @@ import { AssistantPanel } from "@/components/assistant-panel";
 import { WalkthroughProvider } from "@/components/walkthrough";
 import { WALKTHROUGHS } from "@/lib/walkthroughs";
 import { Logo } from "@/components/logo";
+import { MainColumn } from "@/components/main-column";
 import { FacilitySwitcher, TopBarRight } from "@/components/top-bar";
 import { openFindings } from "@/lib/watch";
 import { tallyAvailability } from "@/lib/ai/connection";
@@ -180,10 +181,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         ) : null}
         {/* Centered column; the extra bottom room keeps the last card clear of the floating Tally button. */}
-        <main className="mx-auto w-full max-w-6xl flex-1 has-[[data-wide]]:max-w-[1680px] px-4 py-6 sm:px-6 md:pb-24">
+        <MainColumn>
           <SectionTabs groups={groups} />
           {children}
-        </main>
+        </MainColumn>
       </div>
 
       <BottomNav groups={groups} />
