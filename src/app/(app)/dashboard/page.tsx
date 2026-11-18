@@ -26,6 +26,7 @@ import { requireSession } from "@/lib/session";
 import { scanFacility } from "@/lib/rules/scan";
 import { ADAPTERS } from "@/lib/sync";
 import { openFindings, sweepIfStale } from "@/lib/watch";
+import { SwitchBanner } from "@/components/switch-systems";
 import { WatchSection } from "@/components/watch-section";
 import { SYSTEM_LABELS, type SystemName } from "@/lib/sync-math";
 
@@ -185,6 +186,8 @@ export default async function DashboardPage() {
           </div>
         ) : null}
       </div>
+
+      {n(counts.plants) + n(counts.untagged) + n(counts.packages) + n(counts.held) === 0 && can(session, "inventory.write") && can(session, "catalog.manage") ? <SwitchBanner /> : null}
 
       <WatchSection session={session} findings={watch} />
 

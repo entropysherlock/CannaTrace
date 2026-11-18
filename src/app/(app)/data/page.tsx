@@ -78,7 +78,7 @@ export default async function DataPage() {
         ) : null}
       </div>
       {can(session, "inventory.write") && can(session, "catalog.manage") ? (
-        <div className="mt-5 max-w-3xl">
+        <div id="switch-from-dutchie" className="mt-5 max-w-3xl scroll-mt-4">
           <Card title="Switch from Dutchie">
             <DutchieImport preview={previewDutchieAction} run={importDutchieAction} />
           </Card>

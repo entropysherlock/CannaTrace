@@ -17,7 +17,12 @@ test("a store switching from Dutchie checks its inventory report, then imports i
   await page.getByRole("button", { name: "Create my account" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
 
-  await page.goto("/data");
+  // A new, empty facility points straight to the switch; so does Settings
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Switching from another system?" })).toBeVisible();
+  await page.goto("/dashboard");
+  await page.getByTestId("switch-banner").getByRole("link", { name: "Bring my data from Dutchie" }).click();
+  await expect(page).toHaveURL(/\/data#switch-from-dutchie$/);
   const card = page.locator("section", { has: page.getByRole("heading", { name: "Switch from Dutchie" }) });
   await card.locator('input[name="file"]').setInputFiles("tests/fixtures/dutchie-current-inventory.csv");
   await card.getByRole("button", { name: "Check the file" }).click();
@@ -36,4 +41,8 @@ test("a store switching from Dutchie checks its inventory report, then imports i
 
   await page.goto("/inventory?q=1A40E0100000A1B000000101");
   await expect(page.getByText("Blue Dream 3.5g").first()).toBeVisible();
+
+  // Once there's inventory, the dashboard stops suggesting it
+  await page.goto("/dashboard");
+  await expect(page.getByTestId("switch-banner")).toHaveCount(0);
 });
