@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { AssistantPanel } from "@/components/assistant-panel";
+import { WalkthroughProvider } from "@/components/walkthrough";
+import { WALKTHROUGHS } from "@/lib/walkthroughs";
 import { Logo } from "@/components/logo";
 import { tallyAvailability } from "@/lib/ai/connection";
 import { retentionHours } from "@/lib/assistant/attachments/store";
@@ -103,6 +105,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ].filter((g) => g.items.length);
 
   return (
+    <WalkthroughProvider allowed={WALKTHROUGHS.filter((w) => can(session, w.permission)).map((w) => w.id)}>
     <div className="min-h-screen md:flex">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-brand-950 p-4 text-white md:flex print:!hidden">
         <Link href="/" className="mb-6 px-2" title="CannaTrace home">
@@ -223,5 +226,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           .slice(0, 4)}
       />
     </div>
+    </WalkthroughProvider>
   );
 }
