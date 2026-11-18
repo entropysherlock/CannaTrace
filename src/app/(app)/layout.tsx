@@ -117,7 +117,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <WalkthroughProvider allowed={WALKTHROUGHS.filter((w) => can(session, w.permission)).map((w) => w.id)}>
     <div className="min-h-screen md:flex">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-brand-950 p-4 text-white md:flex print:!hidden">
-        <Link href="/" className="mb-6 px-2" title="CannaTrace home">
+        <Link href="/" className="mb-6 flex justify-center" title="CannaTrace home">
           <Logo tone="light" />
         </Link>
         <div className="-mx-1 flex-1 overflow-y-auto px-1">
