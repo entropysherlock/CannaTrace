@@ -74,10 +74,18 @@ test("grow from a batch of clones to a packaged, finished harvest", async ({ pag
   await expect(page.getByText("Waste logged.")).toBeVisible();
 
   const dryForm = page.locator('form:has(button:text("Save dry weight"))');
-  await dryForm.locator('input[name="weight"]').fill("500");
+  // Weighed in kg: the unit picker keeps kg after saving and after a reload, instead of jumping back to g
+  const dryUnit = dryForm.getByLabel("Weight unit");
+  await dryUnit.selectOption("KG");
+  await dryForm.locator('input[name="weight"]').fill("0.5");
   await page.getByRole("button", { name: "Save dry weight" }).click();
   await expect(page.getByText("Dry weight saved.")).toBeVisible();
   await expect(page.getByText("400 g").first()).toBeVisible(); // on hand = 500 dry - 100 waste
+  await expect(dryUnit).toHaveValue("KG");
+  await page.reload();
+  await expect(dryForm.getByLabel("Weight unit")).toHaveValue("KG");
+  // Waste remembers its own unit, separately from dry weight
+  await expect(wasteForm.getByLabel("Weight unit")).toHaveValue("G");
 
   const packForm = page.locator('form:has(input[name="tag"])');
   await packForm.locator('input[name="tag"]').fill(`${run}-PKG`);

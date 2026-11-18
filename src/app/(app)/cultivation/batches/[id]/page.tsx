@@ -132,7 +132,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                   <input name="reason" required className={inputClass} />
                 </Field>
                 <Field label="Waste weight (optional)">
-                  <WeightInput name="waste" unitName="wasteUnit" />
+                  <WeightInput name="waste" unitName="wasteUnit" remember="waste" />
                 </Field>
               </ActionForm>
             </Card>

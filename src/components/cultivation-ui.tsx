@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { inputBase, inputClass } from "./ui";
+import { inputClass } from "./ui";
+import { WeightUnitSelect } from "./weight-unit-select";
 
 const TABS = [
   { href: "/cultivation", label: "Overview" },
@@ -28,16 +29,12 @@ export function CultivationTabs({ current }: { current: string }) {
 }
 
 /** A weight box with a unit picker beside it. */
-export function WeightInput({ name, unitName, required }: { name: string; unitName: string; required?: boolean }) {
+/** A weight box with a unit picker that remembers the last unit used for `remember` (dry weight, waste, ...). */
+export function WeightInput({ name, unitName, required, remember, defaultUnit }: { name: string; unitName: string; required?: boolean; remember: string; defaultUnit?: string }) {
   return (
     <span className="flex gap-2">
       <input name={name} inputMode="decimal" required={required} className={inputClass} />
-      <select name={unitName} defaultValue="G" aria-label="Weight unit" className={`${inputBase} w-24 shrink-0`}>
-        <option value="G">g</option>
-        <option value="KG">kg</option>
-        <option value="LB">lb</option>
-        <option value="OZ">oz</option>
-      </select>
+      <WeightUnitSelect name={unitName} remember={remember} defaultUnit={defaultUnit} />
     </span>
   );
 }
