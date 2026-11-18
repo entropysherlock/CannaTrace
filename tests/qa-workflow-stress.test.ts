@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { auditLogs, facilities, itemCategories, items, locations, orders, organizations, packages, users } from "@/db/schema";
+import { facilities, itemCategories, items, locations, orders, organizations, packages, users } from "@/db/schema";
 import { db, pool } from "@/lib/db";
 import { addOrderLine, allocateToOrder, confirmOrder, createCustomer, createOrder, verifyCustomerLicense } from "@/lib/distribution";
 import { addDays, todayIn } from "@/lib/distribution-math";
