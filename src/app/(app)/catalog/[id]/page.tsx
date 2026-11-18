@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { requirePagePermission } from "@/lib/session";
 import { trim } from "@/lib/labels/quantities";
 import { unitLabel } from "@/lib/units";
-import { saveItemDetailsAction } from "../actions";
+import { renameItemAction, saveItemDetailsAction } from "../actions";
 
 const num = (v: string | number | null) => (v === null ? "" : trim(v, 3));
 const textareaClass = `${inputClass} py-2`;
@@ -33,6 +33,21 @@ export default async function ItemDetailsPage({ params }: { params: Promise<{ id
           ‹ All items
         </Link>
       </p>
+      <div className="mb-5 max-w-2xl">
+        <Card title="Name and SKU">
+          <ActionForm action={renameItemAction} submitLabel="Save name and SKU">
+            <input type="hidden" name="itemId" value={item.id} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Name">
+                <input name="name" required maxLength={120} defaultValue={item.name} className={inputClass} />
+              </Field>
+              <Field label="SKU" hint="Generated when the item was added. Change it if you need to match your own numbering; it must be unique.">
+                <input name="sku" required maxLength={40} autoCapitalize="characters" defaultValue={item.sku} className={`${inputClass} font-mono`} />
+              </Field>
+            </div>
+          </ActionForm>
+        </Card>
+      </div>
       <ActionForm action={saveItemDetailsAction} submitLabel="Save label details">
         <input type="hidden" name="itemId" value={item.id} />
         <div className="grid gap-5 lg:grid-cols-2">

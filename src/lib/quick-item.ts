@@ -1,22 +1,15 @@
-import { randomInt } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { auditLogs, itemCategories, items, unitEnum } from "@/db/schema";
 import { db } from "./db";
+import { generateSku, normalizeSku } from "./ids";
 import { InventoryError } from "./inventory-math";
 import type { Actor } from "./inventory";
 
 type Unit = (typeof unitEnum.enumValues)[number];
 
-/** A short SKU from the item's name, e.g. "Live Resin Cart 1g" -> "LRC1G-4827". */
-export function skuFromName(name: string, suffix: number): string {
-  const words = name.toUpperCase().match(/[A-Z0-9]+/g) ?? [];
-  const stem = words.map((w) => (/^\d/.test(w) ? w : w[0])).join("").slice(0, 8) || "ITEM";
-  return `${stem}-${String(suffix).padStart(4, "0")}`;
-}
-
 /**
  * Add a catalog item without leaving the page you are on. The category is found by name or made,
- * and a SKU is made up from the name when none is given.
+ * and a SKU is generated from the category when none is given.
  */
 export async function quickAddItem(
   actor: Actor,
@@ -39,7 +32,8 @@ export async function quickAddItem(
       .from(itemCategories)
       .where(and(eq(itemCategories.orgId, actor.orgId), eq(itemCategories.name, categoryName)));
     for (let attempt = 0; attempt < 5; attempt++) {
-      const sku = input.sku?.trim().toUpperCase() || skuFromName(name, randomInt(1000, 10000));
+      // A typed SKU is used as is; otherwise a new unique one from the category (FLO-0007).
+      const sku = input.sku?.trim() ? normalizeSku(input.sku) : await generateSku(tx, actor.orgId, categoryName);
       const [item] = await tx
         .insert(items)
         .values({ orgId: actor.orgId, name, sku, unit, categoryId: category.id })

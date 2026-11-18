@@ -409,9 +409,7 @@ export async function allocateToOrder(
     const note = `Picked for order ${order.number}`;
     let picked = source;
     if (quantity.lt(source.quantity)) {
-      if (!input.newTag?.trim()) {
-        throw new InventoryError(`Picking part of package ${tag} makes a new package. Scan a new tag for the ${quantity.toString()} being picked.`);
-      }
+      // The picked part becomes its own package: the tag scanned for it, or a generated one.
       const split = await splitPackageInTx(tx, actor, { packageId: source.id, parts: [{ tag: input.newTag, quantity }], note });
       picked = split.children[0];
     }

@@ -206,8 +206,8 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
             <Card title="Complete the run">
               <ActionForm action={completeRunAction} submitLabel="Complete run">
                 {hidden}
-                <Field label="Tag for the finished package">
-                  <ScanInput name="outputTag" required />
+                <Field label="Tag for the finished package (blank to generate)" hint="Leave blank and CannaTrace makes a new unique ID (PKG-000123). Or scan or type a state tag.">
+                  <ScanInput name="outputTag" placeholder="Blank = new PKG- ID" />
                 </Field>
                 <Field label={`How much was made (${unitLabel(row.unit)})`} hint={`The plan was ${num(run.plannedOutput)}.`}>
                   <input name="actualQuantity" inputMode="decimal" required className={inputClass} />

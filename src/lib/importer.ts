@@ -3,18 +3,19 @@ import { customers, destinations, itemCategories, items, locations, locationType
 import { readTable } from "./csv";
 import { db } from "./db";
 import { parseDate } from "./distribution-math";
+import { generateSku, normalizeSku } from "./ids";
 import { InventoryError, audit, createPackageInTx, type Actor } from "./inventory";
 import { normalizeTag, parsePositiveQty } from "./inventory-math";
 
 export const IMPORT_KINDS = {
-  items: { label: "Items", required: ["name", "sku", "category", "unit"], optional: ["strain"] },
+  items: { label: "Items", required: ["name", "category", "unit"], optional: ["sku", "strain"] },
   locations: { label: "Locations", required: ["name", "type"], optional: [] },
   customers: {
     label: "Customers",
     required: ["name", "licenseNumber", "licenseType", "licenseExpires"],
     optional: ["paymentTermsDays", "contactName", "email", "phone", "address"],
   },
-  packages: { label: "Opening inventory", required: ["tag", "sku", "quantity", "location"], optional: ["lotNumber", "costPerUnit"] },
+  packages: { label: "Opening inventory", required: ["sku", "quantity", "location"], optional: ["tag", "lotNumber", "costPerUnit"] },
 } as const;
 export type ImportKind = keyof typeof IMPORT_KINDS;
 
@@ -74,7 +75,8 @@ export async function importCsv(actor: Actor, kind: ImportKind, text: string): P
             categoryId = cat.id;
             categoryIds.set(categoryName.toLowerCase(), categoryId);
           }
-          const sku = need(row, "sku").toUpperCase();
+          // A blank SKU is generated from the category (FLO-0007).
+          const sku = row.values.sku?.trim() ? normalizeSku(row.values.sku) : await generateSku(tx, actor.orgId, categoryName);
           const [item] = await tx
             .insert(items)
             .values({ orgId: actor.orgId, name: need(row, "name"), sku, categoryId, unit: unit as "G", strain: row.values.strain || null })
@@ -138,7 +140,8 @@ export async function importCsv(actor: Actor, kind: ImportKind, text: string): P
           ),
         );
         await each(async (row) => {
-          normalizeTag(need(row, "tag"));
+          // A blank tag gets a generated one (PKG-000123).
+          if (row.values.tag?.trim()) normalizeTag(row.values.tag);
           parsePositiveQty(need(row, "quantity"));
           const itemId = skuIds.get(need(row, "sku").toUpperCase());
           if (!itemId) throw new RowError(`no item with SKU ${row.values.sku}; import items first`);

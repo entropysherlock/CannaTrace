@@ -257,7 +257,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                   <Field label="Quantity (optional)" hint="Leave empty to take the whole package.">
                     <input name="quantity" inputMode="decimal" className={inputClass} />
                   </Field>
-                  <Field label="New tag (only when taking part of a package)" hint="The picked part becomes its own package with this tag.">
+                  <Field label="New tag (only when taking part of a package)" hint="The picked part becomes its own package with this tag. Leave blank to get a new unique ID (PKG-000123).">
                     <input name="newTag" autoCapitalize="characters" className={`${inputClass} font-mono`} />
                   </Field>
                 </ActionForm>

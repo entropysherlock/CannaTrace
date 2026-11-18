@@ -390,6 +390,19 @@ export const invites = pgTable(
   (t) => [index("invites_org_idx").on(t.orgId)],
 );
 
+/** Running counters for generated IDs (plant tags, package tags, SKUs), one row per business and kind. */
+export const idCounters = pgTable(
+  "id_counters",
+  {
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    kind: text("kind").notNull(),
+    nextValue: integer("next_value").notNull().default(1),
+  },
+  (t) => [primaryKey({ columns: [t.orgId, t.kind] })],
+);
+
 export const locations = pgTable(
   "locations",
   {

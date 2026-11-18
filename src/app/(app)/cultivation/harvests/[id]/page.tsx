@@ -113,8 +113,8 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
               ) : (
                 <ActionForm action={packageHarvestAction} submitLabel="Create package">
                   {hidden}
-                  <Field label="New package tag">
-                    <ScanInput name="tag" required />
+                  <Field label="New package tag (blank to generate)" hint="Leave blank and CannaTrace makes a new unique ID (PKG-000123). Or scan or type a state tag.">
+                    <ScanInput name="tag" placeholder="Blank = new PKG- ID" />
                   </Field>
                   <Field label="Item">
                     <select name="itemId" required defaultValue="" className={inputClass}>

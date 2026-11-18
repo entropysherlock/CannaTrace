@@ -151,7 +151,7 @@ describe.skipIf(!hasDb)("integrations (database)", () => {
   it("imports all rows or none, listing every problem by line", async () => {
     await expect(
       importCsv(actor, "items", "name,sku,category,unit\nJar,JAR-1,Flower,EACH\nBad,,Flower,EACH\nOdd,ODD-1,Flower,BUSHEL\nDup,BULK,Flower,G\n"),
-    ).rejects.toThrow(/Nothing was imported[\s\S]*Line 3: sku is empty[\s\S]*Line 4: unit must be one of[\s\S]*Line 5: SKU BULK already exists/);
+    ).rejects.toThrow(/Nothing was imported[\s\S]*Line 4: unit must be one of[\s\S]*Line 5: SKU BULK already exists/);
     expect(await db.$count(items, eq(items.sku, "JAR-1"))).toBe(0);
 
     expect(await importCsv(actor, "items", "Name,SKU,Category,Unit,Strain\nJar,JAR-1,Packaged Flower,EACH,Blue\nRosin,ROS-1,Concentrates,G,\n")).toEqual({ count: 2 });

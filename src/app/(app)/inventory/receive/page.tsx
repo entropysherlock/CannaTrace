@@ -34,8 +34,8 @@ export default async function ReceivePage() {
       <div className="max-w-xl">
         <Card>
           <ActionForm action={receiveAction} submitLabel="Receive">
-            <Field label="Package tag" hint="Scan with a barcode scanner, tap Scan to use the camera, or type it in.">
-              <ScanInput name="tag" required autoFocus />
+            <Field label="Package tag (blank to generate)" hint="Leave blank and CannaTrace makes a new unique ID (PKG-000123). Or scan a state tag with a barcode scanner, tap Scan to use the camera, or type it in.">
+              <ScanInput name="tag" autoFocus placeholder="Blank = new PKG- ID" />
             </Field>
             <Field label="Item">
               <select name="itemId" required className={inputClass} defaultValue="">
