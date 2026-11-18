@@ -1,13 +1,13 @@
-import { Check, Gift, MapPin, Sparkles } from "lucide-react";
+import { Check, Gift, MapPin } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { CONTACT_EMAILS, mailto } from "@/lib/contact";
-import { FOUNDING, PLANS, usd } from "@/lib/pricing";
+import { FEATURES, FOUNDING, PRICES, facilitiesLabel, usd } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Pricing · CannaTrace",
-  description: "Simple monthly pricing for New Mexico cannabis businesses. Founding customers get 60 days free and about half price for life.",
+  description: "$299 a month for 1 facility, $499 for 2, every feature included. Founding customers get 60 days free and $100 off every month for life.",
 };
 
 const FOUNDER_LINK = mailto("CannaTrace founding customer");
@@ -30,7 +30,7 @@ const QUESTIONS: [string, string][] = [
     "What does Tally cost?",
     "Tally runs on your business's own Claude account, so you pay Anthropic directly for what you use. Everything else is in the monthly price.",
   ],
-  ["Is the price per location?", "Yes, one price per license. Each facility you add is its own plan."],
+  ["What about 3 or more facilities?", "Email us and we'll price it with you."],
 ];
 
 export default function PricingPage() {
@@ -59,7 +59,7 @@ export default function PricingPage() {
             Built in Albuquerque for New Mexico
           </p>
           <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-brand-950 sm:text-5xl">Simple pricing. No contracts.</h1>
-          <p className="mt-4 text-lg text-slate-600">One monthly price per license, everything included for your kind of business.</p>
+          <p className="mt-4 text-lg text-slate-600">One plan with every feature. You pay by how many facilities you run.</p>
         </div>
 
         <section aria-labelledby="founding" className="mx-auto mt-10 max-w-3xl rounded-2xl border-2 border-amber-300 bg-amber-50 p-6 sm:p-8" data-testid="founding-offer">
@@ -84,48 +84,37 @@ export default function PricingPage() {
           </div>
         </section>
 
-        <section aria-label="Plans" className="mt-10 grid gap-6 md:grid-cols-2">
-          {PLANS.map((plan) => (
-            <div
-              key={plan.id}
-              data-testid={`plan-${plan.id}`}
-              className={`flex flex-col rounded-2xl border bg-white p-6 shadow-sm sm:p-8 ${plan.id === "pro" ? "border-brand-500 ring-2 ring-brand-500" : "border-slate-200"}`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-2xl font-extrabold text-brand-950">{plan.name}</h2>
-                {plan.id === "pro" ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-bold text-white">
-                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                    Everything
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-1 text-sm text-slate-600">{plan.forWho}</p>
-              <p className="mt-5">
-                <span className="text-5xl font-extrabold tracking-tight text-slate-950">{usd(plan.price)}</span>
-                <span className="text-slate-600"> /month per license</span>
+        <section aria-label="Prices" className="mx-auto mt-10 grid max-w-3xl gap-6 sm:grid-cols-2">
+          {PRICES.map((p) => (
+            <div key={p.facilities} data-testid={`price-${p.facilities}`} className={`rounded-2xl border bg-white p-6 text-center shadow-sm sm:p-8 ${p.facilities === 2 ? "border-brand-500 ring-2 ring-brand-500" : "border-slate-200"}`}>
+              <h2 className="text-xl font-extrabold text-brand-950">{facilitiesLabel(p.facilities)}</h2>
+              <p className="mt-3">
+                <span className="text-5xl font-extrabold tracking-tight text-slate-950">{usd(p.price)}</span>
+                <span className="text-slate-600"> /month</span>
               </p>
-              <p className="mt-1 text-sm font-semibold text-amber-800">
-                Founding customers: {usd(plan.founderPrice)}/month for life, after {FOUNDING.freeDays} days free
+              <p className="mt-2 text-sm font-semibold text-amber-800">
+                Founding customers: {usd(p.founderPrice)}/month for life, after {FOUNDING.freeDays} days free
               </p>
-              <ul className="mt-6 flex-1 space-y-2.5 text-[15px]">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2">
-                    <Check className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" aria-hidden="true" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
               <a
-                href={mailto(`CannaTrace ${plan.name} plan`)}
-                className={`mt-8 inline-flex min-h-11 items-center justify-center rounded-lg px-5 text-sm font-bold shadow-sm ${
-                  plan.id === "pro" ? "bg-brand-700 text-white hover:bg-brand-800" : "border-2 border-brand-200 text-brand-800 hover:border-brand-500 hover:bg-brand-50"
-                }`}
+                href={mailto(`CannaTrace for ${facilitiesLabel(p.facilities)}`)}
+                className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-700 px-5 text-sm font-bold text-white shadow-sm hover:bg-brand-800"
               >
-                Get {plan.name}
+                Get started
               </a>
             </div>
           ))}
+        </section>
+
+        <section aria-labelledby="included" className="mx-auto mt-10 max-w-3xl rounded-2xl border border-slate-200 p-6 sm:p-8" data-testid="included">
+          <h2 id="included" className="text-xl font-extrabold text-brand-950">Everything included, at either price</h2>
+          <ul className="mt-4 grid gap-x-8 gap-y-2.5 text-[15px] sm:grid-cols-2">
+            {FEATURES.map((f) => (
+              <li key={f} className="flex items-start gap-2">
+                <Check className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" aria-hidden="true" />
+                {f}
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section aria-labelledby="faq" className="mx-auto mt-16 max-w-3xl">
