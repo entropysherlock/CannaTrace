@@ -23,7 +23,7 @@ export function FacilitySwitcher({ facilities, current, action }: { facilities: 
           name="facilityId"
           defaultValue={current}
           onChange={() => form.current?.requestSubmit()}
-          className="min-h-10 w-full min-w-0 appearance-none rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm font-semibold text-slate-800 shadow-sm hover:border-brand-400 md:w-72"
+          className="min-h-10 w-full min-w-0 appearance-none rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm font-semibold text-slate-800 shadow-sm hover:border-brand-400 md:w-auto md:min-w-72 md:max-w-md"
         >
           {facilities.map((f) => (
             <option key={f.id} value={f.id}>

@@ -4,6 +4,7 @@ import { db, pool, type Tx } from "./db";
 import { todayIn } from "./distribution-math";
 import { enqueueWebhooks } from "./integrations";
 import { InventoryError } from "./inventory-math";
+import { DEFAULT_ZONE, facilityZone } from "./time";
 import {
   SYSTEM_LABELS,
   classifyHttpStatus,
@@ -47,7 +48,11 @@ const METRC_UNITS: Record<string, string> = {
 };
 
 /** The Metrc request for an event, or null when CannaTrace does not send that kind of record to Metrc yet. */
-export function metrcRequest(event: Pick<SyncEvent, "type" | "payload" | "createdAt">): { method: "POST"; path: string; body: unknown } | null {
+export function metrcRequest(
+  event: Pick<SyncEvent, "type" | "payload" | "createdAt">,
+  /** The facility's time zone: Metrc wants the date the change happened there. */
+  zone = DEFAULT_ZONE,
+): { method: "POST"; path: string; body: unknown } | null {
   const payload = event.payload as { before?: Snapshot; after?: Snapshot; reason?: string | null };
   if (event.type === "PACKAGE_ADJUSTED") {
     const before = payload.before ?? {};
@@ -63,7 +68,7 @@ export function metrcRequest(event: Pick<SyncEvent, "type" | "payload" | "create
           Quantity: Number(delta.toFixed(4)),
           UnitOfMeasure: METRC_UNITS[String(after.unit)] ?? String(after.unit),
           AdjustmentReason: reason,
-          AdjustmentDate: todayIn("America/Denver", event.createdAt),
+          AdjustmentDate: todayIn(zone, event.createdAt),
           ReasonNote: note.join(": ") || reason,
         },
       ],
@@ -87,7 +92,7 @@ const metrcAdapter: Adapter = {
     if (!base || !vendorKey || !userKey) {
       return { outcome: "ERROR", code: "NOT_CONFIGURED", retryable: false, detail: "METRC_API_URL, METRC_VENDOR_KEY, or METRC_USER_KEY is not set." };
     }
-    const request = metrcRequest(event);
+    const request = metrcRequest(event, await facilityZone(event.facilityId));
     if (!request) return { outcome: "MANUAL", detail: "CannaTrace does not send this kind of record to Metrc yet. Enter it in Metrc by hand." };
     try {
       const response = await fetch(`${base.replace(/\/$/, "")}${request.path}?licenseNumber=${encodeURIComponent(licenseNumber)}`, {

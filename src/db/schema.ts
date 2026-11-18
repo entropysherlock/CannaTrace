@@ -129,6 +129,10 @@ export const users = pgTable(
     active: boolean("active").notNull().default(true),
     /** Sign-ins from before this moment no longer work (set when the password changes). */
     passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
+    /** Facilities this person may work at. Null means every facility; owners always have every facility. */
+    facilityIds: text("facility_ids").array(),
+    /** Where they were last working, so signing in returns them there. */
+    lastFacilityId: text("last_facility_id"),
     createdAt: createdAt(),
   },
   (t) => [index("users_org_idx").on(t.orgId)],
@@ -1168,7 +1172,10 @@ export const retailSettings = pgTable("retail_settings", {
   medicalTaxExempt: boolean("medical_tax_exempt").notNull().default(true),
   adultMinAge: integer("adult_min_age").notNull().default(21),
   medicalMinAge: integer("medical_min_age").notNull().default(18),
-  /** Count purchase limits per customer per day (by their ID number), not just per purchase. */
+  /**
+   * Require the ID number when an ID is typed by hand, so daily limits cover every customer. Scanned IDs
+   * always carry their number, and a customer's purchases earlier today always count when it is known.
+   */
   dailyLimits: boolean("daily_limits").notNull().default(false),
   /** Wording printed at the bottom of every receipt, as the store's state requires. */
   receiptWarning: text("receipt_warning"),
@@ -1215,6 +1222,8 @@ export const drawerSessions = pgTable(
       .references(() => facilities.id),
     status: drawerStatusEnum("status").notNull().default("OPEN"),
     openingCash: money("opening_cash").notNull(),
+    /** Whose drawer this is: each person counts their own. Null on drawers opened before drawers were per person. */
+    userId: text("user_id").references(() => users.id),
     openedByName: text("opened_by_name").notNull(),
     openedAt: createdAt(),
     countedCash: money("counted_cash"),
@@ -1222,7 +1231,7 @@ export const drawerSessions = pgTable(
     closedByName: text("closed_by_name"),
     closedAt: timestamp("closed_at", { withTimezone: true }),
   },
-  (t) => [index("drawer_sessions_scope_idx").on(t.orgId, t.facilityId, t.status)],
+  (t) => [index("drawer_sessions_scope_idx").on(t.orgId, t.facilityId, t.status), index("drawer_sessions_user_idx").on(t.facilityId, t.userId, t.status)],
 );
 
 export const sales = pgTable(

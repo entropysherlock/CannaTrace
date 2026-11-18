@@ -95,9 +95,19 @@ test("receive, move, adjust, split, hold, lab result, label, and count", async (
   expect(coa.headers()["content-type"]).toBe("application/pdf");
   expect((await coa.body()).toString()).toContain("test certificate");
 
-  // Quarantined packages cannot be split; release it
+  // Quarantined packages cannot be split, and failed product can't be released until a retest passes
   await expect(page.locator("summary", { hasText: "Split into new packages" })).toHaveCount(0);
   await page.locator("summary", { hasText: "Hold, quarantine, or destroy" }).click();
+  await page.locator('form:has(input[name="reason"]) select[name="status"]').selectOption("ACTIVE");
+  await page.locator('input[name="reason"]').fill("Looks fine");
+  await page.getByRole("button", { name: "Update status" }).click();
+  await expect(page.getByText("failed its most recent lab test, so it cannot be released")).toBeVisible();
+  await page.locator('input[name="labName"]').fill("Mesa Analytical");
+  await page.locator('form:has(input[name="labName"]) select[name="status"]').selectOption("PASS");
+  await page.locator('input[name="thcPercent"]').fill("21.4");
+  await page.locator('input[name="coa"]').setInputFiles([]);
+  await page.getByRole("button", { name: "Save result" }).click();
+  await expect(page.getByText("pass").filter({ visible: true }).first()).toBeVisible();
   await page.locator('form:has(input[name="reason"]) select[name="status"]').selectOption("ACTIVE");
   await page.locator('input[name="reason"]').fill("Retest passed");
   await page.getByRole("button", { name: "Update status" }).click();

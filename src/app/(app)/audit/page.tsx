@@ -6,9 +6,11 @@ import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { auditLogs } from "@/db/schema";
 import { db } from "@/lib/db";
 import { requirePagePermission } from "@/lib/session";
+import { facilityZone } from "@/lib/time";
 
 export default async function AuditPage() {
   const session = await requirePagePermission("audit.view");
+  const zone = await facilityZone(session.facilityId);
   const entries = await db
     .select()
     .from(auditLogs)
@@ -35,7 +37,7 @@ export default async function AuditPage() {
                     <span className="block text-xs text-slate-500">
                       {c.userName} ·{" "}
                       {c.createdAt.toLocaleString("en-US", {
-                        timeZone: "America/Denver",
+                        timeZone: zone,
                         dateStyle: "medium",
                         timeStyle: "short",
                       })}
@@ -69,7 +71,7 @@ export default async function AuditPage() {
                     <span className="text-slate-600">{entry.entityType.toLowerCase()}</span>
                   )}
                 </span>
-                <time className="text-slate-500">{entry.createdAt.toLocaleString("en-US")}</time>
+                <time className="text-slate-500">{entry.createdAt.toLocaleString("en-US", { timeZone: zone })}</time>
               </div>
               {entry.reason ? <p className="text-slate-600">{entry.reason}</p> : null}
             </li>

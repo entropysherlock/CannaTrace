@@ -5,10 +5,11 @@ import { DistributionTabs } from "@/components/distribution-ui";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { customers, destinations } from "@/db/schema";
 import { db } from "@/lib/db";
-import { licenseProblem, todayIn } from "@/lib/distribution-math";
+import { licenseProblem } from "@/lib/distribution-math";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { customerAction } from "../actions";
+import { facilityToday } from "@/lib/time";
 
 export default async function CustomersPage() {
   const session = await requirePagePermission("sales.view");
@@ -16,7 +17,7 @@ export default async function CustomersPage() {
     db.select().from(customers).where(eq(customers.orgId, session.orgId)).orderBy(asc(customers.name)),
     db.select().from(destinations).where(eq(destinations.orgId, session.orgId)),
   ]);
-  const today = todayIn();
+  const today = await facilityToday(session.facilityId);
 
   return (
     <>

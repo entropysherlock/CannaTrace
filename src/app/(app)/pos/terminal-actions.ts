@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import type { Actor } from "@/lib/inventory";
 import { InventoryError } from "@/lib/inventory-math";
 import {
@@ -29,6 +30,7 @@ async function run(work: (actor: Actor) => Promise<TerminalResult | void>): Prom
     revalidatePath("/pos", "layout");
     return result;
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof InventoryError) return { error: error.message };
     if (error instanceof Error && error.name === "PermissionError") return { error: error.message };
     console.error("register action failed", error);

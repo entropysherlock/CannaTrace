@@ -11,6 +11,7 @@ import { adjustPackage, movePackage, setPackageStatus, type Actor } from "@/lib/
 import { InventoryError } from "@/lib/inventory-math";
 import { markJob } from "@/lib/labels/service";
 import { cancelRun, removeRunInput } from "@/lib/manufacturing";
+import { currentZone } from "@/lib/time";
 
 /**
  * Every change Tally makes after a Confirm is recorded here with the audit entries it wrote.
@@ -234,7 +235,7 @@ async function assertNothingChangedSince(change: TallyChange, entries: Entry[]):
       .limit(1);
     if (later) {
       const what = e.entityType === "Package" ? `Package ${str(e.after?.tag ?? e.before?.tag)}` : `That ${e.entityType.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}`;
-      const when = later.createdAt.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" });
+      const when = later.createdAt.toLocaleString("en-US", { timeZone: currentZone(), dateStyle: "medium", timeStyle: "short" });
       throw new InventoryError(
         `${what} has changed since (${later.action.toLowerCase().replaceAll("_", " ")} by ${later.userName}, ${when}). Undo would overwrite that, so it's blocked. Undo the later change first, or fix it by hand.`,
       );

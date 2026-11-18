@@ -37,7 +37,7 @@ Distribution (tabs: Orders, Invoices, Vendors, Price lists, Drivers and vehicles
 
 Register (tabs: Register, Cash drawer, Menu and store rules)
 - Before selling, a manager enters purchase limits and tax rates under Register → Menu and store rules ("Store rules"); the register stays locked until then. Menu prices: "Add or change a menu item". Discounts: "Add a discount".
-- Cash drawer: open it at the start of a shift, "Close the drawer" at the end.
+- Cash drawer: each person opens their own at the start of their shift and closes it with a count at the end. Clerks count blind; managers see every open drawer and can close one someone left open.
 - A sale: Register → check the customer's ID (date of birth and expiry) → add items (search or scan) → take payment. Past sales open from the register; "Return items" and "Void this sale" are on the sale.
 
 SmartLabel AI (tabs: Print, Templates, Printers, History)
@@ -53,7 +53,7 @@ Compliance (tabs: State reporting, State rules, Audit trail): the state track-an
 Settings (tabs: Business, Facilities, Team, Integrations, Tally AI)
 - Business: the business name.
 - Facilities: add a facility, edit its license and state, switch facilities, add rooms, and (for owners) load a sample facility with practice data.
-- Team: "Invite someone" (sends a one-time link), change roles, build custom roles, make a password reset link for a person.
+- Team: "Invite someone" (sends a one-time link), change roles, build custom roles, make a password reset link for a person, and "Works at" to limit a person to some facilities.
 - Integrations: API keys and webhooks.
 - Tally AI: connect the business's Claude account and set limits.
 - Switch facility: the menu at the top of every page. Change your own password or sign out: the account menu (your initials) at the top right.

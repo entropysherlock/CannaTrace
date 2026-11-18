@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { scanFacility } from "@/lib/rules/scan";
 import { convert, type UnitCode } from "@/lib/units";
 import type { Permission } from "@/lib/rbac";
+import { currentZone } from "@/lib/time";
 
 /**
  * Tally Watch checks. Each one is a plain database query: no AI is involved in deciding what's
@@ -28,12 +29,57 @@ export type Finding = {
 type Row = Record<string, unknown>;
 type Scope = { orgId: string; facilityId: string };
 const rows = async (q: ReturnType<typeof sql>) => (await db.execute<Row>(q)).rows;
-const TZ = "America/Denver";
 const PER_CHECK = 100;
 const UNIT: Record<string, string> = { EACH: "ea", G: "g", KG: "kg", MG: "mg", OZ: "oz", LB: "lb", ML: "ml", L: "L" };
 const qty = (v: Decimal.Value, unit: string) => `${new Decimal(v).toDecimalPlaces(4).toNumber().toLocaleString("en-US", { maximumFractionDigits: 4 })} ${UNIT[unit] ?? unit}`;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const s = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+
+/**
+ * Failed product that already left the building: shipped on a wholesale order or sold at the register.
+ * Follows splits and picked parts down from the failed package, unless a part has lab results of its own.
+ */
+async function recalls(f: Scope): Promise<Finding[]> {
+  const found = await rows(sql`
+    with recursive failed as (
+      select p.id from packages p
+      where p.org_id = ${f.orgId} and p.facility_id = ${f.facilityId}
+        and (select lr.status::text from lab_results lr where lr.package_id = p.id order by lr.created_at desc limit 1) = 'FAIL'
+    ),
+    tainted(id, source_id) as (
+      select id, id from failed
+      union
+      select l.child_id, t.source_id from package_lineage l join tainted t on l.parent_id = t.id
+      where not exists (select 1 from lab_results lr where lr.package_id = l.child_id)
+    ),
+    went as (
+      select t.source_id, p.tag, 'Manifest ' || coalesce(o.manifest_number, o.number) || ' to ' || c.name as place, o.shipped_at as at
+      from tainted t join order_allocations oa on oa.package_id = t.id join orders o on o.id = oa.order_id
+      join customers c on c.id = o.customer_id join packages p on p.id = t.id
+      where o.status in ('SHIPPED', 'DELIVERED')
+      union all
+      select t.source_id, p.tag, 'Sale ' || s.number, s.completed_at
+      from tainted t join sale_line_packages slp on slp.package_id = t.id join sale_lines sl on sl.id = slp.sale_line_id
+      join sales s on s.id = sl.sale_id join packages p on p.id = t.id
+      where s.status = 'COMPLETED'
+    )
+    select w.source_id, src.tag as source_tag, i.name as item,
+      (select lr.lab_name from lab_results lr where lr.package_id = w.source_id order by lr.created_at desc limit 1) as lab_name,
+      string_agg(distinct w.place, '; ') as places, count(distinct w.place) as n
+    from went w join packages src on src.id = w.source_id join items i on i.id = src.item_id
+    group by w.source_id, src.tag, i.name
+    order by src.tag limit ${PER_CHECK}`);
+  return found.map((p) => ({
+    key: `recall:${s(p.source_id)}`,
+    check: "recall",
+    severity: "critical",
+    title: `Product from ${s(p.source_tag)} failed its lab test and has already left (${plural(Number(p.n), "shipment or sale")})`,
+    detail: `${s(p.item)}, failed at ${s(p.lab_name)}. Went out on: ${s(p.places)}. Contact the customers, follow your state's recall steps, and record what comes back.`,
+    permission: "inventory.view",
+    href: `/inventory/${s(p.source_id)}`,
+    ask: `Product from package ${s(p.source_tag)} failed its lab test after it shipped or sold. Walk me through a recall.`,
+  }));
+}
 
 /** Packages whose latest lab result failed but can still be sold or used. */
 async function failedLabs(f: Scope): Promise<Finding[]> {
@@ -90,10 +136,10 @@ async function unlabeled(f: Scope): Promise<Finding[]> {
 async function licenses(f: Scope): Promise<Finding[]> {
   const found = await rows(sql`
     select o.id, o.number, o.status, c.name as vendor, coalesce(d.name, c.name) as place, coalesce(d.license_expires, c.license_expires) as expires,
-      (coalesce(d.license_expires, c.license_expires)::date - (now() at time zone ${TZ})::date)::int as days
+      (coalesce(d.license_expires, c.license_expires)::date - (now() at time zone ${currentZone()})::date)::int as days
     from orders o join customers c on c.id = o.customer_id left join destinations d on d.id = o.destination_id
     where o.org_id = ${f.orgId} and o.facility_id = ${f.facilityId} and o.status in ('DRAFT','CONFIRMED','PACKED')
-      and coalesce(d.license_expires, c.license_expires)::date <= (now() at time zone ${TZ})::date + 14
+      and coalesce(d.license_expires, c.license_expires)::date <= (now() at time zone ${currentZone()})::date + 14
     order by expires limit ${PER_CHECK}`);
   return found.map((o) => {
     const days = Number(o.days);
@@ -155,10 +201,10 @@ async function overdue(f: Scope): Promise<Finding[]> {
   const found = await rows(sql`
     with owed as (
       select inv.customer_id, sum(inv.total - coalesce((select sum(amount) from payments p where p.invoice_id = inv.id), 0)) as balance,
-        max((now() at time zone ${TZ})::date - inv.due_date::date) as days
+        max((now() at time zone ${currentZone()})::date - inv.due_date::date) as days
       from invoices inv where inv.org_id = ${f.orgId} and inv.facility_id = ${f.facilityId}
         and inv.total > coalesce((select sum(amount) from payments p where p.invoice_id = inv.id), 0)
-        and inv.due_date::date < (now() at time zone ${TZ})::date - 30
+        and inv.due_date::date < (now() at time zone ${currentZone()})::date - 30
       group by inv.customer_id)
     select c.id, c.name, owed.balance::text as balance, owed.days::int as days,
       (select count(*) from orders o where o.customer_id = c.id and o.facility_id = ${f.facilityId} and o.status in ('CONFIRMED','PACKED'))::int as open_orders
@@ -227,7 +273,7 @@ async function reconcile(f: Scope): Promise<Finding[]> {
   const [report] = await rows(sql`select id, file_name, rows, created_at, (extract(epoch from now() - created_at) / 86400)::int as days
     from state_reports where facility_id = ${f.facilityId} and org_id = ${f.orgId} order by created_at desc limit 1`);
   if (!report) return [];
-  const uploaded = new Date(String(report.created_at)).toLocaleDateString("en-US", { timeZone: TZ, dateStyle: "medium" });
+  const uploaded = new Date(String(report.created_at)).toLocaleDateString("en-US", { timeZone: currentZone(), dateStyle: "medium" });
   const out: Finding[] = [];
   if (Number(report.days) > 7) {
     out.push({
@@ -339,6 +385,7 @@ async function reconcile(f: Scope): Promise<Finding[]> {
 /** Each check and the kinds of finding it owns, so a check that errors never has its findings marked resolved. */
 export const CHECKS: { name: string; kinds: string[]; run: (f: Scope) => Promise<Finding[]> }[] = [
   { name: "failed lab tests", kinds: ["lab_fail"], run: failedLabs },
+  { name: "failed product that left", kinds: ["recall"], run: recalls },
   { name: "state system match", kinds: ["state_report_old", "state_missing", "state_open", "state_qty", "state_only", "state_many"], run: reconcile },
   { name: "state reporting", kinds: ["sync_failed", "sync_manual"], run: stateReporting },
   { name: "state rules", kinds: ["rule"], run: rules },

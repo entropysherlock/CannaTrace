@@ -131,9 +131,9 @@ export function StoreRulesForm({
       <label className="flex items-start gap-2 text-sm text-slate-700">
         <input type="checkbox" name="dailyLimits" checked={daily} onChange={(e) => setDaily(e.target.checked)} className="mt-0.5 h-5 w-5 accent-brand-700" />
         <span>
-          Count purchase limits per customer per day
+          Count purchase limits per customer per day, including IDs typed by hand
           <span className="block text-xs text-slate-500">
-            The register asks for the customer&apos;s ID number (scanned IDs fill it in) and adds up their purchases today across all your stores. Only a scrambled code of the number is kept.
+            Scanned IDs always count toward the customer&apos;s total for the day across all your stores, so a second cart isn&apos;t a fresh limit. With this on, the register also asks for the ID number when the dates are typed by hand. Only a scrambled code of the number is kept.
           </span>
         </span>
       </label>

@@ -11,6 +11,7 @@ import { retentionHours } from "@/lib/assistant/attachments/store";
 import { BottomNav, SectionTabs, SideNav, type NavGroup, type NavItem, type Tab } from "@/components/side-nav";
 import { asc, eq } from "drizzle-orm";
 import { facilities as facilitiesTable } from "@/db/schema";
+import { visibleFacilities } from "@/lib/facility-access";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { isPlatformAdmin } from "@/lib/platform-admin";
@@ -27,11 +28,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const tally = await tallyAvailability(session);
   // The bell in the top bar: what Tally Watch has open at this facility.
   const alerts = (await openFindings(session)).length;
-  const facilities = await db
-    .select({ id: facilitiesTable.id, name: facilitiesTable.name, licenseNumber: facilitiesTable.licenseNumber })
-    .from(facilitiesTable)
-    .where(eq(facilitiesTable.orgId, session.orgId))
-    .orderBy(asc(facilitiesTable.name));
+  const facilities = visibleFacilities(
+    await db
+      .select({ id: facilitiesTable.id, name: facilitiesTable.name, licenseNumber: facilitiesTable.licenseNumber })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.orgId, session.orgId))
+      .orderBy(asc(facilitiesTable.name)),
+    session,
+  );
 
   // Related pages share one sidebar entry and show as tabs at the top of the page.
   const tabs = (list: [string, string, boolean][]) => list.filter(([, , show]) => show).map(([href, label]) => ({ href, label }));
@@ -53,7 +57,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             ["/locations", "Locations", can(session, "catalog.manage")],
           ]),
         ),
-        entry("manufacturing", "Manufacturing", tabs([["/manufacturing", "Manufacturing", can(session, "inventory.view")]])),
+        entry("manufacturing", "Manufacturing", tabs([["/manufacturing", "Manufacturing", can(session, "manufacturing.write") || can(session, "audit.view")]])),
         entry("distribution", "Distribution", tabs([["/distribution", "Distribution", can(session, "sales.view")]])),
         entry("register", "Register", tabs([["/pos", "Register", can(session, "pos.use")]])),
       ].filter((x): x is NavItem => Boolean(x)),
@@ -128,7 +132,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
+      <div className="flex min-w-0 flex-1 flex-col pb-40 md:pb-24">
         <header className="sticky top-0 z-30 flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur md:gap-3 md:px-6 print:hidden">
           <Link href="/" className="mr-auto md:hidden" title="CannaTrace home">
             <Logo />

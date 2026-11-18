@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { customRoles, organizations, users } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
+import { allowedFacilities } from "./facility-access";
 import { canSignIn, liveDemoOn } from "./access";
 import { isPlatformAdmin, nowMs } from "./platform-admin";
 import { signInStillValid } from "./sign-in-check";
@@ -40,6 +41,8 @@ export type Session = SessionToken & {
   isDemo?: boolean;
   /** CannaTrace support is visiting this customer's account. */
   supportVisit?: { orgName: string; until: number };
+  /** Facilities this person may work at; null or missing means every facility. */
+  facilityIds?: string[] | null;
 };
 
 function secret(): Uint8Array {
@@ -131,6 +134,7 @@ async function resolve(session: SessionToken): Promise<Session | null> {
       isDemo: organizations.isDemo,
       email: users.email,
       passwordChangedAt: users.passwordChangedAt,
+      facilityIds: users.facilityIds,
     })
     .from(users)
     .innerJoin(organizations, eq(organizations.id, users.orgId))
@@ -142,8 +146,13 @@ async function resolve(session: SessionToken): Promise<Session | null> {
   // Signed in before the password was changed or reset: that sign-in no longer counts.
   if (user.passwordChangedAt && session.issuedAt !== undefined && session.issuedAt * 1000 < user.passwordChangedAt.getTime()) return null;
   const custom = user.customRoleId && user.customPermissions;
+  // Someone limited to some facilities always works inside them, even with an older cookie for another one.
+  const allowed = allowedFacilities({ role: user.role, customRoleId: user.customRoleId, facilityIds: user.facilityIds });
+  const facilityId = allowed === null || allowed.includes(session.facilityId) ? session.facilityId : allowed[0];
   return {
     ...session,
+    facilityId,
+    facilityIds: allowed,
     role: user.role,
     name: user.name,
     customRoleId: custom ? user.customRoleId : null,
@@ -175,12 +184,15 @@ async function resolveSupport(session: SessionToken, visit: NonNullable<SessionT
     customRoleId: null,
     permissions: permissionsFor("OWNER"),
     roleName: "CannaTrace support",
+    facilityIds: null,
     isDemo: org.isDemo,
     supportVisit: { orgName: org.name, until: visit.until },
   };
 }
 
-export class PermissionError extends Error {}
+export class PermissionError extends Error {
+  name = "PermissionError";
+}
 
 /** Things a visitor to the shared live demo may look at but not change: the team, the business, and outside connections. */
 const LOCKED_IN_DEMO: readonly Permission[] = ["users.manage", "settings.manage", "integrations.manage", "ai.manage"];

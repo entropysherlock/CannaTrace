@@ -16,6 +16,7 @@ import type { Session } from "@/lib/session";
 import { convert, type UnitCode } from "@/lib/units";
 import { templateFor } from "./label-tools";
 import type { Proposal, Tool } from "./tools";
+import { currentZone } from "@/lib/time";
 
 /**
  * Tally's plans: create the big records from plain English (receiving, wholesale orders, production
@@ -26,7 +27,6 @@ import type { Proposal, Tool } from "./tools";
  */
 
 const MAX_STEPS = 200;
-const TZ = "America/Denver";
 type Row = Record<string, unknown>;
 type Input = Record<string, unknown>;
 const rows = async (q: SQL) => (await db.execute<Row>(q)).rows;
@@ -278,7 +278,7 @@ function checkTags(tags: string[]) {
   }
 }
 
-const today = () => new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+const today = () => new Date().toLocaleDateString("en-CA", { timeZone: currentZone() });
 
 async function uniqueRunName(s: Session, base: string): Promise<string> {
   const taken = new Set((await rows(sql`select name from production_runs where facility_id = ${s.facilityId} and name like ${`${base}%`}`)).map((r) => String(r.name)));

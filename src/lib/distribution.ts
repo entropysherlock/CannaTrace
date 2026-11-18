@@ -27,18 +27,19 @@ import {
   parseDate,
   parseMoney,
   parsePrice,
-  todayIn,
 } from "./distribution-math";
+import { facilityToday } from "./time";
 import {
   InventoryError,
   audit,
   lockPackage,
+  assertNotFailedLab,
   setAllocatedInTx,
   shipPackageInTx,
   splitPackageInTx,
   type Actor,
 } from "./inventory";
-import { normalizeTag, parsePositiveQty } from "./inventory-math";
+import { assertWholeForUnit, normalizeTag, parsePositiveQty } from "./inventory-math";
 import { nextNumber } from "./numbering";
 
 const store = (value: Decimal) => value.toFixed(4);
@@ -129,7 +130,7 @@ export async function verifyCustomerLicense(
     const [before] = await tx.select().from(customers).where(and(eq(customers.id, input.customerId), eq(customers.orgId, actor.orgId)));
     if (!before) throw new InventoryError("That customer was not found.");
     const licenseExpires = expires ?? before.licenseExpires;
-    if (licenseExpires < todayIn()) {
+    if (licenseExpires < (await facilityToday(actor.facilityId, tx))) {
       throw new InventoryError(`This license expired on ${licenseExpires}. Enter the new expiry date from the state's lookup to verify it.`);
     }
     await tx
@@ -318,6 +319,7 @@ export async function addOrderLine(
     const order = await lockOrder(tx, actor, input.orderId, ["DRAFT"], "changed. Only draft orders can be edited");
     const [item] = await tx.select().from(items).where(and(eq(items.id, input.itemId), eq(items.orgId, actor.orgId), eq(items.active, true)));
     if (!item) throw new InventoryError("Pick an item from the list.");
+    assertWholeForUnit(item.unit, quantity);
     const typed = String(input.unitPrice ?? "").trim();
     let price: Decimal;
     if (typed) {
@@ -357,7 +359,7 @@ export async function confirmOrder(actor: Actor, input: { orderId: string }): Pr
   await db.transaction(async (tx) => {
     const order = await lockOrder(tx, actor, input.orderId, ["DRAFT"], "confirmed again");
     if ((await tx.$count(orderLines, eq(orderLines.orderId, order.id))) === 0) throw new InventoryError("Add at least one line before confirming.");
-    const problem = await shipToProblem(tx, actor, order, await customerFor(tx, actor, order.customerId), todayIn());
+    const problem = await shipToProblem(tx, actor, order, await customerFor(tx, actor, order.customerId), (await facilityToday(actor.facilityId, tx)));
     if (problem) throw new InventoryError(problem);
     await tx.update(orders).set({ status: "CONFIRMED", confirmedAt: new Date() }).where(eq(orders.id, order.id));
     await audit(tx, actor, { entityType: "Order", entityId: order.id, action: "CONFIRM" });
@@ -387,6 +389,7 @@ export async function allocateToOrder(
     if (source.status !== "ACTIVE") {
       throw new InventoryError(`Package ${tag} is ${source.status.replace("_", " ").toLowerCase()} and cannot be put on an order.`);
     }
+    await assertNotFailedLab(tx, source, "put on an order");
 
     const quantityText = String(input.quantity ?? "").trim();
     const quantity = quantityText === "" ? new Decimal(source.quantity) : parsePositiveQty(quantityText);
@@ -472,7 +475,7 @@ export async function shipOrder(
   return db.transaction(async (tx) => {
     const order = await lockOrder(tx, actor, input.orderId, ["PACKED"], "shipped. Mark it packed first");
     const customer = await customerFor(tx, actor, order.customerId);
-    const today = todayIn();
+    const today = (await facilityToday(actor.facilityId, tx));
     const problem = await shipToProblem(tx, actor, order, customer, today);
     if (problem) throw new InventoryError(problem);
     const [driver] = await tx.select().from(drivers).where(and(eq(drivers.id, input.driverId), eq(drivers.orgId, actor.orgId), eq(drivers.active, true)));
@@ -564,6 +567,8 @@ export async function recordPayment(
   if (!(PAYMENT_METHODS as readonly string[]).includes(input.method)) throw new InventoryError("Choose how it was paid.");
   const paidOn = parseDate(input.paidOn, "Payment date");
   return db.transaction(async (tx) => {
+    const today = await facilityToday(actor.facilityId, tx);
+    if (paidOn > today) throw new InventoryError(`The payment date ${paidOn} is in the future. Record payments on or after the day they arrive.`);
     const [invoice] = await tx
       .select()
       .from(invoices)
@@ -610,7 +615,7 @@ export async function issueCreditMemo(actor: Actor, input: { invoiceId: string; 
     const { balance } = invoiceBalance(invoice.total, paid.map((p) => p.amount));
     if (balance.lte(0)) throw new InventoryError(`Invoice ${invoice.number} is already settled in full, so there's nothing to credit.`);
     if (amount.gt(balance)) throw new InventoryError(`The credit can be at most the $${balance.toFixed(2)} still owed on invoice ${invoice.number}.`);
-    await tx.insert(payments).values({ invoiceId: invoice.id, amount: amount.toFixed(2), method: "CREDIT_MEMO", reference: reason, paidOn: todayIn(), userName: actor.userName });
+    await tx.insert(payments).values({ invoiceId: invoice.id, amount: amount.toFixed(2), method: "CREDIT_MEMO", reference: reason, paidOn: (await facilityToday(actor.facilityId, tx)), userName: actor.userName });
     await audit(tx, actor, { entityType: "Invoice", entityId: invoice.id, action: "CREDIT_MEMO", after: { amount: amount.toFixed(2) }, reason });
     return { balance: balance.sub(amount).toFixed(2) };
   });
@@ -664,7 +669,7 @@ export async function verifyDestinationLicense(actor: Actor, input: { destinatio
     const [before] = await tx.select().from(destinations).where(and(eq(destinations.id, input.destinationId), eq(destinations.orgId, actor.orgId)));
     if (!before) throw new InventoryError("That destination was not found.");
     const licenseExpires = expires ?? before.licenseExpires;
-    if (licenseExpires < todayIn()) throw new InventoryError(`This license expired on ${licenseExpires}. Enter the new expiry date from the state's lookup to verify it.`);
+    if (licenseExpires < (await facilityToday(actor.facilityId, tx))) throw new InventoryError(`This license expired on ${licenseExpires}. Enter the new expiry date from the state's lookup to verify it.`);
     await tx.update(destinations).set({ licenseExpires, licenseVerifiedAt: new Date(), licenseVerifiedBy: actor.userName }).where(eq(destinations.id, before.id));
     // The vendor's own record carries the same license when this is their main location.
     await tx

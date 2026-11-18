@@ -13,7 +13,19 @@ export function parsePositiveQty(input: unknown, what = "Quantity"): Decimal {
     throw new InventoryError(`${what} must be a number, for example 12.5.`);
   }
   if (!q.isFinite() || q.lte(0)) throw new InventoryError(`${what} must be greater than zero.`);
+  if (q.gt(MAX_QTY)) throw new InventoryError(`${what} is too large. Check the number and try again.`);
   return roundQty(q);
+}
+
+/** Bigger than any real package; keeps typos like 1e30 from reaching the database. */
+export const MAX_QTY = new Decimal("1000000000000");
+
+/** Items counted each (jars, pre-rolls, packs) only come in whole numbers. */
+export function assertWholeForUnit(unit: string, quantity: Decimal.Value, what = "Quantity"): void {
+  const q = new Decimal(quantity);
+  if (unit === "EACH" && !q.isInteger()) {
+    throw new InventoryError(`${what} must be a whole number for items counted each, for example ${q.floor().gt(0) ? q.floor().toString() : "1"}, not ${q.toString()}.`);
+  }
 }
 
 /** Result of applying a change to a package quantity. Never lets stock go negative. */

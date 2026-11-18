@@ -3,17 +3,18 @@ import { HomeScreen, type HomeView } from "@/components/register/home-screen";
 import { RegisterShell } from "@/components/register/shell";
 import { saleLines, sales } from "@/db/schema";
 import { db } from "@/lib/db";
-import { todayIn } from "@/lib/distribution-math";
 import { getRetailSettings, storePack } from "@/lib/pos";
 import { can } from "@/lib/rbac";
 import { minimumAge } from "@/lib/rules";
 import { requirePagePermission } from "@/lib/session";
 import { shellInfo } from "./shell-info";
+import { facilityToday } from "@/lib/time";
 
 const time = (d: Date) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
 export default async function RegisterPage() {
   const session = await requirePagePermission("pos.use");
+  const today = await facilityToday(session.facilityId);
   const [info, settings, pack] = await Promise.all([shellInfo(session), getRetailSettings(db, session.facilityId), storePack(db, session.facilityId)]);
   const rows = info.drawerId
     ? await db
@@ -34,7 +35,7 @@ export default async function RegisterPage() {
     : [];
   const done = rows.filter((s) => s.status === "COMPLETED");
   const view: HomeView = {
-    today: todayIn(),
+    today: today,
     rulesSaved: settings.saved,
     canManage: can(session, "pos.manage"),
     drawerOpen: Boolean(info.drawerId),

@@ -7,6 +7,7 @@ import { InventoryError } from "@/lib/inventory-math";
 import { can, type Permission } from "@/lib/rbac";
 import type { Session } from "@/lib/session";
 import { CHECKS, stateUnit, type Finding } from "./checks";
+import { inFacilityZone } from "@/lib/time";
 
 export type { Finding };
 type Scope = { orgId: string; facilityId: string };
@@ -26,7 +27,7 @@ export async function sweepFacility(f: Scope): Promise<{ open: number; opened: n
   const failedKinds = new Set<string>();
   for (const check of CHECKS) {
     try {
-      found.push(...(await check.run(f)));
+      found.push(...(await inFacilityZone(f.facilityId, () => check.run(f))));
     } catch (error) {
       console.error("watch check failed", check.name, error);
       failedChecks.push(check.name);

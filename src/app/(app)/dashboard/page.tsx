@@ -35,8 +35,10 @@ import { ShowMeHowButton } from "@/components/walkthrough";
 import { facilities as facilitiesTable } from "@/db/schema";
 import { commandCenter, summarize, toRange, usd } from "@/lib/dashboard";
 import { db } from "@/lib/db";
+import { visibleFacilities } from "@/lib/facility-access";
 import { can } from "@/lib/rbac";
 import { requireSession } from "@/lib/session";
+import { facilityZone } from "@/lib/time";
 import { ADAPTERS } from "@/lib/sync";
 import { SYSTEM_LABELS, type SystemName } from "@/lib/sync-math";
 import { sweepIfStale } from "@/lib/watch";
@@ -113,14 +115,18 @@ const SEVERITY = {
 
 export default async function CommandCenterPage({ searchParams }: { searchParams: Promise<{ scope?: string; days?: string }> }) {
   const session = await requireSession();
+  const zone = await facilityZone(session.facilityId);
   const params = await searchParams;
   await sweepIfStale(session);
 
-  const facilities = await db
-    .select({ id: facilitiesTable.id, name: facilitiesTable.name, license: facilitiesTable.licenseNumber, system: facilitiesTable.trackTraceSystem })
-    .from(facilitiesTable)
-    .where(eq(facilitiesTable.orgId, session.orgId))
-    .orderBy(asc(facilitiesTable.name));
+  const facilities = visibleFacilities(
+    await db
+      .select({ id: facilitiesTable.id, name: facilitiesTable.name, license: facilitiesTable.licenseNumber, system: facilitiesTable.trackTraceSystem })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.orgId, session.orgId))
+      .orderBy(asc(facilitiesTable.name)),
+    session,
+  );
   const here = facilities.find((f) => f.id === session.facilityId) ?? facilities[0];
   const scope = params.scope === "all" && facilities.length > 1 ? "all" : "one";
   const days = toRange(params.days);
@@ -128,10 +134,10 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   // Alerts count only what this person may see, exactly like the bell and the Tally Watch page.
   const c = await commandCenter(session.orgId, ids, days, (permission) => !permission || can(session, permission as Parameters<typeof can>[1]));
 
-  const fmtDay = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" });
+  const fmtDay = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: zone });
   const end = new Date();
   const startDay = new Date(end.getTime() - (days - 1) * 86400000);
-  const span = `${fmtDay(startDay)} – ${fmtDay(end)}, ${end.toLocaleDateString("en-US", { year: "numeric", timeZone: "America/Denver" })}`;
+  const span = `${fmtDay(startDay)} – ${fmtDay(end)}, ${end.toLocaleDateString("en-US", { year: "numeric", timeZone: zone })}`;
 
   const system = here.system as SystemName;
   const stateName = system === "MOCK" ? "Practice reporting" : SYSTEM_LABELS[system];

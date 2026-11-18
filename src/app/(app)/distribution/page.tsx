@@ -8,9 +8,11 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { orderAction } from "./actions";
+import { facilityZone } from "@/lib/time";
 
 export default async function OrdersPage() {
   const session = await requirePagePermission("sales.view");
+  const zone = await facilityZone(session.facilityId);
   const [rows, customerRows] = await Promise.all([
     db
       .select({
@@ -55,7 +57,7 @@ export default async function OrdersPage() {
                         {order.number} <Pill status={order.status} />
                       </p>
                       <p className="text-sm text-slate-600">
-                        {order.customerName} · {order.createdAt.toLocaleDateString("en-US")}
+                        {order.customerName} · {order.createdAt.toLocaleDateString("en-US", { timeZone: zone })}
                       </p>
                     </div>
                     <span className="text-sm font-semibold text-slate-900">{usd(order.total)}</span>

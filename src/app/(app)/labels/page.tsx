@@ -10,6 +10,7 @@ import { LABEL_KINDS, type LabelKind } from "@/lib/labels/types";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { prepareLabels, sizeLabel } from "./shared";
+import { facilityZone } from "@/lib/time";
 
 export const instant = false;
 
@@ -23,6 +24,7 @@ const STATUS: Record<string, string> = {
 
 export default async function LabelsPage({ searchParams }: { searchParams: Promise<{ kind?: string; ids?: string; batch?: string }> }) {
   const session = await requirePagePermission("labels.print");
+  const zone = await facilityZone(session.facilityId);
   await prepareLabels(session);
   const sp = await searchParams;
   const kind: LabelKind = LABEL_KINDS.some((k) => k.kind === sp.kind) ? (sp.kind as LabelKind) : "PACKAGE";
@@ -66,7 +68,7 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
                     {job.reprintOf ? <span className="ml-2 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-800">Reprint</span> : null}
                   </p>
                   <p className="text-xs text-slate-600">
-                    {STATUS[job.status]} · {job.userName} · {job.createdAt.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" })}
+                    {STATUS[job.status]} · {job.userName} · {job.createdAt.toLocaleString("en-US", { timeZone: zone, dateStyle: "medium", timeStyle: "short" })}
                     {job.attempts ? ` · ${job.attempts} attempt${job.attempts === 1 ? "" : "s"}` : ""}
                   </p>
                   {job.error ? <p className="text-xs font-medium text-red-700">{job.error}</p> : null}
