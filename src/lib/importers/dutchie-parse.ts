@@ -2,10 +2,15 @@ import Decimal from "decimal.js";
 import type { UnitCode } from "@/lib/units";
 
 /**
- * Reading a Dutchie POS inventory export (Backoffice → Reports → Current Inventory, exported to Excel or CSV).
- * Column names are matched loosely, because Dutchie lets each store choose and reorder its report columns.
+ * Reading an inventory export from another system so a business can switch to CannaTrace:
+ * - Dutchie POS: Backoffice → Reports → Current Inventory, exported to Excel or CSV.
+ * - Flourish: Inventory → All Packages, exported to Excel.
+ * Column names are matched loosely, because both let each business choose and reorder columns.
  * Pure functions: no database. The importer in ./dutchie.ts turns the plan into records.
  */
+
+export type Source = "dutchie" | "flourish";
+export const SOURCE_NAME: Record<Source, string> = { dutchie: "Dutchie", flourish: "Flourish" };
 
 export type DutchieField =
   | "product"
@@ -21,6 +26,7 @@ export type DutchieField =
   | "quantity"
   | "grams"
   | "unit"
+  | "unitWeight"
   | "cost"
   | "vendor"
   | "thc"
@@ -41,11 +47,29 @@ const ALIASES: Record<DutchieField, string[]> = {
   quantity: ["quantity", "available", "available quantity", "quantity on hand", "on hand", "qty"],
   grams: ["grams", "total grams", "net weight", "weight"],
   unit: ["unit", "unit of measure", "uom", "units"],
+  unitWeight: ["unit weight", "unit weight g", "unit weight grams", "net weight per unit"],
   cost: ["cost", "unit cost", "cost per unit"],
   vendor: ["vendor", "vendor name", "supplier"],
   thc: ["thc", "thc %", "thc percent", "total thc", "total thc %"],
   cbd: ["cbd", "cbd %", "cbd percent", "total cbd", "total cbd %"],
 };
+
+/**
+ * Flourish names: the item is "Item Name", the state tag sits in "Metrc Tag" (or the state system's name),
+ * the batch is the "Lot", and packages live in "Areas". Its "Location" is a place in the building, not a store.
+ */
+const FLOURISH_ALIASES: Partial<Record<DutchieField, string[]>> = {
+  product: ["item name", "item", "product name", "product"],
+  tag: ["package id", "package", "package number"],
+  externalTag: ["metrc tag", "metrc tag number", "tag number", "external id", "external package id", "state tag", "biotrack id", "nms2s id", "nms2s tag"],
+  batch: ["lot", "lot number", "lot batch", "lot batch number", "batch", "batch number"],
+  room: ["area", "area name", "location", "sub area", "sublocation"],
+  store: ["facility", "facility name", "license"],
+  quantity: ["quantity", "qty", "qty on hand", "quantity on hand", "available qty", "available quantity", "available", "on hand"],
+  grams: ["total weight", "total grams", "grams"],
+};
+
+const aliasesFor = (source: Source): Record<DutchieField, string[]> => (source === "flourish" ? { ...ALIASES, ...FLOURISH_ALIASES } : ALIASES);
 
 export const FIELD_LABEL: Record<DutchieField, string> = {
   product: "Product name",
@@ -61,6 +85,7 @@ export const FIELD_LABEL: Record<DutchieField, string> = {
   quantity: "Quantity",
   grams: "Grams",
   unit: "Unit",
+  unitWeight: "Unit weight",
   cost: "Cost",
   vendor: "Vendor",
   thc: "THC %",
@@ -76,12 +101,13 @@ const norm = (s: string) =>
     .replace(/\s+/g, " ");
 
 /** Which column holds each field. Exact alias matches win over partial ones; each column is used once. */
-export function matchColumns(header: string[]): Partial<Record<DutchieField, number>> {
+export function matchColumns(header: string[], source: Source = "dutchie"): Partial<Record<DutchieField, number>> {
+  const aliases = aliasesFor(source);
   const cols = header.map(norm);
   const used = new Set<number>();
   const out: Partial<Record<DutchieField, number>> = {};
-  for (const field of Object.keys(ALIASES) as DutchieField[]) {
-    for (const alias of ALIASES[field]) {
+  for (const field of Object.keys(aliases) as DutchieField[]) {
+    for (const alias of aliases[field]) {
       const at = cols.findIndex((c, i) => !used.has(i) && c === alias);
       if (at >= 0) {
         out[field] = at;
@@ -94,9 +120,9 @@ export function matchColumns(header: string[]): Partial<Record<DutchieField, num
 }
 
 /** Reports often start with a title or date line; the header is the first row naming at least three fields. */
-export function findHeader(table: string[][]): number {
+export function findHeader(table: string[][], source: Source = "dutchie"): number {
   for (let i = 0; i < Math.min(table.length, 15); i++) {
-    if (Object.keys(matchColumns(table[i])).length >= 3) return i;
+    if (Object.keys(matchColumns(table[i], source)).length >= 3) return i;
   }
   return -1;
 }
@@ -116,6 +142,11 @@ const UNIT_WORDS: Record<string, UnitCode> = {
   lb: "LB",
   lbs: "LB",
   pound: "LB",
+  pounds: "LB",
+  kilogram: "KG",
+  kilograms: "KG",
+  milliliter: "ML",
+  milliliters: "ML",
   ml: "ML",
   l: "L",
   ea: "EACH",
@@ -186,9 +217,22 @@ const BULK_WORDS = /\b(bulk|shake|trim|smalls|popcorn|loose|by the gram)\b/i;
  * grams equal to quantity means it's tracked by the gram; otherwise each unit weighs grams ÷ quantity.
  * With none of these, the product is counted each.
  */
-export function unitFor(unitCell: string | undefined, quantity: Decimal, grams: Decimal | null, productName = ""): { unit: UnitCode; unitWeightGrams: string | null } {
+export function unitFor(
+  unitCell: string | undefined,
+  quantity: Decimal,
+  grams: Decimal | null,
+  productName = "",
+  /** Grams in one unit, when the export says so (Flourish's Unit Weight for items counted each). */
+  unitWeight: Decimal | null = null,
+): { unit: UnitCode; unitWeightGrams: string | null } {
   const word = norm(unitCell ?? "");
-  if (word && UNIT_WORDS[word]) return { unit: UNIT_WORDS[word], unitWeightGrams: null };
+  const named = word ? UNIT_WORDS[word] : undefined;
+  if (named === "EACH") {
+    const each = unitWeight && unitWeight.gt(0) ? unitWeight : BULK_WORDS.test(productName) ? null : sizeInName(productName);
+    return { unit: "EACH", unitWeightGrams: each ? each.toString() : grams && grams.gt(0) && quantity.gt(0) ? grams.div(quantity).toDecimalPlaces(4).toString() : null };
+  }
+  if (named) return { unit: named, unitWeightGrams: null };
+  if (unitWeight && unitWeight.gt(0)) return { unit: "EACH", unitWeightGrams: unitWeight.toString() };
   const size = BULK_WORDS.test(productName) ? null : sizeInName(productName);
   if (size) return { unit: "EACH", unitWeightGrams: size.toString() };
   if (grams && grams.gt(0)) {
@@ -198,25 +242,36 @@ export function unitFor(unitCell: string | undefined, quantity: Decimal, grams: 
   return { unit: "EACH", unitWeightGrams: null };
 }
 
-export const IMPORT_ROOM = "Imported from Dutchie";
+export const importRoom = (source: Source) => `Imported from ${SOURCE_NAME[source]}`;
+/** Kept for the Dutchie tests and callers. */
+export const IMPORT_ROOM = importRoom("dutchie");
 export const MAX_DUTCHIE_ROWS = 5000;
 
 export function planDutchie(table: string[][]): Plan {
+  return planImport("dutchie", table);
+}
+
+export function planImport(source: Source, table: string[][]): Plan {
+  const IMPORT_ROOM = importRoom(source);
   const problems: string[] = [];
   const warnings: string[] = [];
-  const at = findHeader(table);
+  const at = findHeader(table, source);
   if (at < 0) {
     return {
       matched: {},
       rows: [],
-      problems: ["This doesn't look like a Dutchie inventory report: no row names columns like Product Name, Package ID, and Quantity."],
+      problems: [
+        source === "flourish"
+          ? "This doesn't look like a Flourish package export: no row names columns like Item Name, Package ID, and Quantity."
+          : "This doesn't look like a Dutchie inventory report: no row names columns like Product Name, Package ID, and Quantity.",
+      ],
       warnings,
     };
   }
   const header = table[at];
-  const cols = matchColumns(header);
+  const cols = matchColumns(header, source);
   const matched = Object.fromEntries(Object.entries(cols).map(([f, i]) => [f, header[i as number]])) as Plan["matched"];
-  if (cols.product === undefined) problems.push("The report has no Product Name column.");
+  if (cols.product === undefined) problems.push(`The report has no ${source === "flourish" ? "Item Name" : "Product Name"} column.`);
   if (cols.quantity === undefined) problems.push("The report has no Quantity column.");
   if (problems.length) return { matched, rows: [], problems, warnings };
 
@@ -242,7 +297,9 @@ export function planDutchie(table: string[][]): Plan {
     if (quantity.lte(0)) return void skippedEmpty++;
     const store = get(cells, "store");
     if (store) stores.add(store);
-    const { unit, unitWeightGrams } = unitFor(get(cells, "unit"), quantity, num(get(cells, "grams")), product);
+    // "Empty 3.5g Jar" is packaging, not 3.5 g of product: only cannabis items get a weight from their name.
+    const supply = /packag|suppl|accessor|merch|hardware|batter|apparel/i.test(get(cells, "category"));
+    const { unit, unitWeightGrams } = unitFor(get(cells, "unit"), quantity, num(get(cells, "grams")), supply ? "" : product, num(get(cells, "unitWeight")));
     const thc = num(get(cells, "thc"));
     const cbd = num(get(cells, "cbd"));
     if (thc || cbd) pendingLab++;

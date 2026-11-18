@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SWITCH_HREF } from "@/components/switch-systems";
+import { DUTCHIE_HREF, FLOURISH_HREF } from "@/components/switch-systems";
 import { ActionForm } from "@/components/action-form";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { renameBusinessAction } from "./actions";
@@ -43,14 +43,20 @@ export default async function SettingsPage() {
             <Card
               title="Switching from another system?"
               action={
-                <Link href={SWITCH_HREF} className="text-sm font-semibold text-brand-700 hover:underline">
-                  Switch from Dutchie
-                </Link>
+                <span className="flex gap-4">
+                  <Link href={DUTCHIE_HREF} className="text-sm font-semibold text-brand-700 hover:underline">
+                    Switch from Dutchie
+                  </Link>
+                  <Link href={FLOURISH_HREF} className="text-sm font-semibold text-brand-700 hover:underline">
+                    Switch from Flourish
+                  </Link>
+                </span>
               }
             >
               <p className="text-sm text-slate-700">
-                Bring your products, rooms, and packages over from Dutchie: export your Current Inventory report in Dutchie Backoffice, upload it, check what will come in,
-                then import it in one step. Your state tags and batches come with it. Other systems can use the spreadsheet imports on{" "}
+                Bring your products, rooms, and packages over from Dutchie or Flourish: export your inventory (Dutchie: Reports → Current Inventory; Flourish: Inventory → All
+                Packages), upload it, check what will come in, then import it in one step. Your state tags and batches come with it. Other systems can use the spreadsheet
+                imports on{" "}
                 <Link href="/data" className="font-semibold text-brand-700 hover:underline">
                   Import and export
                 </Link>

@@ -5,8 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { facilities, itemCategories, items, labResults, locations, organizations, packages, users } from "@/db/schema";
 import { parseCsv } from "@/lib/csv";
 import { db, pool } from "@/lib/db";
-import { planDutchie, unitFor, findHeader, sizeInName } from "@/lib/importers/dutchie-parse";
-import { importDutchie, previewDutchie, readReport } from "@/lib/importers/dutchie";
+import { planDutchie, planImport, unitFor, findHeader, sizeInName } from "@/lib/importers/dutchie-parse";
+import { importDutchie, importInventory, previewDutchie, readReport } from "@/lib/importers/dutchie";
 import type { Actor } from "@/lib/inventory";
 import Decimal from "decimal.js";
 
@@ -60,6 +60,27 @@ describe("reading a Dutchie inventory report", () => {
   });
 });
 
+const flourish = () => parseCsv(readFileSync("tests/fixtures/flourish-all-packages.csv", "utf8"));
+
+describe("reading a Flourish package export", () => {
+  it("maps Flourish's columns: Item Name, Metrc Tag over Package ID, Lot, Area, UOM, and Unit Weight", () => {
+    const plan = planImport("flourish", flourish());
+    expect(plan.problems).toEqual([]);
+    expect(plan.matched).toMatchObject({ product: "Item Name", tag: "Package ID", externalTag: "Metrc Tag", batch: "Lot", room: "Area", quantity: "Quantity", unit: "UOM", unitWeight: "Unit Weight" });
+    expect(plan.rows).toHaveLength(5); // the empty package is left out
+    expect(plan.rows[0]).toMatchObject({ product: "Blue Dream 3.5g Jar", tag: "NM0000000000000000000201", lot: "BD-1104", room: "Finished Goods Vault", unit: "EACH", unitWeightGrams: "3.5", cost: "12.5" });
+    expect(plan.rows[2]).toMatchObject({ product: "Blue Dream Bulk Flower", unit: "G", quantity: "2268" });
+    expect(plan.rows[3]).toMatchObject({ tag: "20261020-007", unit: "EACH", unitWeightGrams: null });
+  });
+  it("doesn't give packaging a product weight from its name", () => {
+    const row = planImport("flourish", flourish()).rows.find((r) => r.product === "Empty 3.5g Jar")!;
+    expect(row).toMatchObject({ unit: "EACH", unitWeightGrams: null });
+  });
+  it("says plainly when a file isn't a Flourish export", () => {
+    expect(planImport("flourish", [["Date", "Sales"]]).problems[0]).toMatch(/Flourish package export/);
+  });
+});
+
 describe.skipIf(!hasDb)("importing a Dutchie report (database)", () => {
   let actor: Actor;
   beforeAll(async () => {
@@ -92,6 +113,15 @@ describe.skipIf(!hasDb)("importing a Dutchie report (database)", () => {
     const labs = await db.select().from(labResults).where(eq(labResults.orgId, actor.orgId));
     expect(labs).toHaveLength(3);
     expect(labs.every((l) => l.status === "PENDING" && l.thcPercent === "24.100")).toBe(true);
+  });
+
+  it("imports a Flourish export too, labelled as coming from Flourish", async () => {
+    const result = await importInventory("flourish", actor, flourish());
+    expect(result).toMatchObject({ packages: 5, rooms: { created: 3 } });
+    const [jar] = await db.select().from(packages).where(and(eq(packages.orgId, actor.orgId), eq(packages.tag, "NM0000000000000000000201")));
+    expect(jar).toMatchObject({ lotNumber: "BD-1104", quantity: "120.0000", unit: "EACH" });
+    const [room] = await db.select().from(locations).where(and(eq(locations.facilityId, actor.facilityId), eq(locations.name, "Dry Room")));
+    expect(room).toBeTruthy();
   });
 
   it("saves nothing when a package is already in CannaTrace", async () => {
