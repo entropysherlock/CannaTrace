@@ -22,7 +22,10 @@ export function ActionForm({
 
   // Clear the form only after a success, so nobody has to retype after an error.
   useEffect(() => {
-    if (state?.ok) formRef.current?.reset();
+    if (!state?.ok) return;
+    formRef.current?.reset();
+    // Lets a "Show me how" walkthrough move on once the step's form has saved.
+    window.dispatchEvent(new CustomEvent("ct:form-saved", { detail: formRef.current }));
   }, [state]);
 
   return (
