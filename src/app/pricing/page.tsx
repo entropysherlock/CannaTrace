@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { CONTACT_EMAILS, mailto } from "@/lib/contact";
+import { liveDemoOn } from "@/lib/access";
 import { FEATURES, FOUNDING, PRICES, facilitiesLabel, usd } from "@/lib/pricing";
 
 export const metadata: Metadata = {
@@ -136,9 +137,11 @@ export default function PricingPage() {
             <a href={DEMO_LINK} className="inline-flex min-h-11 items-center rounded-lg bg-white px-5 text-sm font-bold text-brand-900 hover:bg-brand-50">
               Book a demo
             </a>
-            <Link href="/demo" prefetch={false} className="inline-flex min-h-11 items-center rounded-lg border border-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-900">
-              Try the live demo
-            </Link>
+            {liveDemoOn() ? (
+              <Link href="/demo" prefetch={false} className="inline-flex min-h-11 items-center rounded-lg border border-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-900">
+                Try the live demo
+              </Link>
+            ) : null}
           </div>
           <p className="mt-6 text-sm text-brand-200">
             Or email{" "}

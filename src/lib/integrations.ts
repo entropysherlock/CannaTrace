@@ -1,8 +1,9 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { canSignIn, openAccess } from "./access";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { and, asc, eq, isNull, lte, sql } from "drizzle-orm";
-import { apiKeys, webhookDeliveries, webhooks, type ApiKey, type Webhook } from "@/db/schema";
+import { apiKeys, users, webhookDeliveries, webhooks, type ApiKey, type Webhook } from "@/db/schema";
 import { db, type Tx } from "./db";
 import { InventoryError } from "./inventory-math";
 import { nextRetryAt } from "./sync-math";
@@ -45,6 +46,11 @@ export async function authenticateApiKey(header: string | null): Promise<ApiKey 
   const digest = hashKey(match[1]);
   const [key] = await db.select().from(apiKeys).where(and(eq(apiKeys.keyHash, digest), isNull(apiKeys.revokedAt)));
   if (!key || !timingSafeEqual(Buffer.from(key.keyHash), Buffer.from(digest))) return null;
+  // Invite-only: keys made by businesses outside the list stop working too.
+  if (!openAccess()) {
+    const members = await db.select({ email: users.email }).from(users).where(and(eq(users.orgId, key.orgId), eq(users.active, true)));
+    if (!members.some((m) => canSignIn(m.email))) return null;
+  }
   // Record use at most once a minute to avoid a write on every call.
   if (!key.lastUsedAt || Date.now() - key.lastUsedAt.getTime() > 60_000) {
     await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, key.id));
