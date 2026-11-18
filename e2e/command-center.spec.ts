@@ -19,10 +19,14 @@ test("the Command Center shows the business at a glance, for one facility or all
   await expect(page.getByTestId("compliance-status")).toContainText("Audit trail");
   await expect(page.getByTestId("tally-dock")).toContainText("here's your operations summary");
 
-  // The menu: Operations, Tools, Intelligence, Admin
+  // The menu: Operations, Tools (with Walkthroughs), Admin. Tally Watch is reached from the bell, not the menu.
   const nav = page.getByRole("navigation").filter({ visible: true }).first();
-  for (const heading of ["Operations", "Tools", "Intelligence", "Admin"]) await expect(nav.getByText(heading, { exact: true })).toBeVisible();
-  for (const link of ["Tally Watch", "Walkthroughs", "SmartLabel AI", "Settings"]) await expect(nav.getByRole("link", { name: link })).toBeVisible();
+  for (const heading of ["Operations", "Tools", "Admin"]) await expect(nav.getByText(heading, { exact: true })).toBeVisible();
+  await expect(nav.getByText("Intelligence", { exact: true })).toHaveCount(0);
+  for (const link of ["Walkthroughs", "SmartLabel AI", "Settings"]) await expect(nav.getByRole("link", { name: link })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Tally Watch" })).toHaveCount(0);
+  // Password and sign out live in the account menu, not the bottom of the sidebar
+  await expect(page.locator("aside").getByRole("button", { name: "Sign out" })).toHaveCount(0);
 
   // All facilities, then the last 7 days
   await page.getByTestId("dash-scope").selectOption("all");
@@ -57,4 +61,18 @@ test("the top bar searches the business, rings the Tally Watch bell, and opens w
   // The account menu has sign out
   await page.getByLabel("Your account").click();
   await expect(page.getByRole("link", { name: "Change password" })).toBeVisible();
+});
+
+test("the young-plants tile opens the batch list, and the inventory list scrolls in its own box", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/cultivation");
+  await page.getByRole("link", { name: /Untagged young plants/ }).click();
+  await expect(page).toHaveURL(/\/cultivation#batches$/);
+  await expect(page.locator("#batches").getByRole("heading", { name: "Plant batches" })).toBeInViewport();
+
+  await page.goto("/inventory");
+  const box = page.getByRole("region", { name: "Packages" });
+  await expect(box).toBeVisible();
+  // Taller than the box: it scrolls inside, the page stays put
+  expect(await box.evaluate((el) => el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY === "auto")).toBe(true);
 });

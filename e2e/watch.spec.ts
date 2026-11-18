@@ -7,8 +7,8 @@ test("Tally Watch matches against a state report, fixes a difference after one C
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/dashboard/);
 
-  // Tally Watch has its own page in the side menu, under Intelligence
-  await page.getByRole("link", { name: "Tally Watch" }).filter({ visible: true }).first().click();
+  // Tally Watch has its own page, opened from the bell at the top
+  await page.getByTestId("top-alerts").click();
   await expect(page).toHaveURL(/\/watch$/);
   await expect(page.getByRole("heading", { name: /^Tally Watch/ }).first()).toBeVisible();
   await page.getByText("Match against the state system").click();

@@ -88,11 +88,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             ["/audit", "Audit trail", can(session, "audit.view")],
           ]),
         ),
+        // Tally Watch has no menu entry: it's one click away from the bell at the top and the dashboard.
+        { key: "walkthroughs", label: "Walkthroughs", href: "/walkthroughs" },
       ].filter((x): x is NavItem => Boolean(x)),
-    },
-    {
-      heading: "Intelligence",
-      items: [{ key: "watch", label: "Tally Watch", href: "/watch" }, { key: "walkthroughs", label: "Walkthroughs", href: "/walkthroughs" }],
     },
     {
       heading: "Admin",
@@ -123,19 +121,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="-mx-1 flex-1 overflow-y-auto px-1">
           <SideNav groups={groups} />
         </div>
+        {/* Password and sign out live in the account menu at the top right. */}
         <div className="mt-4 border-t border-brand-800 px-2 pt-4 text-sm">
           <p className="font-medium">{session.name}</p>
           <p className="text-brand-200">{session.roleName}</p>
-          <div className="mt-2 flex gap-4">
-            <Link href="/account" className="font-medium text-brand-200 hover:text-white hover:underline">
-              Password
-            </Link>
-            <form action={signOut}>
-              <button type="submit" className="font-medium text-brand-200 hover:text-white hover:underline">
-                Sign out
-              </button>
-            </form>
-          </div>
         </div>
       </aside>
 

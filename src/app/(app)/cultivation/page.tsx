@@ -67,7 +67,8 @@ export default async function CultivationPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   const tiles = [
-    { label: "Untagged young plants", value: immature.count, href: "/cultivation" },
+    // Young plants are counted in their batches: the tile jumps to the batch list below.
+    { label: "Untagged young plants", value: immature.count, href: "/cultivation#batches" },
     { label: "Vegetative", value: countOf("VEGETATIVE"), href: "/cultivation/plants?phase=VEGETATIVE" },
     { label: "Flowering", value: countOf("FLOWERING"), href: "/cultivation/plants?phase=FLOWERING" },
     { label: "Harvests drying", value: drying, href: "/cultivation/harvests" },
@@ -88,6 +89,7 @@ export default async function CultivationPage() {
 
       {/* Each list sits beside the form that adds to it, so the two columns stay even. */}
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <div id="batches" className="scroll-mt-24">
         <Card title="Plant batches" className={canWrite ? "h-full" : undefined}>
           {batches.length === 0 ? (
             <p className="text-sm text-slate-600">No batches yet. Start one with clones or seeds.</p>
@@ -113,6 +115,7 @@ export default async function CultivationPage() {
             </ScrollBox>
           )}
         </Card>
+        </div>
         {canWrite ? (
           <Card title="Start a batch" className="h-full">
             {strainRows.length === 0 ? (
