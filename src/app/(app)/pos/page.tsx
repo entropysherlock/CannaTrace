@@ -10,7 +10,7 @@ import { requirePagePermission } from "@/lib/session";
 import { shellInfo } from "./shell-info";
 import { facilityToday } from "@/lib/time";
 
-const time = (d: Date) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const time = (d: Date, timeZone: string) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone });
 
 export default async function RegisterPage() {
   const session = await requirePagePermission("pos.use");
@@ -43,12 +43,12 @@ export default async function RegisterPage() {
     dailyLimits: settings.dailyLimits,
     heldCarts: rows
       .filter((s) => s.status === "OPEN")
-      .map((s) => ({ id: s.id, number: s.number, items: s.lineCount, clerk: s.userName.split(" ")[0], since: time(s.createdAt) })),
+      .map((s) => ({ id: s.id, number: s.number, items: s.lineCount, clerk: s.userName.split(" ")[0], since: time(s.createdAt, info.timeZone) })),
     shift: info.drawerId ? { sales: done.length, total: done.reduce((sum, s) => sum + Number(s.total ?? 0), 0).toFixed(2) } : null,
     recent: rows
       .filter((s) => s.status !== "OPEN")
       .slice(0, 8)
-      .map((s) => ({ id: s.id, number: s.number, status: s.status, total: s.total, time: time(s.completedAt ?? s.createdAt) })),
+      .map((s) => ({ id: s.id, number: s.number, status: s.status, total: s.total, time: time(s.completedAt ?? s.createdAt, info.timeZone) })),
   };
   return (
     <RegisterShell info={info}>
