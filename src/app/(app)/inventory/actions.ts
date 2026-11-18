@@ -19,6 +19,7 @@ import {
   setPackageStatus,
   splitPackage,
   type Actor,
+  LAB_PROFILE,
 } from "@/lib/inventory";
 import { requirePermission, type Session } from "@/lib/session";
 
@@ -177,6 +178,8 @@ export async function labResultAction(_state: FormState, formData: FormData): Pr
       sampleDate: field(formData, "sampleDate"),
       thcPercent: field(formData, "thcPercent"),
       cbdPercent: field(formData, "cbdPercent"),
+      profile: Object.fromEntries(LAB_PROFILE.map(({ key }) => [key, field(formData, key)])),
+      terpenes: field(formData, "terpenes"),
       notes: field(formData, "notes"),
       coa,
     });

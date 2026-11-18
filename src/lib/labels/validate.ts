@@ -76,6 +76,8 @@ export function checkRecord(design: LabelDesign, kind: LabelKind, record: LabelR
       if (seen.has(key)) continue;
       seen.add(key);
       const def = fieldDef(key);
+      // Optional fields are blank on purpose when they don't apply (no allergens, nothing to refrigerate).
+      if (def?.optional) continue;
       const critical = CRITICAL_FIELDS.has(key);
       const labMsg = key.startsWith("lab.") && v["_lab.status"] !== "PASS" ? " There is no passed lab result for it, and CannaTrace never prints potency from an unpassed test." : "";
       issues.push({
@@ -140,7 +142,13 @@ export function checkRecord(design: LabelDesign, kind: LabelKind, record: LabelR
 }
 
 /** Checks the design against a state's verified label rules. */
-export function checkJurisdiction(design: LabelDesign, kind: LabelKind, state: string | null | undefined): { issues: LabelIssue[]; pack: LabelRulePack | null; checked: number; manual: number } {
+export function checkJurisdiction(
+  design: LabelDesign,
+  kind: LabelKind,
+  state: string | null | undefined,
+  /** The records being printed. Without them (designing a template), rules that depend on the product are checked at print time. */
+  records?: LabelRecord[],
+): { issues: LabelIssue[]; pack: LabelRulePack | null; checked: number; manual: number } {
   const issues: LabelIssue[] = [];
   if (!state) {
     issues.push({ code: "NO_STATE", severity: "info", category: "JURISDICTION", message: "This template isn't tied to a state, so no state label rules were checked." });
@@ -167,9 +175,64 @@ export function checkJurisdiction(design: LabelDesign, kind: LabelKind, state: s
       issues.push({ ...base, code: `RULE_${rule.id}`, severity: "info", message: `Confirm by hand: ${rule.title}.` });
       continue;
     }
+    // Elements showing the field, or every field of one alternative set.
+    const showing = (field: string, alternatives?: string[][]) => {
+      const direct = elementsShowing(design.elements, field);
+      if (direct.length) return direct;
+      for (const set of alternatives ?? []) {
+        const parts = set.map((f) => elementsShowing(design.elements, f));
+        if (parts.every((p) => p.length > 0)) return parts.flat();
+      }
+      return [];
+    };
+    if (c.type === "fieldIfPresent") {
+      if (!records) {
+        manual++;
+        issues.push({ ...base, code: `RULE_${rule.id}`, severity: "info", message: `Checked when you print: ${rule.title}.` });
+        continue;
+      }
+      checked++;
+      const needing = records.filter((r) => r.values[c.field]);
+      if (needing.length === 0) continue;
+      const els = showing(c.field, c.alternatives);
+      const who = `${needing
+        .slice(0, 3)
+        .map((r) => r.ref)
+        .join(", ")}${needing.length > 3 ? ` and ${needing.length - 3} more` : ""}`;
+      if (els.length === 0) {
+        if (rule.qrAllowed && design.elements.some((el) => el.type === "qr")) {
+          issues.push({
+            ...base,
+            code: `RULE_${rule.id}`,
+            severity: "info",
+            message: `${rule.title} isn't printed for ${who}. It may be on the page your QR code opens; CannaTrace can't check that page.`,
+          });
+        } else {
+          issues.push({
+            ...base,
+            code: `RULE_${rule.id}`,
+            severity: "block",
+            message: `Missing for ${who}: ${rule.title}.`,
+            fix: `Add a text element showing {{${c.field}}}, or use a template made for this kind of product.`,
+          });
+        }
+      } else if (c.bold && !els.some((el) => el.type === "text" && el.bold)) {
+        issues.push({
+          ...base,
+          code: `RULE_${rule.id}_BOLD`,
+          severity: "block",
+          elementId: els[0].id,
+          message: `${rule.title}: it must be bold.`,
+          fix: "Turn on bold for that text.",
+        });
+      }
+      continue;
+    }
     checked++;
     if (c.type === "field") {
-      const els = elementsShowing(design.elements, c.field);
+      const typed = c.orText && allText.some((el) => normalizeWords(el.text ?? "").includes(normalizeWords(c.orText!)));
+      if (typed) continue;
+      const els = showing(c.field, c.alternatives);
       if (els.length === 0) {
         if (rule.qrAllowed && hasQr) {
           manual++;
@@ -218,7 +281,7 @@ export function checkJurisdiction(design: LabelDesign, kind: LabelKind, state: s
 /** Run every check. Printing is allowed only when nothing is blocking. */
 export function validateLabels(design: LabelDesign, kind: LabelKind, state: string | null | undefined, records: LabelRecord[]): ValidationResult {
   const design1 = checkDesign(design, kind);
-  const juris = checkJurisdiction(design, kind, state);
+  const juris = checkJurisdiction(design, kind, state, records);
   const perRecord = records.flatMap((r) => checkRecord(design, kind, r));
   const issues = [...design1, ...perRecord, ...juris.issues];
   return { issues, blocked: issues.some((i) => i.severity === "block"), pack: juris.pack, checkedRules: juris.checked, manualRules: juris.manual };

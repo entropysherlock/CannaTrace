@@ -439,6 +439,22 @@ export const items = pgTable(
     // grams for FLOWER and CONCENTRATE, milligrams of THC for EDIBLE.
     limitCategory: limitCategoryEnum("limit_category").notNull().default("NONE"),
     limitPerUnit: qty("limit_per_unit"),
+    // Label details. Product labels pull these in; nothing is typed at print time.
+    /** Weight of one unit in grams, for items counted "each" (a 1 g pre-roll, a 100 g gummy tin). */
+    unitWeightGrams: qty("unit_weight_grams"),
+    /** Edibles and other dosed products: servings in one unit, and mg per serving from the product's formulation. */
+    servingsPerUnit: integer("servings_per_unit"),
+    thcMgPerServing: numeric("thc_mg_per_serving", { precision: 10, scale: 3 }),
+    cbdMgPerServing: numeric("cbd_mg_per_serving", { precision: 10, scale: 3 }),
+    /** Intended use and directions for use (16.8.3.9(D) NMAC). */
+    directions: text("directions"),
+    ingredients: text("ingredients"),
+    allergens: text("allergens"),
+    pesticides: text("pesticides"),
+    solvents: text("solvents"),
+    mustRefrigerate: boolean("must_refrigerate").notNull().default(false),
+    /** Days from the date packaged to the expiration date printed on labels. */
+    shelfLifeDays: integer("shelf_life_days"),
   },
   (t) => [uniqueIndex("items_org_sku_key").on(t.orgId, t.sku)],
 );
@@ -553,8 +569,19 @@ export const labResults = pgTable(
     labName: text("lab_name").notNull(),
     sampleDate: text("sample_date"),
     status: labStatusEnum("status").notNull(),
+    /** Total THC % (THCa × 0.877 + Δ9-THC). */
     thcPercent: numeric("thc_percent", { precision: 6, scale: 3 }),
     cbdPercent: numeric("cbd_percent", { precision: 6, scale: 3 }),
+    // The rest of the cannabinoid profile from the certificate of analysis. All optional.
+    thcaPercent: numeric("thca_percent", { precision: 6, scale: 3 }),
+    d9ThcPercent: numeric("d9_thc_percent", { precision: 6, scale: 3 }),
+    cbdaPercent: numeric("cbda_percent", { precision: 6, scale: 3 }),
+    totalCbdPercent: numeric("total_cbd_percent", { precision: 6, scale: 3 }),
+    cbgPercent: numeric("cbg_percent", { precision: 6, scale: 3 }),
+    cbnPercent: numeric("cbn_percent", { precision: 6, scale: 3 }),
+    totalCannabinoidsPercent: numeric("total_cannabinoids_percent", { precision: 6, scale: 3 }),
+    /** Top terpenes as the lab reports them, for example "Myrcene 0.82%, Limonene 0.41%". */
+    terpenes: text("terpenes"),
     notes: text("notes"),
     coaFileName: text("coa_file_name"),
     coaMimeType: text("coa_mime_type"),

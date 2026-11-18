@@ -20,7 +20,8 @@ import {
   users as usersTable,
 } from "@/db/schema";
 import { db } from "@/lib/db";
-import { ADJUST_REASONS, reasonLabel } from "@/lib/inventory";
+import { ADJUST_REASONS, LAB_PROFILE, reasonLabel } from "@/lib/inventory";
+import { profileLine } from "@/lib/labels/quantities";
 import { can } from "@/lib/rbac";
 import { packFor, wasteRule } from "@/lib/rules";
 import { requirePagePermission } from "@/lib/session";
@@ -44,6 +45,26 @@ const LAB_STYLES: Record<string, string> = {
   FAIL: "text-red-700",
   PENDING: "text-amber-700",
 };
+
+type LabProfileRow = {
+  thcaPercent: string | null;
+  d9ThcPercent: string | null;
+  cbdaPercent: string | null;
+  totalCbdPercent: string | null;
+  cbgPercent: string | null;
+  cbnPercent: string | null;
+  totalCannabinoidsPercent: string | null;
+};
+const labProfile = (lab: LabProfileRow) =>
+  profileLine([
+    ["THCa", lab.thcaPercent],
+    ["Δ9-THC", lab.d9ThcPercent],
+    ["CBDa", lab.cbdaPercent],
+    ["Total CBD", lab.totalCbdPercent],
+    ["CBG", lab.cbgPercent],
+    ["CBN", lab.cbnPercent],
+    ["Total cannabinoids", lab.totalCannabinoidsPercent],
+  ]);
 
 export default async function PackagePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("inventory.view");
@@ -106,6 +127,14 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
         sampleDate: labResults.sampleDate,
         thcPercent: labResults.thcPercent,
         cbdPercent: labResults.cbdPercent,
+        thcaPercent: labResults.thcaPercent,
+        d9ThcPercent: labResults.d9ThcPercent,
+        cbdaPercent: labResults.cbdaPercent,
+        totalCbdPercent: labResults.totalCbdPercent,
+        cbgPercent: labResults.cbgPercent,
+        cbnPercent: labResults.cbnPercent,
+        totalCannabinoidsPercent: labResults.totalCannabinoidsPercent,
+        terpenes: labResults.terpenes,
         notes: labResults.notes,
         coaFileName: labResults.coaFileName,
         createdAt: labResults.createdAt,
@@ -336,13 +365,31 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                   </select>
                 </Field>
                 <div className="grid grid-cols-2 gap-2">
-                  <Field label="THC %">
+                  <Field label="Total THC %">
                     <input name="thcPercent" inputMode="decimal" className={inputClass} />
                   </Field>
                   <Field label="CBD %">
                     <input name="cbdPercent" inputMode="decimal" className={inputClass} />
                   </Field>
                 </div>
+                <details className="rounded-lg border border-slate-200 px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-semibold text-brand-700">Full cannabinoid profile and terpenes (optional)</summary>
+                  <p className="mt-2 text-xs text-slate-600">
+                    Copy these from the certificate of analysis. Anything filled in here can be printed on labels once the result passes.
+                  </p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {LAB_PROFILE.map(({ key, label }) => (
+                      <Field key={key} label={label}>
+                        <input name={key} inputMode="decimal" className={inputClass} />
+                      </Field>
+                    ))}
+                  </div>
+                  <div className="mt-2">
+                    <Field label="Top terpenes" hint='As the lab reports them, for example "Myrcene 0.82%, Limonene 0.41%".'>
+                      <input name="terpenes" maxLength={300} className={inputClass} />
+                    </Field>
+                  </div>
+                </details>
                 <Field label="Sample date">
                   <input name="sampleDate" type="date" className={inputClass} />
                 </Field>
@@ -378,6 +425,12 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                       {lab.cbdPercent ? `CBD ${num(lab.cbdPercent)}%` : "CBD not recorded"}
                       {lab.notes ? ` · ${lab.notes}` : ""}
                     </p>
+                    {labProfile(lab) ? (
+                      <p className="text-xs text-slate-600" data-testid="lab-profile">
+                        {labProfile(lab)}
+                      </p>
+                    ) : null}
+                    {lab.terpenes ? <p className="text-xs text-slate-600">Terpenes: {lab.terpenes}</p> : null}
                     {lab.coaFileName ? (
                       <a href={`/api/coa/${lab.id}`} target="_blank" rel="noreferrer" className="font-semibold text-brand-700 hover:underline">
                         View COA ({lab.coaFileName})

@@ -848,6 +848,18 @@ export async function recordCycleCount(
   });
 }
 
+/** The optional cannabinoid profile on a lab result, in the order a certificate of analysis lists it. */
+export const LAB_PROFILE = [
+  { key: "thcaPercent", label: "THCa %" },
+  { key: "d9ThcPercent", label: "Δ9-THC %" },
+  { key: "cbdaPercent", label: "CBDa %" },
+  { key: "totalCbdPercent", label: "Total CBD %" },
+  { key: "cbgPercent", label: "CBG %" },
+  { key: "cbnPercent", label: "CBN %" },
+  { key: "totalCannabinoidsPercent", label: "Total cannabinoids %" },
+] as const;
+export type LabProfileKey = (typeof LAB_PROFILE)[number]["key"];
+
 const COA_TYPES = ["application/pdf", "image/png", "image/jpeg"];
 export const COA_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -874,6 +886,9 @@ export async function addLabResult(
     sampleDate?: string | null;
     thcPercent?: unknown;
     cbdPercent?: unknown;
+    /** The rest of the cannabinoid profile, all optional. */
+    profile?: Partial<Record<LabProfileKey, unknown>>;
+    terpenes?: string | null;
     notes?: string | null;
     coa?: { name: string; type: string; data: Buffer } | null;
   },
@@ -886,6 +901,11 @@ export async function addLabResult(
   if (sampleDate && !/^\d{4}-\d{2}-\d{2}$/.test(sampleDate)) throw new InventoryError("Sample date must be a valid date.");
   const thcPercent = parsePercent(input.thcPercent, "THC %");
   const cbdPercent = parsePercent(input.cbdPercent, "CBD %");
+  const profile = Object.fromEntries(LAB_PROFILE.map(({ key, label }) => [key, parsePercent(input.profile?.[key], label)])) as Record<
+    LabProfileKey,
+    string | null
+  >;
+  const terpenes = input.terpenes?.trim().slice(0, 300) || null;
   const coa = input.coa ?? null;
   if (coa) {
     if (!COA_TYPES.includes(coa.type)) throw new InventoryError("The COA must be a PDF, PNG, or JPEG file.");
@@ -905,6 +925,8 @@ export async function addLabResult(
         status,
         thcPercent,
         cbdPercent,
+        ...profile,
+        terpenes,
         notes: input.notes?.trim() || null,
         coaFileName: coa?.name.slice(0, 200) ?? null,
         coaMimeType: coa?.type ?? null,
@@ -917,7 +939,7 @@ export async function addLabResult(
       entityType: "Package",
       entityId: pkg.id,
       action: "LAB_RESULT",
-      after: { labName, status, thcPercent, cbdPercent, sampleDate, coaFileName: coa?.name ?? null },
+      after: { labName, status, thcPercent, cbdPercent, ...profile, terpenes, sampleDate, coaFileName: coa?.name ?? null },
     });
     let quarantined = false;
     if (status === "FAIL" && (pkg.status === "ACTIVE" || pkg.status === "ON_HOLD")) {

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auditLogs, itemCategories, items, locations, unitEnum, locationTypeEnum } from "@/db/schema";
 import { db } from "@/lib/db";
 import { field, toFormError, type FormState } from "@/lib/form";
+import { saveItemDetails } from "@/lib/item-details";
 import { requirePermission } from "@/lib/session";
 
 export async function addCategory(_state: FormState, formData: FormData): Promise<FormState> {
@@ -118,6 +119,31 @@ export async function addLocation(_state: FormState, formData: FormData): Promis
     if (!created) return { error: `This facility already has a location called ${name}.` };
     revalidatePath("/locations");
     return { ok: `Added ${name}.` };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function saveItemDetailsAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const session = await requirePermission("catalog.manage");
+    const itemId = field(formData, "itemId");
+    const result = await saveItemDetails({ orgId: session.orgId, userId: session.userId, userName: session.name }, itemId, {
+      unitWeightGrams: field(formData, "unitWeightGrams"),
+      servingsPerUnit: field(formData, "servingsPerUnit"),
+      thcMgPerServing: field(formData, "thcMgPerServing"),
+      cbdMgPerServing: field(formData, "cbdMgPerServing"),
+      directions: field(formData, "directions"),
+      ingredients: field(formData, "ingredients"),
+      allergens: field(formData, "allergens"),
+      pesticides: field(formData, "pesticides"),
+      solvents: field(formData, "solvents"),
+      mustRefrigerate: field(formData, "mustRefrigerate") === "yes",
+      shelfLifeDays: field(formData, "shelfLifeDays"),
+    });
+    revalidatePath("/catalog");
+    revalidatePath(`/catalog/${itemId}`);
+    return { ok: result.changed ? `Saved label details for ${result.name}.` : "Nothing changed." };
   } catch (error) {
     return toFormError(error);
   }
