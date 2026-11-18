@@ -29,6 +29,8 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/reset" || pathname.startsWith("/reset/")) return NextResponse.next();
   // The live demo signs visitors in itself, and must also work for someone already in the demo.
   if (pathname === "/demo") return NextResponse.next();
+  // Pricing is for everyone, signed in or not: the sales sheet's QR code lands here.
+  if (pathname === "/pricing") return NextResponse.next();
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const signedIn = await isSignedIn(request);
   if (!signedIn && !isPublic) return NextResponse.redirect(new URL("/login", request.url));

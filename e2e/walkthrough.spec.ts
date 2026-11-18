@@ -115,6 +115,8 @@ test("Back returns to the step's own page and stays there; the button lives on t
   const bubble = page.getByTestId("walk-bubble");
   await page.locator('main a[href^="/cultivation/harvests/"]').first().click();
   await expect(bubble).toContainText("step 2 of 7");
+  // The bubble moves on at the click; wait for the harvest page itself before noting its address.
+  await expect(page).toHaveURL(/\/cultivation\/harvests\/[^/]+$/);
   const harvestUrl = page.url();
   await bubble.getByTestId("walk-next").click();
   await expect(bubble).toContainText("step 3 of 7");

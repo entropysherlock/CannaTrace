@@ -23,6 +23,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { DemoVideoButton, DemoVideoPlayer, DemoVideoPoster } from "@/components/demo-video";
 import { LeafMark, Logo } from "@/components/logo";
+import { CONTACT_EMAILS, mailto } from "@/lib/contact";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -30,10 +31,7 @@ export const metadata: Metadata = {
   description: "CannaTrace helps cannabis operators manage cultivation, inventory, compliance, manufacturing, distribution, and retail operations in one integrated platform.",
 };
 
-const CONTACT_EMAILS = ["calebwestfall1989@gmail.com", "ccwestfall85@gmail.com"];
-const mailto = (subject: string) => `mailto:${CONTACT_EMAILS.join(",")}?subject=${encodeURIComponent(subject)}`;
 const DEMO_LINK = mailto("CannaTrace demo request");
-const PRICING_LINK = mailto("CannaTrace pricing question");
 
 // Reads the sign-in cookie, so the buttons can say "Go to dashboard" for people already signed in.
 export const instant = false;
@@ -272,9 +270,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                 ["Retailers", "#solutions"],
               ]}
             />
-            <a href="#contact" className="text-[15px] font-medium text-slate-800 hover:text-brand-700">
+            <Link href="/pricing" className="text-[15px] font-medium text-slate-800 hover:text-brand-700">
               Pricing
-            </a>
+            </Link>
             <NavMenu
               label="Resources"
               items={[
@@ -448,9 +446,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               <a href={DEMO_LINK} className="font-semibold text-slate-800 hover:text-brand-700">
                 Book a demo
               </a>
-              <a href={PRICING_LINK} className="font-semibold text-slate-800 hover:text-brand-700">
-                Ask about pricing
-              </a>
+              <Link href="/pricing" className="font-semibold text-slate-800 hover:text-brand-700">
+                See pricing
+              </Link>
             </p>
           </div>
           <div className="flex flex-col gap-2 text-sm sm:items-end">
