@@ -34,29 +34,34 @@ export type DutchieField =
   | "vendor"
   | "thc"
   | "cbd"
-  | "destroy";
+  | "destroy"
+  | "status"
+  | "labStatus";
 
 /** What each field is called in Dutchie reports (and close variants), lower-case without punctuation. */
 const ALIASES: Record<DutchieField, string[]> = {
   product: ["product name", "product", "item name", "item"],
   sku: ["sku", "product sku", "provincial sku", "upc gtin", "upc", "gtin"],
   category: ["category", "product category", "master category"],
-  strain: ["strain name", "strain"],
+  strain: ["strain name", "strain", "strain or flavor", "strain flavor"],
   brand: ["brand", "brand name"],
   tag: ["package id", "package number", "package", "package label"],
   externalTag: ["external package id", "metrc tag", "metrc package", "state tag", "biotrack id", "nms2s id"],
-  batch: ["batch number", "batch name", "batch id", "batch", "lot number", "lot"],
-  room: ["inventory location", "room", "room name", "location in store"],
-  store: ["location name", "store", "store name"],
+  batch: ["batch number", "batch name", "batch id", "batch", "lot number", "lot", "lot id"],
+  // "Location" alone comes last: some exports use it for the room, after the clearer names.
+  room: ["inventory location", "room", "room name", "location in store", "location"],
+  store: ["location name", "store", "store name", "facility name", "facility", "store location"],
   quantity: ["quantity", "available", "available quantity", "quantity on hand", "on hand", "qty"],
   grams: ["grams", "total grams", "net weight", "weight"],
   unit: ["unit", "unit of measure", "uom", "units"],
   unitWeight: ["unit weight", "unit weight g", "unit weight grams", "net weight per unit"],
-  cost: ["cost", "unit cost", "cost per unit"],
+  cost: ["cost", "unit cost", "cost per unit", "unit cost usd", "cost usd"],
   vendor: ["vendor", "vendor name", "supplier"],
   thc: ["thc", "thc %", "thc percent", "total thc", "total thc %"],
   cbd: ["cbd", "cbd %", "cbd percent", "total cbd", "total cbd %"],
   destroy: ["scheduled for destruction"],
+  status: ["inventory status", "package status", "status"],
+  labStatus: ["lab status", "lab result", "testing status", "test status", "testing result", "testing results"],
 };
 
 /**
@@ -118,6 +123,8 @@ export const FIELD_LABEL: Record<DutchieField, string> = {
   thc: "THC %",
   cbd: "CBD %",
   destroy: "Scheduled for destruction",
+  status: "Status",
+  labStatus: "Lab status",
 };
 
 const norm = (s: string) =>
@@ -198,6 +205,24 @@ export function num(raw: string | undefined): Decimal | null {
   }
 }
 
+/** How a package comes in: sellable, held for a look, or quarantined (failed test, recall). */
+export type ImportStatus = "ACTIVE" | "ON_HOLD" | "QUARANTINE";
+
+/**
+ * A status cell from another system, as CannaTrace sees it. Held or damaged stock comes in on hold;
+ * quarantined or recalled stock comes in quarantined; destroyed or sold stock is left out (null).
+ */
+export function statusFor(cell: string): ImportStatus | null {
+  const w = cell.toUpperCase().replace(/[^A-Z]+/g, " ").trim();
+  if (!w) return "ACTIVE";
+  if (/\b(DESTROYED|SOLD|FINISHED|CLOSED|DISPOSED|WASTED)\b/.test(w)) return null;
+  if (/\b(QUARANTINE|QUARANTINED|RECALL|RECALLED)\b/.test(w)) return "QUARANTINE";
+  if (/\b(HOLD|HELD|DAMAGED|EXPIRED|LOCKED)\b/.test(w)) return "ON_HOLD";
+  return "ACTIVE";
+}
+
+export const labFailed = (cell: string) => /^\s*fail/i.test(cell);
+
 export type PlanRow = {
   line: number;
   product: string;
@@ -215,6 +240,10 @@ export type PlanRow = {
   cost: string | null;
   thc: string | null;
   cbd: string | null;
+  /** On hold or quarantined when the export says so, or when it failed its lab test. */
+  status: ImportStatus;
+  /** The export says this package failed its lab test. */
+  labFailed: boolean;
 };
 
 export type Plan = {
@@ -222,6 +251,8 @@ export type Plan = {
   rows: PlanRow[];
   problems: string[];
   warnings: string[];
+  /** Every store or facility named in the file, with its row count, when there's more than one. */
+  stores: { name: string; rows: number }[];
 };
 
 /**
@@ -314,13 +345,13 @@ const YES = /^(y|yes|true|1|x|scheduled)$/i;
 export const importRoom = (source: Source) => `Imported from ${SOURCE_NAME[source]}`;
 /** Kept for the Dutchie tests and callers. */
 export const IMPORT_ROOM = importRoom("dutchie");
-export const MAX_DUTCHIE_ROWS = 5000;
+export const MAX_DUTCHIE_ROWS = 30000;
 
 export function planDutchie(table: string[][]): Plan {
   return planImport("dutchie", table);
 }
 
-export function planImport(source: Source, table: string[][]): Plan {
+export function planImport(source: Source, table: string[][], options: { store?: string } = {}): Plan {
   const IMPORT_ROOM = importRoom(source);
   const problems: string[] = [];
   const warnings: string[] = [];
@@ -337,6 +368,7 @@ export function planImport(source: Source, table: string[][]): Plan {
             : "This doesn't look like a Dutchie inventory report: no row names columns like Product Name, Package ID, and Quantity.",
       ],
       warnings,
+      stores: [],
     };
   }
   const header = table[at];
@@ -350,19 +382,40 @@ export function planImport(source: Source, table: string[][]): Plan {
     if (cols.product === undefined) problems.push(`The report has no ${source === "flourish" ? "Item Name" : "Product Name"} column.`);
     if (cols.quantity === undefined) problems.push("The report has no Quantity column.");
   }
-  if (problems.length) return { matched, rows: [], problems, warnings };
+  if (problems.length) return { matched, rows: [], problems, warnings, stores: [] };
 
-  const body = table.slice(at + 1);
-  if (body.length > MAX_DUTCHIE_ROWS) problems.push(`The report has ${body.length.toLocaleString("en-US")} rows; import at most ${MAX_DUTCHIE_ROWS.toLocaleString("en-US")} at a time.`);
   const get = (cells: string[], f: DutchieField) => (cols[f] === undefined ? "" : (cells[cols[f] as number] ?? "").trim());
+  // A file covering several stores imports one store at a time, into the facility you're in.
+  const body = table.slice(at + 1).map((cells, i) => ({ cells, line: at + i + 2 }));
+  const storeCounts = new Map<string, number>();
+  for (const { cells } of body) {
+    const name = get(cells, "store");
+    if (name) storeCounts.set(name, (storeCounts.get(name) ?? 0) + 1);
+  }
+  const stores = [...storeCounts].map(([name, rows]) => ({ name, rows })).sort((a, b) => a.name.localeCompare(b.name));
+  const chosen = stores.length > 1 ? stores.find((st) => st.name.toLowerCase() === (options.store ?? "").trim().toLowerCase())?.name : undefined;
+  if (stores.length > 1 && !chosen) {
+    problems.push(
+      `This file has ${stores.length} stores (${stores
+        .slice(0, 5)
+        .map((st) => st.name)
+        .join(", ")}${stores.length > 5 ? ", …" : ""}). Choose which one goes into this facility, then check the file again.`,
+    );
+    return { matched, rows: [], problems, warnings, stores };
+  }
+  const mine = chosen ? body.filter(({ cells }) => get(cells, "store") === chosen) : body;
+  if (mine.length > MAX_DUTCHIE_ROWS)
+    problems.push(`The file has ${mine.length.toLocaleString("en-US")} rows; import at most ${MAX_DUTCHIE_ROWS.toLocaleString("en-US")} at a time.`);
 
   const rows: PlanRow[] = [];
-  const stores = new Set<string>();
   let skippedEmpty = 0;
   let pendingLab = 0;
   let destroying = 0;
-  body.slice(0, MAX_DUTCHIE_ROWS).forEach((cells, i) => {
-    const line = at + i + 2;
+  let gone = 0;
+  let held = 0;
+  let quarantined = 0;
+  let failed = 0;
+  mine.slice(0, MAX_DUTCHIE_ROWS).forEach(({ cells, line }) => {
     // NMS2S leaves Product Name blank until someone names the product; its strain and type describe it.
     const product = get(cells, "product") || (nms2s ? [get(cells, "strain"), get(cells, "category")].filter(Boolean).join(" ") : "");
     if (!product) {
@@ -393,13 +446,18 @@ export function planImport(source: Source, table: string[][]): Plan {
       const supply = /packag|suppl|accessor|merch|hardware|batter|apparel/i.test(get(cells, "category"));
       ({ unit, unitWeightGrams } = unitFor(get(cells, "unit"), quantity, num(get(cells, "grams")), supply ? "" : product, num(get(cells, "unitWeight"))));
     }
-    const store = get(cells, "store");
-    if (store) stores.add(store);
+    const status0 = statusFor(get(cells, "status"));
+    if (!status0) return void gone++;
+    const fail = labFailed(get(cells, "labStatus"));
+    const status: ImportStatus = fail ? "QUARANTINE" : status0;
+    if (fail) failed++;
+    if (status === "ON_HOLD") held++;
+    if (status === "QUARANTINE") quarantined++;
     // A potency in milligrams (an edible's dose per package) isn't a percent.
     const pct = (f: DutchieField) => (/mg/i.test(get(cells, f)) ? null : num(get(cells, f)));
     const thc = pct("thc");
     const cbd = pct("cbd");
-    if (thc || cbd) pendingLab++;
+    if ((thc || cbd) && !fail) pendingLab++;
     rows.push({
       line,
       product: product.slice(0, 120),
@@ -415,13 +473,22 @@ export function planImport(source: Source, table: string[][]): Plan {
       cost: num(get(cells, "cost"))?.toString() ?? null,
       thc: thc && thc.gte(0) && thc.lte(100) ? thc.toString() : null,
       cbd: cbd && cbd.gte(0) && cbd.lte(100) ? cbd.toString() : null,
+      status,
+      labFailed: fail,
     });
   });
+  const n = (k: number) => k.toLocaleString("en-US");
+  if (chosen) warnings.unshift(`Importing ${n(mine.length)} rows for ${chosen}. The other ${n(body.length - mine.length)} rows belong to the file's other stores and are left out.`);
   if (skippedEmpty) warnings.push(`${skippedEmpty} package${skippedEmpty === 1 ? " has" : "s have"} nothing left (quantity 0) and won't be imported.`);
   if (destroying) warnings.push(`${destroying} package${destroying === 1 ? " is" : "s are"} scheduled for destruction and won't be imported.`);
-  if (stores.size > 1) warnings.push(`The report covers ${stores.size} store locations (${[...stores].slice(0, 3).join(", ")}${stores.size > 3 ? ", …" : ""}). Every row goes into the facility you're in now; export one location at a time to keep them apart.`);
+  if (gone) warnings.push(`${n(gone)} package${gone === 1 ? " is" : "s are"} marked destroyed or sold and won't be imported.`);
+  if (held) warnings.push(`${n(held)} package${held === 1 ? " comes" : "s come"} in on hold (held or damaged in the file).`);
+  if (quarantined)
+    warnings.push(
+      `${n(quarantined)} package${quarantined === 1 ? " comes" : "s come"} in quarantined (recalled, quarantined, or failed a lab test${failed ? `: ${n(failed)} failed` : ""}). They can't be sold until someone releases them.`,
+    );
   if (cols.room === undefined) warnings.push(`There's no room column, so everything goes into a new room called "${IMPORT_ROOM}". You can move packages afterwards.`);
   if (cols.tag === undefined && cols.externalTag === undefined) warnings.push("There's no package ID column, so every package gets a new CannaTrace ID (PKG-…).");
   if (pendingLab) warnings.push(`${pendingLab} package${pendingLab === 1 ? " has" : "s have"} THC or CBD numbers. They're saved as pending lab results: confirm each with its certificate before it can go on a retail label.`);
-  return { matched, rows, problems, warnings };
+  return { matched, rows, problems, warnings, stores };
 }

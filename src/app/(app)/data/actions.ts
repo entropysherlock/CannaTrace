@@ -40,14 +40,15 @@ async function dutchieInput(formData: FormData) {
   if (!(file instanceof File) || file.size === 0)
     throw new InventoryError(`Choose the inventory file you exported from ${SOURCE_NAME[source]}.`);
   const table = await readReport(file.name, Buffer.from(await file.arrayBuffer()));
-  return { source, actor: { userId: session.userId, userName: session.name, orgId: session.orgId, facilityId: session.facilityId }, table };
+  const store = field(formData, "store") || undefined;
+  return { source, store, actor: { userId: session.userId, userName: session.name, orgId: session.orgId, facilityId: session.facilityId }, table };
 }
 
 /** Check the report and show what would come in. Nothing is saved. */
 export async function previewDutchieAction(formData: FormData): Promise<DutchieState> {
   try {
-    const { source, actor, table } = await dutchieInput(formData);
-    return { preview: await previewImport(source, actor, table) };
+    const { source, store, actor, table } = await dutchieInput(formData);
+    return { preview: await previewImport(source, actor, table, store) };
   } catch (error) {
     return { error: toFormError(error)?.error };
   }
@@ -55,8 +56,8 @@ export async function previewDutchieAction(formData: FormData): Promise<DutchieS
 
 export async function importDutchieAction(formData: FormData): Promise<DutchieState> {
   try {
-    const { source, actor, table } = await dutchieInput(formData);
-    const imported = await importInventory(source, actor, table);
+    const { source, store, actor, table } = await dutchieInput(formData);
+    const imported = await importInventory(source, actor, table, store);
     revalidatePath("/", "layout");
     return { imported };
   } catch (error) {

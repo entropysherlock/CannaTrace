@@ -1,0 +1,9 @@
+facility_id,facility_name,city,package_id,sku,product_name,brand,category,strain_or_flavor,lot_id,unit_of_measure,quantity_on_hand,unit_cost_usd,location,inventory_status,lab_status,thc_percent,cbd_percent
+CT-NM-001,Sandia Mega Dispensary,Albuquerque,MS-PKG-0001,PRE-1001,Desert Haze 1 g Single,Mesa Verde,Pre-roll,Desert Haze,LOT-1,each,80,6.50,Sales Floor,ACTIVE,PASS,19.4,0.2
+CT-NM-001,Sandia Mega Dispensary,Albuquerque,MS-PKG-0002,PRE-1002,Desert Haze 1 g Single,Canyon Botanicals,Pre-roll,Desert Haze,LOT-2,each,40,6.10,Sales Floor,ON_HOLD,PASS,18.9,0.3
+CT-NM-001,Sandia Mega Dispensary,Albuquerque,MS-PKG-0003,FLO-2001,Blue Mesa 3.5 g Jar,Mesa Verde,Flower,Blue Mesa,LOT-3,each,25,22.00,Vault A,ACTIVE,FAIL,24.1,0.1
+CT-NM-001,Sandia Mega Dispensary,Albuquerque,MS-PKG-0004,FLO-2001,Blue Mesa 3.5 g Jar,Mesa Verde,Flower,Blue Mesa,LOT-3,each,12,22.00,Vault A,RECALL,PASS,24.1,0.1
+CT-NM-001,Sandia Mega Dispensary,Albuquerque,MS-PKG-0005,EDI-3001,Prickly Pear 5 mg Mint Tin,Mesa Verde,Edible,Prickly Pear,LOT-4,each,30,9.00,Edible Shelf,DAMAGED,NOT_APPLICABLE,,
+CT-NM-001,Sandia Mega Dispensary,Albuquerque,MS-PKG-0006,EDI-3001,Prickly Pear 5 mg Mint Tin,Mesa Verde,Edible,Prickly Pear,LOT-4,each,10,9.00,Edible Shelf,DESTROYED,PASS,,
+CT-NM-002,Rio Grande Retail,Albuquerque,MS-PKG-0007,PRE-1001,Desert Haze 1 g Single,Mesa Verde,Pre-roll,Desert Haze,LOT-1,each,50,6.50,Sales Floor,ACTIVE,PASS,19.4,0.2
+CT-NM-002,Rio Grande Retail,Albuquerque,MS-PKG-0008,VAP-4001,Blue Mesa 1 g Disposable,Mesa Verde,Vape,Blue Mesa,LOT-5,each,60,12.79,Vape Case,QUARANTINE,PASS,61.5,3.3
