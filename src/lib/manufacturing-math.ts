@@ -63,3 +63,47 @@ export function weightLoss(
   const weightIn = inputs.reduce((sum, i) => sum.add(convert(i.quantity, i.unit, "G")), new Decimal(0));
   return roundQty(weightIn.sub(convert(output.quantity, output.unit, "G")));
 }
+
+export type RunSummaryInput = {
+  status: "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  plannedOutput: Decimal.Value;
+  actualOutput: Decimal.Value | null;
+  inputCost: Decimal.Value | null;
+  extraCost: Decimal.Value | null;
+  completedAt: Date | null;
+};
+
+/**
+ * The numbers across the top of Manufacturing: runs in progress, runs finished this month,
+ * the average yield of runs finished in the last 90 days, and what this month's runs cost.
+ * Cost is null when no run finished this month has a known cost.
+ */
+export function summarizeRuns(runs: RunSummaryInput[], now = new Date()) {
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const since90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const done = runs.filter((r) => r.status === "COMPLETED" && r.completedAt && r.actualOutput !== null);
+  const thisMonth = done.filter((r) => r.completedAt! >= monthStart);
+  const yields = done
+    .filter((r) => r.completedAt! >= since90)
+    .map((r) => yieldPercent(r.actualOutput!, r.plannedOutput))
+    .filter((y): y is Decimal => y !== null);
+  const costed = thisMonth.filter((r) => r.inputCost !== null);
+  return {
+    inProgress: runs.filter((r) => r.status === "IN_PROGRESS").length,
+    completedThisMonth: thisMonth.length,
+    averageYield: yields.length ? yields.reduce((a, b) => a.add(b), new Decimal(0)).div(yields.length).toDecimalPlaces(1) : null,
+    yieldRuns: yields.length,
+    costThisMonth: costed.length ? costed.reduce((a, r) => a.add(r.inputCost!).add(r.extraCost ?? 0), new Decimal(0)).toDecimalPlaces(2) : null,
+  };
+}
+
+/** A suggested name for the next run: RUN-20261118-01, -02, … counting runs already named that day. */
+export function suggestRunName(existing: string[], now = new Date(), timeZone = "America/Denver"): string {
+  // The date in Mountain time, where New Mexico facilities are, not the server's time zone.
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now).replace(/-/g, "");
+  const prefix = `RUN-${day}-`;
+  const taken = new Set(existing.map((n) => n.toUpperCase()));
+  let n = 1;
+  while (taken.has(`${prefix}${String(n).padStart(2, "0")}`)) n++;
+  return `${prefix}${String(n).padStart(2, "0")}`;
+}
