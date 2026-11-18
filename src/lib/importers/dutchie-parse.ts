@@ -166,13 +166,31 @@ export type Plan = {
 };
 
 /**
- * How a row is counted. A Unit column wins. Otherwise Dutchie's Grams column (total grams in the package)
- * tells bulk weight from counted units: grams equal to quantity means it's tracked by the gram; otherwise
- * each unit weighs grams ÷ quantity. With neither, the product is counted each.
+ * The package size written in a product name: "Blue Dream 3.5g" → 3.5, "Pre-Roll 1 g" → 1, "Flower 1oz" → 28.35.
+ * Milligrams are left alone, because "Gummies 100mg" names the THC dose, not the weight.
  */
-export function unitFor(unitCell: string | undefined, quantity: Decimal, grams: Decimal | null): { unit: UnitCode; unitWeightGrams: string | null } {
+export function sizeInName(name: string): Decimal | null {
+  const m = name.toLowerCase().match(/(\d+(?:\.\d+)?)\s*(g|gram|grams|oz|ounce)\b/);
+  if (!m) return null;
+  const n = new Decimal(m[1]);
+  if (n.lte(0)) return null;
+  return m[2].startsWith("o") ? n.times("28.349523125").toDecimalPlaces(2) : n;
+}
+
+const BULK_WORDS = /\b(bulk|shake|trim|smalls|popcorn|loose|by the gram)\b/i;
+
+/**
+ * How a row is counted. A Unit column wins. A product named with a size ("3.5g", "1g", "1oz") and not
+ * called bulk is counted each at that weight, even when Dutchie's Grams equals the Quantity (36 one-gram
+ * pre-rolls are 36 g). Otherwise the Grams column (total grams in the package) tells bulk from counted:
+ * grams equal to quantity means it's tracked by the gram; otherwise each unit weighs grams ÷ quantity.
+ * With none of these, the product is counted each.
+ */
+export function unitFor(unitCell: string | undefined, quantity: Decimal, grams: Decimal | null, productName = ""): { unit: UnitCode; unitWeightGrams: string | null } {
   const word = norm(unitCell ?? "");
   if (word && UNIT_WORDS[word]) return { unit: UNIT_WORDS[word], unitWeightGrams: null };
+  const size = BULK_WORDS.test(productName) ? null : sizeInName(productName);
+  if (size) return { unit: "EACH", unitWeightGrams: size.toString() };
   if (grams && grams.gt(0)) {
     if (grams.sub(quantity).abs().lte(0.001)) return { unit: "G", unitWeightGrams: null };
     if (quantity.gt(0)) return { unit: "EACH", unitWeightGrams: grams.div(quantity).toDecimalPlaces(4).toString() };
@@ -214,8 +232,9 @@ export function planDutchie(table: string[][]): Plan {
     const line = at + i + 2;
     const product = get(cells, "product");
     if (!product) {
-      // Totals and blank lines at the bottom of a report.
-      if (cells.some((c) => c.trim())) warnings.push(`Line ${line} has no product name and was skipped.`);
+      // Totals and blank lines at the bottom of a report are skipped quietly.
+      const filled = cells.filter((c) => c.trim());
+      if (filled.length && !filled.some((c) => /^(grand\s+)?totals?:?$/i.test(c.trim()))) warnings.push(`Line ${line} has no product name and was skipped.`);
       return;
     }
     const quantity = num(get(cells, "quantity"));
@@ -223,7 +242,7 @@ export function planDutchie(table: string[][]): Plan {
     if (quantity.lte(0)) return void skippedEmpty++;
     const store = get(cells, "store");
     if (store) stores.add(store);
-    const { unit, unitWeightGrams } = unitFor(get(cells, "unit"), quantity, num(get(cells, "grams")));
+    const { unit, unitWeightGrams } = unitFor(get(cells, "unit"), quantity, num(get(cells, "grams")), product);
     const thc = num(get(cells, "thc"));
     const cbd = num(get(cells, "cbd"));
     if (thc || cbd) pendingLab++;

@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { facilities, itemCategories, items, labResults, locations, organizations, packages, users } from "@/db/schema";
 import { parseCsv } from "@/lib/csv";
 import { db, pool } from "@/lib/db";
-import { planDutchie, unitFor, findHeader } from "@/lib/importers/dutchie-parse";
+import { planDutchie, unitFor, findHeader, sizeInName } from "@/lib/importers/dutchie-parse";
 import { importDutchie, previewDutchie, readReport } from "@/lib/importers/dutchie";
 import type { Actor } from "@/lib/inventory";
 import Decimal from "decimal.js";
@@ -34,6 +34,18 @@ describe("reading a Dutchie inventory report", () => {
     expect(unitFor("", new Decimal(453.6), new Decimal(453.6))).toEqual({ unit: "G", unitWeightGrams: null });
     expect(unitFor("g", new Decimal(10), null)).toEqual({ unit: "G", unitWeightGrams: null });
     expect(unitFor("", new Decimal(10), null)).toEqual({ unit: "EACH", unitWeightGrams: null });
+  });
+  it("reads the package size from the product name, so one-gram items aren't mistaken for bulk grams", () => {
+    expect(unitFor("", new Decimal(36), new Decimal(36), "Desert Haze 1g Pre-Roll")).toEqual({ unit: "EACH", unitWeightGrams: "1" });
+    expect(unitFor("", new Decimal(10), new Decimal(10), "Live Resin 1 g")).toEqual({ unit: "EACH", unitWeightGrams: "1" });
+    expect(unitFor("", new Decimal(500), new Decimal(500), "Bulk Blue Dream 1g smalls")).toEqual({ unit: "G", unitWeightGrams: null });
+    expect(sizeInName("Blue Dream 3.5g")?.toString()).toBe("3.5");
+    expect(sizeInName("House Flower 1oz")?.toString()).toBe("28.35");
+    expect(sizeInName("Prickly Pear Gummies 100mg")).toBeNull();
+  });
+  it("skips the totals line without a warning", () => {
+    const plan = planDutchie(report());
+    expect(plan.warnings.join(" ")).not.toMatch(/no product name/);
   });
   it("refuses a file that isn't an inventory report", () => {
     expect(planDutchie([["Date", "Total sales"], ["2026-11-01", "1200"]]).problems[0]).toMatch(/doesn't look like a Dutchie inventory report/);
