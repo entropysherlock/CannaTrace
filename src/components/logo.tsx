@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 /** CannaTrace mark: an original seven-point leaf, drawn in code. */
 export function LeafMark({ className = "h-7 w-7" }: { className?: string }) {
   const leaflets = [
@@ -25,11 +27,20 @@ export function LeafMark({ className = "h-7 w-7" }: { className?: string }) {
   );
 }
 
+/** The CannaTrace logo (public/brand/cannatrace-logo.png, 960×205). Its "Trace" is black, so on dark
+ * backgrounds (tone "light") it sits on a white badge to stay readable. */
 export function Logo({ tone = "dark", size = "md" }: { tone?: "dark" | "light"; size?: "md" | "lg" }) {
-  return (
-    <span className={`inline-flex items-center gap-2 font-bold tracking-tight ${size === "lg" ? "text-2xl" : "text-lg"}`}>
-      <LeafMark className={`${size === "lg" ? "h-9 w-9" : "h-7 w-7"} ${tone === "dark" ? "text-brand-700" : "text-brand-200"}`} />
-      <span className={tone === "dark" ? "text-slate-900" : "text-white"}>CannaTrace</span>
-    </span>
+  const height = size === "lg" ? 40 : tone === "light" ? 26 : 30;
+  const img = (
+    <Image
+      src="/brand/cannatrace-logo.png"
+      alt="CannaTrace"
+      width={Math.round((height * 960) / 205)}
+      height={height}
+      priority
+      className="block h-auto max-w-full"
+      style={{ height, width: "auto" }}
+    />
   );
+  return tone === "light" ? <span className="inline-flex rounded-lg bg-white px-2.5 py-1.5 shadow-sm">{img}</span> : <span className="inline-flex">{img}</span>;
 }

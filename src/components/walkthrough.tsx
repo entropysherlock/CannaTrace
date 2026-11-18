@@ -696,7 +696,7 @@ export function ShowMeHowButton() {
       type="button"
       onClick={openPicker}
       data-testid="show-me-how"
-      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-200 bg-white px-4 text-sm font-bold text-brand-800 shadow-sm transition hover:border-brand-500 hover:bg-brand-50 print:hidden"
+      className="inline-flex min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-brand-200 bg-white px-4 text-sm font-bold text-brand-800 shadow-sm transition hover:border-brand-500 hover:bg-brand-50 print:hidden"
     >
       <GraduationCap className="h-4 w-4" aria-hidden="true" />
       Show me how
