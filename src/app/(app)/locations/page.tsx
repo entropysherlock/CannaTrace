@@ -3,6 +3,7 @@ import { ActionForm } from "@/components/action-form";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { locationTypeEnum, locations, packages } from "@/db/schema";
 import { db } from "@/lib/db";
+import { roomAreaLabel } from "@/lib/rooms";
 import { requirePagePermission } from "@/lib/session";
 import { addLocation } from "../catalog/actions";
 
@@ -13,6 +14,7 @@ export default async function LocationsPage() {
       id: locations.id,
       name: locations.name,
       type: locations.type,
+      area: locations.area,
       packageCount: sql<number>`count(${packages.id})::int`,
     })
     .from(locations)
@@ -35,7 +37,10 @@ export default async function LocationsPage() {
                 <li key={row.id} className="flex items-center justify-between gap-3 py-2">
                   <span>
                     <span className="font-medium text-slate-900">{row.name}</span>{" "}
-                    <span className="text-slate-500">· {row.type.toLowerCase()}</span>
+                    <span className="text-slate-500">
+                      · {row.type.toLowerCase()}
+                      {row.area ? ` · ${roomAreaLabel(row.area)}` : ""}
+                    </span>
                   </span>
                   <span className="text-slate-600">
                     {row.packageCount} package{row.packageCount === 1 ? "" : "s"}

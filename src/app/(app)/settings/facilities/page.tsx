@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
 import { StateSelect } from "@/components/state-select";
 import { Card, Field, inputClass, PageHeader } from "@/components/ui";
-import { facilities as facilitiesTable, licenseTypeEnum } from "@/db/schema";
+import { facilities as facilitiesTable, licenseTypeEnum, locations } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
+import { ROOM_AREAS, roomAreaLabel } from "@/lib/rooms";
 import { requirePagePermission } from "@/lib/session";
 import { hasRulePack, stateName } from "@/lib/states";
-import { addFacilityAction, switchFacility, updateFacilityAction } from "../actions";
+import { addFacilityAction, addRoomAction, switchFacility, updateFacilityAction, updateRoomAction } from "../actions";
 
 export const instant = false;
 
@@ -42,9 +43,89 @@ function FacilityFields({ f }: { f?: { name: string; licenseNumber: string; lice
   );
 }
 
+function RoomFields({ room }: { room?: { name: string; area: string | null } }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Field label="Room area type">
+        <select name="area" required defaultValue={room?.area ?? ""} className={inputClass}>
+          <option value="" disabled>
+            Choose one
+          </option>
+          {ROOM_AREAS.map((a) => (
+            <option key={a.value} value={a.value}>
+              {a.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Room name" hint='Any name you like, for example "Flower Room 2".'>
+        <input name="name" required maxLength={80} defaultValue={room?.name} className={inputClass} />
+      </Field>
+    </div>
+  );
+}
+
+type Room = { id: string; facilityId: string; name: string; area: string | null };
+
+function Rooms({ facilityId, rooms }: { facilityId: string; rooms: Room[] }) {
+  // List rooms in the order a plant moves through the building, then by name.
+  const order = (r: Room) => {
+    const i = ROOM_AREAS.findIndex((a) => a.value === r.area);
+    return i === -1 ? ROOM_AREAS.length : i;
+  };
+  const sorted = [...rooms].sort((a, b) => order(a) - order(b) || a.name.localeCompare(b.name));
+  return (
+    <div className="mb-4 border-t border-slate-100 pt-4" data-testid="facility-rooms">
+      <h3 className="mb-2 text-sm font-bold text-slate-900">
+        Rooms <span className="font-normal text-slate-500">({rooms.length})</span>
+      </h3>
+      {sorted.length === 0 ? (
+        <p className="mb-3 text-sm text-slate-600">No rooms yet. Add the first one below.</p>
+      ) : (
+        <ul className="mb-3 divide-y divide-slate-100 text-sm">
+          {sorted.map((r) => (
+            <li key={r.id} className="py-2">
+              <details>
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                  <span className="flex items-center gap-2">
+                    <span className="font-medium text-slate-900">{r.name}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.area ? "bg-brand-50 text-brand-800" : "bg-slate-100 text-slate-600"}`}>
+                      {roomAreaLabel(r.area) ?? "No area type"}
+                    </span>
+                  </span>
+                  <span className="text-xs font-semibold text-brand-700">Edit</span>
+                </summary>
+                <div className="mt-3">
+                  <ActionForm action={updateRoomAction} submitLabel="Save room">
+                    <input type="hidden" name="roomId" value={r.id} />
+                    <RoomFields room={r} />
+                  </ActionForm>
+                </div>
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
+      <details>
+        <summary className="cursor-pointer text-sm font-semibold text-brand-700">Add a room</summary>
+        <div className="mt-3">
+          <ActionForm action={addRoomAction} submitLabel="Add room">
+            <input type="hidden" name="facilityId" value={facilityId} />
+            <RoomFields />
+          </ActionForm>
+        </div>
+      </details>
+    </div>
+  );
+}
+
 export default async function FacilitiesPage() {
   const session = await requirePagePermission("settings.manage");
   const facilities = await db.select().from(facilitiesTable).where(eq(facilitiesTable.orgId, session.orgId)).orderBy(asc(facilitiesTable.name));
+  const rooms = await db
+    .select({ id: locations.id, facilityId: locations.facilityId, name: locations.name, area: locations.area })
+    .from(locations)
+    .where(and(eq(locations.orgId, session.orgId), eq(locations.type, "ROOM")));
 
   return (
     <>
@@ -80,6 +161,7 @@ export default async function FacilitiesPage() {
                   <dt className="text-slate-600">State rules</dt>
                   <dd className="font-semibold">{hasRulePack(f.state) ? "Built in" : "Not built in yet"}</dd>
                 </dl>
+                <Rooms facilityId={f.id} rooms={rooms.filter((r) => r.facilityId === f.id)} />
                 <details>
                   <summary className="cursor-pointer text-sm font-semibold text-brand-700">Edit this facility</summary>
                   <div className="mt-3">
@@ -108,7 +190,7 @@ export default async function FacilitiesPage() {
           <ActionForm action={addFacilityAction} submitLabel="Add facility">
             <FacilityFields />
             <p className="text-xs text-slate-600">
-              A new facility starts empty. Switch to it from the menu at the top, then add rooms on Inventory → Locations. Everyone on your team can switch to it.
+              A new facility starts empty. Add its rooms on its card here once it&apos;s created. Everyone on your team can switch to it.
             </p>
           </ActionForm>
         </Card>

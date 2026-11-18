@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { destinations, facilities, itemCategories, items, locations, organizations, packages, users } from "@/db/schema";
+import { destinations, facilities, itemCategories, items, locations, organizations, packages, roomAreaEnum, users } from "@/db/schema";
 import { db } from "@/lib/db";
 import {
   changePlantPhase,
@@ -77,6 +77,18 @@ export async function seedSampleCompany(opts: SeedOptions) {
     [grow.id, ["Vault A", "Vault A / Rack 1", "Vault A / Rack 2", "Dry Room", "Packaging Line", "Quarantine Cage", "Clone Room", "Veg Room", "Flower Room 1"]],
     [shop.id, ["Back Stock", "Sales Floor", "Returns Shelf"]],
   ];
+  const demoAreas: Record<string, (typeof roomAreaEnum.enumValues)[number]> = {
+    "Vault A": "INVENTORY",
+    "Dry Room": "DRYING_TRIMMING",
+    "Packaging Line": "INVENTORY",
+    "Quarantine Cage": "QUARANTINE",
+    "Clone Room": "PROPAGATION",
+    "Veg Room": "VEGETATIVE",
+    "Flower Room 1": "FLOWERING",
+    "Back Stock": "INVENTORY",
+    "Sales Floor": "INVENTORY",
+    "Returns Shelf": "QUARANTINE",
+  };
   const locationId: Record<string, string> = {};
   for (const [facilityId, names] of locationNames) {
     const rows = await db
@@ -87,6 +99,7 @@ export async function seedSampleCompany(opts: SeedOptions) {
           facilityId,
           name,
           type: name.includes("Rack") ? ("RACK" as const) : ("ROOM" as const),
+          area: demoAreas[name] ?? null,
         })),
       )
       .returning();

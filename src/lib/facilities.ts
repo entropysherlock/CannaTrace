@@ -1,8 +1,9 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
-import { auditLogs, facilities, licenseTypeEnum, organizations } from "@/db/schema";
+import { auditLogs, facilities, licenseTypeEnum, locations, organizations } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
+import { isRoomArea, roomAreaLabel } from "./rooms";
 import { isSupportedState } from "./states";
 
 export type FacilityActor = { orgId: string; userId: string; userName: string; facilityId: string };
@@ -81,4 +82,73 @@ export async function renameBusiness(actor: FacilityActor, input: string): Promi
     });
   });
   return name;
+}
+
+export type RoomInput = { area: string; name: string };
+
+function cleanRoom(input: RoomInput) {
+  if (!isRoomArea(input.area)) throw new InventoryError("Choose a room area type.");
+  const name = input.name.trim().replace(/\s+/g, " ").slice(0, 80);
+  if (!name) throw new InventoryError("Enter a name for the room.");
+  return { area: input.area, name };
+}
+
+async function facilityInOrg(actor: FacilityActor, facilityId: string) {
+  const [f] = await db.select({ id: facilities.id }).from(facilities).where(and(eq(facilities.id, facilityId), eq(facilities.orgId, actor.orgId)));
+  if (!f) throw new InventoryError("That facility was not found.");
+  return f;
+}
+
+/** A room is a ROOM location with an area type. It shows up anywhere the facility's locations are listed. */
+export async function addRoom(actor: FacilityActor, facilityId: string, input: RoomInput) {
+  const values = cleanRoom(input);
+  await facilityInOrg(actor, facilityId);
+  return db.transaction(async (tx) => {
+    const [room] = await tx
+      .insert(locations)
+      .values({ orgId: actor.orgId, facilityId, name: values.name, type: "ROOM", area: values.area })
+      .onConflictDoNothing({ target: [locations.facilityId, locations.name] })
+      .returning();
+    if (!room) throw new InventoryError(`This facility already has a room or location called ${values.name}.`);
+    await tx.insert(auditLogs).values({
+      orgId: actor.orgId,
+      facilityId,
+      userId: actor.userId,
+      userName: actor.userName,
+      entityType: "Location",
+      entityId: room.id,
+      action: "CREATE",
+      after: { name: values.name, type: "ROOM", area: roomAreaLabel(values.area) },
+    });
+    return room;
+  });
+}
+
+export async function updateRoom(actor: FacilityActor, roomId: string, input: RoomInput) {
+  const values = cleanRoom(input);
+  const [before] = await db
+    .select()
+    .from(locations)
+    .where(and(eq(locations.id, roomId), eq(locations.orgId, actor.orgId), eq(locations.type, "ROOM")));
+  if (!before) throw new InventoryError("That room was not found.");
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(locations).set(values).where(eq(locations.id, roomId));
+      await tx.insert(auditLogs).values({
+        orgId: actor.orgId,
+        facilityId: before.facilityId,
+        userId: actor.userId,
+        userName: actor.userName,
+        entityType: "Location",
+        entityId: roomId,
+        action: "UPDATE",
+        before: { name: before.name, area: roomAreaLabel(before.area) },
+        after: { name: values.name, area: roomAreaLabel(values.area) },
+      });
+    });
+  } catch (e) {
+    if (duplicate(e)) throw new InventoryError(`This facility already has a room or location called ${values.name}.`);
+    throw e;
+  }
+  return { ...before, ...values };
 }
