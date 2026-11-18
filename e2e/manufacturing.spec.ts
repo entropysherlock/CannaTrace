@@ -25,7 +25,7 @@ test("save a recipe, run production, and get yield and cost", async ({ page }) =
   await receive(page, `${run}-JARS`, "Empty 3.5 g Jar with Lid (ea)", "120", "0.35");
 
   // Recipe: 10 jars from 35 g of flower and 10 empty jars
-  await page.goto("/manufacturing/recipes");
+  await page.goto("/manufacturing/recipes?new=1");
   await page.locator('input[name="name"]').fill(`Recipe ${run}`);
   await page.locator('select[name="outputItemId"]').selectOption({ label: "Blue Mesa 3.5 g Jar (ea)" });
   await page.locator('input[name="outputQuantity"]').fill("10");
@@ -39,8 +39,14 @@ test("save a recipe, run production, and get yield and cost", async ({ page }) =
 
   // Run: 10 batches, plan 100 jars
   await page.goto("/manufacturing");
+  await expect(page.getByTestId("mfg-stats")).toContainText("In progress");
+  // With runs already listed, the form opens from "New run"; on an empty facility it's open already
+  if (await page.getByTestId("new-run").count()) await page.getByTestId("new-run").click();
+  await expect(page.getByRole("heading", { name: "Start a new run" })).toBeVisible();
+  await expect(page.locator('input[name="name"]')).toHaveValue(/^RUN-\d{8}-\d{2}$/);
   await page.locator('input[name="name"]').fill(`${run}-RUN`);
-  await page.locator('select[name="recipeId"]').selectOption({ label: `Recipe ${run}` });
+  const recipe = page.locator('select[name="recipeId"] option', { hasText: `Recipe ${run} (one batch makes 10 ea)` });
+  await page.locator('select[name="recipeId"]').selectOption((await recipe.getAttribute("value"))!);
   await page.locator('input[name="batches"]').fill("10");
   await page.getByRole("button", { name: "Start run" }).click();
   await expect(page.getByRole("heading", { name: `${run}-RUN` })).toBeVisible();
@@ -93,6 +99,14 @@ test("save a recipe, run production, and get yield and cost", async ({ page }) =
   await expect(page.getByText(`${run}-LOT`).first()).toBeVisible();
   await expect(page.getByText("Made from:")).toBeVisible();
   await expect(page.getByRole("link", { name: `${run}-FLOWER` })).toBeVisible();
+
+  // The overview lists it as completed, and search and the status filter find it
+  await page.goto(`/manufacturing?status=COMPLETED&q=${run}`);
+  const row = page.getByTestId("run-row").filter({ hasText: `${run}-RUN` });
+  await expect(row).toContainText("96 ea");
+  await expect(row).toContainText("96%");
+  await page.goto(`/manufacturing?status=IN_PROGRESS&q=${run}`);
+  await expect(page.getByText(`No runs match "${run}"`)).toBeVisible();
 });
 
 test("a recipe can add the items it needs without leaving the form", async ({ page }) => {
@@ -101,7 +115,7 @@ test("a recipe can add the items it needs without leaving the form", async ({ pa
   await page.getByLabel("Password").fill("demo1234");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
-  await page.goto("/manufacturing/recipes");
+  await page.goto("/manufacturing/recipes?new=1");
 
   await page.locator('input[name="name"]').fill(`Rosin ${run}`);
   // What it makes: a brand-new product

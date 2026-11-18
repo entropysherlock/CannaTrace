@@ -3,7 +3,9 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { ManufacturingTabs } from "@/components/manufacturing-tabs";
 import { RecipeForm } from "@/components/recipe-form";
-import { Card, PageHeader } from "@/components/ui";
+import Link from "next/link";
+import { Plus, X } from "lucide-react";
+import { Card, PageHeader, buttonLinkClass } from "@/components/ui";
 import { bomLines, boms, itemCategories, items } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
@@ -11,8 +13,9 @@ import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 import { recipeActiveAction } from "../actions";
 
-export default async function RecipesPage() {
+export default async function RecipesPage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
   const session = await requirePagePermission("inventory.view");
+  const { new: adding } = await searchParams;
   const [recipes, itemRows, categories] = await Promise.all([
     db
       .select({ id: boms.id, name: boms.name, outputQuantity: boms.outputQuantity, active: boms.active, itemName: items.name, unit: items.unit })
@@ -37,15 +40,43 @@ export default async function RecipesPage() {
         .orderBy(asc(inputItem.name))
     : [];
   const canWrite = can(session, "manufacturing.write");
+  const showForm = canWrite && (adding === "1" || recipes.length === 0);
 
   return (
     <>
-      <PageHeader title="Recipes" subtitle="A recipe (bill of materials) lists what one batch uses and how much it makes." />
+      <PageHeader
+        title="Recipes"
+        subtitle="A recipe (bill of materials) lists what one batch uses and how much it makes."
+        action={
+          canWrite && !showForm ? (
+            <Link href="/manufacturing/recipes?new=1#new-recipe" className={buttonLinkClass} data-testid="new-recipe">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New recipe
+            </Link>
+          ) : null
+        }
+      />
       <ManufacturingTabs current="/manufacturing/recipes" />
-      <div className="grid gap-5 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+      {showForm ? (
+        <div id="new-recipe" className="mx-auto mb-6 max-w-3xl scroll-mt-4">
+          <Card
+            title="New recipe"
+            action={
+              recipes.length > 0 ? (
+                <Link href="/manufacturing/recipes" className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                  <X className="h-4 w-4" aria-hidden="true" />
+                  Close
+                </Link>
+              ) : null
+            }
+          >
+            <RecipeForm items={itemRows.map((item) => ({ id: item.id, label: `${item.name} (${unitLabel(item.unit)})` }))} categories={categories.map((c) => c.name)} />
+          </Card>
+        </div>
+      ) : null}
+      <div className="grid gap-5 md:grid-cols-2">
           {recipes.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">No recipes yet.</p>
+            showForm ? null : <p className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600 md:col-span-2">No recipes yet.</p>
           ) : (
             recipes.map((recipe) => (
               <Card
@@ -82,12 +113,6 @@ export default async function RecipesPage() {
               </Card>
             ))
           )}
-        </div>
-        {canWrite ? (
-          <Card title="New recipe">
-            <RecipeForm items={itemRows.map((item) => ({ id: item.id, label: `${item.name} (${unitLabel(item.unit)})` }))} categories={categories.map((c) => c.name)} />
-          </Card>
-        ) : null}
       </div>
     </>
   );

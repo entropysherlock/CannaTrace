@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
 import { InventoryError } from "../src/lib/inventory-math";
-import { inputCost, parseBatches, scaleRecipe, unitCost, weightLoss, yieldPercent } from "../src/lib/manufacturing-math";
+import { inputCost, parseBatches, scaleRecipe, suggestRunName, summarizeRuns, unitCost, weightLoss, yieldPercent, type RunSummaryInput } from "../src/lib/manufacturing-math";
 
 describe("recipe scaling", () => {
   it("scales inputs and output by the number of batches", () => {
@@ -50,5 +50,33 @@ describe("yield and loss", () => {
   it("has no weight loss figure when counts are involved", () => {
     expect(weightLoss([{ quantity: "350", unit: "G" }], { quantity: "100", unit: "EACH" })).toBeNull();
     expect(weightLoss([{ quantity: "100", unit: "EACH" }], { quantity: "1", unit: "KG" })).toBeNull();
+  });
+});
+
+describe("the Manufacturing overview numbers", () => {
+  const now = new Date("2026-11-18T12:00:00Z");
+  const run = (o: Partial<RunSummaryInput>): RunSummaryInput => ({ status: "COMPLETED", plannedOutput: 100, actualOutput: 100, inputCost: null, extraCost: null, completedAt: now, ...o });
+  it("counts runs in progress and finished this month, averages recent yield, and totals this month's cost", () => {
+    const s = summarizeRuns(
+      [
+        run({ status: "IN_PROGRESS", actualOutput: null, completedAt: null }),
+        run({ actualOutput: 98, inputCost: "400", extraCost: "25.5" }),
+        run({ actualOutput: 90, inputCost: "100" }),
+        run({ actualOutput: 50, completedAt: new Date("2026-03-01T00:00:00Z") }), // too old for the yield average
+        run({ status: "CANCELLED", actualOutput: null, completedAt: null }),
+      ],
+      now,
+    );
+    expect(s).toMatchObject({ inProgress: 1, completedThisMonth: 2, yieldRuns: 2 });
+    expect(s.averageYield?.toString()).toBe("94");
+    expect(s.costThisMonth?.toString()).toBe("525.5");
+  });
+  it("leaves yield and cost blank when there's nothing to go on", () => {
+    expect(summarizeRuns([], now)).toMatchObject({ inProgress: 0, completedThisMonth: 0, averageYield: null, costThisMonth: null });
+  });
+  it("suggests the next free run name for the day, in Mountain time", () => {
+    const late = new Date("2026-11-19T05:30:00Z"); // 10:30 pm on the 18th in Albuquerque
+    expect(suggestRunName([], late)).toBe("RUN-20261118-01");
+    expect(suggestRunName(["run-20261118-01", "RUN-20261118-02"], late)).toBe("RUN-20261118-03");
   });
 });
