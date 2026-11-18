@@ -39,9 +39,10 @@ test("state reporting: practice mode sends, NMS2S lists records for hand entry",
   await expect(seen(page, "Done: 1 need entering by hand.")).toBeVisible();
   await expect(seen(page, "has not published the full NMS2S API")).toBeVisible();
 
-  // The dashboard warns about it
+  // The Command Center lists it under Compliance status, and counts it as a pending report
   await page.goto("/dashboard");
   await expect(seen(page, "1 record to enter in the state system by hand")).toBeVisible();
+  await expect(page.getByTestId("kpi-pending-reports")).toContainText("1");
 
   // Mark it entered
   await page.goto("/compliance");
@@ -79,7 +80,7 @@ test("the state rules page shows the score, what to fix, and each rule's source"
   await page.getByLabel("Password").fill("demo1234");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
-  await expect(seen(page, "Compliance score")).toBeVisible();
+  await expect(page.getByTestId("compliance-status")).toContainText("State rules");
 
   await page.goto("/compliance/rules");
   await expect(page.getByRole("heading", { name: "State rules" })).toBeVisible();

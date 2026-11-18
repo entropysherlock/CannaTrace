@@ -7,9 +7,10 @@ test("Tally Watch matches against a state report, fixes a difference after one C
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/dashboard/);
 
-  // Tally Watch lives on the Dashboard, not in its own tab
-  await expect(page.getByRole("link", { name: "Tally Watch" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: /^Tally Watch/ })).toBeVisible();
+  // Tally Watch has its own page in the side menu, under Intelligence
+  await page.getByRole("link", { name: "Tally Watch" }).filter({ visible: true }).first().click();
+  await expect(page).toHaveURL(/\/watch$/);
+  await expect(page.getByRole("heading", { name: /^Tally Watch/ }).first()).toBeVisible();
   await page.getByText("Match against the state system").click();
 
   // Upload a state report where one package's count differs and one package exists only in the state system

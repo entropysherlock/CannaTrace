@@ -3,6 +3,8 @@ import { AssistantPanel } from "@/components/assistant-panel";
 import { WalkthroughProvider } from "@/components/walkthrough";
 import { WALKTHROUGHS } from "@/lib/walkthroughs";
 import { Logo } from "@/components/logo";
+import { FacilitySwitcher, TopBarRight } from "@/components/top-bar";
+import { openFindings } from "@/lib/watch";
 import { tallyAvailability } from "@/lib/ai/connection";
 import { retentionHours } from "@/lib/assistant/attachments/store";
 import { BottomNav, SectionTabs, SideNav, type NavGroup, type NavItem, type Tab } from "@/components/side-nav";
@@ -22,6 +24,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await requireSession();
   const supportAdmin = !session.support && (await isPlatformAdmin(session.userId));
   const tally = await tallyAvailability(session);
+  // The bell in the top bar: what Tally Watch has open at this facility.
+  const alerts = (await openFindings(session)).length;
   const facilities = await db
     .select({ id: facilitiesTable.id, name: facilitiesTable.name, licenseNumber: facilitiesTable.licenseNumber })
     .from(facilitiesTable)
@@ -51,6 +55,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         entry("manufacturing", "Manufacturing", tabs([["/manufacturing", "Manufacturing", can(session, "inventory.view")]])),
         entry("distribution", "Distribution", tabs([["/distribution", "Distribution", can(session, "sales.view")]])),
         entry("register", "Register", tabs([["/pos", "Register", can(session, "pos.use")]])),
+      ].filter((x): x is NavItem => Boolean(x)),
+    },
+    {
+      heading: "Tools",
+      items: [
         entry(
           "labels",
           "SmartLabel AI",
@@ -61,11 +70,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             ["/labels/history", "History", can(session, "labels.print")],
           ]),
         ),
-      ].filter((x): x is NavItem => Boolean(x)),
-    },
-    {
-      heading: "Insights",
-      items: [
         entry(
           "reports",
           "Reports",
@@ -86,6 +90,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ].filter((x): x is NavItem => Boolean(x)),
     },
     {
+      heading: "Intelligence",
+      items: [{ key: "watch", label: "Tally Watch", href: "/watch" }, { key: "walkthroughs", label: "Walkthroughs", href: "/walkthroughs" }],
+    },
+    {
       heading: "Admin",
       items: [
         entry(
@@ -99,7 +107,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             ["/settings/ai", "Tally AI", can(session, "ai.manage")],
           ]),
         ),
-        entry("support", "Support console", tabs([["/support", "Support console", supportAdmin]])),
+        entry("support", "Support Console", tabs([["/support", "Support Console", supportAdmin]])),
       ].filter((x): x is NavItem => Boolean(x)),
     },
   ].filter((g) => g.items.length);
@@ -131,42 +139,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
-        <header className="flex flex-wrap items-center justify-between gap-2 bg-brand-950 px-4 py-3 text-white shadow-md print:hidden">
-          <Link href="/" className="md:hidden" title="CannaTrace home">
-            <Logo tone="light" />
+        <header className="sticky top-0 z-30 flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur md:gap-3 md:px-6 print:hidden">
+          <Link href="/" className="mr-auto md:hidden" title="CannaTrace home">
+            <Logo />
           </Link>
-          <form action={switchFacility} className="order-last flex w-full min-w-0 items-center gap-2 md:order-none md:w-auto">
-            <label htmlFor="facilityId" className="sr-only">
-              Facility
-            </label>
-            <select
-              // Keyed by facility so the menu shows the new one after switching from any page.
-              key={session.facilityId}
-              id="facilityId"
-              name="facilityId"
-              defaultValue={session.facilityId}
-              className="min-h-10 min-w-0 flex-1 rounded-lg border border-brand-700 bg-brand-900 px-3 text-sm font-semibold text-white md:flex-none"
-            >
-              {facilities.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name} · {f.licenseNumber}
-                </option>
-              ))}
-            </select>
-            <button type="submit" className="min-h-10 rounded-lg border border-brand-600 px-3 text-sm font-semibold text-brand-100 hover:bg-brand-800">
-              Switch
-            </button>
-          </form>
-          <div className="flex items-center gap-4 md:hidden">
-            <Link href="/account" className="text-sm font-medium text-brand-200">
-              Password
-            </Link>
-            <form action={signOut}>
-              <button type="submit" className="text-sm font-medium text-brand-200">
-                Sign out
-              </button>
-            </form>
+          <div className="order-last flex w-full min-w-0 md:order-none md:mr-auto md:w-auto">
+            <FacilitySwitcher facilities={facilities} current={session.facilityId} action={switchFacility} />
           </div>
+          <TopBarRight name={session.name} roleName={session.roleName} alerts={alerts} signOutAction={signOut} />
         </header>
         {session.supportVisit ? (
           <div role="note" aria-label="Support view" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-violet-700 px-4 py-2 text-center text-sm text-white print:hidden">
@@ -200,7 +180,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         ) : null}
         {/* Centered column; the extra bottom room keeps the last card clear of the floating Tally button. */}
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 md:pb-24">
+        <main className="mx-auto w-full max-w-6xl flex-1 has-[[data-wide]]:max-w-[1680px] px-4 py-6 sm:px-6 md:pb-24">
           <SectionTabs groups={groups} />
           {children}
         </main>

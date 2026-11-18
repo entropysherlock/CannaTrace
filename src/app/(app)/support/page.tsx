@@ -11,7 +11,7 @@ import { stateName } from "@/lib/states";
 import { requireSession } from "@/lib/session";
 import { addAdminAction, createBusinessAction, openAccountAction, removeAdminAction } from "./actions";
 
-export const metadata = { title: "Support console · CannaTrace" };
+export const metadata = { title: "Support Console · CannaTrace" };
 
 const when = (d: Date | null) =>
   d ? d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Denver" }) : "never";
@@ -38,7 +38,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
   return (
     <>
       <PageHeader
-        title="Support console"
+        title="Support Console"
         subtitle={`${real.length} business${real.length === 1 ? "" : "es"} on CannaTrace. Open any account to see exactly what the customer sees and help them.`}
       />
       <div className="grid gap-5 xl:grid-cols-3">

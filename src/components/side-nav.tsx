@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  BookOpenCheck,
+  Eye,
   LifeBuoy,
   BarChart3,
   Tag,
@@ -32,6 +34,8 @@ const ICONS: Record<string, LucideIcon> = {
   compliance: ShieldCheck,
   settings: Settings,
   support: LifeBuoy,
+  watch: Eye,
+  walkthroughs: BookOpenCheck,
 };
 
 export type Tab = { href: string; label: string };

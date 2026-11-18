@@ -8,7 +8,7 @@ describe("Tally's app guide", () => {
     // Every [href, "Tab label", ...] and entry(key, "Section", ...) in the sidebar
     const labels = [...layout.matchAll(/\["\/[^"]*", "([^"]+)"/g), ...layout.matchAll(/entry\(\s*"[^"]+",\s*"([^"]+)"/g)].map((m) => m[1]);
     expect(labels.length).toBeGreaterThan(20);
-    const missing = [...new Set(labels)].filter((l) => !APP_GUIDE.includes(l) && l !== "Support console");
+    const missing = [...new Set(labels)].filter((l) => !APP_GUIDE.includes(l) && l !== "Support Console");
     expect(missing).toEqual([]);
   });
   it("names the buttons people ask about most", () => {
