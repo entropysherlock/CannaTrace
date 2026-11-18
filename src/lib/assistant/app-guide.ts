@@ -18,7 +18,7 @@ Cultivation (tabs: Overview, Plants, Harvests, Strains)
 Inventory (tabs: Packages, Receive, Counts, Items, Locations)
 - Find a package: Inventory → Packages, search by tag, item, or lot, filter by status. Open it to see its history and lab results.
 - On a package page: "Move", "Adjust quantity", "Split into new packages", "Merge with other packages", "Hold, quarantine, or destroy", "Add lab result" (with a section for the full cannabinoid profile and terpenes), "Print package label", "Print product label".
-- Receive new packages: Inventory → Receive.
+- Receive new packages: Inventory → Receive. Leave the tag blank and CannaTrace makes a new unique ID (PKG-000123); the same goes for splits, merges, harvest packages, and production runs. Leave the SKU blank on "Add an item" to get one like FLO-0007; change it under "Name and SKU" on the item.
 - Count a room or shelf: Inventory → Counts → "Count a location".
 - Products: Inventory → Items → "Add an item" or "Add a category". "Label details" on each item holds unit weight, servings and mg per serving, shelf life, refrigeration, directions, ingredients, allergens, pesticides, and solvents for product labels.
 - Racks and bins: Inventory → Locations → "Add a location".
@@ -45,7 +45,7 @@ SmartLabel AI (tabs: Print, Templates, Printers, History)
 - Templates: edit or duplicate a design; "Insert a field" adds data such as net weight, lot, harvest batch, cannabinoid profile. New Mexico product labels need the state's cannabis logo uploaded once.
 - Printers: save a printer and nudge the alignment; print a test label.
 
-Reports (tabs: Reports, Import and export): inventory value and age, retail sales, wholesale, harvest and production yields. Import and export downloads spreadsheets (CSV) of packages, items, locations, customers, invoices, retail sales, and the audit trail, and uploads items, locations, customers, and opening inventory.
+Reports (tabs: Reports, Import and export): inventory value and age, retail sales, wholesale, harvest and production yields. Import and export downloads spreadsheets (CSV) of packages, items, locations, customers, invoices, retail sales, and the audit trail, and uploads items, locations, customers, and opening inventory. "Switch from Dutchie" on the same page loads a Dutchie POS inventory report (Reports → Current Inventory, exported to Excel or CSV): products, rooms, and packages with their tags, batches, quantities, and costs. Press "Check the file" first; nothing is saved until "Import". THC and CBD come across as pending lab results to confirm.
 
 Compliance (tabs: State reporting, State rules, Audit trail): the state track-and-trace system for this facility and what's waiting to send; the state's rules CannaTrace enforces and anything to fix; every change, who made it, and when.
 

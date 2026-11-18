@@ -4,7 +4,11 @@ import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { IMPORT_KINDS } from "@/lib/importer";
 import { can, type Permission } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
-import { importAction } from "./actions";
+import { DutchieImport } from "@/components/dutchie-import";
+import { importAction, importDutchieAction, previewDutchieAction } from "./actions";
+
+// A large Dutchie report can take a while to check and import.
+export const maxDuration = 300;
 
 const EXPORTS: { table: string; label: string; permission: Permission }[] = [
   { table: "packages", label: "Packages at this facility", permission: "inventory.view" },
@@ -73,6 +77,13 @@ export default async function DataPage() {
           </Card>
         ) : null}
       </div>
+      {can(session, "inventory.write") && can(session, "catalog.manage") ? (
+        <div className="mt-5 max-w-3xl">
+          <Card title="Switch from Dutchie">
+            <DutchieImport preview={previewDutchieAction} run={importDutchieAction} />
+          </Card>
+        </div>
+      ) : null}
     </>
   );
 }

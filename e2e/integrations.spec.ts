@@ -30,21 +30,21 @@ test("reports, CSV export and import, API keys, and the REST API", async ({ page
 
   // Import: a bad file changes nothing and lists problems; a good one works
   await page.locator('select[name="kind"]').selectOption("items");
-  await page.locator('input[name="file"]').setInputFiles({
+  await page.locator('form:has(select[name="kind"]) input[name="file"]').setInputFiles({
     name: "items.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(`name,sku,category,unit\nGood,${run}-A,Flower,EACH\nBad,${run}-B,Flower,BUSHEL\n`),
   });
-  await page.getByRole("button", { name: "Import" }).click();
+  await page.getByRole("button", { name: "Import", exact: true }).click();
   await expect(seen(page, "Nothing was imported")).toBeVisible();
   await expect(seen(page, /Line 3: unit must be one of/)).toBeVisible();
   await page.locator('select[name="kind"]').selectOption("items");
-  await page.locator('input[name="file"]').setInputFiles({
+  await page.locator('form:has(select[name="kind"]) input[name="file"]').setInputFiles({
     name: "items.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(`name,sku,category,unit\nImported jar,${run}-A,Flower,EACH\n`),
   });
-  await page.getByRole("button", { name: "Import" }).click();
+  await page.getByRole("button", { name: "Import", exact: true }).click();
   await expect(seen(page, "Imported 1 items row.")).toBeVisible();
 
   // API key

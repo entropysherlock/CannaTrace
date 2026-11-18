@@ -1,0 +1,9 @@
+Current Inventory Report,,,,,,,,,,,,,,,,
+"Generated 11/17/2026 9:14 PM",,,,,,,,,,,,,,,,
+Location Name,Inventory Location,Product Name,Category,UPC GTIN,SKU,Vendor,Package ID,External Package ID,Batch Number,Strain Name,Quantity,Grams,Price,Cost,Brand,THC %
+Sandia Store,Sales Floor,Blue Dream 3.5g,Flower,,BD-35,Mesa Farms,DTC-0001,1A40E0100000A1B000000101,BD-1104,Blue Dream,24,84,35.00,$12.50,Mesa Farms,24.1
+Sandia Store,Vault,Blue Dream 3.5g,Flower,,BD-35,Mesa Farms,DTC-0002,1A40E0100000A1B000000102,BD-1104,Blue Dream,60,210,35.00,$12.50,Mesa Farms,24.1
+Sandia Store,Vault,Bulk Blue Dream,Flower,,,Mesa Farms,DTC-0003,,BD-1104,Blue Dream,453.6,453.6,,1.10,Mesa Farms,24.1
+Sandia Store,Sales Floor,Prickly Pear Gummies 100mg,Edibles,850001234567,PPG-100,Desert Treats,DTC-0004,,PP-1030,,40,,22.00,4.25,Desert Treats,
+Sandia Store,Sales Floor,Desert Haze Pre-Roll 1g,Pre-Rolls,,DH-PR1,Mesa Farms,DTC-0005,,DH-1102,Desert Haze,0,0,8.00,1.60,Mesa Farms,22.8
+,,,,,,,,,,,Total,,,,,
