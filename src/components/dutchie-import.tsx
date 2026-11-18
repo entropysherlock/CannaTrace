@@ -4,8 +4,24 @@ import { useRef, useState, useTransition } from "react";
 import type { DutchieState } from "@/app/(app)/data/actions";
 import type { DutchieResult } from "@/lib/importers/dutchie";
 import type { Source } from "@/lib/importers/dutchie-parse";
+import { inputClass } from "@/components/ui";
 
 type Act = (formData: FormData) => Promise<DutchieState>;
+
+/**
+ * Big exports (a 25,000-row store is about 9 MB) are gzipped in the browser before upload, so they fit
+ * through the server's upload limit; a CSV shrinks to about a sixth. The server unzips them.
+ */
+async function packed(formData: FormData): Promise<FormData> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size < 512 * 1024 || typeof CompressionStream === "undefined") return formData;
+  const gz = await new Response(file.stream().pipeThrough(new CompressionStream("gzip"))).blob();
+  formData.set("file", new File([gz], `${file.name}.gz`, { type: "application/gzip" }));
+  return formData;
+}
+
+const UPLOAD_FAILED =
+  "The upload didn't go through. Check your connection and try again. If the file is very large, export one store or location at a time.";
 
 function Summary({ r, done }: { r: DutchieResult; done: boolean }) {
   return (
@@ -14,7 +30,7 @@ function Summary({ r, done }: { r: DutchieResult; done: boolean }) {
         {done ? "Imported" : "Ready to import"}: {r.packages.toLocaleString("en-US")} package{r.packages === 1 ? "" : "s"}, {r.products.created} new product
         {r.products.created === 1 ? "" : "s"}
         {r.products.reused ? ` (${r.products.reused} already in CannaTrace)` : ""}, {r.rooms.created} new room{r.rooms.created === 1 ? "" : "s"}
-        {r.labResults ? `, ${r.labResults} pending lab result${r.labResults === 1 ? "" : "s"}` : ""}.
+        {r.labResults ? `, ${r.labResults.toLocaleString("en-US")} lab result${r.labResults === 1 ? "" : "s"}` : ""}.
       </p>
       {r.warnings.length ? (
         <ul className="list-disc space-y-1 pl-5 text-amber-800">
@@ -101,11 +117,21 @@ export function DutchieImport({ preview, run, source = "dutchie" }: { preview: A
   const copy = STEPS[source];
   const form = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<DutchieState>(null);
+  // The stores a multi-store file names, kept while the same file is checked again with one chosen.
+  const [stores, setStores] = useState<{ name: string; rows: number }[]>([]);
   const [pending, start] = useTransition();
   const go = (act: Act) =>
     start(async () => {
       if (!form.current) return;
-      setState(await act(new FormData(form.current)));
+      let next: DutchieState;
+      try {
+        next = await act(await packed(new FormData(form.current)));
+      } catch {
+        // A failed upload (too large, connection dropped) shows a message instead of breaking the page.
+        next = { error: UPLOAD_FAILED };
+      }
+      setState(next);
+      if (next?.preview?.stores.length) setStores(next.preview.stores);
     });
   const ready = state?.preview && !state.preview.problems.length && state.preview.packages > 0;
   return (
@@ -125,9 +151,27 @@ export function DutchieImport({ preview, run, source = "dutchie" }: { preview: A
           required
           accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           className="block w-full text-sm"
-          onChange={() => setState(null)}
+          onChange={() => {
+            setState(null);
+            setStores([]);
+          }}
         />
       </label>
+      {stores.length > 1 ? (
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold text-slate-800">Which store goes into this facility?</span>
+          <select name="store" defaultValue="" data-testid="switch-store" className={inputClass} onChange={() => setState(null)}>
+            <option value="" disabled>
+              Choose a store from the file
+            </option>
+            {stores.map((st) => (
+              <option key={st.name} value={st.name}>
+                {st.name} ({st.rows.toLocaleString("en-US")} rows)
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"

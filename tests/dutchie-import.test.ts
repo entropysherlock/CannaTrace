@@ -1,12 +1,13 @@
 import { readFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import ExcelJS from "exceljs";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { facilities, itemCategories, items, labResults, locations, organizations, packages, users } from "@/db/schema";
 import { parseCsv } from "@/lib/csv";
 import { db, pool } from "@/lib/db";
-import { amountWithUnit, planDutchie, planImport, unitFor, findHeader, sizeInName } from "@/lib/importers/dutchie-parse";
-import { importDutchie, importInventory, previewDutchie, readReport } from "@/lib/importers/dutchie";
+import { amountWithUnit, planDutchie, planImport, statusFor, unitFor, findHeader, sizeInName } from "@/lib/importers/dutchie-parse";
+import { importDutchie, importInventory, previewDutchie, previewImport, readReport } from "@/lib/importers/dutchie";
 import type { Actor } from "@/lib/inventory";
 import Decimal from "decimal.js";
 
@@ -121,6 +122,54 @@ describe("reading an NMS2S inventory list", () => {
   });
 });
 
+const multi = () => parseCsv(readFileSync("tests/fixtures/multi-store-inventory.csv", "utf8"));
+
+describe("reading a big, multi-store inventory file", () => {
+  it("reads lot, location, store, strain, cost, and status columns", () => {
+    const plan = planImport("dutchie", multi(), { store: "Sandia Mega Dispensary" });
+    expect(plan.matched).toMatchObject({ batch: "lot_id", room: "location", store: "facility_name", strain: "strain_or_flavor", cost: "unit_cost_usd", status: "inventory_status", labStatus: "lab_status" });
+  });
+  it("asks which store to import when the file has several, and imports only that store's rows", () => {
+    const all = planImport("dutchie", multi());
+    expect(all.rows).toEqual([]);
+    expect(all.problems[0]).toMatch(/2 stores \(Rio Grande Retail, Sandia Mega Dispensary\)\. Choose which one/);
+    expect(all.stores).toEqual([
+      { name: "Rio Grande Retail", rows: 2 },
+      { name: "Sandia Mega Dispensary", rows: 6 },
+    ]);
+    const rio = planImport("dutchie", multi(), { store: "rio grande retail" });
+    expect(rio.problems).toEqual([]);
+    expect(rio.rows.map((r) => r.tag)).toEqual(["MS-PKG-0007", "MS-PKG-0008"]);
+    expect(rio.warnings[0]).toMatch(/Importing 2 rows for Rio Grande Retail\. The other 6 rows/);
+  });
+  it("brings held, damaged, recalled, quarantined, and failed stock in so it can't be sold, and leaves out destroyed stock", () => {
+    const plan = planImport("dutchie", multi(), { store: "Sandia Mega Dispensary" });
+    const by = Object.fromEntries(plan.rows.map((r) => [r.tag, [r.status, r.labFailed]]));
+    expect(by).toEqual({
+      "MS-PKG-0001": ["ACTIVE", false],
+      "MS-PKG-0002": ["ON_HOLD", false],
+      "MS-PKG-0003": ["QUARANTINE", true],
+      "MS-PKG-0004": ["QUARANTINE", false],
+      "MS-PKG-0005": ["ON_HOLD", false],
+    });
+    expect(plan.warnings.join(" ")).toMatch(/1 package is marked destroyed or sold/);
+    expect(plan.warnings.join(" ")).toMatch(/2 packages come in quarantined .*1 failed/);
+  });
+  it("maps status words from other systems", () => {
+    expect(["", "Active", "OUT_OF_STOCK", "On Hold", "damaged", "Recalled", "QUARANTINE", "Destroyed", "sold"].map(statusFor)).toEqual([
+      "ACTIVE",
+      "ACTIVE",
+      "ACTIVE",
+      "ON_HOLD",
+      "ON_HOLD",
+      "QUARANTINE",
+      "QUARANTINE",
+      null,
+      null,
+    ]);
+  });
+});
+
 describe.skipIf(!hasDb)("importing a Dutchie report (database)", () => {
   let actor: Actor;
   beforeAll(async () => {
@@ -173,9 +222,35 @@ describe.skipIf(!hasDb)("importing a Dutchie report (database)", () => {
     expect(room).toBeTruthy();
   });
 
+  it("reads a gzipped upload, keeps different SKUs as different products, and saves statuses and failed tests", async () => {
+    const table = await readReport("store.csv.gz", gzipSync(readFileSync("tests/fixtures/multi-store-inventory.csv")));
+    const result = await importInventory("dutchie", actor, table, "Sandia Mega Dispensary");
+    expect(result).toMatchObject({ problems: [], packages: 5, labResults: 4 });
+    const pkgs = await db.select({ tag: packages.tag, status: packages.status, lot: packages.lotNumber, item: packages.itemId }).from(packages).where(eq(packages.orgId, actor.orgId));
+    const by = Object.fromEntries(pkgs.filter((p) => p.tag.startsWith("MS-PKG-")).map((p) => [p.tag, p]));
+    expect(by["MS-PKG-0003"]).toMatchObject({ status: "QUARANTINE", lot: "LOT-3" });
+    expect(by["MS-PKG-0002"].status).toBe("ON_HOLD");
+    expect(by["MS-PKG-0006"]).toBeUndefined();
+    // Two brands' "Desert Haze 1 g Single" with their own SKUs stay two products
+    expect(by["MS-PKG-0001"].item).not.toBe(by["MS-PKG-0002"].item);
+    const [failed] = await db.select().from(labResults).where(and(eq(labResults.orgId, actor.orgId), eq(labResults.packageId, (await db.select().from(packages).where(and(eq(packages.orgId, actor.orgId), eq(packages.tag, "MS-PKG-0003"))))[0].id)));
+    expect(failed.status).toBe("FAIL");
+  });
+
+  it("names the clashing lines when only some package IDs are already in CannaTrace", async () => {
+    const table = await readReport("store.csv", Buffer.from(readFileSync("tests/fixtures/multi-store-inventory.csv")));
+    const preview = await previewImport("dutchie", actor, table, "Rio Grande Retail");
+    expect(preview.problems).toEqual([]);
+    const both = [table[0], table[1], table[7]]; // MS-PKG-0001 (imported above) and MS-PKG-0007 (new)
+    both[1][1] = both[2][1] = "Rio Grande Retail";
+    const clash = await previewImport("dutchie", actor, both);
+    expect(clash.problems[0]).toMatch(/1 package ID is already in CannaTrace/);
+    expect(clash.problems[1]).toMatch(/MS-PKG-0001 is already in use/);
+  });
+
   it("saves nothing when a package is already in CannaTrace", async () => {
     const before = await db.$count(packages, eq(packages.orgId, actor.orgId));
-    await expect(importDutchie(actor, report())).rejects.toThrow(/Nothing was imported[\s\S]*already in use/);
+    await expect(importDutchie(actor, report())).rejects.toThrow(/Nothing was imported[\s\S]*already imported/);
     expect(await db.$count(packages, eq(packages.orgId, actor.orgId))).toBe(before);
   });
 });
