@@ -2,17 +2,20 @@ import {
   ArrowRight,
   BarChart3,
   Boxes,
-  CalendarDays,
   Check,
   ChevronDown,
-  ChevronRight,
+  Eye,
   Factory,
-  Leaf,
+  FileCheck,
+  GraduationCap,
+  History,
   MapPin,
   Play,
   ShieldCheck,
+  Sparkles,
   Sprout,
   Store,
+  Tag,
   Truck,
   Users,
   Zap,
@@ -24,6 +27,7 @@ import Link from "next/link";
 import { DemoVideoButton, DemoVideoPlayer, DemoVideoPoster } from "@/components/demo-video";
 import { LeafMark, Logo } from "@/components/logo";
 import { CONTACT_EMAILS, mailto } from "@/lib/contact";
+import { FOUNDING, PRICES, facilitiesLabel, usd } from "@/lib/pricing";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -36,157 +40,178 @@ const DEMO_LINK = mailto("CannaTrace demo request");
 // Reads the sign-in cookie, so the buttons can say "Go to dashboard" for people already signed in.
 export const instant = false;
 
-/* ---------- The example dashboard in the hero. Figures are for illustration. ---------- */
+/* ---------- Real screens from the app, shown with sample data ---------- */
 
-function Stat({ icon: Icon, value, label, change }: { icon: LucideIcon; value: string; label: string; change: string }) {
+/** A screenshot of the app in a simple browser frame. */
+function Screen({ src, alt, priority = false, className = "" }: { src: string; alt: string; priority?: boolean; className?: string }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
-      <Icon className="h-7 w-7 shrink-0 text-brand-600" aria-hidden="true" />
-      <div className="min-w-0">
-        <p className="whitespace-nowrap text-base font-extrabold leading-tight text-slate-900">{value}</p>
-        <p className="whitespace-nowrap text-[11px] text-slate-500">{label}</p>
-        <p className="whitespace-nowrap text-[11px] font-semibold text-brand-600">↑ {change}</p>
+    <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_30px_60px_-20px_rgba(12,48,32,0.35)] ${className}`}>
+      <div className="flex items-center gap-1.5 border-b border-slate-100 bg-slate-50 px-3 py-2" aria-hidden="true">
+        <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+        <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+        <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+        <span className="ml-3 truncate rounded-md bg-white px-3 py-0.5 text-[11px] text-slate-500 ring-1 ring-slate-200">canna-trace.vercel.app</span>
       </div>
+      <Image src={src} alt={alt} width={2000} height={1250} priority={priority} sizes="(min-width: 1024px) 60vw, 100vw" className="h-auto w-full" />
     </div>
   );
 }
 
-function HeroDashboard() {
-  const series = [
-    { d: "M0,120 C40,112 80,100 120,96 C160,92 200,84 240,72 C280,60 320,50 360,30 C380,22 400,12 420,4", w: 3, o: 1 },
-    { d: "M0,130 C40,126 80,118 120,116 C160,112 200,106 240,98 C280,90 320,82 360,70 C380,64 400,58 420,52", w: 2, o: 0.55 },
-    { d: "M0,138 C40,136 80,132 120,130 C160,128 200,124 240,120 C280,114 320,108 360,100 C380,96 400,92 420,88", w: 2, o: 0.3 },
-  ];
-  const nav = ["Dashboard", "Cultivation", "Inventory", "Manufacturing", "Distribution", "Retail", "Compliance", "Reports"];
-  const checks = [
-    ["State Reporting", "Up to date"],
-    ["Metrc Integration", "Connected"],
-    ["Inventory Reconciliation", "No issues"],
-    ["Audit Readiness", "Ready"],
-  ];
-  const stages = ["Cultivate", "Harvest", "Manufacture", "Package", "Distribute", "Retail"];
+/** A phone screenshot in a simple phone frame. */
+function Phone({ src, alt }: { src: string; alt: string }) {
   return (
-    <figure>
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_30px_60px_-20px_rgba(12,48,32,0.35)]">
-        <div className="flex">
-          <div className="hidden w-36 shrink-0 bg-brand-950 p-3 sm:block">
-            <p className="mb-5 mt-1 flex items-center gap-1.5 text-sm font-bold text-white">
-              <LeafMark className="h-5 w-5 text-brand-200" /> CannaTrace
-            </p>
-            {nav.map((label, i) => (
-              <p key={label} className={`mb-0.5 rounded-lg px-2.5 py-2 text-xs font-medium ${i === 0 ? "bg-brand-600 text-white" : "text-brand-100"}`}>
-                {label}
-              </p>
-            ))}
-          </div>
-          <div className="min-w-0 flex-1 bg-slate-50/60 p-3 sm:p-4">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-lg font-extrabold text-slate-900">Dashboard</p>
-              <div className="hidden gap-2 md:flex">
-                <span className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700">
-                  <MapPin className="h-3 w-3" aria-hidden="true" /> All Locations <ChevronDown className="h-3 w-3" aria-hidden="true" />
-                </span>
-                <span className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700">
-                  <CalendarDays className="h-3 w-3" aria-hidden="true" /> Last 30 Days <ChevronDown className="h-3 w-3" aria-hidden="true" />
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-              <Stat icon={Leaf} value="12,480" label="Active Plants" change="+6.8%" />
-              <Stat icon={Boxes} value="4,320" label="Inventory Units" change="+3.9%" />
-              <Stat icon={Factory} value="2,680" label="Batches" change="+5.1%" />
-              <Stat icon={Store} value="$428,900" label="Retail Sales" change="+12.4%" />
-            </div>
-            <div className="mt-2 grid gap-2 xl:grid-cols-5">
-              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm xl:col-span-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-bold text-slate-900">Operations Overview</p>
-                  <p className="flex gap-2 text-[10px] text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-brand-700" /> Cultivation
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> Manufacturing
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-brand-200" /> Sales
-                    </span>
-                  </p>
-                </div>
-                <svg viewBox="0 0 420 140" className="mt-2 h-32 w-full" aria-hidden="true">
-                  <defs>
-                    <linearGradient id="hero-fill" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#2f8a4c" stopOpacity="0.35" />
-                      <stop offset="100%" stopColor="#2f8a4c" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  {[35, 70, 105].map((y) => (
-                    <line key={y} x1="0" x2="420" y1={y} y2={y} stroke="#eef2ef" />
-                  ))}
-                  <path d={`${series[0].d} L420,140 L0,140 Z`} fill="url(#hero-fill)" />
-                  {series.map((s, i) => (
-                    <path key={i} d={s.d} fill="none" stroke="#237a3e" strokeOpacity={s.o} strokeWidth={s.w} strokeLinecap="round" />
-                  ))}
-                </svg>
-              </div>
-              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm xl:col-span-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-slate-900">Compliance Status</p>
-                  <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-800">Compliant</span>
-                </div>
-                <ul className="mt-2 space-y-1.5">
-                  {checks.map(([label, state]) => (
-                    <li key={label} className="flex items-center justify-between gap-2 whitespace-nowrap text-[10px]">
-                      <span className="flex items-center gap-1.5 text-slate-700">
-                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-brand-600 text-white">
-                          <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" />
-                        </span>
-                        {label}
-                      </span>
-                      <span className="text-brand-700">{state}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            <div className="mt-2 grid gap-2 xl:grid-cols-[1fr_1.15fr]">
-              <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-900 text-brand-100">
-                  <Sprout className="h-7 w-7" aria-hidden="true" />
-                </span>
-                <div className="min-w-0 flex-1 text-[11px]">
-                  <p className="text-xs font-bold text-slate-900">Plant Tracking</p>
-                  <p className="text-brand-700">Flower · Cultivation Room A</p>
-                  <p className="text-slate-600">8,420 plants · Week 5 (Flower)</p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
-              </div>
-              <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
-                <p className="text-xs font-bold text-slate-900">Workflow Status</p>
-                <ol className="mt-2 grid grid-cols-6">
-                  {stages.map((stage, i) => (
-                    <li key={stage} className="relative flex flex-col items-center gap-1">
-                      {i > 0 ? <span className="absolute right-1/2 top-[7px] h-0.5 w-full bg-slate-200" aria-hidden="true" /> : null}
-                      <span
-                        className={`relative z-10 flex h-4 w-4 items-center justify-center rounded-full ${i < 2 ? "bg-brand-600 text-white" : "border-2 border-slate-300 bg-white"}`}
-                      >
-                        {i < 2 ? <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden="true" /> : null}
-                      </span>
-                      <span className="max-w-full truncate text-[8px] text-slate-600">{stage}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <figcaption className="mt-2 text-center text-xs text-slate-500">Example screen. Figures are for illustration.</figcaption>
-    </figure>
+    <div className="mx-auto w-full max-w-[260px] rounded-[2.2rem] border-[10px] border-slate-900 bg-slate-900 shadow-xl">
+      <Image src={src} alt={alt} width={780} height={1688} sizes="260px" className="h-auto w-full rounded-[1.6rem]" />
+    </div>
   );
 }
 
 /* ---------- The tablet in "See CannaTrace in Action" ---------- */
+
+/* ---------- The tour: one real screen per part of the app ---------- */
+
+const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text: string; points: string[]; src: string; alt: string }[] = [
+  {
+    id: "cultivation",
+    icon: Sprout,
+    kicker: "Cultivation",
+    title: "Every plant, from clone to harvest",
+    text: "Start batches, tag plants, move them through veg and flower, and record harvests without spreadsheets.",
+    points: ["Plant batches, tags, phases, and rooms", "Harvests with wet and dry weight, waste, and packaging", "Tasks for the crew, with due dates", "IDs made for you, or scan your own tags"],
+    src: "/site/cultivation.webp",
+    alt: "The CannaTrace Cultivation page with plant batches, phase counts, and open tasks",
+  },
+  {
+    id: "inventory",
+    icon: Boxes,
+    kicker: "Inventory",
+    title: "Know exactly what's on the shelf",
+    text: "Every package with its tag, item, quantity, room, and status. Scan a tag to find it in a second.",
+    points: ["Receive deliveries, move, split, merge, and adjust", "Lab results, holds, and quarantine", "Cycle counts that fix the numbers and keep the history", "Rooms, vaults, and racks"],
+    src: "/site/inventory.webp",
+    alt: "The CannaTrace Inventory page listing packages with tags, rooms, quantities, and statuses",
+  },
+  {
+    id: "manufacturing",
+    icon: Factory,
+    kicker: "Manufacturing",
+    title: "Production runs with yield and cost",
+    text: "Turn bulk flower and inputs into finished products, and see what each unit really costs.",
+    points: ["Recipes with inputs and expected output", "Runs that use up inputs and make new packages", "Yield and cost per unit, worked out for you", "Every input traced to every output"],
+    src: "/site/manufacturing.webp",
+    alt: "The CannaTrace Manufacturing overview with runs in progress, yield, and cost per unit",
+  },
+  {
+    id: "distribution",
+    icon: Truck,
+    kicker: "Distribution",
+    title: "Wholesale from order to invoice",
+    text: "Take orders from licensed buyers, pick and pack the right packages, ship with a manifest, and get paid.",
+    points: ["Orders, picking, and packing", "Buyer licenses checked before anything ships", "Drivers, vehicles, and manifests", "Price lists, invoices, and what's owed"],
+    src: "/site/distribution.webp",
+    alt: "The CannaTrace Distribution page with wholesale orders and invoices",
+  },
+  {
+    id: "retail",
+    icon: Store,
+    kicker: "Register",
+    title: "A register that knows the rules",
+    text: "Scan the ID, ring up the sale, and let CannaTrace keep every purchase inside the state's limits.",
+    points: ["ID scan checks age and expiry", "Purchase limits shown as you add products", "Discounts, cannabis excise and sales tax", "Held carts, cash drawer, and a customer screen"],
+    src: "/site/register.webp",
+    alt: "The CannaTrace register with products, a cart, purchase limits, a veteran discount, and taxes",
+  },
+  {
+    id: "labels",
+    icon: Tag,
+    kicker: "SmartLabel AI",
+    title: "Compliant labels in a few clicks",
+    text: "Pick the packages, pick a template, and print. SmartLabel AI checks each label before it prints.",
+    points: ["Package, product, plant, batch, and transfer labels", "Templates you can change", "Works with your label printers", "A history of every print job"],
+    src: "/site/labels.webp",
+    alt: "The CannaTrace SmartLabel AI page choosing packages and a label template",
+  },
+  {
+    id: "compliance",
+    icon: ShieldCheck,
+    kicker: "Compliance",
+    title: "Your state's rules, built in",
+    text: "CannaTrace scores how well you're following your state's rules and tells you what to fix, with a link to fix it.",
+    points: ["Rules for 23 adult-use states, starting with New Mexico", "A compliance score and a to-fix list", "Purchase limits, ages, testing, and waste rules", "Every rule linked to the regulation"],
+    src: "/site/rules.webp",
+    alt: "The CannaTrace State rules page with a compliance score and New Mexico rules in effect",
+  },
+  {
+    id: "reporting",
+    icon: FileCheck,
+    kicker: "State reporting",
+    title: "A reporting queue you can trust",
+    text: "Every change that the state needs to hear about is queued, sent, and tracked, so nothing slips through.",
+    points: ["See what's waiting, sent, or failed", "Records to enter by hand are listed for you", "Metrc and BioTrack connections, live once approved", "Practice mode to try it with nothing sent"],
+    src: "/site/compliance.webp",
+    alt: "The CannaTrace State reporting page with recent records marked sent",
+  },
+  {
+    id: "tally",
+    icon: Sparkles,
+    kicker: "Tally, the built-in assistant",
+    title: "Ask your business anything",
+    text: "Tally answers from your live data, right inside CannaTrace. When it suggests a change, nothing happens until you press Confirm, and every change can be undone.",
+    points: ["Plain-English questions, answers from your data", "Drop in a file and ask about it", "Changes wait for your Confirm", "One-click Undo"],
+    src: "/site/tally.webp",
+    alt: "Tally, the CannaTrace assistant, answering a question with a table from live data",
+  },
+  {
+    id: "watch",
+    icon: Eye,
+    kicker: "Tally Watch",
+    title: "Problems found before an inspector finds them",
+    text: "Tally Watch checks your business on its own and lists what needs a look, each with a fix ready to approve.",
+    points: ["Failed lab tests that are still sellable", "Packages missing labels", "Differences with the state system", "Overdue balances and expiring licenses"],
+    src: "/site/watch.webp",
+    alt: "The CannaTrace Tally Watch page with an item to fix and a Prepare the labels button",
+  },
+  {
+    id: "reports",
+    icon: BarChart3,
+    kicker: "Reports",
+    title: "The numbers that run the business",
+    text: "Inventory value, sales by day, wholesale owed, and reporting health, always up to date.",
+    points: ["Inventory value by category and age", "Retail sales by day, with taxes and discounts", "Wholesale invoiced, paid, and overdue", "Export to a spreadsheet"],
+    src: "/site/reports.webp",
+    alt: "The CannaTrace Reports page with inventory value, retail sales by day, and wholesale totals",
+  },
+  {
+    id: "walkthroughs",
+    icon: GraduationCap,
+    kicker: "Show me how",
+    title: "New staff learn on the job",
+    text: "Guided walkthroughs highlight each step on the real screen, so a new budtender or trimmer can do it right the first time.",
+    points: ["Receive a delivery, start a grow, harvest, and more", "Each step highlighted on the screen", "Pick up where you left off", "No training videos to watch"],
+    src: "/site/walkthrough.webp",
+    alt: "A CannaTrace guided walkthrough highlighting the package tag field on the Receive package page",
+  },
+  {
+    id: "audit",
+    icon: History,
+    kicker: "Audit trail",
+    title: "Who did what, and when",
+    text: "Every change is recorded with the person, the time, and what changed, ready for an audit.",
+    points: ["Every sale, move, adjustment, and edit", "The person and the exact time", "Changes made through Tally are marked", "Undos are recorded too"],
+    src: "/site/audit.webp",
+    alt: "The CannaTrace Audit trail listing each change with the person and time",
+  },
+];
+
+const FAQ: [string, string][] = [
+  ["Is this real software?", "Yes. Every screen on this page is a real screenshot of CannaTrace, filled with sample data for a made-up business. You can sign up, or open the sample business and click around yourself."],
+  ["Which states does CannaTrace work in?", "CannaTrace has the rules for 23 adult-use states built in, starting with New Mexico, where it's made. That covers purchase limits, ages, lab testing, and waste."],
+  ["Does it connect to Metrc, BioTrack, or NMS2S?", "The Metrc and BioTrack connections are built. Turning on a live connection needs CannaTrace to be approved as an integrator in your state. Until then, CannaTrace keeps a queue of everything the state needs and lists exactly what to enter by hand."],
+  ["Can I bring my data from another system?", "Yes. CannaTrace imports from NMS2S, Dutchie, and Flourish exports, including large inventories. For founding customers, we do the move for you."],
+  ["Do I need special hardware?", "No. CannaTrace runs in the web browser on computers, tablets, and phones. It works with ordinary USB or Bluetooth barcode scanners and label printers."],
+  ["Who can see what?", "Each person gets a role, like owner, manager, cultivation, sales, or budtender, and only sees and changes what that role allows. Every change is in the audit trail."],
+  ["How much does it cost?", "$299 a month for one facility, or $499 a month for two, with every feature and unlimited team members. Founding customers pay $100 less every month, for life."],
+];
 
 /* ---------- Page ---------- */
 
@@ -253,12 +278,15 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <NavMenu
               label="Features"
               items={[
-                ["Cultivation", "#features"],
-                ["Inventory", "#features"],
-                ["Compliance", "#features"],
-                ["Manufacturing", "#features"],
-                ["Distribution", "#features"],
-                ["Retail", "#features"],
+                ["Cultivation", "#cultivation"],
+                ["Inventory", "#inventory"],
+                ["Manufacturing", "#manufacturing"],
+                ["Distribution", "#distribution"],
+                ["Register", "#retail"],
+                ["SmartLabel AI", "#labels"],
+                ["Compliance", "#compliance"],
+                ["Tally assistant", "#tally"],
+                ["Tally Watch", "#watch"],
               ]}
             />
             <NavMenu
@@ -276,8 +304,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <NavMenu
               label="Resources"
               items={[
+                ["Take the tour", "#tour"],
                 ["Why CannaTrace", "#benefits"],
                 ["See it in action", "#demo"],
+                ["Questions", "#faq"],
                 [signedIn ? "Go to dashboard" : "Sign in", signedIn ? "/dashboard" : "/login"],
               ]}
             />
@@ -328,8 +358,28 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               ))}
             </ul>
           </div>
-          <HeroDashboard />
+          <figure>
+            <Screen src="/site/command-center.webp" alt="The CannaTrace Command Center with plants, packages, sales, the operations flow, charts, and the Tally assistant" priority />
+            <figcaption className="mt-2 text-center text-xs text-slate-500">The real CannaTrace Command Center, shown with sample data.</figcaption>
+          </figure>
         </div>
+      </section>
+
+      {/* Quick facts */}
+      <section aria-label="At a glance" className="border-y border-slate-100 bg-white">
+        <ul className="mx-auto grid max-w-7xl gap-6 px-5 py-8 text-center sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["13", "parts of the business in one app"],
+            ["23", "states' rules built in"],
+            [String(FOUNDING.freeDays), "days free for founding customers"],
+            ["$0", "extra for more team members"],
+          ].map(([n, label]) => (
+            <li key={label}>
+              <p className="text-3xl font-extrabold text-brand-700">{n}</p>
+              <p className="mt-1 text-sm text-slate-600">{label}</p>
+            </li>
+          ))}
+        </ul>
       </section>
 
       {/* Platform */}
@@ -386,6 +436,147 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
       </section>
 
+      {/* The tour */}
+      <section id="tour" className="scroll-mt-20 bg-slate-50/70 py-16" aria-labelledby="tour-heading">
+        <div className="mx-auto max-w-7xl px-5">
+          <p className="text-center text-xs font-bold uppercase tracking-wider text-brand-700">Take the tour</p>
+          <h2 id="tour-heading" className="mt-1 text-center text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
+            See every part of CannaTrace
+          </h2>
+          <p className="mx-auto mt-2 max-w-2xl text-center text-slate-600">Real screens from the app, filled with sample data for a made-up grow and store in New Mexico.</p>
+          <nav aria-label="Tour" className="mt-6 flex flex-wrap justify-center gap-2">
+            {TOUR.map((t) => (
+              <a key={t.id} href={`#${t.id}`} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:border-brand-500 hover:text-brand-800">
+                {t.kicker}
+              </a>
+            ))}
+          </nav>
+          <div className="mt-12 space-y-20">
+            {TOUR.map((t, i) => (
+              <article key={t.id} id={t.id} className="grid scroll-mt-24 items-center gap-8 lg:grid-cols-[0.75fr_1.25fr] lg:gap-12" data-testid="tour-section">
+                <div className={i % 2 ? "lg:order-2" : ""}>
+                  <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-brand-700">
+                    <t.icon className="h-5 w-5" aria-hidden="true" /> {t.kicker}
+                  </p>
+                  <h3 className="mt-2 text-2xl font-extrabold leading-tight text-slate-950 sm:text-3xl">{t.title}</h3>
+                  <p className="mt-3 leading-relaxed text-slate-700">{t.text}</p>
+                  <ul className="mt-4 space-y-2">
+                    {t.points.map((point) => (
+                      <li key={point} className="flex items-start gap-2 text-sm text-slate-800">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" strokeWidth={3} aria-hidden="true" /> {point}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <Screen src={t.src} alt={t.alt} className={i % 2 ? "lg:order-1" : ""} />
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* On any device */}
+      <section id="devices" className="scroll-mt-20 py-16">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 lg:grid-cols-[0.8fr_1.2fr]">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Phones, tablets, and computers</p>
+            <h2 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">Take it into the grow room</h2>
+            <p className="mt-3 text-lg text-slate-700">
+              CannaTrace works in the web browser on any device. Check the numbers from your phone, scan tags on a tablet in the vault, and run the register on a
+              laptop. Nothing to install.
+            </p>
+            <ul className="mt-5 space-y-2 text-sm text-slate-800">
+              {["Works with USB and Bluetooth barcode scanners", "The register runs full screen on a tablet or laptop", "Sign in from anywhere, see only what your role allows"].map((x) => (
+                <li key={x} className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" strokeWidth={3} aria-hidden="true" /> {x}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="grid grid-cols-3 gap-3 sm:gap-6">
+            <Phone src="/site/phone-dashboard.webp" alt="The CannaTrace Command Center on a phone" />
+            <Phone src="/site/phone-inventory.webp" alt="CannaTrace inventory on a phone" />
+            <Phone src="/site/phone-register.webp" alt="The CannaTrace register on a phone" />
+          </div>
+        </div>
+      </section>
+
+      {/* Switching */}
+      <section id="switch" className="scroll-mt-20 px-5 pb-16">
+        <div className="mx-auto grid max-w-7xl gap-8 rounded-3xl bg-brand-950 px-6 py-12 text-white sm:px-12 lg:grid-cols-2">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-200">Switching is easy</p>
+            <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">Bring your inventory with you</h2>
+            <p className="mt-3 text-lg text-brand-100">
+              Export from your current system and drop the file into CannaTrace. It reads the file, shows you what it found, and asks before importing anything.
+            </p>
+          </div>
+          <ol className="space-y-4">
+            {[
+              ["Export", "Download your inventory from NMS2S, Dutchie, or Flourish."],
+              ["Check", "CannaTrace shows what it found and anything to fix, store by store."],
+              ["Import", "Thousands of packages come over in one go, ready to sell."],
+            ].map(([title, text], n) => (
+              <li key={title} className="flex gap-4">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-600 font-extrabold">{n + 1}</span>
+                <span>
+                  <span className="block font-bold">{title}</span>
+                  <span className="block text-sm text-brand-100">{text}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="scroll-mt-20 px-5 pb-16" aria-labelledby="pricing-heading">
+        <div className="mx-auto max-w-5xl text-center">
+          <h2 id="pricing-heading" className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
+            Simple pricing, every feature included
+          </h2>
+          <p className="mt-2 text-slate-600">No contracts and no per-user charges. Pay month to month.</p>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+            {PRICES.map((plan) => (
+              <div key={plan.facilities} className="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm">
+                <p className="font-bold text-slate-900">{facilitiesLabel(plan.facilities)}</p>
+                <p className="mt-2 text-4xl font-extrabold text-slate-950">
+                  {usd(plan.price)}
+                  <span className="text-base font-semibold text-slate-500">/month</span>
+                </p>
+                <p className="mt-1 text-sm font-semibold text-brand-700">Founding customers: {usd(plan.founderPrice)}/month for life</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-sm text-slate-600">
+            The first {FOUNDING.spots} founding customers also get {FOUNDING.freeDays} days free and we bring their inventory over for them.{" "}
+            <Link href="/pricing" className="font-semibold text-brand-700 underline hover:no-underline">
+              See full pricing
+            </Link>
+          </p>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="scroll-mt-20 px-5 pb-16" aria-labelledby="faq-heading">
+        <div className="mx-auto max-w-3xl">
+          <h2 id="faq-heading" className="text-center text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
+            Questions people ask
+          </h2>
+          <div className="mt-8 divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white">
+            {FAQ.map(([q, a]) => (
+              <details key={q} className="group px-5 py-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-bold text-slate-900">
+                  {q}
+                  <ChevronDown className="h-5 w-5 shrink-0 text-slate-400 transition group-open:rotate-180" aria-hidden="true" />
+                </summary>
+                <p className="mt-2 leading-relaxed text-slate-700">{a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* See it in action */}
       <section id="demo" className="scroll-mt-20 px-5 pb-16">
         <div className="relative mx-auto grid max-w-7xl items-center gap-10 overflow-hidden rounded-3xl bg-gradient-to-r from-brand-50 via-[#eef7f1] to-brand-100 px-6 py-12 sm:px-12 lg:grid-cols-2">
@@ -396,7 +587,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <div className="relative">
             <h2 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">See CannaTrace in Action</h2>
             <p className="mt-3 max-w-lg text-lg text-slate-700">
-              A one-minute tour of CannaTrace at work: plants, inventory, lab results, labels, wholesale, the register, state rules, and Tally.
+              A one-minute tour: the Command Center, plants, inventory, manufacturing, wholesale, the register, labels, state rules, Tally, and reports.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <DemoVideoButton className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-6 py-3 font-bold text-white shadow-sm hover:bg-brand-800">
@@ -418,6 +609,22 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                 {demoNotice}
               </p>
             ) : null}
+          </div>
+        </div>
+      </section>
+
+      {/* Last call */}
+      <section className="px-5 pb-16">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">Ready to see it with your own data?</h2>
+          <p className="mt-3 text-lg text-slate-700">Book a demo and we&apos;ll walk you through CannaTrace and answer your questions.</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <a href={DEMO_LINK} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-7 py-3.5 text-base font-bold text-white shadow-sm hover:bg-brand-800">
+              Book a Demo <ArrowRight className="h-5 w-5" aria-hidden="true" />
+            </a>
+            <Link href={cta.href} className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-7 py-3 text-base font-bold text-slate-900 hover:border-brand-600">
+              {cta.label}
+            </Link>
           </div>
         </div>
       </section>
