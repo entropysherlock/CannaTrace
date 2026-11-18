@@ -173,3 +173,51 @@ test("a misconfigured label is explained, blocked, and diagnosed", async ({ page
   await expect(panel).toContainText("can't print yet", { timeout: 15_000 });
   await expect(panel).toContainText("state logo spot has no image");
 });
+
+test("product labels pull in net weight in g and oz, the full cannabinoid profile, and the item's label details", async ({ page }) => {
+  await signIn(page, "owner@demo.test");
+
+  // Label details on the item
+  await page.goto("/catalog");
+  await page.locator("li", { hasText: "Blue Mesa Flower (bulk)" }).getByRole("link", { name: "Label details" }).click();
+  await page.locator("textarea[name=\"directions\"]").fill("For inhalation. Light and inhale slowly.");
+  await page.locator("input[name=\"pesticides\"]").fill("None");
+  await page.locator("input[name=\"shelfLifeDays\"]").fill("365");
+  await page.getByRole("button", { name: "Save label details" }).click();
+  await expect(page.getByRole("status")).toContainText("Saved label details for Blue Mesa Flower (bulk)");
+
+  // A 3.5 g package with a passed lab result and its cannabinoid profile
+  await page.goto("/inventory/receive");
+  await page.locator('input[name="tag"]').fill(`${run}-J`);
+  await page.locator('select[name="itemId"]').selectOption({ label: "Blue Mesa Flower (bulk) (g)" });
+  await page.locator('input[name="quantity"]').fill("3.5");
+  await page.locator('select[name="locationId"]').selectOption({ label: "Dry Room" });
+  await page.locator('input[name="lotNumber"]').fill("LOT-J");
+  await page.getByRole("button", { name: "Receive" }).click();
+  await expect(page.getByRole("heading", { name: `${run}-J` })).toBeVisible();
+  const id = page.url().split("/").pop()!;
+  await page.locator("summary", { hasText: "Add lab result" }).click();
+  await page.locator('input[name="labName"]').fill("Scepter Labs");
+  await page.locator('form:has(input[name="labName"]) select[name="status"]').selectOption("PASS");
+  await page.locator('input[name="thcPercent"]').fill("20");
+  await page.locator("summary", { hasText: "Full cannabinoid profile" }).click();
+  await page.locator("input[name=\"thcaPercent\"]").fill("22.5");
+  await page.locator("input[name=\"cbgPercent\"]").fill("1.1");
+  await page.locator("input[name=\"terpenes\"]").fill("Myrcene 0.82%");
+  await page.getByRole("button", { name: "Save result" }).click();
+  await expect(page.getByTestId("lab-profile")).toContainText("THCa 22.5% · CBG 1.1%");
+
+  // The New Mexico flower label fills it all in
+  await page.goto(`/labels?kind=PRODUCT&ids=${id}`);
+  const flower = await page.getByLabel("Template").locator("option", { hasText: "NM product label 4×4 (flower)" }).getAttribute("value");
+  await page.getByLabel("Template").selectOption(flower!);
+  await page.getByRole("button", { name: "Check and preview" }).click();
+  const previews = page.getByTestId("label-previews");
+  await expect(previews).toContainText("3.5 g (0.12 oz)");
+  await expect(previews).toContainText("700 mg per package");
+  await expect(previews).toContainText("THCa 22.5%");
+  await expect(previews).toContainText("Myrcene 0.82%");
+  await expect(previews).toContainText("Pesticides: None");
+  await expect(previews).toContainText("NM Poison & Drug Information Center 1-800-222-1222");
+  await expect(previews).toContainText(/Expires \d{4}-\d{2}-\d{2}/);
+});

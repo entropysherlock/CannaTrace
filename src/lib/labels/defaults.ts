@@ -65,25 +65,95 @@ function packageLabel(): LabelDesign {
 
 const NM_WARNING = (NM_LABEL_PACK.rules.find((r) => r.id === "nm-warning")!.check as { text: string }).text;
 
-function nmProductLabel(): LabelDesign {
+const NM_FDA =
+  "This product is not approved by the FDA to treat, cure, or prevent any disease. The FDA has not evaluated it for safety, effectiveness, or quality. Long-term use may have adverse health effects, including added risks for women who are or may become pregnant or are breastfeeding.";
+
+/** The parts every New Mexico product label shares. `potency` sits under the product name; `details` above the barcode. */
+function nmLabel(potency: Omit<LabelElement, "id">[], details: Omit<LabelElement, "id">[]): LabelDesign {
   seq = 0;
+  const W = 101.6;
+  const top = [
+    el({ type: "text", x: 4, y: 3, w: 78, h: 6, text: "{{item.name}}", fontSize: 13, bold: true }),
+    el({ type: "image", x: 84.6, y: 3, w: 13, h: 13, role: "STATE_LOGO" }),
+    el({ type: "text", x: 4, y: 10, w: 78, h: 4.5, text: "Total THC {{lab.thc}} · {{lab.thcMg}} per package", fontSize: 10, bold: true }),
+  ];
+  let y = 15;
+  const stack = (items: Omit<LabelElement, "id">[]) =>
+    items.map((e) => {
+      const placed = el({ ...e, y });
+      y += e.h + 0.6;
+      return placed;
+    });
+  const mid = stack([
+    ...potency,
+    { type: "text", x: 4, y: 0, w: 78, h: 3, text: "{{item.strain}} {{item.strainType}} · Lot {{package.lot}} · Harvest {{package.harvest}}", fontSize: 6 },
+    { type: "text", x: 4, y: 0, w: W - 8, h: 3, text: "Directions: {{item.directions}}", fontSize: 6 },
+    { type: "text", x: 4, y: 0, w: W - 8, h: 10.5, text: NM_WARNING, fontSize: 6.5, bold: true },
+    { type: "text", x: 4, y: 0, w: W - 8, h: 8, text: NM_FDA, fontSize: 5.5 },
+    ...details,
+    {
+      type: "text",
+      x: 4,
+      y: 0,
+      w: W - 8,
+      h: 3,
+      text: "Made by {{facility.name}} · License {{facility.license}} · Pesticides: {{item.pesticides}}",
+      fontSize: 6,
+    },
+    {
+      type: "text",
+      x: 4,
+      y: 0,
+      w: W - 8,
+      h: 3,
+      text: "Manufactured {{package.created}} · Expires {{package.expires}} · Tested by {{lab.name}} {{lab.date}}",
+      fontSize: 6,
+    },
+    { type: "text", x: 4, y: 0, w: W - 8, h: 3, text: "{{state.poisonCenter}}", fontSize: 6 },
+  ]);
   return {
-    widthMm: 101.6,
-    heightMm: 76.2,
+    widthMm: W,
+    heightMm: 101.6,
     elements: [
-      el({ type: "text", x: 4, y: 3, w: 78, h: 6, text: "{{item.name}}", fontSize: 13, bold: true }),
-      el({ type: "image", x: 84.6, y: 3, w: 13, h: 13, role: "STATE_LOGO" }),
-      el({ type: "text", x: 4, y: 10, w: 78, h: 4.5, text: "Total THC {{lab.thc}}", fontSize: 10, bold: true }),
-      el({ type: "text", x: 4, y: 15, w: 78, h: 3.5, text: "Tested by {{lab.name}} on {{lab.date}}", fontSize: 7 }),
-      el({ type: "text", x: 4, y: 19.5, w: 93.6, h: 9, text: NM_WARNING, fontSize: 6, bold: true }),
-      el({ type: "text", x: 4, y: 29.5, w: 93.6, h: 3, text: "This product is not approved by the FDA to treat, cure, or prevent any disease.", fontSize: 6 }),
-      el({ type: "text", x: 4, y: 33, w: 93.6, h: 3, text: "Made by {{facility.name}} · License {{facility.license}}", fontSize: 6 }),
-      el({ type: "text", x: 4, y: 36.5, w: 93.6, h: 3, text: "Manufactured {{package.created}} · Lot {{package.lot}}", fontSize: 6 }),
-      el({ type: "barcode", x: 2, y: 41, w: 97.6, h: 11, value: "{{package.tag}}", format: "code128" }),
-      el({ type: "text", x: 4, y: 52.5, w: 93.6, h: 3.5, text: "{{package.tag}}", fontSize: 7, align: "center" }),
-      el({ type: "text", x: 4, y: 60, w: 93.6, h: 6, text: "Net wt. {{package.quantity}} {{package.unit}}", fontSize: 12, bold: true }),
+      ...top,
+      ...mid,
+      el({ type: "barcode", x: 2, y: 77, w: W - 4, h: 8.5, value: "{{package.tag}}", format: "code128" }),
+      el({ type: "text", x: 4, y: 86, w: W - 8, h: 3.5, text: "{{package.tag}}", fontSize: 7, align: "center" }),
+      el({ type: "text", x: 4, y: 91, w: W - 8, h: 6, text: "Net wt. {{package.netQuantity}}", fontSize: 12, bold: true }),
     ],
   };
+}
+
+/** Flower, pre-rolls, and concentrates: potency as lab percentages. */
+function nmFlowerLabel(): LabelDesign {
+  return nmLabel(
+    [{ type: "text", x: 4, y: 0, w: 78, h: 6, text: "{{lab.profile}}", fontSize: 6.5, bold: true }],
+    [{ type: "text", x: 4, y: 0, w: 93.6, h: 3, text: "Terpenes: {{lab.terpenes}}", fontSize: 6 }],
+  );
+}
+
+/** Edibles, tinctures, and topicals: dose per serving, ingredients, allergens. */
+function nmEdibleLabel(): LabelDesign {
+  return nmLabel(
+    [
+      {
+        type: "text",
+        x: 4,
+        y: 0,
+        w: 78,
+        h: 3.6,
+        text: "THC {{item.thcPerServing}} per serving · {{item.servings}} servings · CBD {{item.cbdPerServing}}",
+        fontSize: 7.5,
+        bold: true,
+      },
+      { type: "text", x: 4, y: 0, w: 78, h: 5.6, text: "{{lab.profile}}", fontSize: 6, bold: true },
+    ],
+    [
+      { type: "text", x: 4, y: 0, w: 93.6, h: 6, text: "Ingredients: {{item.ingredients}} {{item.allergens}}", fontSize: 5.5 },
+      { type: "text", x: 4, y: 0, w: 93.6, h: 2.8, text: "Solvents and processing aids: {{item.solvents}}", fontSize: 5.5 },
+      { type: "text", x: 4, y: 0, w: 93.6, h: 3, text: "{{item.refrigerate}}", fontSize: 6.5, bold: true },
+    ],
+  );
 }
 
 function transferLabel(): LabelDesign {
@@ -112,6 +182,9 @@ export function starterTemplates(state: string): StarterTemplate[] {
     { name: "Package label 4×2", kind: "PACKAGE", jurisdiction: null, design: packageLabel() },
     { name: "Transfer label 4×2", kind: "TRANSFER", jurisdiction: null, design: transferLabel() },
   ];
-  if (state.toUpperCase() === "NM") list.push({ name: "NM product label 4×3", kind: "PRODUCT", jurisdiction: "NM", design: nmProductLabel() });
+  if (state.toUpperCase() === "NM") {
+    list.push({ name: "NM product label 4×4 (flower)", kind: "PRODUCT", jurisdiction: "NM", design: nmFlowerLabel() });
+    list.push({ name: "NM product label 4×4 (edible)", kind: "PRODUCT", jurisdiction: "NM", design: nmEdibleLabel() });
+  }
   return list;
 }

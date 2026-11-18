@@ -287,10 +287,16 @@ export function LabelDesigner({ mode, templateId, initial, versions }: Props) {
                   <Field label="Insert a field">
                     <select className={inputClass} value="" onChange={(e) => e.target.value && insertField(e.target.value)}>
                       <option value="">Choose…</option>
-                      {fields.map((f) => (
-                        <option key={f.key} value={f.key}>
-                          {f.label}
-                        </option>
+                      {[...new Set(fields.map((f) => f.group))].map((group) => (
+                        <optgroup key={group} label={group}>
+                          {fields
+                            .filter((f) => f.group === group)
+                            .map((f) => (
+                              <option key={f.key} value={f.key}>
+                                {f.label}
+                              </option>
+                            ))}
+                        </optgroup>
                       ))}
                     </select>
                   </Field>

@@ -111,7 +111,7 @@ describe("validation", () => {
   it("tells missing data apart from inconsistent data", () => {
     const t = starter("Package");
     const issues = checkRecord(t.design, "PACKAGE", pkgRecord({ "package.tag": null, "package.lot": null, "_package.status": "DESTROYED" }));
-    const missingTag = issues.find((i) => i.code === "MISSING" && i.message.includes("Package tag"));
+    const missingTag = issues.find((i) => i.code === "MISSING" && i.message.includes("Package ID"));
     expect(missingTag?.severity).toBe("block");
     expect(missingTag?.category).toBe("MISSING_DATA");
     expect(issues.find((i) => i.code === "PACKAGE_GONE")?.category).toBe("INCONSISTENT_DATA");

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
@@ -37,20 +38,30 @@ export default async function CatalogPage() {
               {rows.map((item) => (
                 <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
                   <div className={item.active ? "" : "opacity-50"}>
-                    <p className="font-medium text-slate-900">{item.name}</p>
+                    <Link href={`/catalog/${item.id}`} className="font-medium text-slate-900 hover:text-brand-700 hover:underline">
+                      {item.name}
+                    </Link>
                     <p className="text-slate-600">
                       {item.sku} · {item.categoryName} · tracked in {unitLabel(item.unit)}
                       {item.strain ? ` · ${item.strain}` : ""}
                       {item.active ? "" : " · retired"}
                     </p>
                   </div>
-                  <form action={setItemActive}>
-                    <input type="hidden" name="itemId" value={item.id} />
-                    <input type="hidden" name="active" value={item.active ? "false" : "true"} />
-                    <button type="submit" className="min-h-10 rounded-md border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50">
-                      {item.active ? "Retire" : "Bring back"}
-                    </button>
-                  </form>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/catalog/${item.id}`}
+                      className="min-h-10 rounded-md border border-brand-200 px-3 py-2 text-sm font-semibold text-brand-800 hover:bg-brand-50"
+                    >
+                      Label details
+                    </Link>
+                    <form action={setItemActive}>
+                      <input type="hidden" name="itemId" value={item.id} />
+                      <input type="hidden" name="active" value={item.active ? "false" : "true"} />
+                      <button type="submit" className="min-h-10 rounded-md border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50">
+                        {item.active ? "Retire" : "Bring back"}
+                      </button>
+                    </form>
+                  </div>
                 </li>
               ))}
             </ul>

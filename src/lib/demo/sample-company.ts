@@ -138,6 +138,25 @@ export async function seedSampleCompany(opts: SeedOptions) {
     .returning();
   const itemId = Object.fromEntries(createdItems.map((i) => [i.sku, i.id]));
 
+  // Label details, so the demo's product labels show net weight, directions, and expiration dates.
+  const flowerUse = { directions: "For inhalation. Grind, roll or pack, light, and inhale slowly.", pesticides: "None", shelfLifeDays: 365 };
+  const labelDetails: Record<string, Partial<typeof items.$inferInsert>> = {
+    "FLW-BM-35": { unitWeightGrams: "3.5", ...flowerUse },
+    "PR-DH-1": { unitWeightGrams: "1", ...flowerUse },
+    "CON-LR-1": { unitWeightGrams: "1", directions: "For inhalation. Heat a small amount and inhale.", pesticides: "None", solvents: "Butane, propane", shelfLifeDays: 365 },
+    "EDI-PP-10": {
+      unitWeightGrams: "50",
+      servingsPerUnit: 10,
+      thcMgPerServing: "10",
+      directions: "For oral use. Eat one gummy and wait at least two hours before eating more.",
+      ingredients: "Sugar, tapioca syrup, water, pectin, citric acid, prickly pear juice, cannabis distillate, natural flavor",
+      pesticides: "None",
+      solvents: "Ethanol",
+      shelfLifeDays: 180,
+    },
+  };
+  for (const [sku, details] of Object.entries(labelDetails)) await db.update(items).set(details).where(eq(items.id, itemId[sku]));
+
   const actor = (facilityId: string): Actor => ({
     userId: inventoryUser.id,
     userName: inventoryUser.name,
@@ -194,7 +213,17 @@ export async function seedSampleCompany(opts: SeedOptions) {
     [shop.id, "CT-000102", "22.8"],
     [shop.id, "CT-000103", "0.9"],
   ] as const) {
-    await addLabResult(actor(facilityId), { packageId: packageId[tag], labName: "Demo Testing Lab", status: "PASS", thcPercent: thc });
+    const flower = Number(thc) > 5;
+    await addLabResult(actor(facilityId), {
+      packageId: packageId[tag],
+      labName: "Demo Testing Lab",
+      status: "PASS",
+      thcPercent: thc,
+      cbdPercent: flower ? "0.1" : null,
+      // A made-up but realistic profile: THCa makes up most of the total THC in flower.
+      profile: flower ? { thcaPercent: (Number(thc) * 1.08).toFixed(1), d9ThcPercent: "0.6", cbgPercent: "1.2", cbnPercent: "0.1", totalCannabinoidsPercent: (Number(thc) * 1.15).toFixed(1) } : undefined,
+      terpenes: flower ? "Myrcene 0.82%, Limonene 0.41%, Caryophyllene 0.30%" : null,
+    });
   }
 
   await movePackage(actor(grow.id), {

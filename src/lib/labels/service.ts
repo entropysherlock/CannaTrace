@@ -45,14 +45,22 @@ async function log(actor: LabelActor, entityType: string, entityId: string, acti
 
 // ---------------------------------------------------------------- templates
 
-/** Give a facility its starter templates the first time anyone opens labels there. Safe to call repeatedly. */
+/**
+ * Give a facility its starter templates: all of them the first time anyone opens labels there, and any
+ * starter added in a later CannaTrace release (matched by name, so an edited or archived template is left alone).
+ * Safe to call repeatedly.
+ */
 export async function ensureStarterTemplates(actor: LabelActor, state: string) {
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(labelTemplates)
-    .where(and(eq(labelTemplates.orgId, actor.orgId), eq(labelTemplates.facilityId, actor.facilityId)));
-  if (count > 0) return;
+  const have = new Set(
+    (
+      await db
+        .select({ name: labelTemplates.name })
+        .from(labelTemplates)
+        .where(and(eq(labelTemplates.orgId, actor.orgId), eq(labelTemplates.facilityId, actor.facilityId)))
+    ).map((r) => r.name),
+  );
   for (const s of starterTemplates(state)) {
+    if (have.has(s.name)) continue;
     await db.transaction(async (tx) => {
       const [t] = await tx
         .insert(labelTemplates)
