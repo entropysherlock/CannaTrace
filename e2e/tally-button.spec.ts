@@ -12,7 +12,7 @@ test("Tally's floating button is on every tab, even after visiting the Command C
   await expect(launcher).toBeHidden();
 
   const nav = page.getByRole("navigation").filter({ visible: true }).first();
-  for (const tab of ["Inventory", "Cultivation", "Reports", "Compliance", "Tally Watch", "Settings"]) {
+  for (const tab of ["Inventory", "Cultivation", "Reports", "Compliance", "Walkthroughs", "Settings"]) {
     await nav.getByRole("link", { name: tab, exact: true }).click();
     await expect(page).not.toHaveURL(/dashboard/);
     await expect(launcher, `Tally's button on ${tab}`).toBeVisible();

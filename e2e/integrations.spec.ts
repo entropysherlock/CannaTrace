@@ -105,6 +105,7 @@ test("a read-only API key cannot make changes, and managers cannot open Integrat
   expect(write.status()).toBe(403);
   expect((await request.get("/api/v1/items", { headers: { Authorization: `Bearer ${key}` } })).status()).toBe(200);
 
+  await page.getByLabel("Your account").click();
   await page.getByRole("button", { name: "Sign out" }).filter({ visible: true }).first().click();
   await expect(page).toHaveURL(/\/login/);
   await signIn(page, "manager@demo.test");

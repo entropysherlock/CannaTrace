@@ -56,6 +56,7 @@ Settings (tabs: Business, Facilities, Team, Integrations, Tally AI)
 - Team: "Invite someone" (sends a one-time link), change roles, build custom roles, make a password reset link for a person.
 - Integrations: API keys and webhooks.
 - Tally AI: connect the business's Claude account and set limits.
-- Switch facility: the menu at the top of every page. Change your own password: "Password" under your name at the bottom of the sidebar.
+- Switch facility: the menu at the top of every page. Change your own password or sign out: the account menu (your initials) at the top right.
+- Tally Watch: the bell at the top right, or the Tally Watch card on the Dashboard. Walkthroughs: under Tools in the sidebar, or the "?" at the top right.
 
 Many actions depend on the person's role; if a page or button is missing for them, an owner or manager can change their role under Settings → Team.`;

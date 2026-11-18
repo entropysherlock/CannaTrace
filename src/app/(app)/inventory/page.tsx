@@ -2,7 +2,7 @@ import Link from "next/link";
 import { LabelLink } from "@/components/labels/label-link";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { ScanInput } from "@/components/scan-input";
-import { buttonLinkClass, inputBase, PageHeader, StatusBadge } from "@/components/ui";
+import { buttonLinkClass, inputBase, PageHeader, ScrollBox, StatusBadge } from "@/components/ui";
 import { items, locations, packages, type PackageStatus } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
@@ -94,7 +94,10 @@ export default async function InventoryPage({
           No packages match. Clear the search, or receive a package to get started.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        // The list scrolls inside its own box, so a big inventory doesn't stretch the page.
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <ScrollBox label="Packages" size="lg">
+        <ul className="divide-y divide-slate-100">
           {rows.map((pkg) => (
             <li key={pkg.id}>
               <Link href={`/inventory/${pkg.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
@@ -112,6 +115,8 @@ export default async function InventoryPage({
             </li>
           ))}
         </ul>
+        </ScrollBox>
+        </div>
       )}
     </>
   );
