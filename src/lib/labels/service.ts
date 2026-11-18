@@ -59,12 +59,23 @@ export async function ensureStarterTemplates(actor: LabelActor, state: string) {
         .where(and(eq(labelTemplates.orgId, actor.orgId), eq(labelTemplates.facilityId, actor.facilityId)))
     ).map((r) => r.name),
   );
+  // Only one default per label type: a starter is the default only if that type has none yet.
+  const defaults = new Set(
+    (
+      await db
+        .select({ kind: labelTemplates.kind })
+        .from(labelTemplates)
+        .where(and(eq(labelTemplates.orgId, actor.orgId), eq(labelTemplates.facilityId, actor.facilityId), eq(labelTemplates.isDefault, true)))
+    ).map((r) => r.kind),
+  );
   for (const s of starterTemplates(state)) {
     if (have.has(s.name)) continue;
+    const isDefault = !defaults.has(s.kind);
+    defaults.add(s.kind);
     await db.transaction(async (tx) => {
       const [t] = await tx
         .insert(labelTemplates)
-        .values({ orgId: actor.orgId, facilityId: actor.facilityId, name: s.name, kind: s.kind, jurisdiction: s.jurisdiction, isDefault: true })
+        .values({ orgId: actor.orgId, facilityId: actor.facilityId, name: s.name, kind: s.kind, jurisdiction: s.jurisdiction, isDefault })
         .onConflictDoNothing()
         .returning();
       if (!t) return; // Someone else created it at the same moment.

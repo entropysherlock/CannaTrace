@@ -1,11 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { facilities, itemCategories, items, locations, organizations, users } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
+import { facilities, itemCategories, items, labelTemplates, locations, organizations, users } from "@/db/schema";
 import { changePlantPhase, createPlantBatch, createStrain, harvestPlants, packageFromHarvest, recordDryWeight, tagPlants } from "@/lib/cultivation";
 import { expandTags } from "@/lib/cultivation-math";
 import { db, pool } from "@/lib/db";
 import { addLabResult, splitPackage, type Actor } from "@/lib/inventory";
 import { cleanItemDetails, saveItemDetails } from "@/lib/item-details";
 import { loadLabelRecords } from "@/lib/labels/data";
+import { ensureStarterTemplates } from "@/lib/labels/service";
 import { starterTemplates } from "@/lib/labels/defaults";
 import { fieldsFor, fill, placeholders, sampleValues } from "@/lib/labels/fields";
 import { mg, mgInPackage, mgPerPackage, netQuantity, profileLine } from "@/lib/labels/quantities";
@@ -184,6 +186,18 @@ describe.skipIf(!hasDb)("label data from real records (database)", () => {
 
   it("refuses a cannabinoid value outside 0–100%", async () => {
     await expect(addLabResult(actor, { packageId: child, labName: "Scepter", status: "PASS", profile: { cbnPercent: "140" } })).rejects.toThrow(/CBN %/);
+  });
+
+  it("adds new starter templates without making a second default for a label type", async () => {
+    const scope = and(eq(labelTemplates.orgId, actor.orgId), eq(labelTemplates.facilityId, actor.facilityId));
+    await ensureStarterTemplates(actor, "NM");
+    // Pretend an older release's product starter is the default, and a newer release adds more starters.
+    await db.update(labelTemplates).set({ name: "NM product label (older release)" }).where(and(scope, eq(labelTemplates.name, "NM product label 4×4 (edible)")));
+    await ensureStarterTemplates(actor, "NM");
+    const defaults = await db.select({ kind: labelTemplates.kind }).from(labelTemplates).where(and(scope, eq(labelTemplates.isDefault, true)));
+    expect(defaults.map((d) => d.kind).sort()).toEqual(["BATCH", "PACKAGE", "PLANT", "PRODUCT", "TRANSFER"]);
+    const [edible] = await db.select().from(labelTemplates).where(and(scope, eq(labelTemplates.name, "NM product label 4×4 (edible)")));
+    expect(edible.isDefault).toBe(false);
   });
 
   it("blocks printing a refrigerated product on the flower template", async () => {
