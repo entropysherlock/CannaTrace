@@ -21,7 +21,10 @@ import {
   type Actor,
   LAB_PROFILE,
 } from "@/lib/inventory";
+import { readReport } from "@/lib/importers/dutchie";
 import { requirePermission, type Session } from "@/lib/session";
+import { receiveShipment, type ShipmentResult } from "@/lib/shipments";
+import type { Received } from "@/lib/shipments-parse";
 
 function actorOf(session: Session): Actor {
   return {
@@ -210,5 +213,54 @@ export async function cycleCountAction(_state: FormState, formData: FormData): P
     };
   } catch (error) {
     return toFormError(error);
+  }
+}
+
+// ---------- Receiving a whole shipment against its manifest ----------
+
+export type ShipmentState = { error?: string; result?: ShipmentResult } | null;
+
+async function shipmentInput(formData: FormData, commit: boolean) {
+  const session = await requirePermission("inventory.write");
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) throw new InventoryError("Choose the manifest file (CSV or Excel).");
+  const table = await readReport(file.name, Buffer.from(await file.arrayBuffer()));
+  let received: Record<string, Received> = {};
+  try {
+    const raw = field(formData, "received");
+    received = raw ? (JSON.parse(raw) as Record<string, Received>) : {};
+  } catch {
+    throw new InventoryError("The received counts couldn't be read. Check the manifest again.");
+  }
+  return receiveShipment(actorOf(session), {
+    manifestNumber: field(formData, "manifestNumber"),
+    table,
+    locationId: field(formData, "locationId"),
+    vendorId: field(formData, "vendorId") || null,
+    received,
+    commit,
+  });
+}
+
+/** Check a manifest against what arrived. Nothing is saved. */
+export async function checkShipmentAction(formData: FormData): Promise<ShipmentState> {
+  try {
+    return { result: await shipmentInput(formData, false) };
+  } catch (error) {
+    return { error: error instanceof InventoryError ? error.message : "The manifest couldn't be checked. Try again." };
+  }
+}
+
+/** Receive the shipment: everything on it that arrived, all at once, or nothing. */
+export async function receiveShipmentAction(formData: FormData): Promise<ShipmentState> {
+  try {
+    const result = await shipmentInput(formData, true);
+    if (result.received) {
+      revalidatePath("/inventory");
+      revalidatePath("/compliance");
+    }
+    return { result };
+  } catch (error) {
+    return { error: error instanceof InventoryError ? error.message : "The shipment couldn't be received. Nothing was saved." };
   }
 }

@@ -1,7 +1,8 @@
 import { PageHeader } from "@/components/ui";
 import { WatchSection } from "@/components/watch-section";
 import { requireSession } from "@/lib/session";
-import { openFindings, sweepIfStale } from "@/lib/watch";
+import { describeSchedule, cronFor } from "@/lib/job-runs";
+import { FRESH_MINUTES, openFindings, sweepIfStale } from "@/lib/watch";
 
 export const metadata = { title: "Tally Watch · CannaTrace" };
 
@@ -12,7 +13,10 @@ export default async function WatchPage() {
   const findings = await openFindings(session);
   return (
     <>
-      <PageHeader title="Tally Watch" subtitle="Tally checks the business on its own and lists what needs a look. You approve every fix, and every fix can be undone." />
+      <PageHeader
+        title="Tally Watch"
+        subtitle={`Tally checks the business ${describeSchedule(cronFor("watch"))}, and again whenever someone opens this page or the dashboard (at most every ${FRESH_MINUTES} minutes). You approve every fix, and every fix can be undone.`}
+      />
       <WatchSection session={session} findings={findings} />
     </>
   );

@@ -33,6 +33,9 @@ const EVENT_TYPES: Record<string, string> = {
   "Harvest:WASTE_REVERSED": "HARVEST_WASTE_REVERSED",
   "Order:SHIP": "TRANSFER_SHIPPED",
   "Order:DELIVER": "TRANSFER_DELIVERED",
+  // A shipment received against its manifest: one record for the whole manifest (accepted, short, rejected),
+  // which is what the receiver must record in the state system. Its packages don't get one each.
+  "Shipment:RECEIVE": "TRANSFER_RECEIVED",
   "Sale:COMPLETE": "RETAIL_SALE",
   "Sale:VOID": "RETAIL_SALE_VOIDED",
   "Sale:RETURN": "RETAIL_SALE_RETURNED",
@@ -94,6 +97,11 @@ export function describeEvent(type: string, before: Json, after: Json): string {
       return `Finished a harvest: ${amount(a.packagedGrams)} g packaged, ${amount(a.wasteGrams)} g waste`;
     case "TRANSFER_SHIPPED":
       return `Shipped ${str(a.packages)} package${str(a.packages) === "1" ? "" : "s"} on manifest ${str(a.manifestNumber)}`;
+    case "TRANSFER_RECEIVED": {
+      const rejected = Number(a.rejected ?? 0);
+      const short = Number(a.short ?? 0);
+      return `Accept manifest ${str(a.manifestNumber)}${a.vendor ? ` from ${str(a.vendor)}` : ""}: ${str(a.accepted)} package${str(a.accepted) === "1" ? "" : "s"} received${short ? `, ${short} short` : ""}${rejected ? `, ${rejected} rejected` : ""}`;
+    }
     case "TRANSFER_DELIVERED":
       return `Delivery received by ${str(a.receivedBy)}`;
     case "RETAIL_SALE":

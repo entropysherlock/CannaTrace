@@ -45,12 +45,14 @@ const ALIASES: Record<DutchieField, string[]> = {
   category: ["category", "product category", "master category"],
   strain: ["strain name", "strain", "strain or flavor", "strain flavor"],
   brand: ["brand", "brand name"],
-  tag: ["package id", "package number", "package", "package label"],
+  tag: ["package id", "package number", "package", "package label", "package tag", "tag"],
   externalTag: ["external package id", "metrc tag", "metrc package", "state tag", "biotrack id", "nms2s id"],
   batch: ["batch number", "batch name", "batch id", "batch", "lot number", "lot", "lot id"],
-  // "Location" alone comes last: some exports use it for the room, after the clearer names.
+  // "Location" alone comes last for both. Dutchie calls a store a "location", but some exports use it for the
+  // room. With a clear Room column it is the store; with a clear Store column it is the room; alone, it's
+  // ambiguous and the person says which (see LOCATION_ROOMS).
   room: ["inventory location", "room", "room name", "location in store", "location"],
-  store: ["location name", "store", "store name", "facility name", "facility", "store location"],
+  store: ["location name", "store", "store name", "facility name", "facility", "store location", "location"],
   quantity: ["quantity", "available", "available quantity", "quantity on hand", "on hand", "qty"],
   grams: ["grams", "total grams", "net weight", "weight"],
   unit: ["unit", "unit of measure", "uom", "units"],
@@ -251,9 +253,19 @@ export type Plan = {
   rows: PlanRow[];
   problems: string[];
   warnings: string[];
-  /** Every store or facility named in the file, with its row count, when there's more than one. */
+  /** Every store or facility named in the file, with its row count. One must be chosen before anything imports. */
   stores: { name: string; rows: number }[];
+  /** The store chosen to go into this facility: the explicit store → facility mapping. */
+  store: string | null;
+  /** The file's only place column is "Location", with several values: they could be stores or rooms. */
+  locationAmbiguous: boolean;
 };
+
+/**
+ * Chosen in place of a store when a file's ambiguous Location column holds rooms in this facility, not
+ * stores: every row comes in, each in its room.
+ */
+export const LOCATION_ROOMS = "*rooms*";
 
 /**
  * The package size written in a product name: "Blue Dream 3.5g" → 3.5, "Pre-Roll 1 g" → 1, "Flower 1oz" → 28.35.
@@ -347,8 +359,8 @@ export const importRoom = (source: Source) => `Imported from ${SOURCE_NAME[sourc
 export const IMPORT_ROOM = importRoom("dutchie");
 export const MAX_DUTCHIE_ROWS = 30000;
 
-export function planDutchie(table: string[][]): Plan {
-  return planImport("dutchie", table);
+export function planDutchie(table: string[][], store?: string): Plan {
+  return planImport("dutchie", table, { store });
 }
 
 export function planImport(source: Source, table: string[][], options: { store?: string } = {}): Plan {
@@ -369,6 +381,8 @@ export function planImport(source: Source, table: string[][], options: { store?:
       ],
       warnings,
       stores: [],
+      store: null,
+      locationAmbiguous: false,
     };
   }
   const header = table[at];
@@ -382,26 +396,68 @@ export function planImport(source: Source, table: string[][], options: { store?:
     if (cols.product === undefined) problems.push(`The report has no ${source === "flourish" ? "Item Name" : "Product Name"} column.`);
     if (cols.quantity === undefined) problems.push("The report has no Quantity column.");
   }
-  if (problems.length) return { matched, rows: [], problems, warnings, stores: [] };
+  const empty = (extra: Partial<Plan> = {}): Plan => ({ matched, rows: [], problems, warnings, stores: [], store: null, locationAmbiguous: false, ...extra });
+  if (problems.length) return empty();
 
   const get = (cells: string[], f: DutchieField) => (cols[f] === undefined ? "" : (cells[cols[f] as number] ?? "").trim());
-  // A file covering several stores imports one store at a time, into the facility you're in.
   const body = table.slice(at + 1).map((cells, i) => ({ cells, line: at + i + 2 }));
+  const distinct = (f: DutchieField) => [...new Set(body.map(({ cells }) => get(cells, f)).filter(Boolean))];
+  const wanted = (options.store ?? "").trim();
+
+  // A Dutchie "Location" column with no clear Room or Store column beside it could be either. Several
+  // values could be several stores, which must never all land in one facility, so the person says which.
+  let locationAmbiguous = false;
+  if (cols.store === undefined && cols.room !== undefined && norm(header[cols.room]) === "location" && source === "dutchie" && distinct("room").length > 1) {
+    if (wanted === LOCATION_ROOMS) {
+      warnings.push(`The Location column is treated as rooms in this facility, as you chose.`);
+    } else if (distinct("room").some((v) => v.toLowerCase() === wanted.toLowerCase())) {
+      // They're stores: read the column as the store, and the packages go into the import room.
+      cols.store = cols.room;
+      delete cols.room;
+      matched.store = matched.room;
+      delete matched.room;
+    } else {
+      locationAmbiguous = true;
+      const values = distinct("room");
+      problems.push(
+        `The Location column has ${values.length} different values (${values.slice(0, 5).join(", ")}${values.length > 5 ? ", …" : ""}). In Dutchie a location is usually a store. Choose the store that goes into this facility, or say they're rooms here, then check the file again.`,
+      );
+      return empty({ stores: values.map((name) => ({ name, rows: body.filter(({ cells }) => get(cells, "room") === name).length })), locationAmbiguous });
+    }
+  }
+
+  // A file that names stores imports one store at a time, into the facility you're in, and only once you've
+  // said which: even a single store must be confirmed, so one store's file can't land in another facility.
   const storeCounts = new Map<string, number>();
   for (const { cells } of body) {
     const name = get(cells, "store");
     if (name) storeCounts.set(name, (storeCounts.get(name) ?? 0) + 1);
   }
   const stores = [...storeCounts].map(([name, rows]) => ({ name, rows })).sort((a, b) => a.name.localeCompare(b.name));
-  const chosen = stores.length > 1 ? stores.find((st) => st.name.toLowerCase() === (options.store ?? "").trim().toLowerCase())?.name : undefined;
-  if (stores.length > 1 && !chosen) {
+  const chosen = stores.find((st) => st.name.toLowerCase() === wanted.toLowerCase())?.name;
+  if (stores.length && !chosen) {
     problems.push(
-      `This file has ${stores.length} stores (${stores
-        .slice(0, 5)
-        .map((st) => st.name)
-        .join(", ")}${stores.length > 5 ? ", …" : ""}). Choose which one goes into this facility, then check the file again.`,
+      stores.length === 1
+        ? `This file is for ${stores[0].name}. Confirm that it goes into this facility, then check the file again.`
+        : `This file has ${stores.length} stores (${stores
+            .slice(0, 5)
+            .map((st) => st.name)
+            .join(", ")}${stores.length > 5 ? ", …" : ""}). Choose which one goes into this facility, then check the file again.`,
     );
-    return { matched, rows: [], problems, warnings, stores };
+    return empty({ stores });
+  }
+  // Rows with no store in a file that names stores can't be placed: they would land here by default.
+  if (stores.length) {
+    const unplaced = body.filter(({ cells }) => !get(cells, "store") && (get(cells, "product") || (nms2s && get(cells, "tag"))));
+    if (unplaced.length) {
+      problems.push(
+        `${unplaced.length.toLocaleString("en-US")} row${unplaced.length === 1 ? " has" : "s have"} no store (line${unplaced.length === 1 ? "" : "s"} ${unplaced
+          .slice(0, 5)
+          .map((u) => u.line)
+          .join(", ")}${unplaced.length > 5 ? ", …" : ""}). Fill in the store on every row, then check the file again.`,
+      );
+      return empty({ stores, store: chosen ?? null });
+    }
   }
   const mine = chosen ? body.filter(({ cells }) => get(cells, "store") === chosen) : body;
   if (mine.length > MAX_DUTCHIE_ROWS)
@@ -478,7 +534,12 @@ export function planImport(source: Source, table: string[][], options: { store?:
     });
   });
   const n = (k: number) => k.toLocaleString("en-US");
-  if (chosen) warnings.unshift(`Importing ${n(mine.length)} rows for ${chosen}. The other ${n(body.length - mine.length)} rows belong to the file's other stores and are left out.`);
+  if (chosen)
+    warnings.unshift(
+      body.length > mine.length
+        ? `Importing ${n(mine.length)} rows for ${chosen}. The other ${n(body.length - mine.length)} rows belong to the file's other stores and are left out.`
+        : `Importing ${n(mine.length)} rows for ${chosen} into this facility.`,
+    );
   if (skippedEmpty) warnings.push(`${skippedEmpty} package${skippedEmpty === 1 ? " has" : "s have"} nothing left (quantity 0) and won't be imported.`);
   if (destroying) warnings.push(`${destroying} package${destroying === 1 ? " is" : "s are"} scheduled for destruction and won't be imported.`);
   if (gone) warnings.push(`${n(gone)} package${gone === 1 ? " is" : "s are"} marked destroyed or sold and won't be imported.`);
@@ -490,5 +551,5 @@ export function planImport(source: Source, table: string[][], options: { store?:
   if (cols.room === undefined) warnings.push(`There's no room column, so everything goes into a new room called "${IMPORT_ROOM}". You can move packages afterwards.`);
   if (cols.tag === undefined && cols.externalTag === undefined) warnings.push("There's no package ID column, so every package gets a new CannaTrace ID (PKG-…).");
   if (pendingLab) warnings.push(`${pendingLab.toLocaleString("en-US")} package${pendingLab === 1 ? " has" : "s have"} THC or CBD numbers. They're saved as pending lab results: confirm each with its certificate before it can go on a retail label.`);
-  return { matched, rows, problems, warnings, stores };
+  return { matched, rows, problems, warnings, stores, store: chosen ?? null, locationAmbiguous };
 }

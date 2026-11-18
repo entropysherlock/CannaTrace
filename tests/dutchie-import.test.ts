@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import ExcelJS from "exceljs";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { facilities, itemCategories, items, labResults, locations, organizations, packages, users } from "@/db/schema";
+import { auditLogs, facilities, itemCategories, items, labResults, locations, organizations, packages, users } from "@/db/schema";
 import { parseCsv } from "@/lib/csv";
 import { db, pool } from "@/lib/db";
-import { amountWithUnit, planDutchie, planImport, statusFor, unitFor, findHeader, sizeInName } from "@/lib/importers/dutchie-parse";
-import { importDutchie, importInventory, previewDutchie, previewImport, readReport } from "@/lib/importers/dutchie";
+import { amountWithUnit, LOCATION_ROOMS, planDutchie, planImport, statusFor, unitFor, findHeader, sizeInName } from "@/lib/importers/dutchie-parse";
+import { importDutchie, importInventory, MAX_XLSX_EXPANDED_BYTES, previewDutchie, previewImport, readReport, zipExpandedBytes } from "@/lib/importers/dutchie";
 import type { Actor } from "@/lib/inventory";
 import Decimal from "decimal.js";
 
@@ -20,7 +20,7 @@ describe("reading a Dutchie inventory report", () => {
     expect(findHeader(report())).toBe(2);
   });
   it("maps Dutchie's columns and prefers the state tag over Dutchie's own package ID", () => {
-    const plan = planDutchie(report());
+    const plan = planDutchie(report(), "Sandia Store");
     expect(plan.problems).toEqual([]);
     expect(plan.matched).toMatchObject({ product: "Product Name", tag: "Package ID", externalTag: "External Package ID", batch: "Batch Number", room: "Inventory Location", quantity: "Quantity", thc: "THC %" });
     expect(plan.rows).toHaveLength(4); // the empty pre-roll package and the totals line are left out
@@ -45,7 +45,7 @@ describe("reading a Dutchie inventory report", () => {
     expect(sizeInName("Prickly Pear Gummies 100mg")).toBeNull();
   });
   it("skips the totals line without a warning", () => {
-    const plan = planDutchie(report());
+    const plan = planDutchie(report(), "Sandia Store");
     expect(plan.warnings.join(" ")).not.toMatch(/no product name/);
   });
   it("refuses a file that isn't an inventory report", () => {
@@ -57,7 +57,7 @@ describe("reading a Dutchie inventory report", () => {
     for (const row of report()) sheet.addRow(row.map((c) => (/^\d+(\.\d+)?$/.test(c) ? Number(c) : c)));
     const bytes = Buffer.from(await book.xlsx.writeBuffer());
     const table = await readReport("current-inventory.xlsx", bytes);
-    expect(planDutchie(table).rows.map((r) => r.quantity)).toEqual(["24", "60", "453.6", "40"]);
+    expect(planDutchie(table, "Sandia Store").rows.map((r) => r.quantity)).toEqual(["24", "60", "453.6", "40"]);
   });
 });
 
@@ -124,6 +124,93 @@ describe("reading an NMS2S inventory list", () => {
 
 const multi = () => parseCsv(readFileSync("tests/fixtures/multi-store-inventory.csv", "utf8"));
 
+describe("large and hostile Excel files", () => {
+  const small = async () => {
+    const book = new ExcelJS.Workbook();
+    book.addWorksheet("Inventory").addRow(["Product Name", "Package ID", "Quantity"]);
+    return Buffer.from(await book.xlsx.writeBuffer());
+  };
+  it("reads how much an Excel file expands to without opening it", async () => {
+    const size = zipExpandedBytes(await small());
+    expect(size).toBeGreaterThan(0);
+    expect(size).toBeLessThan(100_000);
+    expect(zipExpandedBytes(Buffer.from("not a zip at all"))).toBeNull();
+  });
+  it("refuses an Excel file that would expand past the limit (a zip bomb) before opening it", async () => {
+    const bytes = await small();
+    // Make the central directory claim one part expands to more than the limit
+    const cd = bytes.lastIndexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+    bytes.writeUInt32LE(MAX_XLSX_EXPANDED_BYTES + 1, cd + 24);
+    await expect(readReport("inventory.xlsx", bytes)).rejects.toThrow(/far more data than an inventory export/);
+    await expect(readReport("inventory.xlsx", Buffer.from("PK\u0003\u0004 broken"))).rejects.toThrow(/couldn't be read/);
+  });
+});
+
+describe("a file from several stores never lands in one facility by accident", () => {
+  // Dutchie calls a store a "Location"; with a Room column beside it, Location is the store.
+  const mixed = [
+    ["Location", "Room", "Product Name", "Package ID", "Quantity"],
+    ["Canyon Road", "Vault", "Blue Dream 3.5g", "MX-1", "10"],
+    ["Durango Ave", "Sales Floor", "Blue Dream 3.5g", "MX-2", "12"],
+    ["Canyon Road", "Sales Floor", "Gummies 10pk", "MX-3", "5"],
+  ];
+  it("reads Location as the store when there's a Room column, and imports nothing until a store is chosen", () => {
+    const plan = planImport("dutchie", mixed);
+    expect(plan.matched).toMatchObject({ store: "Location", room: "Room" });
+    expect(plan.rows).toEqual([]);
+    expect(plan.problems[0]).toMatch(/2 stores \(Canyon Road, Durango Ave\)\. Choose which one/);
+    const canyon = planImport("dutchie", mixed, { store: "Canyon Road" });
+    expect(canyon.problems).toEqual([]);
+    expect(canyon.store).toBe("Canyon Road");
+    expect(canyon.rows.map((r) => [r.tag, r.room])).toEqual([["MX-1", "Vault"], ["MX-3", "Sales Floor"]]);
+  });
+  it("asks to confirm even a single store before it goes into this facility", () => {
+    const one = mixed.filter((r) => r[0] !== "Durango Ave");
+    const plan = planImport("dutchie", one);
+    expect(plan.rows).toEqual([]);
+    expect(plan.problems).toEqual(["This file is for Canyon Road. Confirm that it goes into this facility, then check the file again."]);
+    expect(plan.stores).toEqual([{ name: "Canyon Road", rows: 2 }]);
+    expect(planImport("dutchie", one, { store: "canyon road" }).rows).toHaveLength(2);
+    // A store name that isn't in the file is never accepted
+    expect(planImport("dutchie", one, { store: "Durango Ave" }).rows).toEqual([]);
+  });
+  it("refuses rows with no store in a file that names stores", () => {
+    const blank = [...mixed, ["", "Vault", "Pre-roll 1g", "MX-4", "30"]];
+    const plan = planImport("dutchie", blank, { store: "Canyon Road" });
+    expect(plan.rows).toEqual([]);
+    expect(plan.problems[0]).toMatch(/1 row has no store \(line 5\)\. Fill in the store on every row/);
+  });
+  it("asks whether a lone Location column holds stores or rooms, and does what the person says", () => {
+    const lone = [
+      ["Location", "Product Name", "Package ID", "Quantity"],
+      ["Canyon Road", "Blue Dream 3.5g", "LN-1", "10"],
+      ["Durango Ave", "Gummies 10pk", "LN-2", "4"],
+    ];
+    const ask = planImport("dutchie", lone);
+    expect(ask.rows).toEqual([]);
+    expect(ask.locationAmbiguous).toBe(true);
+    expect(ask.problems[0]).toMatch(/Location column has 2 different values/);
+    // They're stores: only the chosen one comes in, into the import room
+    const store = planImport("dutchie", lone, { store: "Durango Ave" });
+    expect(store.rows.map((r) => [r.tag, r.room])).toEqual([["LN-2", "Imported from Dutchie"]]);
+    expect(store.store).toBe("Durango Ave");
+    // They're rooms here: every row comes in, each in its room
+    const rooms = planImport("dutchie", lone, { store: LOCATION_ROOMS });
+    expect(rooms.rows.map((r) => [r.tag, r.room])).toEqual([["LN-1", "Canyon Road"], ["LN-2", "Durango Ave"]]);
+    // One value can't be several stores: no question
+    expect(planImport("dutchie", lone.slice(0, 2)).problems).toEqual([]);
+  });
+  it("keeps Flourish's Location as a place in the building", () => {
+    const plan = planImport("flourish", [
+      ["Item Name", "Package ID", "Location", "Quantity"],
+      ["Blue Dream", "FL-1", "Vault A", "3"],
+      ["OG Kush", "FL-2", "Vault B", "4"],
+    ]);
+    expect(plan.problems).toEqual([]);
+    expect(plan.rows.map((r) => r.room)).toEqual(["Vault A", "Vault B"]);
+  });
+});
+
 describe("reading a big, multi-store inventory file", () => {
   it("reads lot, location, store, strain, cost, and status columns", () => {
     const plan = planImport("dutchie", multi(), { store: "Sandia Mega Dispensary" });
@@ -185,14 +272,14 @@ describe.skipIf(!hasDb)("importing a Dutchie report (database)", () => {
   afterAll(() => pool.end());
 
   it("previews exactly what will come in without saving anything", async () => {
-    const preview = await previewDutchie(actor, report());
+    const preview = await previewDutchie(actor, report(), "Sandia Store");
     expect(preview).toMatchObject({ problems: [], packages: 4, products: { created: 2, reused: 1 }, rooms: { created: 1, reused: 1 }, labResults: 3 });
     expect(await db.$count(packages, eq(packages.orgId, actor.orgId))).toBe(0);
     expect(await db.$count(locations, eq(locations.facilityId, actor.facilityId))).toBe(1);
   });
 
   it("imports products, rooms, packages with their state tags and batches, and pending lab results", async () => {
-    const result = await importDutchie(actor, report());
+    const result = await importDutchie(actor, report(), "Sandia Store");
     expect(result.packages).toBe(4);
     const pkgs = await db.select({ tag: packages.tag, lot: packages.lotNumber, qty: packages.quantity, unit: packages.unit, cost: packages.costPerUnit }).from(packages).where(eq(packages.orgId, actor.orgId));
     expect(pkgs.map((p) => p.tag).sort()).toEqual(["1A40E0100000A1B000000101", "1A40E0100000A1B000000102", "DTC-0003", "DTC-0004"]);
@@ -243,14 +330,35 @@ describe.skipIf(!hasDb)("importing a Dutchie report (database)", () => {
     expect(preview.problems).toEqual([]);
     const both = [table[0], table[1], table[7]]; // MS-PKG-0001 (imported above) and MS-PKG-0007 (new)
     both[1][1] = both[2][1] = "Rio Grande Retail";
-    const clash = await previewImport("dutchie", actor, both);
+    const clash = await previewImport("dutchie", actor, both, "Rio Grande Retail");
     expect(clash.problems[0]).toMatch(/1 package ID is already in CannaTrace/);
     expect(clash.problems[1]).toMatch(/MS-PKG-0001 is already in use/);
   });
 
+  it("imports nothing from a mixed-store file until a store is chosen, and records the mapping", async () => {
+    const mixed = [
+      ["Location", "Room", "Product Name", "Package ID", "Quantity"],
+      ["Canyon Road", "Vault", "Mixed Test Flower", `${run}-MX1`, "10"],
+      ["Durango Ave", "Vault", "Mixed Test Flower", `${run}-MX2`, "12"],
+    ];
+    const before = await db.$count(packages, eq(packages.orgId, actor.orgId));
+    await expect(importInventory("dutchie", actor, mixed)).rejects.toThrow(/Nothing was imported[\s\S]*2 stores/);
+    expect(await db.$count(packages, eq(packages.orgId, actor.orgId))).toBe(before);
+    const result = await importInventory("dutchie", actor, mixed, "Durango Ave");
+    expect(result.packages).toBe(1);
+    expect(await db.$count(packages, eq(packages.tag, `${run}-MX1`.toUpperCase()))).toBe(0);
+    const [log] = await db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.orgId, actor.orgId), eq(auditLogs.action, "IMPORT")))
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(1);
+    expect(log.after).toMatchObject({ store: "Durango Ave", facilityId: actor.facilityId, packages: 1 });
+  });
+
   it("saves nothing when a package is already in CannaTrace", async () => {
     const before = await db.$count(packages, eq(packages.orgId, actor.orgId));
-    await expect(importDutchie(actor, report())).rejects.toThrow(/Nothing was imported[\s\S]*already imported/);
+    await expect(importDutchie(actor, report(), "Sandia Store")).rejects.toThrow(/Nothing was imported[\s\S]*already imported/);
     expect(await db.$count(packages, eq(packages.orgId, actor.orgId))).toBe(before);
   });
 });

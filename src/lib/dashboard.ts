@@ -23,10 +23,10 @@ export function change(now: number, before: number): number | null {
 }
 
 /** A plain-words summary of the numbers, for the Tally panel. No AI call: it's the same every time for the same numbers. */
-export function summarize(c: Pick<CommandCenter, "sales" | "packages" | "production" | "alerts">): string {
+export function summarize(c: Pick<CommandCenter, "days" | "sales" | "packages" | "production" | "alerts">): string {
   const parts: string[] = [];
   const pct = (v: number | null) => (v === null ? "" : ` (${v >= 0 ? "up" : "down"} ${Math.abs(v)}% on the period before)`);
-  parts.push(c.sales.total > 0 ? `Sales are ${usd(c.sales.total)}${pct(c.sales.change)}.` : "No sales recorded in this period yet.");
+  parts.push(c.sales.total > 0 ? `Sales over the last ${c.days} days are ${usd(c.sales.total)}${pct(c.sales.change)}.` : `No sales recorded in the last ${c.days} days.`);
   if (c.packages.total) parts.push(`${c.packages.availablePct}% of ${c.packages.total.toLocaleString("en-US")} packages are available to sell.`);
   if (c.production.units > 0) parts.push(`Production made ${c.production.units.toLocaleString("en-US")} units${pct(c.production.change)}.`);
   parts.push(
@@ -41,7 +41,13 @@ export const usd = (v: number) => v.toLocaleString("en-US", { style: "currency",
 
 export type CommandCenter = Awaited<ReturnType<typeof commandCenter>>;
 
-export async function commandCenter(orgId: string, facilityIds: string[], days: Range) {
+/**
+ * One definition per number, shared by every card, the facility list, and Tally's summary:
+ * plants are tagged plants plus young (untagged) plants in active batches; sales are completed register
+ * sales plus invoices, by Mountain-time day; alerts are open Tally Watch items this person may see (canSee
+ * is the same test the bell and the Tally Watch page use).
+ */
+export async function commandCenter(orgId: string, facilityIds: string[], days: Range, canSee: (permission: string | null) => boolean = () => true) {
   const ids = facilityIds;
   // The facilities as one Postgres array (ids are UUIDs, so a comma can't appear inside one).
   const inIds = sql`string_to_array(${ids.join(",")}, ',')`;
@@ -120,20 +126,20 @@ export async function commandCenter(orgId: string, facilityIds: string[], days: 
         count(*) filter (where status in ('PRINTED','RENDERED')) as ok,
         (select count(*) from label_templates where org_id = ${orgId} and archived = false) as templates
       from print_jobs where org_id = ${orgId} and facility_id = any(${inIds}) and created_at > now() - make_interval(days => ${days})`),
-    q(sql`select w.id, w.severity, w.title, w.href, w.created_at, f.name as facility
+    q(sql`select w.id, w.facility_id, w.severity, w.title, w.href, w.permission, w.created_at, f.name as facility
       from watch_findings w join facilities f on f.id = w.facility_id
-      where w.org_id = ${orgId} and w.facility_id = any(${inIds}) and w.status = 'OPEN'
+      where w.org_id = ${orgId} and w.status = 'OPEN'
       order by case w.severity when 'critical' then 0 when 'warning' then 1 else 2 end, w.created_at desc`),
     q(sql`select a.id, a.entity_type, a.entity_id, a.action, a.user_name, a.created_at, a.after, f.name as facility
       from audit_logs a left join facilities f on f.id = a.facility_id
       where a.org_id = ${orgId} and a.facility_id = any(${inIds})
       order by a.created_at desc limit 6`),
     q(sql`select f.id, f.name, f.license_number,
-        (select count(*) from plants p where p.facility_id = f.id and p.status = 'ACTIVE') as plants,
+        (select count(*) from plants p where p.facility_id = f.id and p.status = 'ACTIVE')
+          + (select coalesce(sum(b.untagged_count), 0) from plant_batches b where b.facility_id = f.id and b.status = 'ACTIVE') as plants,
         (select count(*) from packages p where p.facility_id = f.id and p.status in ('ACTIVE','ALLOCATED')) as packages,
-        (select count(*) from watch_findings w where w.facility_id = f.id and w.status = 'OPEN') as alerts,
-        (select coalesce(sum(s.total), 0) from sales s where s.facility_id = f.id and s.status = 'COMPLETED' and s.completed_at > now() - make_interval(days => ${days}))
-          + (select coalesce(sum(i.total), 0) from invoices i where i.facility_id = f.id and i.created_at > now() - make_interval(days => ${days})) as sales
+        (select coalesce(sum(s.total), 0) from sales s where s.facility_id = f.id and s.status = 'COMPLETED' and ${local(sql`s.completed_at`)} >= ${start})
+          + (select coalesce(sum(i.total), 0) from invoices i where i.facility_id = f.id and ${local(sql`i.created_at`)} >= ${start}) as sales
       from facilities f where f.org_id = ${orgId} order by f.name`),
     q(sql`select
         count(*) filter (where status in ('DRAFT','CONFIRMED','PACKED','SHIPPED')) as open,
@@ -153,8 +159,11 @@ export async function commandCenter(orgId: string, facilityIds: string[], days: 
   const by = Object.fromEntries(statuses.map((r) => [String(r.status), n(r.n)]));
   const pkgTotal = (by.ACTIVE ?? 0) + (by.ALLOCATED ?? 0) + (by.ON_HOLD ?? 0) + (by.QUARANTINE ?? 0);
   const pct = (v: number) => (pkgTotal ? Math.round((v / pkgTotal) * 1000) / 10 : 0);
-  const open = findings.length;
-  const urgent = findings.filter((f) => f.severity === "critical").length;
+  // Alerts this person may see: everywhere for the facility list, in scope for the cards
+  const seen = findings.filter((f) => canSee(f.permission ? String(f.permission) : null));
+  const scoped = seen.filter((f) => ids.includes(String(f.facility_id)));
+  const open = scoped.length;
+  const urgent = scoped.filter((f) => f.severity === "critical").length;
   const pending = n(sync.pending) + n(sync.manual);
 
   return {
@@ -179,7 +188,7 @@ export async function commandCenter(orgId: string, facilityIds: string[], days: 
     alerts: {
       open,
       urgent,
-      top: findings.slice(0, 3).map((f) => ({
+      top: scoped.slice(0, 3).map((f) => ({
         id: String(f.id),
         severity: String(f.severity) as "critical" | "warning" | "info",
         title: String(f.title),
@@ -215,7 +224,7 @@ export async function commandCenter(orgId: string, facilityIds: string[], days: 
       license: String(f.license_number),
       plants: n(f.plants),
       packages: n(f.packages),
-      alerts: n(f.alerts),
+      alerts: seen.filter((w) => String(w.facility_id) === String(f.id)).length,
       sales: n(f.sales),
       inScope: ids.includes(String(f.id)),
     })),

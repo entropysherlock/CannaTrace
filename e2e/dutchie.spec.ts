@@ -28,6 +28,10 @@ test("a store switching from Dutchie checks its inventory report, then imports i
   const card = page.locator("section", { has: page.getByRole("heading", { name: "Switch from Dutchie" }) });
   await card.locator('input[name="file"]').setInputFiles("tests/fixtures/dutchie-current-inventory.csv");
   await card.getByRole("button", { name: "Check the file" }).click();
+  // The file names its store: nothing goes into this facility until that's confirmed
+  await expect(card.getByTestId("switch-store-picker")).toContainText("Your file is for Sandia Store. Confirm it goes into this facility.");
+  await expect(card.getByRole("button", { name: /^Import / })).toHaveCount(0);
+  await card.getByTestId("switch-store").selectOption("Sandia Store");
   await expect(card.getByTestId("switch-preview")).toContainText("Ready to import: 4 packages, 3 new products");
   await expect(card.getByTestId("switch-preview")).toContainText("1A40E0100000A1B000000101");
 
@@ -38,6 +42,7 @@ test("a store switching from Dutchie checks its inventory report, then imports i
   await page.goto("/data");
   await card.locator('input[name="file"]').setInputFiles("tests/fixtures/dutchie-current-inventory.csv");
   await card.getByRole("button", { name: "Check the file" }).click();
+  await card.getByTestId("switch-store").selectOption("Sandia Store");
   await card.getByRole("button", { name: "Import 4 packages" }).click();
   await expect(card.getByTestId("switch-imported")).toContainText("Imported: 4 packages", { timeout: 30_000 });
 

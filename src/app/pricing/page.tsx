@@ -7,7 +7,7 @@ import { FEATURES, FOUNDING, PRICES, facilitiesLabel, usd } from "@/lib/pricing"
 
 export const metadata: Metadata = {
   title: "Pricing · CannaTrace",
-  description: "$299 a month for 1 facility, $499 for 2, every feature included. Founding customers get 60 days free and $100 off every month for life.",
+  description: `${usd(PRICES[0].price)} a month for 1 facility, ${usd(PRICES[1].price)} for 2, every feature included. Founding customers get ${FOUNDING.freeDays} days free and ${usd(PRICES[0].price - PRICES[0].founderPrice)} off every month for life.`,
 };
 
 const FOUNDER_LINK = mailto("CannaTrace founding customer");

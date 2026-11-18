@@ -5,6 +5,7 @@ import { facilities, syncEvents } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
+import { jobStatus } from "@/lib/job-runs";
 import { ADAPTERS } from "@/lib/sync";
 import { SYSTEM_LABELS, explainError, type SystemName } from "@/lib/sync-math";
 import { resolveAction, retryAction, sendNowAction, systemAction } from "./actions";
@@ -49,17 +50,30 @@ export default async function CompliancePage() {
   const connection = ADAPTERS[system].status();
   const canManage = can(session, "compliance.manage");
   const oldestWaiting = recent.filter((e) => e.status === "PENDING").at(-1);
+  // Practice mode marks records done but sends nothing: never call them "sent".
+  const practice = system === "MOCK";
+  const job = await jobStatus("sync");
+  const when = (d: Date) => d.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" });
+  const statusText = (status: string, eventSystem: string) => (status === "SENT" && eventSystem === "MOCK" ? "practice, not sent" : STATUS_TEXT[status]);
+  const statusStyle = (status: string, eventSystem: string) => (status === "SENT" && eventSystem === "MOCK" ? "bg-slate-100 text-slate-700" : STATUS_STYLE[status]);
 
   const tiles = [
     { label: "Waiting to send", value: count("PENDING"), tone: count("PENDING") ? "text-amber-700" : "text-slate-900" },
     { label: "Failed", value: count("FAILED"), tone: count("FAILED") ? "text-red-700" : "text-slate-900" },
     { label: "Enter by hand", value: count("MANUAL"), tone: count("MANUAL") ? "text-sky-700" : "text-slate-900" },
-    { label: "Sent in the last day", value: count("SENT"), tone: "text-slate-900" },
+    { label: practice ? "Practice records in the last day (not sent)" : "Sent in the last day", value: count("SENT"), tone: "text-slate-900" },
   ];
 
   return (
     <>
       <PageHeader title="State reporting" subtitle={`${facility.name} reports to ${SYSTEM_LABELS[system]}`} />
+
+      {practice ? (
+        <p role="status" className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-950" data-testid="practice-notice">
+          Practice mode: nothing is sent to the state. Records are marked done here so you can try CannaTrace, but you still need to report everything in
+          your state system yourself.
+        </p>
+      ) : null}
 
       {failed.length ? (
         <p role="status" className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-900">
@@ -149,7 +163,7 @@ export default async function CompliancePage() {
                     <span className="min-w-0 text-slate-900">{event.summary}</span>
                     <span className="flex items-center gap-2 text-slate-500">
                       {event.createdAt.toLocaleTimeString("en-US")}
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[event.status]}`}>{STATUS_TEXT[event.status]}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusStyle(event.status, event.system)}`}>{statusText(event.status, event.system)}</span>
                     </span>
                   </li>
                 ))}
@@ -165,19 +179,33 @@ export default async function CompliancePage() {
             <p className="mt-2 text-sm text-slate-600">
               Sent automatically:{" "}
               {ADAPTERS[system].supported.includes("*")
-                ? "everything (practice only)"
+                ? "nothing (practice mode)"
                 : ADAPTERS[system].supported.length
                   ? ADAPTERS[system].supported.map((t) => t.replaceAll("_", " ").toLowerCase()).join(", ")
                   : "nothing yet"}
-              . Everything else is listed under Enter by hand.
+              .{practice ? "" : " Everything else is listed under Enter by hand."}
             </p>
+            {/* The real schedule, and when it last ran: never imply a send that hasn't happened. */}
+            <div className="mt-2 text-sm text-slate-600" data-testid="sync-schedule">
+              <p>
+                Automatic sending runs {job.schedule}.{" "}
+                {job.lastRun
+                  ? `Last run: ${when(job.lastRun.startedAt)}${job.lastRun.status === "OK" ? "" : job.lastRun.status === "FAILED" ? " (failed)" : " (still running or cut off)"}.`
+                  : "It hasn't run yet."}
+              </p>
+              {job.failing || job.late ? (
+                <p className="mt-1 font-medium text-red-700" role="status">
+                  {job.failing ? "The last automatic run didn't finish." : "Automatic sending hasn't run on time."} Use Send now, and let CannaTrace support know.
+                </p>
+              ) : null}
+            </div>
             {oldestWaiting ? (
               <p className="mt-2 text-sm text-slate-600">Oldest waiting record: {oldestWaiting.createdAt.toLocaleString("en-US")}</p>
             ) : null}
             {canManage ? (
               <div className="mt-4">
                 <ActionForm action={sendNowAction} submitLabel="Send now">
-                  <p className="text-sm text-slate-600">Sends everything that is due. Records are also sent on a schedule if one is set up.</p>
+                  <p className="text-sm text-slate-600">Sends everything that is due at this facility right now, without waiting for the next automatic run.</p>
                 </ActionForm>
               </div>
             ) : null}

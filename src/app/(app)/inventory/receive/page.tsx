@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
@@ -31,6 +32,13 @@ export default async function ReceivePage() {
   return (
     <>
       <PageHeader title="Receive package" subtitle="Scan the tag, pick the item, enter what arrived." />
+      <p className="mb-4 max-w-xl text-sm text-slate-700">
+        Receiving a whole shipment?{" "}
+        <Link href="/inventory/receive/shipment" className="font-semibold text-brand-700 underline">
+          Receive it against the manifest
+        </Link>{" "}
+        to count every package at once.
+      </p>
       <div className="max-w-xl">
         <Card>
           <ActionForm action={receiveAction} submitLabel="Receive">

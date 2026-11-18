@@ -12,6 +12,9 @@ import {
   getConnection,
   markProblem,
   recordUsage,
+  reserveUsage,
+  settleUsage,
+  RESERVATION_MS,
   resolveTally,
   setLimits,
   setModel,
@@ -214,6 +217,48 @@ describe.skipIf(!hasDb)("business Claude connections (database)", () => {
       await recordUsage(manager, route, { inputTokens: 1, outputTokens: 1, outcome: "OK" });
       await expect(checkLimits(manager, limits)).rejects.toThrow(/for this month/);
     }
+    await db.delete(aiUsage).where(eq(aiUsage.orgId, owner.orgId));
+  });
+
+  it("reserves each question before it runs, so simultaneous questions can't all slip under the limit", async () => {
+    await setLimits(owner, { dailyLimit: 3, monthlyLimit: 10, perPersonDailyLimit: 3, maxAnswerTokens: 1024, enabled: true });
+    const route = await resolveTally(owner);
+    if (route.kind === "off") throw new Error("expected a route");
+    // Ten questions at the same moment: exactly three get a slot
+    const tries = await Promise.allSettled(Array.from({ length: 10 }, () => reserveUsage(owner, route)));
+    const taken = tries.filter((t) => t.status === "fulfilled").map((t) => (t as PromiseFulfilledResult<string>).value);
+    expect(taken).toHaveLength(3);
+    expect(tries.filter((t) => t.status === "rejected").every((t) => /limit per person|used its 3/.test(String((t as PromiseRejectedResult).reason)))).toBe(true);
+    expect(await db.$count(aiUsage, eq(aiUsage.orgId, owner.orgId))).toBe(3);
+    await expect(checkLimits(owner, route.limits)).rejects.toThrow();
+
+    // A cancelled request that never reached Claude releases its slot...
+    await settleUsage(taken[0], { inputTokens: 0, outputTokens: 0, outcome: "ABORTED" });
+    // ...and so does one that failed before spending anything
+    await settleUsage(taken[1], { inputTokens: 0, outputTokens: 0, outcome: "INVALID_KEY" });
+    // One cancelled after Claude answered keeps counting: it was paid for
+    await settleUsage(taken[2], { inputTokens: 900, outputTokens: 40, outcome: "ABORTED" });
+    const again = await Promise.allSettled(Array.from({ length: 5 }, () => reserveUsage(owner, route)));
+    expect(again.filter((t) => t.status === "fulfilled")).toHaveLength(2);
+
+    // Settling happens once: a second settle can't rewrite what was used
+    await settleUsage(taken[2], { inputTokens: 0, outputTokens: 0, outcome: "ABORTED" });
+    const [kept] = await db.select().from(aiUsage).where(eq(aiUsage.id, taken[2]));
+    expect(kept).toMatchObject({ inputTokens: 900, outputTokens: 40, outcome: "ABORTED" });
+    await db.delete(aiUsage).where(eq(aiUsage.orgId, owner.orgId));
+  });
+
+  it("stops counting a reservation that was never settled (a crashed request) after a while", async () => {
+    await setLimits(owner, { dailyLimit: 1, monthlyLimit: 10, perPersonDailyLimit: 1, maxAnswerTokens: 1024, enabled: true });
+    const route = await resolveTally(owner);
+    if (route.kind === "off") throw new Error("expected a route");
+    const now = new Date();
+    await reserveUsage(owner, route, new Date(now.getTime() - RESERVATION_MS - 60_000));
+    // Within the window it still holds the slot; past it, the slot is free again
+    await expect(checkLimits(owner, route.limits, new Date(now.getTime() - RESERVATION_MS + 30_000))).rejects.toThrow();
+    await checkLimits(owner, route.limits, now);
+    await reserveUsage(owner, route, now);
+    await expect(reserveUsage(owner, route, now)).rejects.toThrow();
     await db.delete(aiUsage).where(eq(aiUsage.orgId, owner.orgId));
   });
 

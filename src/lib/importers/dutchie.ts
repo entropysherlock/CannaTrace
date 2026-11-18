@@ -18,6 +18,41 @@ import { FIELD_LABEL, planImport, SOURCE_NAME, type DutchieField, type Plan, typ
 
 /** The largest export, once unzipped. Big files are gzipped in the browser before upload (see dutchie-import.tsx). */
 export const MAX_FILE_BYTES = 40 * 1024 * 1024;
+/**
+ * The most an Excel file may expand to when opened. An .xlsx is a zip, so a few megabytes on disk can hold
+ * gigabytes of sheet data (a "zip bomb") and exhaust the server's memory. 30,000 real rows are about 20 MB.
+ */
+export const MAX_XLSX_EXPANDED_BYTES = 150 * 1024 * 1024;
+
+/**
+ * What a zip (an .xlsx) says it expands to, from its central directory, without unpacking it. Null when the
+ * file isn't a readable zip or uses sizes too large to state (zip64), which is treated as too large.
+ */
+export function zipExpandedBytes(buf: Buffer): number | null {
+  // The end-of-central-directory record sits at the end, before a comment of up to 65,535 bytes.
+  const stop = Math.max(0, buf.length - 22 - 65535);
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= stop; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) return null;
+  const entries = buf.readUInt16LE(eocd + 10);
+  let at = buf.readUInt32LE(eocd + 16);
+  if (entries === 0xffff || at === 0xffffffff) return null;
+  let total = 0;
+  for (let n = 0; n < entries; n++) {
+    if (at + 46 > buf.length || buf.readUInt32LE(at) !== 0x02014b50) return null;
+    const size = buf.readUInt32LE(at + 24);
+    if (size === 0xffffffff) return null;
+    total += size;
+    at += 46 + buf.readUInt16LE(at + 28) + buf.readUInt16LE(at + 30) + buf.readUInt16LE(at + 32);
+  }
+  return total;
+}
+
 /** Rows saved per database statement, well under Postgres's 65,535 parameters. */
 const CHUNK = 1000;
 const chunks = <T,>(list: T[], size = CHUNK) => Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, (i + 1) * size));
@@ -51,6 +86,13 @@ export async function readReport(name: string, raw: Buffer): Promise<string[][]>
   if (bytes.length > MAX_FILE_BYTES) throw new InventoryError("The file is larger than 40 MB. Export one location at a time.");
   const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
   if (isZip || /\.xlsx$/i.test(name)) {
+    const expanded = isZip ? zipExpandedBytes(bytes) : null;
+    if (expanded === null || expanded > MAX_XLSX_EXPANDED_BYTES)
+      throw new InventoryError(
+        expanded === null
+          ? "That Excel file couldn't be read. Save it again as .xlsx or .csv and try once more."
+          : "That Excel file holds far more data than an inventory export should. Save it as .csv, or export one store at a time.",
+      );
     const book = new ExcelJS.Workbook();
     try {
       await book.xlsx.load(bytes as unknown as ArrayBuffer);
@@ -78,8 +120,12 @@ export type DutchieResult = {
   packages: number;
   labResults: number;
   sample: { tag: string; product: string; quantity: string; room: string }[];
-  /** The stores the file names, when there's more than one: pick one and check again. */
+  /** The stores the file names: one must be picked (the store → facility mapping) before anything imports. */
   stores: { name: string; rows: number }[];
+  /** The store that was picked for this facility. */
+  store: string | null;
+  /** The only place column is an ambiguous "Location": the picker also offers "they're rooms here". */
+  locationAmbiguous: boolean;
 };
 
 async function apply(actor: Actor, plan: Plan, source: Source): Promise<DutchieResult> {
@@ -95,6 +141,8 @@ async function apply(actor: Actor, plan: Plan, source: Source): Promise<DutchieR
     labResults: 0,
     sample: [],
     stores: plan.stores,
+    store: plan.store,
+    locationAmbiguous: plan.locationAmbiguous,
   };
   if (problems.length) return result;
 
@@ -310,7 +358,16 @@ async function apply(actor: Actor, plan: Plan, source: Source): Promise<DutchieR
       entityType: "Import",
       entityId: source,
       action: "IMPORT",
-      after: { source: SOURCE_NAME[source], packages: result.packages, productsCreated: result.products.created, roomsCreated: result.rooms.created, labResults: result.labResults },
+      after: {
+        source: SOURCE_NAME[source],
+        // The explicit mapping: which store in the file went into this facility.
+        store: plan.store,
+        facilityId: actor.facilityId,
+        packages: result.packages,
+        productsCreated: result.products.created,
+        roomsCreated: result.rooms.created,
+        labResults: result.labResults,
+      },
     });
   }
   return result;
@@ -341,5 +398,5 @@ export async function packageCount(actor: Actor): Promise<number> {
   return n;
 }
 
-export const previewDutchie = (actor: Actor, table: string[][]) => previewImport("dutchie", actor, table);
-export const importDutchie = (actor: Actor, table: string[][]) => importInventory("dutchie", actor, table);
+export const previewDutchie = (actor: Actor, table: string[][], store?: string) => previewImport("dutchie", actor, table, store);
+export const importDutchie = (actor: Actor, table: string[][], store?: string) => importInventory("dutchie", actor, table, store);

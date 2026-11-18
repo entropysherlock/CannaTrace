@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { InventoryError } from "@/lib/inventory-math";
 import { claudeModel, fakeModel, runAssistant, type AssistantEvent, type ChatMessage, type RunUsage } from "@/lib/assistant/engine";
-import { checkLimits, explainProviderError, markHealthy, markProblem, recordUsage, resolveTally } from "@/lib/ai/connection";
+import { explainProviderError, markHealthy, markProblem, reserveUsage, resolveTally, settleUsage } from "@/lib/ai/connection";
 import { takeDemoAssistantCall } from "@/lib/demo/live-demo";
 import { can } from "@/lib/rbac";
 import { currentSession } from "@/lib/session";
@@ -31,14 +31,18 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
+  // Take this question's slot before calling Claude, so simultaneous questions can't all slip under the limit.
+  let reservation: string;
   try {
-    await checkLimits(session, route.limits);
+    reservation = await reserveUsage(session, route);
   } catch (error) {
     return NextResponse.json({ error: error instanceof InventoryError ? error.message : "Tally is unavailable right now." }, { status: 429 });
   }
   // The live demo runs on CannaTrace's key, with its own small daily allowance.
-  if (route.kind === "platform" && session.isDemo && !(await takeDemoAssistantCall(session.orgId)))
+  if (route.kind === "platform" && session.isDemo && !(await takeDemoAssistantCall(session.orgId))) {
+    await settleUsage(reservation, { inputTokens: 0, outputTokens: 0, outcome: "REFUSED" });
     return NextResponse.json({ error: "Tally has answered all the live demo questions it can for today. Try again tomorrow, or create your own account." }, { status: 429 });
+  }
 
   const model = route.kind === "fake" ? fakeModel : claudeModel(route.apiKey, route.model, route.maxTokens);
   const usage: RunUsage = { inputTokens: 0, outputTokens: 0 };
@@ -67,7 +71,8 @@ export async function POST(request: Request) {
           emit({ type: "error", message: route.kind === "platform" && problem.kind === "NO_CREDIT" ? `Tally is temporarily unavailable (${who} AI account). Try again later.` : problem.message });
         }
       } finally {
-        await recordUsage(session, route, { ...usage, outcome }).catch(() => {});
+        // Settle the reservation: a request that ended without spending tokens is released.
+        await settleUsage(reservation, { ...usage, outcome }).catch(() => {});
         controller.close();
       }
     },

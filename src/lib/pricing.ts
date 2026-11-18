@@ -39,3 +39,10 @@ export const FEATURES = [
 
 export const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
 export const facilitiesLabel = (n: number) => `${n} ${n === 1 ? "facility" : "facilities"}`;
+
+/** The prices in one sentence, for the homepage FAQ and the pricing page's description: always from PRICES. */
+export function priceSentence(): string {
+  const [one, two] = PRICES;
+  const off = one.price - one.founderPrice;
+  return `${usd(one.price)} a month for ${facilitiesLabel(one.facilities)}, or ${usd(two.price)} a month for ${facilitiesLabel(two.facilities)}, with every feature and unlimited team members. Founding customers pay ${usd(off)} less every month, for life.`;
+}
