@@ -5,12 +5,15 @@ import type { UnitCode } from "@/lib/units";
  * Reading an inventory export from another system so a business can switch to CannaTrace:
  * - Dutchie POS: Backoffice → Reports → Current Inventory, exported to Excel or CSV.
  * - Flourish: Inventory → All Packages, exported to Excel.
+ * - NMS2S (New Mexico's state system): the Inventory table of an inventory room, with the columns its
+ *   Manage Columns panel names (ID, Product Type, Product Name, Strain Name, Unit/Package Count, …).
  * Column names are matched loosely, because both let each business choose and reorder columns.
  * Pure functions: no database. The importer in ./dutchie.ts turns the plan into records.
  */
 
-export type Source = "dutchie" | "flourish";
-export const SOURCE_NAME: Record<Source, string> = { dutchie: "Dutchie", flourish: "Flourish" };
+export type Source = "dutchie" | "flourish" | "nms2s";
+export const SOURCE_NAME: Record<Source, string> = { dutchie: "Dutchie", flourish: "Flourish", nms2s: "NMS2S" };
+export const isSource = (s: unknown): s is Source => s === "dutchie" || s === "flourish" || s === "nms2s";
 
 export type DutchieField =
   | "product"
@@ -30,7 +33,8 @@ export type DutchieField =
   | "cost"
   | "vendor"
   | "thc"
-  | "cbd";
+  | "cbd"
+  | "destroy";
 
 /** What each field is called in Dutchie reports (and close variants), lower-case without punctuation. */
 const ALIASES: Record<DutchieField, string[]> = {
@@ -52,6 +56,7 @@ const ALIASES: Record<DutchieField, string[]> = {
   vendor: ["vendor", "vendor name", "supplier"],
   thc: ["thc", "thc %", "thc percent", "total thc", "total thc %"],
   cbd: ["cbd", "cbd %", "cbd percent", "total cbd", "total cbd %"],
+  destroy: ["scheduled for destruction"],
 };
 
 /**
@@ -69,7 +74,29 @@ const FLOURISH_ALIASES: Partial<Record<DutchieField, string[]>> = {
   grams: ["total weight", "total grams", "grams"],
 };
 
-const aliasesFor = (source: Source): Record<DutchieField, string[]> => (source === "flourish" ? { ...ALIASES, ...FLOURISH_ALIASES } : ALIASES);
+/**
+ * NMS2S names, from the state's Inventory Rooms training manual (INV13, Manage Column Headers). Its "ID" is
+ * the 16-digit state inventory ID. Bulk rows have their weight, with its unit, in "Total Cannabis …" and no
+ * count; packaged rows have a Unit/Package Count and an Amount Per Unit/Package. Product Name may be blank.
+ */
+const NMS2S_ALIASES: Partial<Record<DutchieField, string[]>> = {
+  product: ["product name", "product"],
+  tag: ["id", "inventory id", "inventory item id", "item id", "nms2s id"],
+  // "Related Item ID" is the item a package was split from, not its own ID, so it is never read as the tag.
+  externalTag: [],
+  category: ["product type", "type"],
+  strain: ["strain name", "strain"],
+  batch: ["batch", "batch number", "batch id", "lot", "lot number", "harvest batch"],
+  room: ["inventory room", "room", "room name"],
+  quantity: ["unit package count", "unit count", "package count", "units"],
+  grams: ["total cannabis weight", "total cannabis wt", "total cannabis amount", "total cannabis quantity", "total cannabis", "total weight", "weight", "quantity"],
+  unitWeight: ["amount per unit package", "amount per unit", "amount per package"],
+  thc: ["total thc", "total thc %", "thc", "thc %"],
+  cbd: ["total cbd", "total cbd %", "cbd"],
+};
+
+const aliasesFor = (source: Source): Record<DutchieField, string[]> =>
+  source === "flourish" ? { ...ALIASES, ...FLOURISH_ALIASES } : source === "nms2s" ? { ...ALIASES, ...NMS2S_ALIASES } : ALIASES;
 
 export const FIELD_LABEL: Record<DutchieField, string> = {
   product: "Product name",
@@ -90,6 +117,7 @@ export const FIELD_LABEL: Record<DutchieField, string> = {
   vendor: "Vendor",
   thc: "THC %",
   cbd: "CBD %",
+  destroy: "Scheduled for destruction",
 };
 
 const norm = (s: string) =>
@@ -242,6 +270,47 @@ export function unitFor(
   return { unit: "EACH", unitWeightGrams: null };
 }
 
+const GRAMS_PER: Partial<Record<UnitCode, string>> = { G: "1", KG: "1000", OZ: "28.349523125", LB: "453.59237", MG: "0.001" };
+
+/** An amount with its unit in the same cell, as NMS2S shows weights: "500.00 g" → 500 G, "1.2 kg" → 1.2 KG, "20" → 20 with no unit. */
+export function amountWithUnit(raw: string | undefined): { n: Decimal; unit: UnitCode | null } | null {
+  const m = (raw ?? "").trim().match(/^([\d,]*\.?\d+)\s*([a-z]*)\.?$/i);
+  if (!m) return null;
+  const n = num(m[1]);
+  if (!n) return null;
+  if (!m[2]) return { n, unit: null };
+  const unit = UNIT_WORDS[m[2].toLowerCase()];
+  return unit ? { n, unit } : null;
+}
+
+const toGrams = (a: { n: Decimal; unit: UnitCode | null }) => {
+  const per = GRAMS_PER[a.unit ?? "G"];
+  return per ? a.n.times(per).toDecimalPlaces(4) : null;
+};
+
+type Counted = { quantity: Decimal; unit: UnitCode; unitWeightGrams: string | null } | { problem: string } | null;
+
+/** How an NMS2S row is counted: by its Unit/Package Count when it has one, otherwise by its total weight. Null means the row is blank. */
+function countNms2s(countCell: string, weightCell: string, perUnitCell: string): Counted {
+  const count = num(countCell);
+  const weight = amountWithUnit(weightCell);
+  if (countCell && !count) return { problem: "Unit/Package Count is not a number." };
+  if (weightCell && !weight) return { problem: `"${weightCell}" isn't an amount CannaTrace understands (like 500.00 g).` };
+  if (count && count.gt(0)) {
+    const perUnit = amountWithUnit(perUnitCell);
+    // Amount per unit in milligrams is an edible's dose, not its weight.
+    const per = perUnit && perUnit.unit !== "MG" ? toGrams(perUnit) : null;
+    const total = weight ? toGrams(weight) : null;
+    const each = per && per.gt(0) ? per : total && total.gt(0) ? total.div(count).toDecimalPlaces(4) : null;
+    return { quantity: count, unit: "EACH", unitWeightGrams: each ? each.toString() : null };
+  }
+  if (weight) return { quantity: weight.n, unit: weight.unit ?? "G", unitWeightGrams: null };
+  if (count) return { quantity: count, unit: "EACH", unitWeightGrams: null };
+  return null;
+}
+
+const YES = /^(y|yes|true|1|x|scheduled)$/i;
+
 export const importRoom = (source: Source) => `Imported from ${SOURCE_NAME[source]}`;
 /** Kept for the Dutchie tests and callers. */
 export const IMPORT_ROOM = importRoom("dutchie");
@@ -263,7 +332,9 @@ export function planImport(source: Source, table: string[][]): Plan {
       problems: [
         source === "flourish"
           ? "This doesn't look like a Flourish package export: no row names columns like Item Name, Package ID, and Quantity."
-          : "This doesn't look like a Dutchie inventory report: no row names columns like Product Name, Package ID, and Quantity.",
+          : source === "nms2s"
+            ? "This doesn't look like an NMS2S inventory list: no row names columns like ID, Product Type, Strain Name, and Total Cannabis Weight."
+            : "This doesn't look like a Dutchie inventory report: no row names columns like Product Name, Package ID, and Quantity.",
       ],
       warnings,
     };
@@ -271,8 +342,14 @@ export function planImport(source: Source, table: string[][]): Plan {
   const header = table[at];
   const cols = matchColumns(header, source);
   const matched = Object.fromEntries(Object.entries(cols).map(([f, i]) => [f, header[i as number]])) as Plan["matched"];
-  if (cols.product === undefined) problems.push(`The report has no ${source === "flourish" ? "Item Name" : "Product Name"} column.`);
-  if (cols.quantity === undefined) problems.push("The report has no Quantity column.");
+  const nms2s = source === "nms2s";
+  if (nms2s) {
+    if (cols.product === undefined && cols.category === undefined) problems.push("The list has no Product Name or Product Type column.");
+    if (cols.quantity === undefined && cols.grams === undefined) problems.push("The list has no Total Cannabis weight or Unit/Package Count column.");
+  } else {
+    if (cols.product === undefined) problems.push(`The report has no ${source === "flourish" ? "Item Name" : "Product Name"} column.`);
+    if (cols.quantity === undefined) problems.push("The report has no Quantity column.");
+  }
   if (problems.length) return { matched, rows: [], problems, warnings };
 
   const body = table.slice(at + 1);
@@ -283,25 +360,45 @@ export function planImport(source: Source, table: string[][]): Plan {
   const stores = new Set<string>();
   let skippedEmpty = 0;
   let pendingLab = 0;
+  let destroying = 0;
   body.slice(0, MAX_DUTCHIE_ROWS).forEach((cells, i) => {
     const line = at + i + 2;
-    const product = get(cells, "product");
+    // NMS2S leaves Product Name blank until someone names the product; its strain and type describe it.
+    const product = get(cells, "product") || (nms2s ? [get(cells, "strain"), get(cells, "category")].filter(Boolean).join(" ") : "");
     if (!product) {
       // Totals and blank lines at the bottom of a report are skipped quietly.
       const filled = cells.filter((c) => c.trim());
       if (filled.length && !filled.some((c) => /^(grand\s+)?totals?:?$/i.test(c.trim()))) warnings.push(`Line ${line} has no product name and was skipped.`);
       return;
     }
-    const quantity = num(get(cells, "quantity"));
-    if (!quantity) return void problems.push(`Line ${line} (${product}): Quantity is not a number.`);
-    if (quantity.lte(0)) return void skippedEmpty++;
+    if (YES.test(get(cells, "destroy"))) return void destroying++;
+    const tagCell = (get(cells, "externalTag") || get(cells, "tag")).replace(/\s+/g, "");
+    if (/^\d+(\.\d+)?e\+?\d+$/i.test(tagCell))
+      return void problems.push(`Line ${line} (${product}): the ID ${tagCell} was shortened by Excel into scientific notation. Format the ID column as Text, paste the IDs again, and save.`);
+    let quantity: Decimal;
+    let unit: UnitCode;
+    let unitWeightGrams: string | null;
+    if (nms2s) {
+      const counted = countNms2s(get(cells, "quantity"), get(cells, "grams"), get(cells, "unitWeight"));
+      if (!counted) return void problems.push(`Line ${line} (${product}): there's no weight or count.`);
+      if ("problem" in counted) return void problems.push(`Line ${line} (${product}): ${counted.problem}`);
+      ({ quantity, unit, unitWeightGrams } = counted);
+      if (quantity.lte(0)) return void skippedEmpty++;
+    } else {
+      const q = num(get(cells, "quantity"));
+      if (!q) return void problems.push(`Line ${line} (${product}): Quantity is not a number.`);
+      if (q.lte(0)) return void skippedEmpty++;
+      quantity = q;
+      // "Empty 3.5g Jar" is packaging, not 3.5 g of product: only cannabis items get a weight from their name.
+      const supply = /packag|suppl|accessor|merch|hardware|batter|apparel/i.test(get(cells, "category"));
+      ({ unit, unitWeightGrams } = unitFor(get(cells, "unit"), quantity, num(get(cells, "grams")), supply ? "" : product, num(get(cells, "unitWeight"))));
+    }
     const store = get(cells, "store");
     if (store) stores.add(store);
-    // "Empty 3.5g Jar" is packaging, not 3.5 g of product: only cannabis items get a weight from their name.
-    const supply = /packag|suppl|accessor|merch|hardware|batter|apparel/i.test(get(cells, "category"));
-    const { unit, unitWeightGrams } = unitFor(get(cells, "unit"), quantity, num(get(cells, "grams")), supply ? "" : product, num(get(cells, "unitWeight")));
-    const thc = num(get(cells, "thc"));
-    const cbd = num(get(cells, "cbd"));
+    // A potency in milligrams (an edible's dose per package) isn't a percent.
+    const pct = (f: DutchieField) => (/mg/i.test(get(cells, f)) ? null : num(get(cells, f)));
+    const thc = pct("thc");
+    const cbd = pct("cbd");
     if (thc || cbd) pendingLab++;
     rows.push({
       line,
@@ -309,7 +406,7 @@ export function planImport(source: Source, table: string[][]): Plan {
       sku: get(cells, "sku") || null,
       category: get(cells, "category").slice(0, 60) || "Imported",
       strain: get(cells, "strain") || null,
-      tag: (get(cells, "externalTag") || get(cells, "tag")).replace(/\s+/g, ""),
+      tag: tagCell,
       lot: get(cells, "batch") || null,
       room: get(cells, "room").slice(0, 80) || IMPORT_ROOM,
       quantity: quantity.toString(),
@@ -321,6 +418,7 @@ export function planImport(source: Source, table: string[][]): Plan {
     });
   });
   if (skippedEmpty) warnings.push(`${skippedEmpty} package${skippedEmpty === 1 ? " has" : "s have"} nothing left (quantity 0) and won't be imported.`);
+  if (destroying) warnings.push(`${destroying} package${destroying === 1 ? " is" : "s are"} scheduled for destruction and won't be imported.`);
   if (stores.size > 1) warnings.push(`The report covers ${stores.size} store locations (${[...stores].slice(0, 3).join(", ")}${stores.size > 3 ? ", …" : ""}). Every row goes into the facility you're in now; export one location at a time to keep them apart.`);
   if (cols.room === undefined) warnings.push(`There's no room column, so everything goes into a new room called "${IMPORT_ROOM}". You can move packages afterwards.`);
   if (cols.tag === undefined && cols.externalTag === undefined) warnings.push("There's no package ID column, so every package gets a new CannaTrace ID (PKG-…).");

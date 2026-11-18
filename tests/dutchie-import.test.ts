@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { facilities, itemCategories, items, labResults, locations, organizations, packages, users } from "@/db/schema";
 import { parseCsv } from "@/lib/csv";
 import { db, pool } from "@/lib/db";
-import { planDutchie, planImport, unitFor, findHeader, sizeInName } from "@/lib/importers/dutchie-parse";
+import { amountWithUnit, planDutchie, planImport, unitFor, findHeader, sizeInName } from "@/lib/importers/dutchie-parse";
 import { importDutchie, importInventory, previewDutchie, readReport } from "@/lib/importers/dutchie";
 import type { Actor } from "@/lib/inventory";
 import Decimal from "decimal.js";
@@ -81,6 +81,46 @@ describe("reading a Flourish package export", () => {
   });
 });
 
+const nms2s = () => parseCsv(readFileSync("tests/fixtures/nms2s-inventory-room.csv", "utf8"));
+
+describe("reading an NMS2S inventory list", () => {
+  it("maps the state system's columns: ID, Product Type, Strain Name, Total Cannabis Weight, Unit/Package Count", () => {
+    const plan = planImport("nms2s", nms2s());
+    expect(plan.problems).toEqual([]);
+    expect(plan.matched).toMatchObject({ tag: "ID", category: "Product Type", product: "Product Name", strain: "Strain Name", grams: "Total Cannabis Weight", quantity: "Unit/Package Count", unitWeight: "Amount Per Unit/Package", thc: "Total THC", destroy: "Scheduled for Destruction?" });
+    expect(plan.rows.map((r) => r.tag)).toEqual(["8831545407777526", "7227263414909548", "3269770487120449", "1651860785356584", "2537511780714947"]);
+  });
+  it("reads bulk weight with its unit, and packaged rows by count and amount per unit", () => {
+    const rows = planImport("nms2s", nms2s()).rows;
+    expect(rows[0]).toMatchObject({ product: "GeoForce", category: "Dry Flower", quantity: "440", unit: "G", unitWeightGrams: null, thc: "21.4", room: "Imported from NMS2S" });
+    expect(rows[1]).toMatchObject({ product: "Green Chile OG 3.5g Jar", quantity: "20", unit: "EACH", unitWeightGrams: "3.5", thc: "22.8" });
+    // An edible's 100 mg is its dose, not a weight or a percent
+    expect(rows[4]).toMatchObject({ product: "Prickly Pear Gummies 10pk", quantity: "12", unit: "EACH", unitWeightGrams: null, thc: null });
+  });
+  it("names a product from its strain and type when NMS2S has no product name", () => {
+    expect(planImport("nms2s", nms2s()).rows[2].product).toBe("GG#1 Infused Cannabis Material (Concentrate CO2) Unpackaged");
+  });
+  it("leaves out empty packages and ones scheduled for destruction, and says so", () => {
+    const w = planImport("nms2s", nms2s()).warnings.join(" ");
+    expect(w).toMatch(/1 package has nothing left/);
+    expect(w).toMatch(/1 package is scheduled for destruction/);
+  });
+  it("catches IDs Excel turned into scientific notation", () => {
+    const table = nms2s().slice(0, 2);
+    table[1][0] = "8.83155E+15";
+    expect(planImport("nms2s", table).problems[0]).toMatch(/scientific notation/);
+  });
+  it("reads amounts written with units", () => {
+    expect(amountWithUnit("500.00 g")).toMatchObject({ unit: "G" });
+    expect(amountWithUnit("1.2 kg")?.unit).toBe("KG");
+    expect(amountWithUnit("20")).toMatchObject({ unit: null });
+    expect(amountWithUnit("lots")).toBeNull();
+  });
+  it("says plainly when a file isn't an NMS2S list", () => {
+    expect(planImport("nms2s", [["Date", "Sales"]]).problems[0]).toMatch(/NMS2S inventory list/);
+  });
+});
+
 describe.skipIf(!hasDb)("importing a Dutchie report (database)", () => {
   let actor: Actor;
   beforeAll(async () => {
@@ -121,6 +161,15 @@ describe.skipIf(!hasDb)("importing a Dutchie report (database)", () => {
     const [jar] = await db.select().from(packages).where(and(eq(packages.orgId, actor.orgId), eq(packages.tag, "NM0000000000000000000201")));
     expect(jar).toMatchObject({ lotNumber: "BD-1104", quantity: "120.0000", unit: "EACH" });
     const [room] = await db.select().from(locations).where(and(eq(locations.facilityId, actor.facilityId), eq(locations.name, "Dry Room")));
+    expect(room).toBeTruthy();
+  });
+
+  it("imports an NMS2S list with the 16-digit state IDs as package tags", async () => {
+    const result = await importInventory("nms2s", actor, nms2s());
+    expect(result).toMatchObject({ problems: [], packages: 5, labResults: 2 });
+    const [flower] = await db.select().from(packages).where(and(eq(packages.orgId, actor.orgId), eq(packages.tag, "8831545407777526")));
+    expect(flower).toMatchObject({ quantity: "440.0000", unit: "G" });
+    const [room] = await db.select().from(locations).where(and(eq(locations.facilityId, actor.facilityId), eq(locations.name, "Imported from NMS2S")));
     expect(room).toBeTruthy();
   });
 

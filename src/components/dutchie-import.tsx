@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import type { DutchieState } from "@/app/(app)/data/actions";
 import type { DutchieResult } from "@/lib/importers/dutchie";
+import type { Source } from "@/lib/importers/dutchie-parse";
 
 type Act = (formData: FormData) => Promise<DutchieState>;
 
@@ -80,10 +81,23 @@ const STEPS = {
       <>Export it to Excel (or save it as CSV). CannaTrace finds Item Name, Package ID, Lot, Area, Quantity, and the rest by name.</>,
     ],
   },
+  nms2s: {
+    file: "NMS2S inventory list",
+    steps: [
+      <>
+        In NMS2S, open <span className="font-semibold">Inventory Rooms</span> and choose a room. Under <span className="font-semibold">Manage Columns</span>, show Product
+        Name, Strain Name, Total Cannabis weight, Amount Per Unit/Package, Unit/Package Count, and Total THC.
+      </>,
+      <>
+        Put that list in Excel or a CSV with the same column names (ID, Product Type, Product Name, …). Format the ID column as Text first so Excel keeps all 16
+        digits. One room per file; add a Room column to bring several at once.
+      </>,
+    ],
+  },
 } as const;
 
-/** Upload an inventory export from Dutchie or Flourish, check it, then import it in one step. */
-export function DutchieImport({ preview, run, source = "dutchie" }: { preview: Act; run: Act; source?: "dutchie" | "flourish" }) {
+/** Upload an inventory export from Dutchie, Flourish, or NMS2S, check it, then import it in one step. */
+export function DutchieImport({ preview, run, source = "dutchie" }: { preview: Act; run: Act; source?: Source }) {
   const copy = STEPS[source];
   const form = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<DutchieState>(null);

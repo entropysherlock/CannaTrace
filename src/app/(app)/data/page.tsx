@@ -7,7 +7,7 @@ import { requirePagePermission } from "@/lib/session";
 import { DutchieImport } from "@/components/dutchie-import";
 import { importAction, importDutchieAction, previewDutchieAction } from "./actions";
 
-// A large Dutchie or Flourish export can take a while to check and import.
+// A large Dutchie, Flourish, or NMS2S export can take a while to check and import.
 export const maxDuration = 300;
 
 const EXPORTS: { table: string; label: string; permission: Permission }[] = [
@@ -78,7 +78,12 @@ export default async function DataPage() {
         ) : null}
       </div>
       {can(session, "inventory.write") && can(session, "catalog.manage") ? (
-        <div id="switch-systems" className="mt-5 grid scroll-mt-4 gap-5 lg:grid-cols-2">
+        <div id="switch-systems" className="mt-5 grid scroll-mt-4 gap-5 lg:grid-cols-2 xl:grid-cols-3">
+          <div id="switch-from-nms2s" className="scroll-mt-4">
+            <Card title="Switch from NMS2S (state system)" className="h-full">
+              <DutchieImport source="nms2s" preview={previewDutchieAction} run={importDutchieAction} />
+            </Card>
+          </div>
           <div id="switch-from-dutchie" className="scroll-mt-4">
             <Card title="Switch from Dutchie" className="h-full">
               <DutchieImport source="dutchie" preview={previewDutchieAction} run={importDutchieAction} />

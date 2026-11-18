@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DUTCHIE_HREF, FLOURISH_HREF } from "@/components/switch-systems";
+import { DUTCHIE_HREF, FLOURISH_HREF, NMS2S_HREF } from "@/components/switch-systems";
 import { ActionForm } from "@/components/action-form";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { renameBusinessAction } from "./actions";
@@ -43,7 +43,10 @@ export default async function SettingsPage() {
             <Card
               title="Switching from another system?"
               action={
-                <span className="flex gap-4">
+                <span className="flex flex-wrap gap-4">
+                  <Link href={NMS2S_HREF} className="text-sm font-semibold text-brand-700 hover:underline">
+                    Switch from NMS2S
+                  </Link>
                   <Link href={DUTCHIE_HREF} className="text-sm font-semibold text-brand-700 hover:underline">
                     Switch from Dutchie
                   </Link>
@@ -54,8 +57,8 @@ export default async function SettingsPage() {
               }
             >
               <p className="text-sm text-slate-700">
-                Bring your products, rooms, and packages over from Dutchie or Flourish: export your inventory (Dutchie: Reports → Current Inventory; Flourish: Inventory → All
-                Packages), upload it, check what will come in, then import it in one step. Your state tags and batches come with it. Other systems can use the spreadsheet
+                Bring your products, rooms, and packages over from New Mexico&apos;s state system (NMS2S), Dutchie, or Flourish: export your inventory (NMS2S: an
+                Inventory Room&apos;s list; Dutchie: Reports → Current Inventory; Flourish: Inventory → All Packages), upload it, check what will come in, then import it in one step. Your state tags and batches come with it. Other systems can use the spreadsheet
                 imports on{" "}
                 <Link href="/data" className="font-semibold text-brand-700 hover:underline">
                   Import and export
