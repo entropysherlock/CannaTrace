@@ -28,8 +28,13 @@ export type Step = {
   target?: Target[];
   title: string;
   body: string;
-  /** "click": clicking the highlighted thing moves on. "next": the employee presses Next. Default "next". */
-  advance?: "click" | "next";
+  /**
+   * How the step moves on, besides pressing Next:
+   * "save" (default): when a form in the highlighted area saves.
+   * "click": when the highlighted thing is clicked.
+   * "next": only Next, for steps done several times over (adding inputs, order lines).
+   */
+  advance?: "save" | "click" | "next";
 };
 
 export type Walkthrough = {
@@ -175,6 +180,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         target: [{ card: "Add an input" }],
         title: "Add what you use",
         body: "Scan or type each input package's tag and how much you took. The list above shows what's still to go.",
+        advance: "next",
       },
       {
         path: RUN,
@@ -213,6 +219,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         target: [{ card: "Add a line" }],
         title: "Add what they ordered",
         body: "One line per product: the item, how many, and the price. Their price list fills the price in.",
+        advance: "next",
       },
       {
         path: ORDER,
@@ -225,6 +232,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         target: [{ card: "Pick a package" }],
         title: "Pick packages",
         body: "Scan the package for each line. CannaTrace checks it's the right item, has enough, and passed its lab test.",
+        advance: "next",
       },
       {
         path: ORDER,

@@ -60,9 +60,8 @@ test("a walkthrough survives a reload, offers to take you back, and can be exite
   await bubble.getByRole("button", { name: "Take me there" }).click();
   await expect(page).toHaveURL(/\/manufacturing\/recipes$/);
 
-  // Next moves to the runs page; clicking New run (or the open form) carries on
+  // Next opens the runs page by itself: no second click
   await bubble.getByTestId("walk-next").click();
-  await bubble.getByRole("button", { name: "Take me there" }).click();
   await expect(page).toHaveURL(/\/manufacturing$/);
   await expect(bubble).toContainText("Start a run");
   await expect(page.getByTestId("walk-spotlight")).toBeVisible();
@@ -80,5 +79,27 @@ test("Harvest to shelf finds the harvest list and a harvest's cards", async ({ p
   await expect(page.getByTestId("walk-spotlight")).toBeVisible();
   await page.locator('main a[href^="/cultivation/harvests/"]').first().click();
   await expect(bubble).toContainText("step 2 of 7");
+  await expect(page.getByTestId("walk-spotlight")).toBeVisible();
+});
+
+test("saving the highlighted form moves the walkthrough on, and the bubble can shrink", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/dashboard?walk=start-a-grow");
+  await expect(page).toHaveURL(/\/cultivation\/strains$/);
+  const bubble = page.getByTestId("walk-bubble");
+  await expect(bubble).toContainText("Add the strain");
+
+  // Shrink to a slim bar and back
+  await bubble.getByRole("button", { name: "Shrink the instructions" }).click();
+  await expect(bubble).toContainText("1/4 · Add the strain");
+  await bubble.getByRole("button", { name: "Show the instructions" }).click();
+  await expect(bubble).toContainText("step 1 of 4");
+
+  // Saving the strain carries straight on to starting a batch, on its own page
+  const strain = page.locator("section", { has: page.getByRole("heading", { name: "Add a strain" }) });
+  await strain.locator('input[name="name"]').fill(`Walk ${tag}`);
+  await strain.getByRole("button", { name: "Add strain" }).click();
+  await expect(page).toHaveURL(/\/cultivation$/);
+  await expect(bubble).toContainText("Start a batch");
   await expect(page.getByTestId("walk-spotlight")).toBeVisible();
 });

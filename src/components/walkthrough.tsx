@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   GraduationCap,
+  Maximize2,
+  Minimize2,
   MousePointerClick,
   X,
 } from "lucide-react";
@@ -69,7 +71,8 @@ function readState(): State {
   } catch {
     raw = memory;
   }
-  if (raw !== cached.raw) cached = { raw, value: raw ? (JSON.parse(raw) as State) : null };
+  if (raw !== cached.raw)
+    cached = { raw, value: raw ? (JSON.parse(raw) as State) : null };
   return cached.value;
 }
 function writeState(next: State) {
@@ -96,8 +99,20 @@ function cardNamed(main: Element, title: string): HTMLElement | null {
   );
 }
 
+/** Fold-outs a step has already opened, so closing one by hand keeps it closed. */
+const opened = new Set<string>();
+
+/** What to draw the spotlight around: a link's whole row, so the box isn't just the link text. */
+const highlightOf = (el: HTMLElement) =>
+  el.tagName === "A"
+    ? ((el.closest("li, tr") as HTMLElement | null) ?? el)
+    : el;
+
 /** Find what a step points at, on the page as it is now. */
-export function findTarget(targets: Target[] | undefined): HTMLElement | null {
+export function findTarget(
+  targets: Target[] | undefined,
+  key = "",
+): HTMLElement | null {
   const main = document.querySelector("main");
   if (!main || !targets) return null;
   for (const t of targets) {
@@ -108,7 +123,10 @@ export function findTarget(targets: Target[] | undefined): HTMLElement | null {
         words(x.querySelector("summary")).startsWith(t.fold),
       ) as HTMLDetailsElement | undefined;
       if (d) {
-        d.open = true;
+        if (!opened.has(key)) {
+          opened.add(key);
+          d.open = true;
+        }
         el = d;
       }
     } else if ("text" in t) {
@@ -179,10 +197,14 @@ export function WalkthroughProvider({
   // ?walk=<id> starts one from a link; a reload picks up where it was from sessionStorage.
   useEffect(() => {
     const fromLink = new URLSearchParams(window.location.search).get("walk");
-    const w = fromLink && allowed.includes(fromLink) ? walkthroughById(fromLink) : undefined;
+    const w =
+      fromLink && allowed.includes(fromLink)
+        ? walkthroughById(fromLink)
+        : undefined;
     if (!w) return;
     writeState({ id: w.id, i: 0 });
-    if (!w.steps[0].path.test(window.location.pathname) && w.steps[0].go) router.push(w.steps[0].go);
+    if (!w.steps[0].path.test(window.location.pathname) && w.steps[0].go)
+      router.push(w.steps[0].go);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -205,14 +227,18 @@ export function WalkthroughProvider({
   useLayoutEffect(() => {
     if (!step || !onPage) return;
     let tries = 0;
+    const key = `${state!.id}:${state!.i}:${pathname}`;
     const tick = () => {
-      const el = findTarget(step.target);
+      const found = findTarget(step.target, key);
+      const el = found ? highlightOf(found) : null;
       if (el) {
-        const key = `${state!.id}:${state!.i}:${pathname}`;
         if (scrolledFor.current !== key) {
           scrolledFor.current = key;
           // On phones the bubble docks at the bottom, so bring the target up near the top instead.
-          if (window.innerWidth < 768) window.scrollBy({ top: el.getBoundingClientRect().top - 90, behavior: "smooth" });
+          // Tall targets (an opened form) show from their top, not their middle.
+          const r = el.getBoundingClientRect();
+          if (window.innerWidth < 768 || r.height > window.innerHeight - 160)
+            window.scrollBy({ top: r.top - 90, behavior: "smooth" });
           else el.scrollIntoView({ block: "center", behavior: "smooth" });
         }
         setRect(el.getBoundingClientRect());
@@ -235,28 +261,58 @@ export function WalkthroughProvider({
     };
   }, [step, onPage, pathname, state]);
 
-  const next = useCallback(() => {
-    if (!walk || !state) return;
-    if (state.i + 1 >= walk.steps.length) {
-      const done = load<string[]>("local", DONE_KEY, []);
-      save("local", DONE_KEY, [...new Set([...done, walk.id])]);
-      setFinished(walk.title);
-      update(null);
-      return;
-    }
-    update({ ...state, i: state.i + 1 });
-  }, [walk, state, update]);
+  /** Go to a step, opening its page when it lives somewhere else, so Next never needs a second click. */
+  const moveTo = useCallback(
+    (i: number, navigate: boolean) => {
+      if (!walk || !state) return;
+      const to = walk.steps[i];
+      update({ ...state, i });
+      if (navigate && to?.go && !to.path.test(window.location.pathname))
+        router.push(to.go);
+    },
+    [walk, state, update, router],
+  );
+
+  const next = useCallback(
+    (navigate = true) => {
+      if (!walk || !state) return;
+      if (state.i + 1 >= walk.steps.length) {
+        const done = load<string[]>("local", DONE_KEY, []);
+        save("local", DONE_KEY, [...new Set([...done, walk.id])]);
+        setFinished(walk.title);
+        update(null);
+        return;
+      }
+      moveTo(state.i + 1, navigate);
+    },
+    [walk, state, update, moveTo],
+  );
 
   // "Click" steps move on when the highlighted thing is clicked.
   useEffect(() => {
     if (!step || step.advance !== "click" || !onPage) return;
     const onClick = (e: MouseEvent) => {
       const el = findTarget(step.target);
+      // The click itself opens the next page, so don't navigate as well.
       if (el && e.target instanceof Node && el.contains(e.target))
-        window.setTimeout(next, 0);
+        window.setTimeout(() => next(false), 0);
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
+  }, [step, onPage, next]);
+
+  // "Save" steps (the default) move on when a form in the highlighted area saves.
+  useEffect(() => {
+    if (!step || !onPage || step.advance === "click" || step.advance === "next")
+      return;
+    const onSaved = (e: Event) => {
+      const form = (e as CustomEvent<HTMLFormElement | null>).detail;
+      const el = findTarget(step.target);
+      if (form && el && (el.contains(form) || form.contains(el)))
+        window.setTimeout(() => next(true), 600);
+    };
+    window.addEventListener("ct:form-saved", onSaved);
+    return () => window.removeEventListener("ct:form-saved", onSaved);
   }, [step, onPage, next]);
 
   useEffect(() => {
@@ -391,8 +447,8 @@ export function WalkthroughProvider({
             rect={onPage ? rect : null}
             onPage={onPage}
             missing={onPage && missing}
-            onBack={() => update({ ...state!, i: Math.max(0, state!.i - 1) })}
-            onNext={next}
+            onBack={() => moveTo(Math.max(0, state!.i - 1), true)}
+            onNext={() => next(true)}
             onExit={() => update(null)}
             onGo={() => {
               const target = step.go ?? state!.returnTo;
@@ -448,12 +504,43 @@ function Bubble({
   const step = walk.steps[i];
   const last = i === walk.steps.length - 1;
   const [wide, setWide] = useState(true);
+  // Shrunk to a slim bar, for small screens where the bubble would cover what you need.
+  const [small, setSmall] = useState(false);
   useEffect(() => {
     const m = () => setWide(window.innerWidth >= 768);
     m();
     window.addEventListener("resize", m);
     return () => window.removeEventListener("resize", m);
   }, []);
+
+  if (small)
+    return (
+      <div
+        role="dialog"
+        aria-label={`${walk.title}, step ${i + 1} of ${walk.steps.length}`}
+        data-testid="walk-bubble"
+        className="fixed bottom-24 left-3 z-50 flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-full border border-amber-300 bg-white py-1.5 pl-4 pr-1.5 shadow-2xl md:bottom-6 md:left-auto md:right-24 print:hidden"
+      >
+        <span className="truncate text-sm font-bold text-brand-950">
+          {i + 1}/{walk.steps.length} · {step.title}
+        </span>
+        <button
+          type="button"
+          onClick={() => setSmall(false)}
+          aria-label="Show the instructions"
+          className="rounded-full p-2 text-brand-700 hover:bg-brand-50"
+        >
+          <Maximize2 className="h-4 w-4" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          className="rounded-full bg-brand-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-brand-700"
+        >
+          {last ? "Finish" : "Next"}
+        </button>
+      </div>
+    );
 
   // Beside the spotlight on wide screens; docked at the bottom on phones or with nothing to point at.
   let style: React.CSSProperties | undefined;
@@ -464,10 +551,19 @@ function Bubble({
     const vh = window.innerHeight;
     const clampTop = (t: number) => Math.min(Math.max(12, t), vh - H - 12);
     const left = Math.min(Math.max(12, rect.left), vw - W - 12);
-    if (vh - rect.bottom > H + 24) style = { top: rect.bottom + 20, left, width: W };
-    else if (rect.top > H + 24) style = { top: rect.top - 20, left, width: W, transform: "translateY(-100%)" };
-    else if (vw - rect.right > W + 32) style = { top: clampTop(rect.top), left: rect.right + 20, width: W };
-    else if (rect.left > W + 32) style = { top: clampTop(rect.top), left: rect.left - W - 20, width: W };
+    if (vh - rect.bottom > H + 24)
+      style = { top: rect.bottom + 20, left, width: W };
+    else if (rect.top > H + 24)
+      style = {
+        top: rect.top - 20,
+        left,
+        width: W,
+        transform: "translateY(-100%)",
+      };
+    else if (vw - rect.right > W + 32)
+      style = { top: clampTop(rect.top), left: rect.right + 20, width: W };
+    else if (rect.left > W + 32)
+      style = { top: clampTop(rect.top), left: rect.left - W - 20, width: W };
     // Otherwise it docks at the bottom of the screen.
   }
 
@@ -483,14 +579,25 @@ function Bubble({
         <p className="text-xs font-bold uppercase tracking-wide text-brand-700">
           {walk.title} · step {i + 1} of {walk.steps.length}
         </p>
-        <button
-          type="button"
-          onClick={onExit}
-          aria-label="Exit the walkthrough"
-          className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
+        <span className="flex items-center">
+          <button
+            type="button"
+            onClick={() => setSmall(true)}
+            aria-label="Shrink the instructions"
+            title="Shrink"
+            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          >
+            <Minimize2 className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onExit}
+            aria-label="Exit the walkthrough"
+            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </span>
       </div>
       <div className="mb-3 flex gap-1" aria-hidden="true">
         {walk.steps.map((_, k) => (
