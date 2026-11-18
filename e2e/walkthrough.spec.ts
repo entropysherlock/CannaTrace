@@ -103,3 +103,33 @@ test("saving the highlighted form moves the walkthrough on, and the bubble can s
   await expect(bubble).toContainText("Start a batch");
   await expect(page.getByTestId("walk-spotlight")).toBeVisible();
 });
+
+test("Back returns to the step's own page and stays there; the button lives on the dashboard only", async ({ page }) => {
+  await signIn(page);
+  await expect(page.getByTestId("show-me-how")).toBeVisible();
+  await page.goto("/inventory");
+  await expect(page.getByTestId("show-me-how")).toHaveCount(0);
+
+  await page.goto("/dashboard?walk=harvest-to-shelf");
+  await expect(page).toHaveURL(/\/cultivation\/harvests$/);
+  const bubble = page.getByTestId("walk-bubble");
+  await page.locator('main a[href^="/cultivation/harvests/"]').first().click();
+  await expect(bubble).toContainText("step 2 of 7");
+  const harvestUrl = page.url();
+  await bubble.getByTestId("walk-next").click();
+  await expect(bubble).toContainText("step 3 of 7");
+
+  // Back on the same page, then Back to the list: it goes there and doesn't jump forward again
+  await bubble.getByRole("button", { name: "Back" }).click();
+  await expect(bubble).toContainText("step 2 of 7");
+  await bubble.getByRole("button", { name: "Back" }).click();
+  await expect(page).toHaveURL(/\/cultivation\/harvests$/);
+  await expect(bubble).toContainText("step 1 of 7");
+  await page.waitForTimeout(800);
+  await expect(bubble).toContainText("step 1 of 7");
+
+  // Next from the list returns to the harvest it was on
+  await bubble.getByTestId("walk-next").click();
+  await expect(page).toHaveURL(harvestUrl);
+  await expect(bubble).toContainText("step 2 of 7");
+});

@@ -18,6 +18,7 @@ import {
 import Decimal from "decimal.js";
 import { sql } from "drizzle-orm";
 import Link from "next/link";
+import { ShowMeHowButton } from "@/components/walkthrough";
 import { ActivityChart } from "@/components/activity-chart";
 import { usd } from "@/components/distribution-ui";
 import { db } from "@/lib/db";
@@ -166,7 +167,8 @@ export default async function DashboardPage() {
   return (
     <>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="flex w-full items-start justify-between gap-3">
+          <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-brand-950 sm:text-3xl">Dashboard</h1>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-slate-600">
             <span>
@@ -177,6 +179,8 @@ export default async function DashboardPage() {
               {system === "MOCK" ? "Practice mode" : `${SYSTEM_LABELS[system]}: ${connection.ready ? "connected" : "not connected"}`} · {reportingText}
             </span>
           </p>
+          </div>
+          <ShowMeHowButton />
         </div>
         {actions.length ? (
           <div className="flex flex-wrap gap-2">
