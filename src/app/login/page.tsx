@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { signupsOpen } from "@/lib/access";
 import { ActionForm } from "@/components/action-form";
 import { Logo } from "@/components/logo";
 import { Field, inputClass } from "@/components/ui";
@@ -38,12 +39,16 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             Forgot your password?
           </Link>
         </p>
-        <p className="mt-5 text-center text-sm text-slate-600">
-          New to CannaTrace?{" "}
-          <Link href="/signup" className="font-semibold text-brand-700 hover:underline">
-            Create a business account
-          </Link>
-        </p>
+        {signupsOpen() ? (
+          <p className="mt-5 text-center text-sm text-slate-600">
+            New to CannaTrace?{" "}
+            <Link href="/signup" className="font-semibold text-brand-700 hover:underline">
+              Create a business account
+            </Link>
+          </p>
+        ) : (
+          <p className="mt-5 text-center text-sm text-slate-600">CannaTrace is invite-only right now.</p>
+        )}
       </div>
     </main>
   );

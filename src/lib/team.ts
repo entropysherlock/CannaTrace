@@ -1,4 +1,5 @@
 import "server-only";
+import { canSignIn, INVITE_ONLY_MESSAGE } from "./access";
 import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
@@ -128,6 +129,8 @@ export async function acceptInvite(token: string, input: { name: string; passwor
     const [invite] = await tx.select().from(invites).where(eq(invites.tokenHash, hashToken(token))).for("update");
     if (!invite || invite.acceptedAt || invite.revokedAt || invite.expiresAt.getTime() < Date.now())
       throw new InventoryError("This invite link no longer works. Ask for a new one.");
+    // Invite-only: an invite can't make an account that isn't on the list of who may sign in.
+    if (!canSignIn(invite.email)) throw new InventoryError(INVITE_ONLY_MESSAGE);
     if (invite.customRoleId) {
       const exists = await tx.$count(customRoles, and(eq(customRoles.id, invite.customRoleId), eq(customRoles.orgId, invite.orgId)));
       if (!exists) throw new InventoryError("The role on this invite was removed. Ask for a new invite.");
