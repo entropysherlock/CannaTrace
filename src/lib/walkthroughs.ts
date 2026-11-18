@@ -14,8 +14,8 @@ export type Target =
   | { fold: string }
   /** A button or link, by the words on it (the start of them is enough). */
   | { text: string }
-  /** The first link whose address starts with this, optionally only inside a card. */
-  | { link: string; inCard?: string }
+  /** The first link whose address starts with this, optionally only inside a card, skipping addresses that start with `except`. */
+  | { link: string; inCard?: string; except?: string[] }
   /** A form field, by its name. */
   | { field: string };
 
@@ -35,6 +35,8 @@ export type Step = {
    * "next": only Next, for steps done several times over (adding inputs, order lines).
    */
   advance?: "save" | "click" | "next";
+  /** Already done when its target isn't on the page (a drawer that's already open): the step skips itself. */
+  optional?: boolean;
 };
 
 export type Walkthrough = {
@@ -51,6 +53,11 @@ const BATCH = /^\/cultivation\/batches\/[^/]+$/;
 const PACKAGE = /^\/inventory\/(?!receive$)[^/]+$/;
 const RUN = /^\/manufacturing\/runs\/[^/]+$/;
 const ORDER = /^\/distribution\/orders\/[^/]+$/;
+const SALE = /^\/pos\/sales\/[^/]+$/;
+const RECEIPT = /^\/pos\/sales\/[^/]+\/receipt$/;
+const COUNT = /^\/counts\/[^/]+$/;
+/** A package in the inventory list, not the Receive tab. */
+const PACKAGE_LINK = { link: "/inventory/", except: ["/inventory/receive"] };
 
 export const WALKTHROUGHS: Walkthrough[] = [
   {
@@ -291,6 +298,213 @@ export const WALKTHROUGHS: Walkthrough[] = [
         path: PACKAGE,
         title: "Done",
         body: "This is the package's page: move it, test it, label it, or split it from here.",
+      },
+    ],
+  },
+  {
+    id: "register-shift",
+    title: "Run a register shift",
+    summary: "Open your drawer, check ID, ring up a sale, take payment, and count out.",
+    minutes: 5,
+    permission: "pos.use",
+    steps: [
+      {
+        path: /^\/pos$/,
+        go: "/pos",
+        target: [{ text: "Open drawer" }],
+        title: "Open your drawer",
+        body: "Count the cash you're starting with, type it in, and press Open drawer. This drawer is yours: only your sales go into it.",
+        advance: "click",
+        optional: true,
+      },
+      {
+        path: /^\/pos$/,
+        target: [{ text: "Start sale" }, { text: "No scanner?" }],
+        title: "Check their ID",
+        body: "Scan the barcode on the back of the customer's ID. CannaTrace checks their age and that the ID hasn't expired. No scanner? Type the dates from the ID. When it says OK to serve, press Start sale.",
+        // Starting the sale opens the cart, which moves this on; tapping "No scanner?" must not.
+        advance: "next",
+      },
+      {
+        path: SALE,
+        target: [{ text: "Pay" }],
+        title: "Ring up and take payment",
+        body: "Scan each product's barcode, or tap it on the menu. The bars under the cart show how close they are to today's limits, and CannaTrace stops you before they go over. Then press Pay (or F2), choose cash, debit, or split, and press Complete sale. For cash, type what they handed you and CannaTrace shows the change. For debit, run it on the card terminal first.",
+        advance: "click",
+      },
+      {
+        path: RECEIPT,
+        target: [{ text: "Print receipt" }, { text: "Next customer" }],
+        title: "Hand over the receipt",
+        body: "The receipt lists every package tag the product came from. Print it if they want it, then press Next customer for the next person in line.",
+        advance: "next",
+      },
+      {
+        path: /^\/pos\/drawer$/,
+        go: "/pos/drawer",
+        target: [{ card: "Close your drawer" }],
+        title: "Count out at the end of your shift",
+        body: "Count everything in your drawer, including the starting cash, and enter it. You won't see what it should hold until you've counted. That keeps every count honest.",
+      },
+      {
+        path: /^\/pos\/drawer\/[^/]+$/,
+        title: "Your end-of-shift report",
+        body: "This is your shift: sales, cash, card, and whether the drawer was over or short. Tell your manager about any difference before you leave.",
+      },
+    ],
+  },
+  {
+    id: "find-and-move",
+    title: "Find and move a package",
+    summary: "Scan or search for a package, check it, and move it to another room.",
+    minutes: 2,
+    permission: "inventory.write",
+    steps: [
+      {
+        path: /^\/inventory$/,
+        go: "/inventory",
+        target: [{ field: "q" }],
+        title: "Scan or search",
+        body: "Scan the package's barcode, or type part of its tag, the product name, SKU, or lot, and press Search. A barcode scanner works right in this box.",
+        advance: "next",
+      },
+      {
+        path: /^\/inventory$/,
+        target: [PACKAGE_LINK],
+        title: "Open the package",
+        body: "Check the tag matches the one in your hand, then open it.",
+        advance: "click",
+      },
+      {
+        path: PACKAGE,
+        target: [{ card: "Details" }],
+        title: "Check what you have",
+        body: "The quantity, where it's stored, its lot, and its status. Only Active packages can be sold or shipped. Anything on hold or in quarantine stays where it is.",
+        advance: "next",
+      },
+      {
+        path: PACKAGE,
+        target: [{ fold: "Move" }],
+        title: "Move it",
+        body: "Choose the new room or shelf and press Move package.",
+      },
+      {
+        path: PACKAGE,
+        target: [{ card: "Inventory history" }],
+        title: "There's the record",
+        body: "Every move, count, and adjustment shows here with who did it and when. Nobody edits a quantity directly, so every change leaves a trail.",
+      },
+    ],
+  },
+  {
+    id: "count-a-room",
+    title: "Count a room",
+    summary: "Count every package in one location, and CannaTrace corrects the differences.",
+    minutes: 3,
+    permission: "inventory.adjust",
+    steps: [
+      {
+        path: /^\/counts$/,
+        go: "/counts",
+        target: [{ link: "/counts/", inCard: "Count a location" }],
+        title: "Pick the room",
+        body: "Choose the room or shelf you're counting. Count one location at a time, and don't move product in or out while you count.",
+        advance: "click",
+      },
+      {
+        path: COUNT,
+        title: "Count what's really there",
+        body: "For each package, enter what you actually find, in the unit shown. Don't copy the system's number. Enter 0 for a package that's missing.",
+        advance: "next",
+      },
+      {
+        path: COUNT,
+        target: [{ text: "Save count" }],
+        title: "Save the count",
+        body: "Press Save count. Any difference becomes a logged correction with your name on it, and it's reported to the state like any other adjustment.",
+      },
+      {
+        path: COUNT,
+        title: "Big difference?",
+        body: "A big miss usually means a missed shelf or a move nobody recorded. Look again before anyone recounts, and tell your manager about anything you can't explain.",
+      },
+    ],
+  },
+  {
+    id: "hold-and-destroy",
+    title: "Hold and destroy waste",
+    summary: "Put product on hold, wait out the state's hold period, then record its destruction.",
+    minutes: 3,
+    permission: "inventory.adjust",
+    steps: [
+      {
+        path: /^\/inventory$/,
+        go: "/inventory",
+        target: [{ field: "q" }],
+        title: "Find the product",
+        body: "Scan or search for the package that's damaged, expired, failed testing, or otherwise has to go.",
+        advance: "next",
+      },
+      {
+        path: /^\/inventory$/,
+        target: [PACKAGE_LINK],
+        title: "Open it",
+        body: "Make sure the tag matches the product in front of you, then open it.",
+        advance: "click",
+      },
+      {
+        path: PACKAGE,
+        target: [{ fold: "Hold, quarantine, or destroy" }],
+        title: "Put it on hold",
+        body: "Choose On hold (or Quarantine for a failed test) and say why, for example \"Broken seal, 3 jars\". Held product can't be sold, shipped, or used, and the state's hold clock starts now.",
+      },
+      {
+        path: PACKAGE,
+        title: "Wait out the hold period",
+        body: "New Mexico requires waste to sit on hold for 72 hours before it's destroyed, and other states have their own rule. CannaTrace won't let you destroy it early and tells you the exact time it's allowed. Keep it in the quarantine area until then.",
+        advance: "next",
+      },
+      {
+        path: PACKAGE,
+        target: [{ fold: "Hold, quarantine, or destroy" }],
+        title: "Destroy it when the time comes",
+        body: "Mix it with at least as much non-cannabis waste (soil, cat litter, food waste) so it's unusable. Then come back here, choose Destroyed, say how, and tick the mixing box. That's your destruction record for the state.",
+        advance: "next",
+      },
+    ],
+  },
+  {
+    id: "morning-check",
+    title: "Your morning check with Tally",
+    summary: "See what needs attention today, fix it with one approval, and ask Tally anything.",
+    minutes: 2,
+    permission: "inventory.view",
+    steps: [
+      {
+        path: /^\/dashboard$/,
+        go: "/dashboard",
+        title: "Start at the Dashboard",
+        body: "The numbers at the top are today at this facility: stock, plants, orders, sales, and alerts. Check the facility menu at the top shows where you're working.",
+        advance: "next",
+      },
+      {
+        path: /^\/watch$/,
+        go: "/watch",
+        target: [{ text: "Check now" }],
+        title: "What Tally Watch found",
+        body: "Every morning Tally Watch checks for problems: failed lab tests, labels not printed, licenses about to expire, harvests left open. The most urgent come first. Press Check now to look again any time.",
+        advance: "next",
+      },
+      {
+        path: /^\/watch$/,
+        title: "Fix it, or ask",
+        body: "Where a fix is safe, the finding has a button such as Hold it or Prepare the labels. It shows exactly what will change before you approve, and every fix can be undone. Otherwise, Open takes you to the record and Ask Tally explains it.",
+        advance: "next",
+      },
+      {
+        path: /^\/watch$/,
+        title: "Ask Tally anything",
+        body: "Press the Tally button at the bottom right (or Ctrl+J) and ask in plain English: \"What's on hold?\", \"Where is package CT-000101?\", \"What sold yesterday?\" Tally only sees what your role can see, and never changes anything until you press Confirm.",
       },
     ],
   },

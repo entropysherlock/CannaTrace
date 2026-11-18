@@ -12,6 +12,9 @@ describe("SmartWorkflows walkthroughs", () => {
   it("only send people to addresses their own step lives on", () => {
     for (const w of WALKTHROUGHS) for (const s of w.steps) if (s.go) expect(s.path.test(s.go), `${w.id}: ${s.title}`).toBe(true);
   });
+  it("only make steps optional when they highlight something whose absence means it's done", () => {
+    for (const w of WALKTHROUGHS) for (const s of w.steps) if (s.optional) expect(s.target?.length, `${w.id}: ${s.title}`).toBeTruthy();
+  });
   it("start somewhere the employee can be taken", () => {
     for (const w of WALKTHROUGHS) expect(w.steps[0].go, w.id).toBeTruthy();
   });
