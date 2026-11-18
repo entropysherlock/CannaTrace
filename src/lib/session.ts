@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { customRoles, organizations, users } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
+import { canSignIn, liveDemoOn } from "./access";
 import { isPlatformAdmin, nowMs } from "./platform-admin";
 import { signInStillValid } from "./sign-in-check";
 import { ROLE_LABELS, can, cleanPermissions, permissionsFor, type Permission, type Role } from "./rbac";
@@ -128,6 +129,7 @@ async function resolve(session: SessionToken): Promise<Session | null> {
       customName: customRoles.name,
       customPermissions: customRoles.permissions,
       isDemo: organizations.isDemo,
+      email: users.email,
       passwordChangedAt: users.passwordChangedAt,
     })
     .from(users)
@@ -135,6 +137,8 @@ async function resolve(session: SessionToken): Promise<Session | null> {
     .leftJoin(customRoles, and(eq(customRoles.id, users.customRoleId), eq(customRoles.orgId, users.orgId)))
     .where(and(eq(users.id, session.userId), eq(users.orgId, session.orgId), eq(users.active, true)));
   if (!user) return null;
+  // Invite-only: anyone not on the list is signed out on their next click (the demo only while it's on).
+  if (!canSignIn(user.email) && !(user.isDemo && liveDemoOn())) return null;
   // Signed in before the password was changed or reset: that sign-in no longer counts.
   if (user.passwordChangedAt && session.issuedAt !== undefined && session.issuedAt * 1000 < user.passwordChangedAt.getTime()) return null;
   const custom = user.customRoleId && user.customPermissions;
@@ -161,7 +165,7 @@ async function resolveSupport(session: SessionToken, visit: NonNullable<SessionT
     .select({ name: users.name, email: users.email, createdAt: users.createdAt, homeOrg: users.orgId })
     .from(users)
     .where(and(eq(users.id, session.userId), eq(users.active, true)));
-  if (!user || user.homeOrg !== visit.homeOrgId || !(await isPlatformAdmin(session.userId))) return null;
+  if (!user || user.homeOrg !== visit.homeOrgId || !canSignIn(user.email) || !(await isPlatformAdmin(session.userId))) return null;
   const [org] = await db.select({ name: organizations.name, isDemo: organizations.isDemo }).from(organizations).where(eq(organizations.id, session.orgId));
   if (!org) return null;
   return {

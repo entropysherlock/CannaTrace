@@ -18,6 +18,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
     // The assistant uses a scripted stand-in for Claude in tests, so no API key or spending is needed.
-    env: { ASSISTANT_FAKE: "1" },
+    // OPEN_ACCESS lifts the invite-only lock so tests can sign up and use the demo; production never sets it.
+    env: { ASSISTANT_FAKE: "1", OPEN_ACCESS: "1" },
   },
 });

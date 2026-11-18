@@ -6,6 +6,7 @@ import { asc, eq } from "drizzle-orm";
 import { facilities, users } from "@/db/schema";
 import { db } from "@/lib/db";
 import { field, type FormState } from "@/lib/form";
+import { canSignIn, INVITE_ONLY_MESSAGE } from "@/lib/access";
 import { createSession, destroySession } from "@/lib/session";
 
 export async function signIn(_state: FormState, formData: FormData): Promise<FormState> {
@@ -16,6 +17,8 @@ export async function signIn(_state: FormState, formData: FormData): Promise<For
   const [user] = await db.select().from(users).where(eq(users.email, email));
   const valid = user?.active ? await bcrypt.compare(password, user.passwordHash) : false;
   if (!user || !valid) return { error: "That email and password do not match an active account." };
+  // Invite-only: only the listed accounts may sign in (the demo business only while the live demo is on).
+  if (!canSignIn(user.email)) return { error: INVITE_ONLY_MESSAGE };
 
   const [facility] = await db
     .select({ id: facilities.id })

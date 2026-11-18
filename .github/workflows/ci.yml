@@ -29,6 +29,9 @@ jobs:
       # Most test files create a business, and they all count toward the hourly sign-up limit;
       # lift it so the sign-up tests aren't refused. Real servers keep the default.
       SIGNUPS_PER_HOUR: "1000"
+      # Tests create their own businesses and accounts, so CI runs with the invite-only lock lifted.
+      # Production never sets this (see src/lib/access.ts).
+      OPEN_ACCESS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

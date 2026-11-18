@@ -1,4 +1,5 @@
 import "server-only";
+import { liveDemoOn } from "@/lib/access";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, lt, sql } from "drizzle-orm";
@@ -19,7 +20,8 @@ export const DEMO_BUSINESS_NAME = "Desert Bloom Cannabis Co. (sample)";
 export const DEMO_ASSISTANT_DAILY_LIMIT = Number(process.env.DEMO_ASSISTANT_DAILY_LIMIT ?? 150);
 
 export function liveDemoEnabled(): boolean {
-  return process.env.LIVE_DEMO !== "off";
+  // Off while CannaTrace is invite-only; LIVE_DEMO=on turns it back on (see lib/access.ts).
+  return liveDemoOn();
 }
 
 export function demoDayKey(now = new Date()): string {

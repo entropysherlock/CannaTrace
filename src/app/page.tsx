@@ -26,6 +26,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { DemoVideoButton, DemoVideoPlayer, DemoVideoPoster } from "@/components/demo-video";
 import { LeafMark, Logo } from "@/components/logo";
+import { liveDemoOn, signupsOpen } from "@/lib/access";
 import { CONTACT_EMAILS, mailto } from "@/lib/contact";
 import { FOUNDING, PRICES, facilitiesLabel, priceSentence, usd } from "@/lib/pricing";
 import { getSession } from "@/lib/session";
@@ -265,7 +266,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const demoParam = (await searchParams).demo;
   const demoNotice = typeof demoParam === "string" ? DEMO_NOTICES[demoParam] : undefined;
   const signedIn = Boolean(await getSession());
-  const cta = signedIn ? { href: "/dashboard", label: "Go to Dashboard" } : { href: "/signup", label: "Get Started" };
+  // Invite-only: the main button signs people in instead of offering a sign-up that's closed.
+  const cta = signedIn ? { href: "/dashboard", label: "Go to Dashboard" } : signupsOpen() ? { href: "/signup", label: "Get Started" } : { href: "/login", label: "Sign In" };
+  const demoOn = liveDemoOn();
 
   return (
     <div className="bg-white text-slate-900">
@@ -597,13 +600,15 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                 Book a Demo <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </a>
             </div>
-            <p className="mt-4 max-w-lg text-sm text-slate-600">
-              Want to click around yourself?{" "}
-              <Link href="/demo" prefetch={false} className="font-semibold text-brand-700 underline hover:no-underline">
-                Open the sample business
-              </Link>
-              . It&apos;s filled with made-up data and starts fresh every day.
-            </p>
+            {demoOn ? (
+              <p className="mt-4 max-w-lg text-sm text-slate-600">
+                Want to click around yourself?{" "}
+                <Link href="/demo" prefetch={false} className="font-semibold text-brand-700 underline hover:no-underline">
+                  Open the sample business
+                </Link>
+                . It&apos;s filled with made-up data and starts fresh every day.
+              </p>
+            ) : null}
             {demoNotice ? (
               <p role="status" className="mt-3 max-w-lg rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
                 {demoNotice}
