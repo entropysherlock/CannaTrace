@@ -269,7 +269,7 @@ export function AssistantPanel({
         data-assistant-trigger
         onClick={() => setOpen(true)}
         aria-label="Ask Tally"
-        className={`fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-900 text-white shadow-lg shadow-brand-900/30 transition hover:scale-105 md:bottom-6 md:right-6 print:hidden ${open ? "pointer-events-none scale-75 opacity-0" : ""}`}
+        className={`fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-900 text-white shadow-lg shadow-brand-900/30 transition hover:scale-105 md:bottom-6 md:right-6 print:hidden 2xl:[body:has([data-wide])_&]:hidden ${open ? "pointer-events-none scale-75 opacity-0" : ""}`}
       >
         <Sparkles className="h-6 w-6" aria-hidden="true" />
       </button>

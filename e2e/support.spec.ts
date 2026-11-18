@@ -30,8 +30,8 @@ test("CannaTrace support opens a customer's account, sees it as they do, and eve
 
   // Support (the local demo owner is a support admin) finds the business
   await signIn(page, "owner@demo.test");
-  await page.getByRole("link", { name: "Support console" }).first().click();
-  await expect(page.getByRole("heading", { name: "Support console" })).toBeVisible();
+  await page.getByRole("link", { name: "Support Console" }).first().click();
+  await expect(page.getByRole("heading", { name: "Support Console" })).toBeVisible();
   // Found by the license number of one of its facilities, which is listed on its own line
   await page.getByLabel("Search businesses").fill(`sup-${run}`);
   await page.getByRole("button", { name: "Search" }).click();
@@ -47,7 +47,7 @@ test("CannaTrace support opens a customer's account, sees it as they do, and eve
   const banner = page.getByRole("note", { name: "Support view" });
   await expect(banner).toContainText(`you are inside ${BUSINESS} as CannaTrace support`);
   await expect(page.getByText("Canyon Road Store · license")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Support console" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Support Console" })).toHaveCount(0);
 
   // Support can act with owner access; it is recorded under support's name
   await page.goto("/settings/facilities");
@@ -71,7 +71,7 @@ test("CannaTrace support opens a customer's account, sees it as they do, and eve
 
 test("people who are not CannaTrace support cannot reach the console", async ({ page }) => {
   await signIn(page, "manager@demo.test");
-  await expect(page.getByRole("link", { name: "Support console" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Support Console" })).toHaveCount(0);
   await page.goto("/support");
   await expect(page).toHaveURL(/\/dashboard/);
 });

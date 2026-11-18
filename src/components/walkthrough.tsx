@@ -703,3 +703,46 @@ export function ShowMeHowButton() {
     </button>
   );
 }
+
+/** The walkthroughs as cards, for the Walkthroughs page. */
+const readDone = () => {
+  try {
+    return localStorage.getItem(DONE_KEY) ?? "[]";
+  } catch {
+    return "[]";
+  }
+};
+
+export function WalkthroughList({ allowed }: { allowed: string[] }) {
+  const { start } = useWalkthrough();
+  const done = JSON.parse(useSyncExternalStore(() => () => {}, readDone, () => "[]")) as string[];
+  const list = WALKTHROUGHS.filter((w) => allowed.includes(w.id));
+  if (!list.length) return <p className="text-sm text-slate-600">No walkthroughs for your role yet.</p>;
+  return (
+    <ul className="grid gap-4 md:grid-cols-2">
+      {list.map((w) => (
+        <li key={w.id} className="flex flex-col rounded-2xl border border-brand-100 bg-white p-5 shadow-sm">
+          <span className="flex items-center gap-2 text-lg font-extrabold text-brand-950">
+            <GraduationCap className="h-5 w-5 text-brand-700" aria-hidden="true" />
+            {w.title}
+            {done.includes(w.id) ? <CheckCircle2 className="h-4 w-4 text-brand-600" aria-label="Done before" /> : null}
+          </span>
+          <span className="mt-1 flex-1 text-sm text-slate-600">{w.summary}</span>
+          <span className="mt-4 flex items-center justify-between gap-3">
+            <span className="text-xs font-semibold text-slate-500">
+              {w.steps.length} steps · about {w.minutes} min
+            </span>
+            <button
+              type="button"
+              onClick={() => start(w.id)}
+              data-testid={`start-${w.id}`}
+              className="inline-flex min-h-10 items-center rounded-lg bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700"
+            >
+              Start
+            </button>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}

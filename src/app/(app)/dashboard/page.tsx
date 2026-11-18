@@ -1,328 +1,525 @@
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
   Boxes,
-  Check,
   CheckCircle2,
+  ChevronRight,
   CircleDollarSign,
-  ClipboardCheck,
+  Clock,
+  Eye,
   FileText,
+  FlaskConical,
   Info,
-  Leaf,
+  Minus,
   ShieldCheck,
-  ShoppingCart,
+  Sparkles,
   Sprout,
+  Store,
+  Tag,
   Truck,
   XCircle,
   type LucideIcon,
 } from "lucide-react";
-import Decimal from "decimal.js";
-import { sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
-import { ShowMeHowButton } from "@/components/walkthrough";
+import type { ReactNode } from "react";
 import { ActivityChart } from "@/components/activity-chart";
-import { usd } from "@/components/distribution-ui";
+import { Bars } from "@/components/dashboard/bars";
+import { Donut } from "@/components/dashboard/donut";
+import { DashboardFilters } from "@/components/dashboard/filters";
+import { TallyDock, type Takeaway } from "@/components/dashboard/tally-dock";
+import { SwitchBanner } from "@/components/switch-systems";
+import { ShowMeHowButton } from "@/components/walkthrough";
+import { facilities as facilitiesTable } from "@/db/schema";
+import { commandCenter, summarize, toRange, usd } from "@/lib/dashboard";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requireSession } from "@/lib/session";
-import { scanFacility } from "@/lib/rules/scan";
 import { ADAPTERS } from "@/lib/sync";
-import { openFindings, sweepIfStale } from "@/lib/watch";
-import { SwitchBanner } from "@/components/switch-systems";
-import { WatchSection } from "@/components/watch-section";
 import { SYSTEM_LABELS, type SystemName } from "@/lib/sync-math";
+import { sweepIfStale } from "@/lib/watch";
 
-type Row = Record<string, string | number | null>;
-const q = async (query: ReturnType<typeof sql>) => (await db.execute<Row>(query)).rows;
-const n = (v: unknown) => Number(v ?? 0);
+export const metadata = { title: "Command Center · CannaTrace" };
 
-function Tile({ icon: Icon, label, value, sub, href }: { icon: LucideIcon; label: string; value: string; sub?: string; href: string }) {
+const num = (v: number) => v.toLocaleString("en-US");
+
+function ago(d: Date): string {
+  const min = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} hr ago`;
+  const days = Math.round(h / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function Delta({ value, suffix = "vs. period before" }: { value: number | null; suffix?: string }) {
+  if (value === null) return <span className="text-xs text-slate-500">no earlier period to compare</span>;
+  const Icon = value > 0 ? ArrowUp : value < 0 ? ArrowDown : Minus;
+  const tone = value > 0 ? "text-brand-700" : value < 0 ? "text-red-700" : "text-slate-500";
   return (
-    <Link href={href} className="flex items-center gap-4 rounded-2xl border border-brand-100 bg-white p-5 shadow-sm transition hover:border-brand-500">
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-        <Icon className="h-6 w-6" aria-hidden="true" />
+    <span className="inline-flex items-center gap-1 text-xs">
+      <span className={`inline-flex items-center gap-0.5 font-bold ${tone}`}>
+        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+        {value > 0 ? "+" : ""}
+        {value}%
       </span>
-      <span className="min-w-0">
-        <span className="block text-2xl font-extrabold tracking-tight text-brand-950 sm:text-3xl">{value}</span>
-        <span className="block text-sm font-semibold text-slate-700">{label}</span>
-        {sub ? <span className="block text-xs text-slate-500">{sub}</span> : null}
-      </span>
-    </Link>
+      <span className="text-slate-500">{suffix}</span>
+    </span>
   );
 }
 
-function ActionButton({ icon: Icon, label, href }: { icon: LucideIcon; label: string; href: string }) {
+function Kpi({ icon: Icon, value, label, sub, href, tone = "brand" }: { icon: LucideIcon; value: string; label: string; sub: ReactNode; href: string | null; tone?: "brand" | "red" }) {
+  // A tile links only to a page this person may open.
+  const Box = href ? Link : "div";
   return (
-    <Link
-      href={href}
-      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-200 bg-white px-3 text-sm font-semibold text-brand-800 shadow-sm transition hover:border-brand-500 hover:bg-brand-50"
+    <Box
+      href={href ?? ""}
+      className={`flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition ${href ? "hover:border-brand-400" : ""}`}
+      data-testid={`kpi-${label.toLowerCase().replace(/\s+/g, "-")}`}
     >
-      <Icon className="h-4 w-4" aria-hidden="true" />
-      {label}
-    </Link>
+      <Icon className={`mt-1 h-7 w-7 shrink-0 ${tone === "red" ? "text-red-600" : "text-brand-600"}`} aria-hidden="true" />
+      <span className="min-w-0">
+        <span className={`block text-2xl font-extrabold tracking-tight ${tone === "red" ? "text-red-700" : "text-slate-950"}`}>{value}</span>
+        <span className="block text-sm text-slate-600">{label}</span>
+        <span className="mt-1 block">{sub}</span>
+      </span>
+    </Box>
   );
 }
 
-const ISSUE_STYLE = {
-  high: { icon: XCircle, tone: "text-red-600", pill: "text-red-700", word: "Fix now" },
-  medium: { icon: AlertTriangle, tone: "text-amber-600", pill: "text-brand-700", word: "Fix" },
-  info: { icon: Info, tone: "text-slate-400", pill: "text-slate-500", word: "Note" },
-} as const;
+function Card({ title, sub, action, children, className = "" }: { title: ReactNode; sub?: string; action?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <section className={`flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-bold text-slate-950">{title}</h2>
+          {sub ? <p className="text-xs text-slate-500">{sub}</p> : null}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
 
-export default async function DashboardPage() {
+const SEVERITY = {
+  critical: { icon: XCircle, tone: "text-red-600" },
+  warning: { icon: AlertTriangle, tone: "text-amber-500" },
+  info: { icon: Info, tone: "text-slate-400" },
+};
+
+export default async function CommandCenterPage({ searchParams }: { searchParams: Promise<{ scope?: string; days?: string }> }) {
   const session = await requireSession();
-  const org = session.orgId;
-  const fac = session.facilityId;
+  const params = await searchParams;
   await sweepIfStale(session);
-  const watch = await openFindings(session);
 
-  const [rulesScan, [facility], [counts], salesDays, activityDays, [sync], [ledger], [audit], [topGroup], [flow]] = await Promise.all([
-    scanFacility(org, fac),
-    q(sql`select name, license_number, track_trace_system from facilities where id = ${fac}`),
-    q(sql`select
-        (select count(*) from plants where org_id = ${org} and facility_id = ${fac} and status = 'ACTIVE') as plants,
-        (select coalesce(sum(untagged_count), 0) from plant_batches where org_id = ${org} and facility_id = ${fac} and status = 'ACTIVE') as untagged,
-        (select count(*) from packages where org_id = ${org} and facility_id = ${fac} and status in ('ACTIVE','ALLOCATED')) as packages,
-        (select count(*) from packages where org_id = ${org} and facility_id = ${fac} and status in ('ON_HOLD','QUARANTINE')) as held,
-        (select count(*) from harvests where org_id = ${org} and facility_id = ${fac} and status = 'DRYING') as drying,
-        (select count(*) from production_runs where org_id = ${org} and facility_id = ${fac} and status = 'IN_PROGRESS') as runs`),
-    q(sql`
-      with days as (select generate_series((now() at time zone 'America/Denver')::date - 29, (now() at time zone 'America/Denver')::date, '1 day')::date as day),
-      money as (
-        select (completed_at at time zone 'America/Denver')::date as day, total as amount
-          from sales where org_id = ${org} and facility_id = ${fac} and status = 'COMPLETED' and completed_at > now() - interval '31 days'
-        union all
-        select (created_at at time zone 'America/Denver')::date, total
-          from invoices where org_id = ${org} and facility_id = ${fac} and created_at > now() - interval '31 days'
-      )
-      select to_char(d.day, 'YYYY-MM-DD') as day, coalesce(sum(m.amount), 0) as value
-      from days d left join money m on m.day = d.day group by d.day order by d.day`),
-    q(sql`
-      with days as (select generate_series((now() at time zone 'America/Denver')::date - 29, (now() at time zone 'America/Denver')::date, '1 day')::date as day)
-      select to_char(d.day, 'YYYY-MM-DD') as day, count(t.id) as value
-      from days d left join inventory_transactions t
-        on (t.created_at at time zone 'America/Denver')::date = d.day and t.org_id = ${org} and t.facility_id = ${fac}
-      group by d.day order by d.day`),
-    q(sql`select
-        count(*) filter (where status = 'FAILED') as failed,
-        count(*) filter (where status = 'MANUAL') as manual,
-        count(*) filter (where status = 'PENDING') as pending
-      from sync_events where org_id = ${org} and facility_id = ${fac}`),
-    q(sql`select count(*) as off from (
-        select p.id from packages p join inventory_transactions t on t.package_id = p.id
-        where p.org_id = ${org} and p.facility_id = ${fac}
-        group by p.id, p.quantity having sum(t.quantity_delta) <> p.quantity) x`),
-    q(sql`select count(*) as today from audit_logs where org_id = ${org} and facility_id = ${fac} and created_at > now() - interval '1 day'`),
-    q(sql`select s.name as strain, l.name as room, p.phase, count(*) as plants, floor(extract(epoch from now() - min(p.phase_changed_at)) / 604800)::int + 1 as weeks
-      from plants p join strains s on s.id = p.strain_id join locations l on l.id = p.location_id
-      where p.org_id = ${org} and p.facility_id = ${fac} and p.status = 'ACTIVE'
-      group by s.name, l.name, p.phase order by count(*) desc limit 1`),
-    q(sql`select
-        (select count(*) from packages where org_id = ${org} and facility_id = ${fac} and created_at > now() - interval '7 days') as packaged_week,
-        (select count(*) from orders where org_id = ${org} and facility_id = ${fac} and status in ('CONFIRMED','PACKED','SHIPPED')) as open_orders,
-        (select count(*) from sales where org_id = ${org} and facility_id = ${fac} and status = 'COMPLETED' and completed_at > now() - interval '1 day') as sales_today`),
-  ]);
+  const facilities = await db
+    .select({ id: facilitiesTable.id, name: facilitiesTable.name, license: facilitiesTable.licenseNumber, system: facilitiesTable.trackTraceSystem })
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.orgId, session.orgId))
+    .orderBy(asc(facilitiesTable.name));
+  const here = facilities.find((f) => f.id === session.facilityId) ?? facilities[0];
+  const scope = params.scope === "all" && facilities.length > 1 ? "all" : "one";
+  const days = toRange(params.days);
+  const ids = scope === "all" ? facilities.map((f) => f.id) : [session.facilityId];
+  const c = await commandCenter(session.orgId, ids, days);
 
-  const salesPoints = salesDays.map((r) => ({ day: String(r.day), value: n(r.value) }));
-  const salesTotal = salesPoints.reduce((s, p) => s.add(p.value), new Decimal(0));
-  const useSales = salesTotal.gt(0);
-  const points = useSales ? salesPoints : activityDays.map((r) => ({ day: String(r.day), value: n(r.value) }));
-  const activityTotal = activityDays.reduce((s, r) => s + n(r.value), 0);
+  const fmtDay = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" });
+  const end = new Date();
+  const startDay = new Date(end.getTime() - (days - 1) * 86400000);
+  const span = `${fmtDay(startDay)} – ${fmtDay(end)}, ${end.toLocaleDateString("en-US", { year: "numeric", timeZone: "America/Denver" })}`;
 
-  const system = String(facility.track_trace_system) as SystemName;
-  const connection = ADAPTERS[system].status();
-  const reportingText = n(sync.failed)
-    ? `${n(sync.failed)} failed`
-    : n(sync.manual)
-      ? `${n(sync.manual)} to enter by hand`
-      : n(sync.pending)
-        ? `${n(sync.pending)} waiting to send`
-        : "Up to date";
+  const system = here.system as SystemName;
+  const stateName = system === "MOCK" ? "Practice reporting" : SYSTEM_LABELS[system];
+  const connected = system === "MOCK" || ADAPTERS[system].status().ready;
+  const allClear = c.reporting.upToDate && c.compliance.ledgerOff === 0 && c.alerts.urgent === 0;
+  const empty = c.plants.total + c.packages.total === 0;
 
-  const weeks = topGroup ? n(topGroup.weeks) : 0;
-  const stages = [
-    { label: "Cultivate", count: n(counts.plants) + n(counts.untagged), unit: "plants", href: "/cultivation" },
-    { label: "Harvest", count: n(counts.drying), unit: "drying", href: "/cultivation/harvests" },
-    { label: "Manufacture", count: n(counts.runs), unit: "in progress", href: "/manufacturing" },
-    { label: "Package", count: n(flow.packaged_week), unit: "this week", href: "/inventory" },
-    { label: "Distribute", count: n(flow.open_orders), unit: "open orders", href: "/distribution" },
-    { label: "Retail", count: n(flow.sales_today), unit: "sales today", href: "/pos" },
+  const takeaways: Takeaway[] = [
+    { icon: c.sales.change !== null && c.sales.change < 0 ? "down" : "up", text: `Sales: ${usd(c.sales.total)}${c.sales.change !== null ? ` (${c.sales.change > 0 ? "+" : ""}${c.sales.change}%)` : ""}` },
+    { icon: "packages", text: `Inventory: ${num(c.packages.total)} packages (${c.packages.availablePct}% available)` },
+    { icon: "production", text: `Production: ${num(c.production.units)} units${c.production.inProgress ? `, ${c.production.inProgress} run${c.production.inProgress === 1 ? "" : "s"} going` : ""}` },
+    c.alerts.open
+      ? { icon: "alert", text: `Action needed: ${c.alerts.open} Tally Watch item${c.alerts.open === 1 ? "" : "s"}` }
+      : { icon: "ok", text: "Tally Watch: all clear" },
+  ];
+  const prompts = [
+    c.alerts.open ? `Show me details on the ${c.alerts.open} Tally Watch item${c.alerts.open === 1 ? "" : "s"}` : "Is anything about to go wrong?",
+    "What's running low in inventory?",
+    scope === "all" ? "Give me today's sales by facility" : "Give me today's sales",
+    "Are we following our state's rules? What needs fixing?",
   ];
 
-  const actions = [
-    { label: "New sale", href: "/pos", icon: ShoppingCart, show: can(session, "pos.use") },
-    { label: "Receive", href: "/inventory/receive", icon: Truck, show: can(session, "inventory.write") },
-    { label: "Count", href: "/counts", icon: ClipboardCheck, show: can(session, "inventory.adjust") },
-    { label: "Orders", href: "/distribution", icon: FileText, show: can(session, "sales.view") },
-    { label: "Plants", href: "/cultivation", icon: Sprout, show: can(session, "cultivation.view") },
-  ].filter((a) => a.show);
-
-  const issues = [
-    ...(n(ledger.off)
-      ? [{ id: "ledger", severity: "high" as const, title: `${n(ledger.off)} package${n(ledger.off) === 1 ? "" : "s"} don't match their history`, fix: { href: "/inventory", label: "Check" } }]
-      : []),
-    ...rulesScan.issues.map((i) => ({ id: i.id, severity: i.severity, title: i.title, fix: i.fix })),
+  // Each stage links to its page only when this person may open it (a budtender sees no Cultivation link).
+  const allowed = (permission: Parameters<typeof can>[1], href: string) => (can(session, permission) ? href : null);
+  const links = {
+    cultivation: allowed("cultivation.view", "/cultivation"),
+    inventory: allowed("inventory.view", "/inventory"),
+    manufacturing: allowed("inventory.view", "/manufacturing"),
+    distribution: allowed("sales.view", "/distribution"),
+    retail: allowed("pos.use", "/pos"),
+    reports: allowed("reports.view", "/reports"),
+    compliance: allowed("compliance.view", "/compliance"),
+  };
+  const flow = [
+    { icon: Sprout, label: "Cultivation", value: `${num(c.plants.total)} plants`, href: links.cultivation },
+    { icon: Boxes, label: "Inventory", value: `${num(c.packages.active)} packages`, href: links.inventory },
+    { icon: FlaskConical, label: "Manufacturing", value: `${num(c.production.inProgress)} run${c.production.inProgress === 1 ? "" : "s"} going`, href: links.manufacturing },
+    { icon: Truck, label: "Distribution", value: `${num(c.orders.open)} open order${c.orders.open === 1 ? "" : "s"}`, href: links.distribution },
+    { icon: Store, label: "Retail", value: `${usd(c.sales.today)} today`, href: links.retail },
   ];
-  const score = rulesScan.score;
+
+  const printed = c.labels.ok + c.labels.failed;
+  const successRate = printed ? Math.round((c.labels.ok / printed) * 1000) / 10 : null;
+
+  const checks = [
+    { label: `State reporting (${stateName})`, ok: c.reporting.upToDate && connected, word: c.reporting.failed ? `${c.reporting.failed} failed` : c.reporting.pending ? `${c.reporting.pending} waiting` : connected ? "Up to date" : "Not connected" },
+    { label: "Inventory matches its history", ok: c.compliance.ledgerOff === 0, word: c.compliance.ledgerOff ? `${c.compliance.ledgerOff} off` : "Reconciled" },
+    { label: "State rules", ok: c.compliance.highIssues === 0, word: c.compliance.score === null ? "No rule pack" : `Score ${c.compliance.score}` },
+    { label: "Audit trail", ok: true, word: `${num(c.compliance.auditToday)} today` },
+  ];
+  const compliant = checks.every((ch) => ch.ok);
 
   return (
-    <>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex w-full items-start justify-between gap-3">
-          <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-brand-950 sm:text-3xl">Dashboard</h1>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-slate-600">
-            <span>
-              {String(facility.name)} · license {String(facility.license_number)}
-            </span>
-            <span className="inline-flex items-center gap-1 text-brand-700">
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              {system === "MOCK" ? "Practice mode" : `${SYSTEM_LABELS[system]}: ${connection.ready ? "connected" : "not connected"}`} · {reportingText}
-            </span>
+    // data-wide lets the Command Center use the full screen width instead of the usual page column.
+    <div data-wide>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Command Center</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            Your seed-to-sale operations at a glance · <span className="whitespace-nowrap">{span}</span>
           </p>
-          </div>
+          <p className="mt-0.5 text-sm font-medium text-slate-700">
+            {scope === "all" ? `All ${facilities.length} facilities` : `${here.name} · license ${here.license}`}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <DashboardFilters scope={scope} days={days} facilityName={here.name} facilityCount={facilities.length} />
           <ShowMeHowButton />
         </div>
-        {actions.length ? (
-          <div className="flex flex-wrap gap-2">
-            {actions.map((a) => (
-              <ActionButton key={a.href} icon={a.icon} label={a.label} href={a.href} />
-            ))}
-          </div>
-        ) : null}
       </div>
 
-      {n(counts.plants) + n(counts.untagged) + n(counts.packages) + n(counts.held) === 0 && can(session, "inventory.write") && can(session, "catalog.manage") ? <SwitchBanner /> : null}
+      {empty && scope === "one" && can(session, "inventory.write") && can(session, "catalog.manage") ? <SwitchBanner /> : null}
 
-      <WatchSection session={session} findings={watch} />
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Tile
-          icon={Sprout}
-          label="Plants growing"
-          value={(n(counts.plants) + n(counts.untagged)).toLocaleString("en-US")}
-          sub={`${n(counts.plants)} tagged · ${n(counts.untagged)} young`}
-          href="/cultivation"
-        />
-        <Tile
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6" data-testid="kpis">
+        <Kpi icon={Sprout} value={num(c.plants.total)} label="Plants" href={links.cultivation} sub={<span className="text-xs text-slate-500">{num(c.plants.tagged)} tagged · {num(c.plants.young)} young</span>} />
+        <Kpi
           icon={Boxes}
-          label="Packages in stock"
-          value={n(counts.packages).toLocaleString("en-US")}
-          sub={n(counts.held) ? `${n(counts.held)} on hold` : "none on hold"}
-          href="/inventory"
+          value={num(c.packages.active)}
+          label="Active packages"
+          href={links.inventory}
+          sub={<span className="text-xs text-slate-500">{c.packages.held ? `${num(c.packages.held)} on hold or quarantined` : "none on hold"}</span>}
         />
-        <Tile icon={CircleDollarSign} label="Sales, last 30 days" value={usd(salesTotal)} sub="retail and wholesale" href="/reports" />
-        <Tile
-          icon={ShieldCheck}
-          label="Compliance score"
-          value={rulesScan.pack ? `${score}` : "—"}
-          sub={rulesScan.pack ? `${rulesScan.pack.name} rules` : "no rule pack for this state"}
-          href="/compliance/rules"
+        <Kpi icon={Truck} value={num(c.orders.open)} label="Open wholesale orders" href={links.distribution} sub={<span className="text-xs text-slate-500">{num(c.orders.toShip)} to pick or ship</span>} />
+        <Kpi icon={CircleDollarSign} value={usd(c.sales.today)} label="Sales today" href={links.reports} sub={<span className="text-xs text-slate-500">{num(c.sales.todayTickets)} sale{c.sales.todayTickets === 1 ? "" : "s"} and invoices</span>} />
+        <Kpi
+          icon={FileText}
+          value={num(c.reporting.pending + c.reporting.failed)}
+          label="Pending reports"
+          href={links.compliance}
+          sub={<span className={`text-xs ${c.reporting.failed ? "font-semibold text-red-700" : "text-slate-500"}`}>{c.reporting.failed ? `${c.reporting.failed} failed to send` : `to ${stateName}`}</span>}
+        />
+        <Kpi
+          icon={AlertTriangle}
+          value={num(c.alerts.open)}
+          label="Alerts"
+          href="/watch"
+          tone={c.alerts.urgent ? "red" : "brand"}
+          sub={<span className="text-xs text-slate-500">{c.alerts.urgent ? `${c.alerts.urgent} urgent` : "none urgent"} · Tally Watch</span>}
         />
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
-        <section className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
-          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-bold text-brand-900">{useSales ? "Sales by day" : "Inventory activity by day"}</h2>
-            <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">Last 30 days</p>
-          </div>
-          {useSales || activityTotal > 0 ? (
-            <ActivityChart points={points} format={useSales ? "money" : "count"} seriesLabel={useSales ? "Sales" : "Inventory records"} />
-          ) : (
-            <p className="py-16 text-center text-sm text-slate-500">Nothing recorded yet.</p>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-brand-100 bg-white shadow-sm">
-          <div className="flex items-center justify-between rounded-t-2xl border-b border-brand-100 bg-brand-50 px-4 py-3">
-            <h2 className="text-base font-bold text-brand-900">Needs attention</h2>
-            <Link href="/compliance/rules" className="text-sm font-bold text-brand-700 hover:underline">
-              All rules
-            </Link>
-          </div>
-          {issues.length ? (
-            <ul className="divide-y divide-brand-50">
-              {issues.slice(0, 6).map((issue) => {
-                const st = ISSUE_STYLE[issue.severity];
-                const Icon = st.icon;
-                const row = (
-                  <>
-                    <span className="flex min-w-0 items-center gap-2.5">
-                      <Icon className={`h-5 w-5 shrink-0 ${st.tone}`} aria-hidden="true" />
-                      <span className="text-sm font-medium text-slate-800">{issue.title}</span>
-                    </span>
-                    <span className={`shrink-0 text-xs font-bold ${st.pill}`}>{st.word} ›</span>
-                  </>
-                );
-                return (
-                  <li key={issue.id}>
-                    {issue.fix ? (
-                      <Link href={issue.fix.href} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-brand-50">
-                        {row}
+      <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 space-y-4">
+          <Card
+            title={
+              <span>
+                Operations flow <span className="ml-1 text-sm font-normal text-slate-500">seed-to-sale in motion</span>
+              </span>
+            }
+            action={
+              <span
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ring-1 ${allClear ? "bg-brand-50 text-brand-800 ring-brand-200" : "bg-amber-50 text-amber-900 ring-amber-200"}`}
+              >
+                {allClear ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <AlertTriangle className="h-4 w-4" aria-hidden="true" />}
+                {allClear ? "All systems operational" : "Needs a look"}
+              </span>
+            }
+          >
+            <ol className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+              {flow.map((f, i) => (
+                <li key={f.label} className="relative">
+                  {i > 0 ? <ArrowRight className="absolute -left-4 top-4 hidden h-5 w-5 -translate-x-1/2 text-slate-300 sm:block" aria-hidden="true" /> : null}
+                  {(() => {
+                    const inner = (
+                      <>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-50 text-brand-700 ring-1 ring-brand-100">
+                          <f.icon className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <span className="text-sm font-bold text-slate-900">{f.label}</span>
+                        <span className="rounded-md bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">{f.value}</span>
+                      </>
+                    );
+                    return f.href ? (
+                      <Link href={f.href} className="flex flex-col items-center gap-1.5 rounded-xl p-2 text-center hover:bg-brand-50">
+                        {inner}
                       </Link>
                     ) : (
-                      <div className="flex items-center justify-between gap-3 px-4 py-3">{row}</div>
-                    )}
+                      <div className="flex flex-col items-center gap-1.5 p-2 text-center">{inner}</div>
+                    );
+                  })()}
+                </li>
+              ))}
+            </ol>
+          </Card>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card title="Sales trend" sub={`Retail and wholesale, last ${days} days`} action={links.reports ? <Link href={links.reports} className="text-xs font-bold text-brand-700 hover:underline">Reports</Link> : null}>
+              <p className="flex flex-wrap items-baseline gap-x-3">
+                <span className="text-2xl font-extrabold text-slate-950">{usd(c.sales.total)}</span>
+                <Delta value={c.sales.change} />
+              </p>
+              <div className="mt-2">
+                {c.sales.total > 0 ? <ActivityChart points={c.sales.points} format="money" seriesLabel="Sales" /> : <p className="py-12 text-center text-sm text-slate-500">No sales in this period yet.</p>}
+              </div>
+            </Card>
+
+            <Card title="Inventory health" sub="Package status" action={links.inventory ? <Link href={links.inventory} className="text-xs font-bold text-brand-700 hover:underline">Inventory</Link> : null}>
+              <div className="flex flex-1 flex-wrap items-center justify-center gap-4" data-testid="inventory-health">
+                <Donut parts={c.packages.parts} total={c.packages.total} label="packages" />
+                <ul className="min-w-[10rem] flex-1 space-y-2 text-sm">
+                  {c.packages.parts.map((p) => (
+                    <li key={p.key} className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2 text-slate-700">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} aria-hidden="true" />
+                        {p.label}
+                      </span>
+                      <span className="font-semibold tabular-nums text-slate-900">{p.pct}%</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Card>
+
+            <Card
+              title="Production throughput"
+              sub={`Units made by completed runs${days === 90 ? ", by week" : ""}`}
+              action={<Delta value={c.production.change} suffix="" />}
+            >
+              {c.production.units > 0 ? (
+                <Bars points={c.production.points} unit="Units made" />
+              ) : (
+                <p className="py-12 text-center text-sm text-slate-500">
+                  No production runs finished in this period.
+                </p>
+              )}
+            </Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card title="Facilities and operations" sub={`${facilities.length} facilit${facilities.length === 1 ? "y" : "ies"} · last ${days} days`}>
+              <ul className="space-y-2" data-testid="facility-list">
+                {c.facilities.map((f) => (
+                  <li key={f.id} className={`rounded-xl border px-3 py-2.5 ${f.id === session.facilityId ? "border-brand-300 bg-brand-50/50" : "border-slate-100"}`}>
+                    <p className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${f.alerts ? "bg-amber-500" : "bg-brand-500"}`} aria-hidden="true" />
+                        <span className="truncate text-sm font-bold text-slate-900">{f.name}</span>
+                      </span>
+                      {f.id === session.facilityId ? <span className="shrink-0 text-[11px] font-bold uppercase text-brand-700">You&apos;re here</span> : null}
+                    </p>
+                    <p className="mt-0.5 pl-4.5 text-xs text-slate-500">
+                      {num(f.plants)} plants · {num(f.packages)} packages · {usd(f.sales)} sales{f.alerts ? ` · ${f.alerts} alert${f.alerts === 1 ? "" : "s"}` : ""}
+                    </p>
                   </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="flex items-center gap-2 px-4 py-6 text-sm font-semibold text-brand-700">
-              <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> All clear
-            </p>
-          )}
-          <p className="border-t border-brand-50 px-4 py-2 text-xs text-slate-500">{n(audit.today)} audit entries today</p>
-        </section>
-      </div>
+                ))}
+              </ul>
+            </Card>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
-        <section className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
-          <h2 className="mb-4 text-base font-bold text-brand-900">Workflow</h2>
-          <ol className="grid grid-cols-3 gap-y-4 sm:grid-cols-6">
-            {stages.map((stage, i) => (
-              <li key={stage.label} className="relative text-center">
-                {i > 0 ? <span className="absolute right-1/2 top-3.5 z-0 hidden h-1 w-full rounded bg-brand-100 sm:block" aria-hidden="true" /> : null}
-                <Link href={stage.href} className="relative flex flex-col items-center gap-1 hover:text-brand-700">
-                  <span
-                    className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-xs font-extrabold ${
-                      stage.count > 0 ? "bg-brand-600 text-white" : "border-2 border-brand-200 bg-white text-brand-300"
-                    }`}
-                  >
-                    {stage.count > 0 ? <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" /> : i + 1}
-                  </span>
-                  <span className="text-xs font-bold text-brand-950">{stage.label}</span>
-                  <span className="text-xs text-slate-500">
-                    {stage.count.toLocaleString("en-US")} {stage.unit}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ol>
-        </section>
+            <Card
+              title={
+                <span className="flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-red-600" aria-hidden="true" /> Tally Watch
+                  {c.alerts.open ? <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-bold text-white">{c.alerts.open}</span> : null}
+                </span>
+              }
+              sub="Things that need attention, found on their own"
+            >
+              {c.alerts.top.length ? (
+                <ul className="divide-y divide-slate-100" data-testid="watch-top">
+                  {c.alerts.top.map((a) => {
+                    const st = SEVERITY[a.severity] ?? SEVERITY.info;
+                    return (
+                      <li key={a.id}>
+                        <Link href={a.href} className="flex items-start gap-3 py-2.5 hover:bg-slate-50">
+                          <st.icon className={`mt-0.5 h-5 w-5 shrink-0 ${st.tone}`} aria-hidden="true" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-semibold text-slate-900">{a.title}</span>
+                            <span className="block text-xs text-slate-500">
+                              {scope === "all" ? `${a.facility} · ` : ""}
+                              {ago(a.at)}
+                            </span>
+                          </span>
+                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="flex flex-1 items-center gap-2 py-6 text-sm font-semibold text-brand-700">
+                  <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> All clear
+                </p>
+              )}
+              <Link href="/watch" className="mt-auto pt-2 text-sm font-bold text-brand-700 hover:underline">
+                {c.alerts.open > 3 ? `View all ${c.alerts.open}` : "Open Tally Watch"} →
+              </Link>
+            </Card>
 
-        <section className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-5">
-          <h2 className="mb-3 text-base font-bold text-brand-900">Plant tracking</h2>
-          {topGroup ? (
-            <Link href="/cultivation/plants" className="flex items-center gap-4 rounded-xl p-1 hover:bg-brand-50">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-                <Leaf className="h-8 w-8" aria-hidden="true" />
-              </span>
-              <span className="min-w-0 text-sm">
-                <span className="block font-bold text-brand-950">{String(topGroup.strain)}</span>
-                <span className="block text-slate-600">
-                  {String(topGroup.phase) === "FLOWERING" ? "Flowering" : "Vegetative"} · {String(topGroup.room)}
+            <Card
+              title={
+                <span className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-brand-600" aria-hidden="true" /> SmartLabel AI
                 </span>
-                <span className="mt-1 inline-block rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-bold text-brand-900">
-                  {n(topGroup.plants)} plants · week {weeks}
+              }
+              sub={`Label printing, last ${days} days`}
+            >
+              <div className="flex items-center gap-4">
+                <span
+                  className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 ${successRate === null || successRate >= 98 ? "border-brand-500 text-brand-700" : "border-amber-400 text-amber-700"}`}
+                >
+                  <Tag className="h-6 w-6" aria-hidden="true" />
                 </span>
-              </span>
-            </Link>
-          ) : (
-            <p className="text-sm text-slate-500">No tagged plants here.</p>
-          )}
-        </section>
+                <div>
+                  <p className="text-2xl font-extrabold text-slate-950">{successRate === null ? "—" : `${successRate}%`}</p>
+                  <p className="text-xs text-slate-500">{successRate === null ? "No print jobs yet" : "of print jobs went through"}</p>
+                </div>
+              </div>
+              <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-lg bg-slate-50 py-2">
+                  <dt className="text-[11px] text-slate-500">Labels</dt>
+                  <dd className="text-sm font-bold text-slate-900">{num(c.labels.labels)}</dd>
+                </div>
+                <div className="rounded-lg bg-slate-50 py-2">
+                  <dt className="text-[11px] text-slate-500">Jobs</dt>
+                  <dd className="text-sm font-bold text-slate-900">{num(c.labels.jobs)}</dd>
+                </div>
+                <div className="rounded-lg bg-slate-50 py-2">
+                  <dt className="text-[11px] text-slate-500">Templates</dt>
+                  <dd className="text-sm font-bold text-slate-900">{num(c.labels.templates)}</dd>
+                </div>
+              </dl>
+              <Link
+                href={c.labels.failed ? "/labels/history" : "/labels"}
+                className={`mt-auto flex items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold ${c.labels.failed ? "bg-amber-50 text-amber-900" : "bg-brand-50 text-brand-800"}`}
+              >
+                <span className="flex items-center gap-2">
+                  {c.labels.failed ? <AlertTriangle className="h-4 w-4" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
+                  {c.labels.failed ? `${c.labels.failed} print job${c.labels.failed === 1 ? "" : "s"} failed` : "All label queues are clear"}
+                </span>
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card
+              title={
+                <span className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-brand-600" aria-hidden="true" /> Compliance status
+                </span>
+              }
+              sub="State reporting and audit readiness"
+            >
+              <div className="flex flex-wrap items-center gap-5" data-testid="compliance-status">
+                <div className="flex items-center gap-3">
+                  <span className={`flex h-12 w-12 items-center justify-center rounded-full ${compliant ? "bg-brand-50 text-brand-700" : "bg-amber-50 text-amber-700"}`}>
+                    {compliant ? <CheckCircle2 className="h-7 w-7" aria-hidden="true" /> : <AlertTriangle className="h-7 w-7" aria-hidden="true" />}
+                  </span>
+                  <div>
+                    <p className="text-lg font-extrabold text-slate-950">{compliant ? "Compliant" : "Needs a look"}</p>
+                    <p className="text-xs text-slate-500">{compliant ? "Reporting, records, and rules in order" : "Open Compliance to see what to fix"}</p>
+                  </div>
+                </div>
+                <ul className="min-w-[14rem] flex-1 space-y-1.5 text-sm">
+                  {checks.map((ch) => (
+                    <li key={ch.label} className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2 text-slate-700">
+                        {ch.ok ? <CheckCircle2 className="h-4 w-4 text-brand-600" aria-hidden="true" /> : <AlertTriangle className="h-4 w-4 text-amber-500" aria-hidden="true" />}
+                        {ch.label}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${ch.ok ? "bg-brand-50 text-brand-800" : "bg-amber-50 text-amber-900"}`}>{ch.word}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {c.compliance.issues.length ? (
+                <div className="mt-4 border-t border-slate-100 pt-3">
+                  <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">What to fix</p>
+                  <ul className="space-y-1">
+                    {c.compliance.issues.map((i) => (
+                      <li key={i.id}>
+                        <Link href={i.href} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
+                          <span className="flex min-w-0 items-center gap-2 text-slate-800">
+                            {i.severity === "high" ? <XCircle className="h-4 w-4 shrink-0 text-red-600" aria-hidden="true" /> : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />}
+                            {i.title}
+                          </span>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </Card>
+
+            <Card
+              title={
+                <span className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-slate-500" aria-hidden="true" /> Recent activity
+                </span>
+              }
+              sub={scope === "all" ? "Across your facilities" : `At ${here.name}`}
+              action={
+                can(session, "audit.view") ? (
+                  <Link href="/audit" className="text-xs font-bold text-brand-700 hover:underline">
+                    View all →
+                  </Link>
+                ) : null
+              }
+            >
+              {c.activity.length ? (
+                <ul className="space-y-2" data-testid="recent-activity">
+                  {c.activity.map((a) => (
+                    <li key={a.id} className="flex items-start justify-between gap-3 text-sm">
+                      <span className="flex min-w-0 items-start gap-2">
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-500" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block truncate text-slate-800">{a.text}</span>
+                          <span className="block text-xs text-slate-500">
+                            {a.who}
+                            {scope === "all" && a.facility ? ` · ${a.facility}` : ""}
+                          </span>
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs text-slate-500">{ago(a.at)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="py-6 text-sm text-slate-500">Nothing recorded yet.</p>
+              )}
+            </Card>
+          </div>
+        </div>
+
+        <div className="2xl:sticky 2xl:top-20 2xl:self-start">
+          <TallyDock name={session.name.split(" ")[0]} summary={summarize(c)} takeaways={takeaways} prompts={prompts} />
+        </div>
       </div>
-    </>
+    </div>
   );
 }
