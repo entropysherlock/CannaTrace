@@ -36,7 +36,8 @@ import {
  * outside the spotlight is dimmed but still clickable.
  */
 
-type State = { id: string; i: number; returnTo?: string } | null;
+/** Where the employee is: the walkthrough, the step, and the page each step was last seen on (for Back). */
+type State = { id: string; i: number; urls?: Record<number, string> } | null;
 const KEY = "ct-walkthrough";
 const DONE_KEY = "ct-walkthroughs-done";
 
@@ -154,8 +155,8 @@ export function findTarget(
   return null;
 }
 
-type Ctx = { start: (id: string) => void };
-const WalkCtx = createContext<Ctx>({ start: () => {} });
+type Ctx = { start: (id: string) => void; openPicker: () => void; available: boolean };
+const WalkCtx = createContext<Ctx>({ start: () => {}, openPicker: () => {}, available: false });
 export const useWalkthrough = () => useContext(WalkCtx);
 
 export function WalkthroughProvider({
@@ -208,25 +209,68 @@ export function WalkthroughProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Arriving on a page can complete a step (a form saved and moved on).
+  // Arriving on a new page can complete a step (a form saved and moved on). This runs only when the
+  // page changes, never when the step changes, so Back isn't undone by jumping forward again.
+  const lastPath = useRef<string | null>(null);
   useEffect(() => {
+    const changed = lastPath.current !== pathname;
+    lastPath.current = pathname;
     if (!walk || !state) return;
-    const i = stepAfterArriving(walk, state.i, pathname);
+    const i = changed ? stepAfterArriving(walk, state.i, pathname) : state.i;
+    const url = window.location.pathname + window.location.search;
     const here = walk.steps[i].path.test(pathname);
-    const returnTo = here
-      ? window.location.pathname + window.location.search
-      : state.returnTo;
-    if (i !== state.i || returnTo !== state.returnTo)
-      update({ ...state, i, returnTo });
+    if (i !== state.i || (here && state.urls?.[i] !== url)) update({ ...state, i, urls: here ? { ...state.urls, [i]: url } : state.urls });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, walk?.id, state?.i]);
 
   const onPage = Boolean(step && step.path.test(pathname));
 
+  /**
+   * Go to a step, opening its page when it lives somewhere else, so Next and Back never need a second
+   * click: its fixed address, or the page it was last seen on (a particular harvest or order).
+   * It reads the walkthrough as it is now, not as a delayed callback saw it.
+   */
+  const moveTo = useCallback(
+    (i: number, navigate: boolean) => {
+      const cur = readState();
+      const w = cur ? walkthroughById(cur.id) : undefined;
+      if (!cur || !w) return;
+      const to = w.steps[i];
+      update({ ...cur, i });
+      if (!navigate || !to || to.path.test(window.location.pathname)) return;
+      const url = cur.urls?.[i] ?? to.go;
+      if (url) router.push(url);
+      else if (i < cur.i) router.back();
+    },
+    [update, router],
+  );
+
+  /** Move on from step `from`. Ignored if the walkthrough already moved (a save and a vanished card both fired). */
+  const next = useCallback(
+    (navigate: boolean, from: number) => {
+      const cur = readState();
+      const w = cur ? walkthroughById(cur.id) : undefined;
+      if (!cur || !w || cur.i !== from) return;
+      if (from + 1 >= w.steps.length) {
+        const done = load<string[]>("local", DONE_KEY, []);
+        save("local", DONE_KEY, [...new Set([...done, w.id])]);
+        setFinished(w.title);
+        update(null);
+        return;
+      }
+      moveTo(from + 1, navigate);
+    },
+    [update, moveTo],
+  );
+
   // Keep the spotlight on the target as the page scrolls, resizes, or re-renders.
   useLayoutEffect(() => {
     if (!step || !onPage) return;
     let tries = 0;
+    let seen = false;
+    let gone = 0;
+    // A step whose card disappears after it was there (confirming an order removes "Confirm the order") is done.
+    const finishesByVanishing = step.advance !== "click" && step.advance !== "next" && Boolean(step.target?.some((t) => "card" in t));
     const key = `${state!.id}:${state!.i}:${pathname}`;
     const tick = () => {
       const found = findTarget(step.target, key);
@@ -243,9 +287,12 @@ export function WalkthroughProvider({
         }
         setRect(el.getBoundingClientRect());
         setMissing(false);
+        seen = true;
+        gone = 0;
       } else {
         setRect(null);
         setMissing(Boolean(step.target) && ++tries > 4);
+        if (seen && finishesByVanishing && ++gone === 4) next(true, state!.i);
       }
     };
     tick();
@@ -259,61 +306,39 @@ export function WalkthroughProvider({
       } as EventListenerOptions);
       window.removeEventListener("resize", tick);
     };
-  }, [step, onPage, pathname, state]);
+  }, [step, onPage, pathname, state, next]);
 
-  /** Go to a step, opening its page when it lives somewhere else, so Next never needs a second click. */
-  const moveTo = useCallback(
-    (i: number, navigate: boolean) => {
-      if (!walk || !state) return;
-      const to = walk.steps[i];
-      update({ ...state, i });
-      if (navigate && to?.go && !to.path.test(window.location.pathname))
-        router.push(to.go);
-    },
-    [walk, state, update, router],
-  );
-
-  const next = useCallback(
-    (navigate = true) => {
-      if (!walk || !state) return;
-      if (state.i + 1 >= walk.steps.length) {
-        const done = load<string[]>("local", DONE_KEY, []);
-        save("local", DONE_KEY, [...new Set([...done, walk.id])]);
-        setFinished(walk.title);
-        update(null);
-        return;
-      }
-      moveTo(state.i + 1, navigate);
-    },
-    [walk, state, update, moveTo],
-  );
 
   // "Click" steps move on when the highlighted thing is clicked.
   useEffect(() => {
     if (!step || step.advance !== "click" || !onPage) return;
+    const from = state!.i;
     const onClick = (e: MouseEvent) => {
       const el = findTarget(step.target);
       // The click itself opens the next page, so don't navigate as well.
       if (el && e.target instanceof Node && el.contains(e.target))
-        window.setTimeout(() => next(false), 0);
+        window.setTimeout(() => next(false, from), 0);
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [step, onPage, next]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, onPage, next, state?.i]);
 
   // "Save" steps (the default) move on when a form in the highlighted area saves.
   useEffect(() => {
     if (!step || !onPage || step.advance === "click" || step.advance === "next")
       return;
+    const from = state!.i;
     const onSaved = (e: Event) => {
       const form = (e as CustomEvent<HTMLFormElement | null>).detail;
       const el = findTarget(step.target);
       if (form && el && (el.contains(form) || form.contains(el)))
-        window.setTimeout(() => next(true), 600);
+        window.setTimeout(() => next(true, from), 600);
     };
     window.addEventListener("ct:form-saved", onSaved);
     return () => window.removeEventListener("ct:form-saved", onSaved);
-  }, [step, onPage, next]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, onPage, next, state?.i]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -337,20 +362,9 @@ export function WalkthroughProvider({
     typeof window === "undefined" ? [] : load<string[]>("local", DONE_KEY, []);
 
   return (
-    <WalkCtx.Provider value={{ start }}>
+    <WalkCtx.Provider value={{ start, openPicker: () => setPicker(true), available: options.length > 0 }}>
       {children}
-      <button
-        type="button"
-        onClick={() => setPicker(true)}
-        data-testid="show-me-how"
-        aria-label="Show me how"
-        title="Show me how: guided walkthroughs"
-        className="fixed bottom-40 right-5 z-30 inline-flex h-11 w-11 items-center justify-center gap-2 rounded-full border border-brand-200 bg-white text-sm md:w-auto md:px-4 font-bold text-brand-800 shadow-lg transition hover:border-brand-500 md:bottom-24 md:right-6 print:hidden"
-        hidden={Boolean(state) || options.length === 0}
-      >
-        <GraduationCap className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden md:inline">Show me how</span>
-      </button>
+
 
       {picker ? (
         <div
@@ -447,14 +461,21 @@ export function WalkthroughProvider({
             rect={onPage ? rect : null}
             onPage={onPage}
             missing={onPage && missing}
-            onBack={() => moveTo(Math.max(0, state!.i - 1), true)}
-            onNext={() => next(true)}
+            // Read the live position, not this render's, so quick clicks never act on a stale step.
+            onBack={() => {
+              const cur = readState();
+              if (cur) moveTo(Math.max(0, cur.i - 1), true);
+            }}
+            onNext={() => {
+              const cur = readState();
+              if (cur) next(true, cur.i);
+            }}
             onExit={() => update(null)}
             onGo={() => {
-              const target = step.go ?? state!.returnTo;
+              const target = state!.urls?.[state!.i] ?? step.go;
               if (target) router.push(target);
             }}
-            canGo={Boolean(step.go ?? state!.returnTo)}
+            canGo={Boolean(state!.urls?.[state!.i] ?? step.go)}
           />
         </>
       ) : null}
@@ -663,5 +684,22 @@ function Bubble({
         )}
       </div>
     </div>
+  );
+}
+
+/** The "Show me how" button: at the top right of the dashboard. Opens the list of guided jobs. */
+export function ShowMeHowButton() {
+  const { openPicker, available } = useWalkthrough();
+  if (!available) return null;
+  return (
+    <button
+      type="button"
+      onClick={openPicker}
+      data-testid="show-me-how"
+      className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-200 bg-white px-4 text-sm font-bold text-brand-800 shadow-sm transition hover:border-brand-500 hover:bg-brand-50 print:hidden"
+    >
+      <GraduationCap className="h-4 w-4" aria-hidden="true" />
+      Show me how
+    </button>
   );
 }
