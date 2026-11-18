@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { auditLogs, itemCategories, items, locations, unitEnum, locationTypeEnum } from "@/db/schema";
 import { db } from "@/lib/db";
 import { field, toFormError, type FormState } from "@/lib/form";
-import { saveItemDetails } from "@/lib/item-details";
+import { generateSku, normalizeSku } from "@/lib/ids";
+import { renameItem, saveItemDetails } from "@/lib/item-details";
 import { requirePermission } from "@/lib/session";
 
 export async function addCategory(_state: FormState, formData: FormData): Promise<FormState> {
@@ -30,18 +31,21 @@ export async function addItem(_state: FormState, formData: FormData): Promise<Fo
   try {
     const session = await requirePermission("catalog.manage");
     const name = field(formData, "name");
-    const sku = field(formData, "sku").toUpperCase();
+    const typedSku = field(formData, "sku");
     const unit = field(formData, "unit") as (typeof unitEnum.enumValues)[number];
     const categoryId = field(formData, "categoryId");
-    if (!name || !sku) return { error: "Enter a name and a SKU." };
+    if (!name) return { error: "Enter a name." };
+    const givenSku = typedSku ? normalizeSku(typedSku) : null;
     if (!unitEnum.enumValues.includes(unit)) return { error: "Choose a unit of measure." };
     const [category] = await db
-      .select({ id: itemCategories.id })
+      .select({ id: itemCategories.id, name: itemCategories.name })
       .from(itemCategories)
       .where(and(eq(itemCategories.id, categoryId), eq(itemCategories.orgId, session.orgId)));
     if (!category) return { error: "Choose a category." };
 
     const created = await db.transaction(async (tx) => {
+      // Left blank, the SKU is generated from the category (FLO-0007). It can be changed later on the item's page.
+      const sku = givenSku ?? (await generateSku(tx, session.orgId, category.name));
       const [item] = await tx
         .insert(items)
         .values({ orgId: session.orgId, name, sku, unit, categoryId, strain: field(formData, "strain") || null })
@@ -57,11 +61,11 @@ export async function addItem(_state: FormState, formData: FormData): Promise<Fo
         action: "CREATE",
         after: { name, sku, unit },
       });
-      return item;
+      return { ...item, sku };
     });
-    if (!created) return { error: `SKU ${sku} is already used by another item.` };
+    if (!created) return { error: `SKU ${givenSku} is already used by another item.` };
     revalidatePath("/catalog");
-    return { ok: `Added ${name}.` };
+    return { ok: `Added ${name} (SKU ${created.sku}).` };
   } catch (error) {
     return toFormError(error);
   }
@@ -144,6 +148,22 @@ export async function saveItemDetailsAction(_state: FormState, formData: FormDat
     revalidatePath("/catalog");
     revalidatePath(`/catalog/${itemId}`);
     return { ok: result.changed ? `Saved label details for ${result.name}.` : "Nothing changed." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function renameItemAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const session = await requirePermission("catalog.manage");
+    const itemId = field(formData, "itemId");
+    const result = await renameItem({ orgId: session.orgId, userId: session.userId, userName: session.name }, itemId, {
+      name: field(formData, "name"),
+      sku: field(formData, "sku"),
+    });
+    revalidatePath("/catalog");
+    revalidatePath(`/catalog/${itemId}`);
+    return { ok: result.changed ? `Saved. ${result.name} · SKU ${result.sku}.` : "Nothing changed." };
   } catch (error) {
     return toFormError(error);
   }

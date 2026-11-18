@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { noteAudit } from "./audit-recorder";
 import { db, type Tx } from "./db";
+import { generateTags, tagOrGenerate } from "./ids";
 import { packFor, wasteRule } from "./rules";
 import { enqueueSyncEvent } from "./sync";
 import { InventoryError, applyDelta, normalizeTag, parsePositiveQty, planSplit, weightedAverageCost } from "./inventory-math";
@@ -115,7 +116,8 @@ export async function createPackageInTx(
   tx: Tx,
   actor: Actor,
   input: {
-    tag: string;
+    /** Leave blank to generate one. */
+    tag?: string | null;
     itemId: string;
     quantity: unknown;
     locationId: string;
@@ -127,7 +129,8 @@ export async function createPackageInTx(
     auditExtra?: Record<string, unknown>;
   },
 ): Promise<Package> {
-  const tag = normalizeTag(input.tag);
+  // A blank tag gets a generated one (PKG-000123); a scanned or typed state tag is used as is.
+  const tag = await tagOrGenerate(tx, actor.orgId, "PACKAGE", input.tag);
   const quantity = parsePositiveQty(input.quantity);
   const costText = input.costPerUnit == null ? "" : String(input.costPerUnit).trim();
   const cost = costText === "" ? null : parsePositiveQty(costText, "Cost per unit");
@@ -402,12 +405,16 @@ function assertActive(pkg: Package, verb: string) {
 export async function splitPackageInTx(
   tx: Tx,
   actor: Actor,
-  input: { packageId: string; parts: { tag: string; quantity: unknown }[]; note?: string | null },
+  input: { packageId: string; parts: { tag?: string | null; quantity: unknown }[]; note?: string | null },
 ): Promise<{ source: Package; children: Package[] }> {
   if (input.parts.length === 0) throw new InventoryError("Add at least one new package to split into.");
-  const parts = input.parts.map((p) => ({ tag: normalizeTag(p.tag), quantity: p.quantity }));
+  // Blank tags get generated ones.
+  const typed = input.parts.map((p) => (String(p.tag ?? "").trim() ? normalizeTag(p.tag) : null));
+  const given = typed.filter((t): t is string => t !== null);
+  if (new Set(given).size !== given.length) throw new InventoryError("Each new package needs a different tag.");
+  const generated = typed.some((t) => t === null) ? await generateTags(tx, actor.orgId, "PACKAGE", typed.filter((t) => t === null).length) : [];
+  const parts = input.parts.map((p, i) => ({ tag: typed[i] ?? generated.shift()!, quantity: p.quantity }));
   const tags = parts.map((p) => p.tag);
-  if (new Set(tags).size !== tags.length) throw new InventoryError("Each new package needs a different tag.");
 
   {
     const source = await lockPackage(tx, actor, input.packageId);
@@ -487,7 +494,7 @@ export async function splitPackageInTx(
 
 export async function splitPackage(
   actor: Actor,
-  input: { packageId: string; parts: { tag: string; quantity: unknown }[]; note?: string | null },
+  input: { packageId: string; parts: { tag?: string | null; quantity: unknown }[]; note?: string | null },
 ): Promise<{ source: Package; children: Package[] }> {
   return db.transaction((tx) => splitPackageInTx(tx, actor, input));
 }
@@ -495,9 +502,9 @@ export async function splitPackage(
 /** Combine whole packages of the same item into one new package. */
 export async function mergePackages(
   actor: Actor,
-  input: { sourceIds: string[]; newTag: string; locationId?: string | null; note?: string | null },
+  input: { sourceIds: string[]; newTag?: string | null; locationId?: string | null; note?: string | null },
 ): Promise<Package> {
-  const newTag = normalizeTag(input.newTag);
+  const typedTag = String(input.newTag ?? "").trim() ? normalizeTag(input.newTag) : null;
   const ids = [...new Set(input.sourceIds)].sort();
   if (ids.length < 2) throw new InventoryError("Pick at least two different packages to merge.");
 
@@ -518,6 +525,7 @@ export async function mergePackages(
 
     const total = sources.reduce((sum, s) => sum.add(s.quantity), new Decimal(0));
     const cost = weightedAverageCost(sources.map((s) => ({ quantity: s.quantity, costPerUnit: s.costPerUnit })));
+    const newTag = typedTag ?? (await generateTags(tx, actor.orgId, "PACKAGE", 1))[0];
 
     const [merged] = await tx
       .insert(packages)

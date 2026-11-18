@@ -3,6 +3,7 @@ import Decimal from "decimal.js";
 import { and, eq } from "drizzle-orm";
 import { auditLogs, items } from "@/db/schema";
 import { db } from "./db";
+import { normalizeSku } from "./ids";
 import { InventoryError } from "./inventory-math";
 
 /** What a product label needs to know about an item, beyond its name and SKU. All optional. */
@@ -88,5 +89,37 @@ export async function saveItemDetails(actor: Actor, itemId: string, input: ItemD
       });
     }
     return { name: before.name, changed: Object.keys(changed).length };
+  });
+}
+
+/**
+ * Change an item's name or SKU. A SKU must stay unique in the business. Packages keep pointing at the
+ * same item, so nothing else changes; labels printed from now on show the new values.
+ */
+export async function renameItem(actor: Actor, itemId: string, input: { name: string; sku: string }) {
+  const name = input.name.trim().replace(/\s+/g, " ").slice(0, 120);
+  if (!name) throw new InventoryError("Enter the item's name.");
+  const sku = normalizeSku(input.sku);
+  return db.transaction(async (tx) => {
+    const [before] = await tx.select().from(items).where(and(eq(items.id, itemId), eq(items.orgId, actor.orgId)));
+    if (!before) throw new InventoryError("That item was not found.");
+    if (before.name === name && before.sku === sku) return { name, sku, changed: false };
+    if (sku !== before.sku) {
+      const [taken] = await tx.select({ id: items.id }).from(items).where(and(eq(items.orgId, actor.orgId), eq(items.sku, sku)));
+      if (taken) throw new InventoryError(`SKU ${sku} is already used by another item.`);
+    }
+    await tx.update(items).set({ name, sku }).where(eq(items.id, itemId));
+    await tx.insert(auditLogs).values({
+      orgId: actor.orgId,
+      userId: actor.userId,
+      userName: actor.userName,
+      entityType: "Item",
+      entityId: itemId,
+      action: "UPDATE",
+      reason: "Name or SKU changed",
+      before: { name: before.name, sku: before.sku },
+      after: { name, sku },
+    });
+    return { name, sku, changed: true };
   });
 }

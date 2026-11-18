@@ -140,13 +140,13 @@ describe.skipIf(!hasDb)("distribution engine (database)", () => {
     await expect(allocateToOrder(actor, { orderId: o.id, lineId: jarLine, tag: whole.tag })).rejects.toThrow(/Confirm it first/);
     await confirmOrder(actor, { orderId: o.id });
 
-    // Whole package, then part of another (needs a new tag), then guards
+    // Whole package, then part of another (the picked part gets a new tag, generated when none is given), then guards
     await allocateToOrder(actor, { orderId: o.id, lineId: jarLine, tag: whole.tag });
     expect((await pkg(whole.id)).status).toBe("ALLOCATED");
     await expect(allocateToOrder(actor, { orderId: o.id, lineId: jarLine, tag: big.tag })).rejects.toThrow(/only needs 48 more/);
-    await expect(allocateToOrder(actor, { orderId: o.id, lineId: jarLine, tag: big.tag, quantity: "48" })).rejects.toThrow(/Scan a new tag/);
     await expect(allocateToOrder(actor, { orderId: o.id, lineId: jarLine, tag: rolls.tag, quantity: "10", newTag: tag() })).rejects.toThrow(/different item/);
-    const picked = await allocateToOrder(actor, { orderId: o.id, lineId: jarLine, tag: big.tag, quantity: "48", newTag: tag() });
+    const picked = await allocateToOrder(actor, { orderId: o.id, lineId: jarLine, tag: big.tag, quantity: "48" });
+    expect(picked.tag).toMatch(/^PKG-\d{6}$/);
     expect((await pkg(big.id)).quantity).toBe("152");
     expect(await pkg(picked.id)).toEqual({ quantity: "48", status: "ALLOCATED" });
     await expect(allocateToOrder(actor, { orderId: o.id, lineId: jarLine, tag: big.tag, quantity: "1", newTag: tag() })).rejects.toThrow(/already fully picked/);

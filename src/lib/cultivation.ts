@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { MAX_PLANTS_PER_ACTION, harvestOnHand, takeFromHarvest, toGrams } from "./cultivation-math";
 import { db, type Tx } from "./db";
+import { generateTags } from "./ids";
 import { InventoryError, assertLocation, audit, createPackageInTx, type Actor } from "./inventory";
 import { normalizeTag, parsePositiveQty } from "./inventory-math";
 import { convert, dimensionOf } from "./units";
@@ -111,13 +112,18 @@ async function lockBatch(tx: Tx, actor: Actor, batchId: string) {
 /** Give individual tags to plants in a batch. They become vegetative plants tracked one by one. */
 export async function tagPlants(
   actor: Actor,
-  input: { batchId: string; tags: string[]; locationId?: string | null },
+  /** Give tags, or `generate` a count to have CannaTrace make new unique tags (PLT-000123). */
+  input: { batchId: string; tags?: string[]; generate?: number; locationId?: string | null },
 ): Promise<Plant[]> {
-  const tags = input.tags.map((tag) => normalizeTag(tag));
-  if (tags.length === 0) throw new InventoryError("Scan or type at least one tag.");
-  if (new Set(tags).size !== tags.length) throw new InventoryError("Each plant needs a different tag.");
+  const given = (input.tags ?? []).map((tag) => normalizeTag(tag));
+  if (given.length === 0 && !input.generate) throw new InventoryError("Scan or type at least one tag, or choose to generate them.");
+  if (new Set(given).size !== given.length) throw new InventoryError("Each plant needs a different tag.");
   return db.transaction(async (tx) => {
     const batch = await lockBatch(tx, actor, input.batchId);
+    if (given.length === 0 && input.generate! > batch.untaggedCount) {
+      throw new InventoryError(`This batch has ${batch.untaggedCount} untagged plant${batch.untaggedCount === 1 ? "" : "s"} left, but ${input.generate} tags were asked for.`);
+    }
+    const tags = given.length ? given : await generateTags(tx, actor.orgId, "PLANT", input.generate!);
     if (tags.length > batch.untaggedCount) {
       throw new InventoryError(
         `This batch has ${batch.untaggedCount} untagged plant${batch.untaggedCount === 1 ? "" : "s"} left, but ${tags.length} tags were entered.`,

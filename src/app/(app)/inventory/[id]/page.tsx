@@ -288,11 +288,11 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                 <ActionForm action={splitAction} submitLabel="Split">
                   {hidden}
                   <p className="text-sm text-slate-600">
-                    Fill in one row per new package. Leave unused rows empty. Whatever is not split stays in {pkg.tag}.
+                    Fill in one row per new package. Leave unused rows empty, and leave a tag blank to get a new unique ID (PKG-000123). Whatever is not split stays in {pkg.tag}.
                   </p>
                   {[1, 2, 3, 4].map((row) => (
                     <div key={row} className="grid grid-cols-5 gap-2">
-                      <input name="tag" aria-label={`New tag ${row}`} placeholder={`New tag ${row}`} autoCapitalize="characters" className={`${inputClass} col-span-3 font-mono`} />
+                      <input name="tag" aria-label={`New tag ${row}`} placeholder={`New tag ${row} (blank = generate)`} autoCapitalize="characters" className={`${inputClass} col-span-3 font-mono`} />
                       <input name="quantity" aria-label={`Quantity ${row}`} placeholder={unitLabel(unit)} inputMode="decimal" className={`${inputClass} col-span-2`} />
                     </div>
                   ))}
@@ -304,8 +304,8 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                   <Field label="Other package tags" hint="Scan or type each tag, separated by spaces or new lines. Same item and lot only.">
                     <textarea name="otherTags" required rows={3} autoCapitalize="characters" className={`${inputClass} py-2 font-mono`} />
                   </Field>
-                  <Field label="Tag for the combined package">
-                    <ScanInput name="newTag" required />
+                  <Field label="Tag for the combined package (blank to generate)">
+                    <ScanInput name="newTag" placeholder="Blank = new PKG- ID" />
                   </Field>
                 </ActionForm>
               </Fold>

@@ -68,9 +68,16 @@ export async function tagPlantsAction(_state: FormState, formData: FormData): Pr
     const actor = await cultivationActor();
     const batchId = field(formData, "batchId");
     const list = field(formData, "tagList");
-    const tags = list ? parseTagList(list) : expandTags(field(formData, "firstTag"), Number(field(formData, "count")));
-    const created = await tagPlants(actor, { batchId, tags, locationId: field(formData, "locationId") });
+    const first = field(formData, "firstTag");
+    const count = Number(field(formData, "count"));
+    // A list of tags, a roll (first tag and a count), or, with both left blank, generated tags.
+    const created = await tagPlants(actor, {
+      batchId,
+      ...(list ? { tags: parseTagList(list) } : first ? { tags: expandTags(first, count) } : { generate: count }),
+      locationId: field(formData, "locationId"),
+    });
     revalidatePath("/cultivation", "layout");
+    const tags = created.map((p) => p.tag).sort();
     return { ok: `Tagged ${plural(created.length, "plant")}: ${tags[0]}${tags.length > 1 ? ` to ${tags[tags.length - 1]}` : ""}.` };
   } catch (error) {
     return toFormError(error);

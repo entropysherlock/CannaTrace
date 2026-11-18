@@ -173,7 +173,27 @@ test("merge two packages, add an item, add a location", async ({ page }) => {
   await page.locator('select[name="categoryId"]').selectOption({ label: "Concentrates" });
   await page.locator('select[name="unit"]').selectOption("G");
   await page.getByRole("button", { name: "Add item" }).click();
-  await expect(page.getByText(`Added Test Rosin ${run}.`)).toBeVisible();
+  await expect(page.getByText(`Added Test Rosin ${run} (SKU ROS-${run}).`)).toBeVisible();
+
+  // Left blank, the SKU is generated from the category, and can be changed on the item's page
+  await page.locator('form:has(select[name="unit"]) input[name="name"]').fill(`Auto Rosin ${run}`);
+  await page.locator('select[name="categoryId"]').selectOption({ label: "Concentrates" });
+  await page.locator('select[name="unit"]').selectOption("G");
+  await page.getByRole("button", { name: "Add item" }).click();
+  await expect(page.getByText(new RegExp(`Added Auto Rosin ${run} \\(SKU CON-\\d{4}\\)\\.`))).toBeVisible();
+  await page.locator("li", { hasText: `Auto Rosin ${run}` }).getByRole("link", { name: "Label details" }).click();
+  await expect(page.getByRole("heading", { name: `Auto Rosin ${run}` })).toBeVisible();
+  await page.locator('form:has(button:text("Save name and SKU")) input[name="sku"]').fill(`MY-${run}`);
+  await page.getByRole("button", { name: "Save name and SKU" }).click();
+  await expect(page.getByText(`Saved. Auto Rosin ${run} · SKU MY-${run}.`)).toBeVisible();
+
+  // Received with no tag: it gets a new unique package ID
+  await page.goto("/inventory/receive");
+  await page.locator('select[name="itemId"]').selectOption({ label: `Auto Rosin ${run} (g)` });
+  await page.locator('input[name="quantity"]').fill("10");
+  await page.locator('select[name="locationId"]').selectOption({ index: 1 });
+  await page.getByRole("button", { name: "Receive" }).click();
+  await expect(page.getByRole("heading", { name: /^PKG-\d{6}$/ })).toBeVisible();
 
   await page.goto("/locations");
   await page.locator('input[name="name"]').fill(`Bin ${run}`);
