@@ -9,9 +9,12 @@ import { can } from "@/lib/rbac";
 import { ROOM_AREAS, roomAreaLabel } from "@/lib/rooms";
 import { requirePagePermission } from "@/lib/session";
 import { hasRulePack, stateName } from "@/lib/states";
-import { addFacilityAction, addRoomAction, switchFacility, updateFacilityAction, updateRoomAction } from "../actions";
+import { SAMPLE_LICENSE } from "@/lib/demo/sample-facility";
+import { addFacilityAction, addRoomAction, loadSampleFacilityAction, switchFacility, updateFacilityAction, updateRoomAction } from "../actions";
 
 export const instant = false;
+// Loading the sample facility makes a few thousand records; give it time on the server.
+export const maxDuration = 300;
 
 const typeLabel = (t: string) => t.charAt(0) + t.slice(1).toLowerCase();
 
@@ -122,6 +125,7 @@ function Rooms({ facilityId, rooms }: { facilityId: string; rooms: Room[] }) {
 export default async function FacilitiesPage() {
   const session = await requirePagePermission("settings.manage");
   const facilities = await db.select().from(facilitiesTable).where(eq(facilitiesTable.orgId, session.orgId)).orderBy(asc(facilitiesTable.name));
+  const sample = facilities.find((f) => f.licenseNumber === SAMPLE_LICENSE);
   const rooms = await db
     .select({ id: locations.id, facilityId: locations.facilityId, name: locations.name, area: locations.area })
     .from(locations)
@@ -186,6 +190,7 @@ export default async function FacilitiesPage() {
             );
           })}
         </div>
+        <div className="space-y-5">
         <Card title="Add a facility">
           <ActionForm action={addFacilityAction} submitLabel="Add facility">
             <FacilityFields />
@@ -194,6 +199,44 @@ export default async function FacilitiesPage() {
             </p>
           </ActionForm>
         </Card>
+        {sample ? (
+          <Card title="Try every feature with sample data">
+            <div className="space-y-3 text-sm text-slate-700" data-testid="sample-loaded">
+              <p>
+                <span className="font-semibold">{sample.name}</span> is loaded. Switch to it to try cultivation, labels, wholesale, and the register with realistic data.
+              </p>
+              {sample.id === session.facilityId ? (
+                <p className="font-semibold text-brand-800">You&apos;re in it now.</p>
+              ) : (
+                <form action={switchFacility}>
+                  <input type="hidden" name="facilityId" value={sample.id} />
+                  <button type="submit" className="min-h-11 rounded-lg bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700">
+                    Switch to the sample facility
+                  </button>
+                </form>
+              )}
+            </div>
+          </Card>
+        ) : session.role === "OWNER" && !session.isDemo ? (
+          <Card title="Try every feature with sample data">
+            <ActionForm action={loadSampleFacilityAction} submitLabel="Load the sample facility">
+              <p className="text-sm text-slate-700">
+                Adds a separate facility, <span className="font-semibold">Sample Grow &amp; Store (practice data)</span>, filled like a real New Mexico microbusiness:
+              </p>
+              <ul className="list-disc space-y-0.5 pl-5 text-sm text-slate-700">
+                <li>12 rooms covering every area type, vault racks, and 4 strains</li>
+                <li>About 100 plants from clone to flower, a drying harvest, and a finished one</li>
+                <li>Packages with lab results and full cannabinoid profiles, one failed, one pending</li>
+                <li>13 products with label details: flower, pre-rolls, live resin, gummies, a drink, a balm</li>
+                <li>A production run, wholesale customers and orders, and a stocked register with sales</li>
+              </ul>
+              <p className="text-xs text-slate-600">
+                Your other facilities aren&apos;t touched. Sample tags and SKUs start with SMP-. Like every record, it stays in the audit trail. Loading takes up to a minute.
+              </p>
+            </ActionForm>
+          </Card>
+        ) : null}
+        </div>
       </div>
     </>
   );
