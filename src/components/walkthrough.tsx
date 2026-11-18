@@ -143,7 +143,9 @@ export function findTarget(
       const scope = t.inCard ? cardNamed(main, t.inCard) : main;
       el =
         (scope &&
-          ([...scope.querySelectorAll(`a[href^="${t.link}"]`)].find(visible) as
+          ([...scope.querySelectorAll(`a[href^="${t.link}"]`)].find(
+            (a) => visible(a) && !t.except?.some((x) => (a.getAttribute("href") ?? "").startsWith(x)),
+          ) as
             HTMLElement | undefined)) ??
         null;
     } else if ("field" in t) {
@@ -173,11 +175,22 @@ export function WalkthroughProvider({
   const [finished, setFinished] = useState<string | null>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [missing, setMissing] = useState(false);
+  // Another window that needs the person's answer (the register's payment window, a confirm box) is open:
+  // the walkthrough steps aside until it closes, so it never covers something they must press.
+  const [aside, setAside] = useState(false);
   const scrolledFor = useRef<string>("");
 
   const walk: Walkthrough | undefined = state
     ? walkthroughById(state.id)
     : undefined;
+
+  useEffect(() => {
+    if (!state) return;
+    const check = () => setAside(Boolean(document.querySelector('[role="dialog"][aria-modal="true"]:not([data-walk-own])')));
+    check();
+    const t = window.setInterval(check, 250);
+    return () => window.clearInterval(t);
+  }, [state]);
   const step = walk?.steps[state!.i];
 
   const update = useCallback((next: State) => writeState(next), []);
@@ -292,6 +305,8 @@ export function WalkthroughProvider({
       } else {
         setRect(null);
         setMissing(Boolean(step.target) && ++tries > 4);
+        // An optional step whose target never showed up is already done (the drawer is open): move on.
+        if (step.optional && !seen && tries > 8) next(false, state!.i);
         if (seen && finishesByVanishing && ++gone === 4) next(true, state!.i);
       }
     };
@@ -368,12 +383,13 @@ export function WalkthroughProvider({
 
       {picker ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/50 p-3 sm:items-center print:hidden"
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-brand-950/50 p-3 sm:items-center print:hidden"
           onClick={() => setPicker(false)}
         >
           <div
             role="dialog"
             aria-modal="true"
+            data-walk-own="true"
             aria-labelledby="walk-title"
             className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
@@ -436,13 +452,13 @@ export function WalkthroughProvider({
         </div>
       ) : null}
 
-      {walk && step ? (
+      {walk && step && !aside ? (
         <>
           {rect && onPage ? (
             <div
               aria-hidden="true"
               data-testid="walk-spotlight"
-              className="pointer-events-none fixed z-40 rounded-xl ring-4 ring-amber-300 transition-all duration-200 print:hidden"
+              className="pointer-events-none fixed z-[65] rounded-xl ring-4 ring-amber-300 transition-all duration-200 print:hidden"
               style={{
                 top: rect.top - 8,
                 left: rect.left - 8,
@@ -483,7 +499,7 @@ export function WalkthroughProvider({
       {finished ? (
         <div
           role="status"
-          className="fixed inset-x-3 bottom-24 z-50 mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-brand-900 px-5 py-4 text-white shadow-2xl md:bottom-8 print:hidden"
+          className="fixed inset-x-3 bottom-24 z-[80] mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-brand-900 px-5 py-4 text-white shadow-2xl md:bottom-8 print:hidden"
         >
           <CheckCircle2
             className="h-6 w-6 shrink-0 text-amber-300"
@@ -540,7 +556,7 @@ function Bubble({
         role="dialog"
         aria-label={`${walk.title}, step ${i + 1} of ${walk.steps.length}`}
         data-testid="walk-bubble"
-        className="fixed bottom-24 left-3 z-50 flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-full border border-amber-300 bg-white py-1.5 pl-4 pr-1.5 shadow-2xl md:bottom-6 md:left-auto md:right-24 print:hidden"
+        className="fixed bottom-24 left-3 z-[66] flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-full border border-amber-300 bg-white py-1.5 pl-4 pr-1.5 shadow-2xl md:bottom-6 md:left-auto md:right-24 print:hidden"
       >
         <span className="truncate text-sm font-bold text-brand-950">
           {i + 1}/{walk.steps.length} · {step.title}
@@ -594,7 +610,7 @@ function Bubble({
       aria-label={`${walk.title}, step ${i + 1} of ${walk.steps.length}`}
       data-testid="walk-bubble"
       style={style}
-      className={`fixed z-50 rounded-2xl border border-amber-200 bg-white p-4 shadow-2xl print:hidden ${style ? "" : "inset-x-3 bottom-24 mx-auto max-w-md md:bottom-8"}`}
+      className={`fixed z-[66] rounded-2xl border border-amber-200 bg-white p-4 shadow-2xl print:hidden ${style ? "" : "inset-x-3 bottom-24 mx-auto max-w-md md:bottom-8"}`}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-xs font-bold uppercase tracking-wide text-brand-700">
