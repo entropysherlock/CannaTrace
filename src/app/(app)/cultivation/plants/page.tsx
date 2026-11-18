@@ -4,7 +4,7 @@ import { LabelLink } from "@/components/labels/label-link";
 import { ActionForm } from "@/components/action-form";
 import { CultivationTabs, daysSince } from "@/components/cultivation-ui";
 import { PlantBulkFields } from "@/components/plant-bulk-fields";
-import { inputBase, PageHeader } from "@/components/ui";
+import { inputBase, PageHeader, ScrollBox } from "@/components/ui";
 import { locations, plantBatches, plants, strains } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
@@ -59,7 +59,8 @@ export default async function PlantsPage({
   const canWrite = can(session, "cultivation.write");
 
   const list = (
-    <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <ScrollBox label="Plants" size="lg" className="rounded-lg border border-slate-200 bg-white shadow-sm">
+    <ul className="divide-y divide-slate-100">
       {rows.map((plant) => (
         <li key={plant.id}>
           <label className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-2 hover:bg-brand-50">
@@ -80,6 +81,7 @@ export default async function PlantsPage({
         </li>
       ))}
     </ul>
+    </ScrollBox>
   );
 
   return (

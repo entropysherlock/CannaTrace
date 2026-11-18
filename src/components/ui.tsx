@@ -57,6 +57,26 @@ export function Card({ title, children, action, className }: { title?: string; c
   );
 }
 
+/**
+ * A fixed-height box that scrolls on its own, so a long list (100 plants, months of audit entries)
+ * doesn't stretch the page. Short lists look the same as before: the box only scrolls once it's full.
+ * size "md" fits beside a form in a card; "lg" is for a page's main list.
+ */
+export function ScrollBox({ label, children, size = "md", className }: { label: string; children: ReactNode; size?: "md" | "lg"; className?: string }) {
+  return (
+    <div
+      role="region"
+      aria-label={label}
+      // Focusable so keyboard users can scroll it with the arrow keys.
+      tabIndex={0}
+      data-testid="scroll-box"
+      className={`${size === "lg" ? "max-h-[60vh]" : "max-h-96"} overflow-y-auto overscroll-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${className ?? ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 /** Long explanations move into an info tip next to the title; short ones (like counts) stay visible. */
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   const long = subtitle && subtitle.length > 60;

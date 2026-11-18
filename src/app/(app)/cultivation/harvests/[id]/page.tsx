@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { CultivationTabs, WeightInput, grams } from "@/components/cultivation-ui";
 import { ScanInput } from "@/components/scan-input";
-import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { Card, Field, PageHeader, inputClass, ScrollBox } from "@/components/ui";
 import { harvestPackages, harvests, items, locations, packages, strains, wasteLogs } from "@/db/schema";
 import { db } from "@/lib/db";
 import { harvestOnHand } from "@/lib/cultivation-math";
@@ -148,6 +148,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
             {made.length === 0 ? (
               <p className="text-sm text-slate-600">Nothing packaged yet.</p>
             ) : (
+              <ScrollBox label="Packages made">
               <ul className="divide-y divide-slate-100 text-sm">
                 {made.map((pkg) => (
                   <li key={pkg.id} className="flex items-center justify-between gap-3 py-2">
@@ -161,6 +162,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
                   </li>
                 ))}
               </ul>
+              </ScrollBox>
             )}
           </Card>
         </div>
@@ -183,6 +185,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
             {waste.length === 0 ? (
               <p className="text-sm text-slate-600">No waste logged.</p>
             ) : (
+              <ScrollBox label="Waste log">
               <ul className="divide-y divide-slate-100 text-sm">
                 {waste.map((entry) => (
                   <li key={entry.id} className="py-2">
@@ -196,6 +199,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
                   </li>
                 ))}
               </ul>
+              </ScrollBox>
             )}
           </Card>
         </div>
