@@ -10,6 +10,7 @@ import { roomAreaLabel } from "@/lib/rooms";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { createSession, requirePermission, requireSession } from "@/lib/session";
 import { stateName } from "@/lib/states";
+import { loadSampleFacility } from "@/lib/demo/sample-facility";
 
 export async function switchFacility(formData: FormData): Promise<void> {
   const session = await requireSession();
@@ -95,6 +96,19 @@ export async function updateRoomAction(_: FormState, formData: FormData): Promis
     revalidatePath("/settings/facilities");
     revalidatePath("/locations");
     return { ok: `Saved ${room.name} (${roomAreaLabel(room.area)}).` };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
+export async function loadSampleFacilityAction(): Promise<FormState> {
+  try {
+    const session = await requirePermission("settings.manage");
+    if (session.role !== "OWNER") return { error: "Only an owner can load sample data." };
+    if (session.isDemo) return { error: "The live demo already is sample data." };
+    const { summary } = await loadSampleFacility({ orgId: session.orgId, userId: session.userId, userName: session.name });
+    revalidatePath("/", "layout");
+    return { ok: `${summary} Switch to it from its card below or the facility menu at the top.` };
   } catch (e) {
     return toFormError(e);
   }
