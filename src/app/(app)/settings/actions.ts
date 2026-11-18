@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { facilities } from "@/db/schema";
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { addFacility, renameBusiness, updateFacility } from "@/lib/facilities";
+import { addFacility, addRoom, renameBusiness, updateFacility, updateRoom } from "@/lib/facilities";
+import { roomAreaLabel } from "@/lib/rooms";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { createSession, requirePermission, requireSession } from "@/lib/session";
 import { stateName } from "@/lib/states";
@@ -61,6 +62,39 @@ export async function renameBusinessAction(_: FormState, formData: FormData): Pr
     const name = await renameBusiness({ orgId: session.orgId, userId: session.userId, userName: session.name, facilityId: session.facilityId }, field(formData, "name"));
     revalidatePath("/", "layout");
     return { ok: `Saved. Your business is now called ${name}.` };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
+const actorOf = (session: { orgId: string; userId: string; name: string; facilityId: string }) => ({
+  orgId: session.orgId,
+  userId: session.userId,
+  userName: session.name,
+  facilityId: session.facilityId,
+});
+
+const roomInput = (formData: FormData) => ({ area: field(formData, "area"), name: field(formData, "name") });
+
+export async function addRoomAction(_: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const session = await requirePermission("settings.manage");
+    const room = await addRoom(actorOf(session), field(formData, "facilityId"), roomInput(formData));
+    revalidatePath("/settings/facilities");
+    revalidatePath("/locations");
+    return { ok: `Added ${room.name} (${roomAreaLabel(room.area)}).` };
+  } catch (e) {
+    return toFormError(e);
+  }
+}
+
+export async function updateRoomAction(_: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const session = await requirePermission("settings.manage");
+    const room = await updateRoom(actorOf(session), field(formData, "roomId"), roomInput(formData));
+    revalidatePath("/settings/facilities");
+    revalidatePath("/locations");
+    return { ok: `Saved ${room.name} (${roomAreaLabel(room.area)}).` };
   } catch (e) {
     return toFormError(e);
   }

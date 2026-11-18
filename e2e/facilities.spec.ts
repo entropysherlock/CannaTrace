@@ -75,3 +75,44 @@ test("an owner renames the business without touching facility names", async ({ p
   await page.getByRole("button", { name: "Save name" }).click();
   await expect(page.getByText("Saved. Your business is now called High Desert Demo Co.")).toBeVisible();
 });
+
+test("an owner adds rooms to a facility by area type and renames one", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("owner@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/dashboard/);
+  await page.goto("/settings/facilities");
+
+  const card = page.locator("section", { has: page.getByText("You're here") });
+  const rooms = card.getByTestId("facility-rooms");
+  await rooms.locator("summary", { hasText: "Add a room" }).click();
+  const area = rooms.getByRole("combobox", { name: "Room area type" }).last();
+  await expect(area.locator("option")).toHaveText(["Choose one", "Propagation", "Vegetative", "Flowering", "Harvest", "Drying & Trimming", "Inventory", "Quarantine", "Waste"]);
+
+  await area.selectOption({ label: "Drying & Trimming" });
+  await rooms.getByRole("textbox", { name: "Room name" }).last().fill(`${run} Dry Room`);
+  await rooms.getByRole("button", { name: "Add room" }).click();
+  await expect(rooms.getByRole("status")).toContainText(`Added ${run} Dry Room (Drying & Trimming)`);
+
+  // The same name twice is refused
+  await area.selectOption({ label: "Waste" });
+  await rooms.getByRole("textbox", { name: "Room name" }).last().fill(`${run} Dry Room`);
+  await rooms.getByRole("button", { name: "Add room" }).click();
+  await expect(rooms.getByRole("alert")).toContainText("already has a room or location");
+
+  // Rename it and change its area
+  await page.reload();
+  const row = rooms.locator("li", { hasText: `${run} Dry Room` });
+  await expect(row).toContainText("Drying & Trimming");
+  await row.locator("summary").click();
+  await row.getByRole("combobox", { name: "Room area type" }).selectOption({ label: "Quarantine" });
+  await row.getByRole("textbox", { name: "Room name" }).fill(`${run} Hold Room`);
+  await row.getByRole("button", { name: "Save room" }).click();
+  // The row is now listed under its new name
+  await expect(rooms.getByRole("status").filter({ hasText: `Saved ${run} Hold Room (Quarantine)` })).toBeVisible();
+
+  // It is a room everywhere else too
+  await page.goto("/locations");
+  await expect(page.getByText(`${run} Hold Room`).locator("..")).toContainText("Quarantine");
+});

@@ -1,0 +1,2 @@
+CREATE TYPE "public"."room_area" AS ENUM('PROPAGATION', 'VEGETATIVE', 'FLOWERING', 'HARVEST', 'DRYING_TRIMMING', 'INVENTORY', 'QUARANTINE', 'WASTE');--> statement-breakpoint
+ALTER TABLE "locations" ADD COLUMN "area" "room_area";

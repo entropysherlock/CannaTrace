@@ -148,6 +148,13 @@
       "when": 1794954736927,
       "tag": "0020_batch_80",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794964028304,
+      "tag": "0021_room_areas",
+      "breakpoints": true
     }
   ]
 }

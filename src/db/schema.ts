@@ -45,6 +45,17 @@ export const licenseTypeEnum = pgEnum("license_type", [
 ]);
 export const trackTraceEnum = pgEnum("track_trace_system", ["MOCK", "METRC", "BIOTRACK", "NMS2S"]);
 export const locationTypeEnum = pgEnum("location_type", ["ROOM", "RACK", "BIN"]);
+/** What a room is used for. Set on rooms made under Settings → Facilities. */
+export const roomAreaEnum = pgEnum("room_area", [
+  "PROPAGATION",
+  "VEGETATIVE",
+  "FLOWERING",
+  "HARVEST",
+  "DRYING_TRIMMING",
+  "INVENTORY",
+  "QUARANTINE",
+  "WASTE",
+]);
 export const unitEnum = pgEnum("unit", ["MG", "G", "KG", "OZ", "LB", "ML", "L", "EACH"]);
 export const packageStatusEnum = pgEnum("package_status", [
   "ACTIVE",
@@ -391,6 +402,7 @@ export const locations = pgTable(
       .references(() => facilities.id),
     name: text("name").notNull(),
     type: locationTypeEnum("type").notNull(),
+    area: roomAreaEnum("area"),
     parentId: text("parent_id"),
   },
   (t) => [uniqueIndex("locations_facility_name_key").on(t.facilityId, t.name)],
