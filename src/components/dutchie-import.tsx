@@ -8,7 +8,7 @@ type Act = (formData: FormData) => Promise<DutchieState>;
 
 function Summary({ r, done }: { r: DutchieResult; done: boolean }) {
   return (
-    <div className="space-y-3 text-sm" data-testid={done ? "dutchie-imported" : "dutchie-preview"}>
+    <div className="space-y-3 text-sm" data-testid={done ? "switch-imported" : "switch-preview"}>
       <p className="rounded-lg border-l-4 border-brand-600 bg-brand-50 px-3 py-2 font-medium text-brand-900">
         {done ? "Imported" : "Ready to import"}: {r.packages.toLocaleString("en-US")} package{r.packages === 1 ? "" : "s"}, {r.products.created} new product
         {r.products.created === 1 ? "" : "s"}
@@ -48,7 +48,7 @@ function Summary({ r, done }: { r: DutchieResult; done: boolean }) {
         </div>
       ) : null}
       <details className="text-xs text-slate-600">
-        <summary className="cursor-pointer font-semibold text-brand-700">Which Dutchie columns were used</summary>
+        <summary className="cursor-pointer font-semibold text-brand-700">Which columns were used</summary>
         <ul className="mt-1 space-y-0.5">
           {r.matched.map((m) => (
             <li key={m.field}>
@@ -61,8 +61,30 @@ function Summary({ r, done }: { r: DutchieResult; done: boolean }) {
   );
 }
 
-/** Upload a Dutchie inventory report, check it, then import it in one step. */
-export function DutchieImport({ preview, run }: { preview: Act; run: Act }) {
+const STEPS = {
+  dutchie: {
+    file: "Dutchie inventory report",
+    steps: [
+      <>
+        In Dutchie Backoffice, open <span className="font-semibold">Reports → Current Inventory</span> (or Products → Inventory) for one store location.
+      </>,
+      <>Export it to Excel or CSV. Keep the columns you have; CannaTrace finds Product Name, Package ID, Batch, Quantity, Room, and the rest by name.</>,
+    ],
+  },
+  flourish: {
+    file: "Flourish package export",
+    steps: [
+      <>
+        In Flourish, open <span className="font-semibold">Inventory → All Packages</span> for one facility. Show the Metrc or state tag, Lot, Area, Quantity, UOM, and Unit Weight columns if they&apos;re hidden.
+      </>,
+      <>Export it to Excel (or save it as CSV). CannaTrace finds Item Name, Package ID, Lot, Area, Quantity, and the rest by name.</>,
+    ],
+  },
+} as const;
+
+/** Upload an inventory export from Dutchie or Flourish, check it, then import it in one step. */
+export function DutchieImport({ preview, run, source = "dutchie" }: { preview: Act; run: Act; source?: "dutchie" | "flourish" }) {
+  const copy = STEPS[source];
   const form = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<DutchieState>(null);
   const [pending, start] = useTransition();
@@ -74,15 +96,15 @@ export function DutchieImport({ preview, run }: { preview: Act; run: Act }) {
   const ready = state?.preview && !state.preview.problems.length && state.preview.packages > 0;
   return (
     <form ref={form} className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+      <input type="hidden" name="source" value={source} />
       <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">
-        <li>
-          In Dutchie Backoffice, open <span className="font-semibold">Reports → Current Inventory</span> (or Products → Inventory) for one store location.
-        </li>
-        <li>Export it to Excel or CSV. Keep the columns you have; CannaTrace finds Product Name, Package ID, Batch, Quantity, Room, and the rest by name.</li>
+        {copy.steps.map((step, i) => (
+          <li key={i}>{step}</li>
+        ))}
         <li>Upload it here and press Check. Nothing is saved until you press Import.</li>
       </ol>
       <label className="block">
-        <span className="mb-1 block text-sm font-semibold text-slate-800">Dutchie inventory report</span>
+        <span className="mb-1 block text-sm font-semibold text-slate-800">{copy.file}</span>
         <input
           name="file"
           type="file"

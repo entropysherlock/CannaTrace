@@ -6,10 +6,10 @@ import { atomically, db, dryRun } from "@/lib/db";
 import { generateSku, normalizeSku } from "@/lib/ids";
 import { addLabResult, receivePackage, type Actor } from "@/lib/inventory";
 import { InventoryError } from "@/lib/inventory-math";
-import { FIELD_LABEL, planDutchie, type DutchieField, type Plan } from "./dutchie-parse";
+import { FIELD_LABEL, planImport, SOURCE_NAME, type DutchieField, type Plan, type Source } from "./dutchie-parse";
 
 /**
- * Switch from Dutchie: load a Dutchie POS inventory report into this facility. Products, rooms, and
+ * Switch from Dutchie or Flourish: load an inventory export into this facility. Products, rooms, and
  * packages (with their tags, batches, quantities, and costs) come across; THC and CBD numbers become
  * pending lab results. Checked in full first; then everything saves together or nothing does.
  */
@@ -64,7 +64,8 @@ export type DutchieResult = {
   sample: { tag: string; product: string; quantity: string; room: string }[];
 };
 
-async function apply(actor: Actor, plan: Plan): Promise<DutchieResult> {
+async function apply(actor: Actor, plan: Plan, source: Source): Promise<DutchieResult> {
+  const from = `Imported from ${SOURCE_NAME[source]}`;
   const problems = [...plan.problems];
   const result: DutchieResult = {
     matched: (Object.entries(plan.matched) as [DutchieField, string][]).map(([f, column]) => ({ field: FIELD_LABEL[f], column })),
@@ -163,18 +164,18 @@ async function apply(actor: Actor, plan: Plan): Promise<DutchieResult> {
           locationId: roomId.get(r.room.toLowerCase())!,
           lotNumber: r.lot,
           costPerUnit: r.cost && Number(r.cost) > 0 ? r.cost : null,
-          note: "Imported from Dutchie",
+          note: from,
         });
         result.packages++;
         if (result.sample.length < 8) result.sample.push({ tag: pkg.tag, product: r.product, quantity: `${r.quantity} ${r.unit === "EACH" ? "ea" : r.unit.toLowerCase()}`, room: r.room });
         if (r.thc || r.cbd) {
           await addLabResult(actor, {
             packageId: pkg.id,
-            labName: "Imported from Dutchie",
+            labName: from,
             status: "PENDING",
             thcPercent: r.thc,
             cbdPercent: r.cbd,
-            notes: "Potency copied from Dutchie. Check it against the certificate of analysis, then record a passed result.",
+            notes: `Potency copied from ${SOURCE_NAME[source]}. Check it against the certificate of analysis, then record a passed result.`,
           });
           result.labResults++;
         }
@@ -195,23 +196,23 @@ async function apply(actor: Actor, plan: Plan): Promise<DutchieResult> {
       userId: actor.userId,
       userName: actor.userName,
       entityType: "Import",
-      entityId: "dutchie",
+      entityId: source,
       action: "IMPORT",
-      after: { source: "Dutchie", packages: result.packages, productsCreated: result.products.created, roomsCreated: result.rooms.created, labResults: result.labResults },
+      after: { source: SOURCE_NAME[source], packages: result.packages, productsCreated: result.products.created, roomsCreated: result.rooms.created, labResults: result.labResults },
     });
   }
   return result;
 }
 
-/** Check a Dutchie report against this facility without saving anything. */
-export async function previewDutchie(actor: Actor, table: string[][]): Promise<DutchieResult> {
-  return dryRun(() => apply(actor, planDutchie(table)));
+/** Check an export against this facility without saving anything. */
+export async function previewImport(source: Source, actor: Actor, table: string[][]): Promise<DutchieResult> {
+  return dryRun(() => apply(actor, planImport(source, table), source));
 }
 
-/** Load a Dutchie report. All or nothing: if any row has a problem, nothing is saved. */
-export async function importDutchie(actor: Actor, table: string[][]): Promise<DutchieResult> {
+/** Load an export. All or nothing: if any row has a problem, nothing is saved. */
+export async function importInventory(source: Source, actor: Actor, table: string[][]): Promise<DutchieResult> {
   return atomically(async () => {
-    const result = await apply(actor, planDutchie(table));
+    const result = await apply(actor, planImport(source, table), source);
     if (result.problems.length) {
       throw new InventoryError(`Nothing was imported. Fix these and try again:\n${result.problems.slice(0, 20).join("\n")}`);
     }
@@ -227,3 +228,6 @@ export async function packageCount(actor: Actor): Promise<number> {
     .where(and(eq(packages.orgId, actor.orgId), eq(packages.facilityId, actor.facilityId)));
   return n;
 }
+
+export const previewDutchie = (actor: Actor, table: string[][]) => previewImport("dutchie", actor, table);
+export const importDutchie = (actor: Actor, table: string[][]) => importInventory("dutchie", actor, table);
