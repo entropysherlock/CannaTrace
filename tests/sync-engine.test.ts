@@ -213,4 +213,35 @@ describe.skipIf(!hasDb)("compliance sync (database)", () => {
     const sentTwice = await db.execute(sql`select 1 from sync_events where facility_id = ${actor.facilityId} and attempts > 1 and status = 'SENT' and type = 'PACKAGE_RECEIVED' and created_at > now() - interval '1 minute'`);
     expect(sentTwice.rows).toHaveLength(0);
   });
+
+  it("keeps what the state already accepted when a run stops part way, and frees the facility for the next run", async () => {
+    await db.update(syncEvents).set({ status: "RESOLVED" }).where(eq(syncEvents.facilityId, actor.facilityId));
+    const a = await receivePackage(actor, { tag: tag(), itemId: item, quantity: "10", locationId: shelf });
+    await adjustPackage(actor, { packageId: a.id, newQuantity: "9", reasonCode: "DAMAGE" });
+    let calls = 0;
+    // The first record reaches the state; then the run dies (a crash or the server's time limit)
+    const crashing: Adapter = {
+      supported: ["*"],
+      status: () => ({ ready: true, note: "" }),
+      async send() {
+        calls += 1;
+        if (calls === 2) throw new Error("function timed out");
+        return { outcome: "SENT" };
+      },
+    };
+    await expect(processQueue({ facilityId: actor.facilityId, adapters: { METRC: crashing, MOCK: crashing } })).rejects.toThrow(/timed out/);
+    const queue = (await events()).filter((e) => e.status !== "RESOLVED");
+    // Before: one transaction for the whole run, so the crash rolled the first record back to PENDING and it was sent again
+    expect(queue.map((e) => e.status)).toEqual(["SENT", "PENDING"]);
+    const ok: Adapter = { supported: ["*"], status: () => ({ ready: true, note: "" }), send: async () => ({ outcome: "SENT" }) };
+    expect(await processQueue({ facilityId: actor.facilityId, adapters: { METRC: ok, MOCK: ok } })).toMatchObject({ sent: 1 });
+  });
+
+  it("stops starting new sends at its time budget and leaves the rest for the next run", async () => {
+    await db.update(syncEvents).set({ status: "RESOLVED" }).where(eq(syncEvents.facilityId, actor.facilityId));
+    await receivePackage(actor, { tag: tag(), itemId: item, quantity: "3", locationId: shelf });
+    const result = await processQueue({ facilityId: actor.facilityId, budgetMs: -1 });
+    expect(result).toMatchObject({ sent: 0, deferred: 1 });
+    expect((await events()).filter((e) => e.status === "PENDING")).toHaveLength(1);
+  });
 });

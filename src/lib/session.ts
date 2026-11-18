@@ -8,6 +8,7 @@ import { db } from "./db";
 import { InventoryError } from "./inventory-math";
 import { canSignIn, liveDemoOn } from "./access";
 import { isPlatformAdmin, nowMs } from "./platform-admin";
+import { signInStillValid } from "./sign-in-check";
 import { ROLE_LABELS, can, cleanPermissions, permissionsFor, type Permission, type Role } from "./rbac";
 
 export const SESSION_COOKIE = "ct_session";
@@ -158,6 +159,8 @@ async function resolve(session: SessionToken): Promise<Session | null> {
  */
 async function resolveSupport(session: SessionToken, visit: NonNullable<SessionToken["support"]>): Promise<Session | null> {
   if (visit.until < nowMs()) return null;
+  // A password change or reset ends support visits too, like every other sign-in.
+  if (!(await signInStillValid(session.userId, session.issuedAt))) return null;
   const [user] = await db
     .select({ name: users.name, email: users.email, createdAt: users.createdAt, homeOrg: users.orgId })
     .from(users)

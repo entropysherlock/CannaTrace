@@ -2,7 +2,17 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { auditLogs, facilities, organizations, users } from "@/db/schema";
 import { db, pool } from "@/lib/db";
+import { SignJWT } from "jose";
 import { addSupportAdmin, endSupportVisit, isPlatformAdmin, openSupportVisit, qualifiesAsFounder, removeSupportAdmin, SUPPORT_VISIT_MS } from "@/lib/platform-admin";
+import { sessionFromToken, type SessionToken } from "@/lib/session";
+
+/** A signed sign-in cookie for a token, issued at iat (seconds). */
+const cookieFor = (t: SessionToken, iat = Math.floor(Date.now() / 1000)) =>
+  new SignJWT({ userId: t.userId, orgId: t.orgId, facilityId: t.facilityId, role: t.role, name: t.name, ...(t.support ? { support: t.support } : {}) })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt(iat)
+    .setExpirationTime(iat + 12 * 3600)
+    .sign(new TextEncoder().encode(process.env.AUTH_SECRET));
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const run = `SUP${Date.now().toString(36)}`;
@@ -73,5 +83,46 @@ describe.skipIf(!hasDb)("support visits (database)", () => {
         ["SUPPORT_VISIT_END", "Carly Support (CannaTrace support)", null],
       ]),
     );
+  });
+
+  it("ends a visit when it runs out, when support access is taken away, or when the password changes", async () => {
+    await db.execute(sql`insert into platform_admins (user_id, added_by_name) values (${admin.userId}, 'test') on conflict do nothing`);
+    const token = await openSupportVisit(admin, customerOrg, "Checking a sync error");
+    const live = await sessionFromToken(await cookieFor(token));
+    // Inside the customer's business only, with an owner's permissions, under a name that says support
+    expect(live).toMatchObject({ orgId: customerOrg, name: "Carly Support (CannaTrace support)", roleName: "CannaTrace support" });
+
+    // Ran out
+    expect(await sessionFromToken(await cookieFor({ ...token, support: { ...token.support!, until: Date.now() - 1000 } }))).toBeNull();
+    // A visit claiming a different home business is refused
+    expect(await sessionFromToken(await cookieFor({ ...token, support: { ...token.support!, homeOrgId: customerOrg } }))).toBeNull();
+    // Support access removed: the visit stops on the next request
+    await db.execute(sql`delete from platform_admins where user_id = ${admin.userId}`);
+    expect(await sessionFromToken(await cookieFor(token))).toBeNull();
+    await db.execute(sql`insert into platform_admins (user_id, added_by_name) values (${admin.userId}, 'test')`);
+    expect(await sessionFromToken(await cookieFor(token))).not.toBeNull();
+
+    // Password reset after the visit started: the visit no longer counts...
+    const issued = Math.floor(Date.now() / 1000) - 120;
+    const stolen = await cookieFor(token, issued);
+    await db.update(users).set({ passwordChangedAt: new Date(Date.now() - 60_000) }).where(eq(users.id, admin.userId));
+    expect(await sessionFromToken(stolen)).toBeNull();
+    // ...and it can't be swapped for a fresh sign-in to the support person's own account by leaving it
+    await expect(endSupportVisit({ ...token, issuedAt: issued, support: token.support! }, admin.name)).rejects.toThrow(/no longer counts/);
+    // A visit opened after the change still works, and leaving it returns home
+    expect(await endSupportVisit({ ...token, issuedAt: Math.floor(Date.now() / 1000), support: token.support! }, admin.name)).toMatchObject({ orgId: admin.orgId });
+    await db.update(users).set({ passwordChangedAt: null }).where(eq(users.id, admin.userId));
+  });
+
+  it("attributes what support changes to the support person, marked as support, in the customer's trail", async () => {
+    const token = await openSupportVisit(admin, customerOrg, "Fixing a count");
+    const visit = (await sessionFromToken(await cookieFor(token)))!;
+    expect(visit.supportVisit).toMatchObject({ until: token.support!.until });
+    // Every change goes through the actor built from the session: its user id is the support person's own
+    expect({ userId: visit.userId, userName: visit.name, orgId: visit.orgId }).toEqual({
+      userId: admin.userId,
+      userName: "Carly Support (CannaTrace support)",
+      orgId: customerOrg,
+    });
   });
 });

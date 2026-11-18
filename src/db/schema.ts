@@ -276,6 +276,28 @@ export const watchSweeps = pgTable(
 );
 
 /**
+ * Each run of a scheduled job (state reporting, Tally Watch), so the app can show when it last ran,
+ * whether it worked, and warn when it hasn't run on time. Platform-wide: no business data in it.
+ */
+export const jobRuns = pgTable(
+  "job_runs",
+  {
+    id: id(),
+    /** "sync" (state reports and webhooks) or "watch" (Tally Watch sweep). */
+    job: text("job").notNull(),
+    /** RUNNING, OK, or FAILED. */
+    status: text("status").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    summary: jsonb("summary").$type<Record<string, unknown> | null>(),
+    error: text("error"),
+  },
+  (t) => [index("job_runs_job_time_idx").on(t.job, t.startedAt)],
+);
+
+export type JobRun = typeof jobRuns.$inferSelect;
+
+/**
  * A package report exported from the state system (for example Metrc's Packages grid) and uploaded,
  * so Tally Watch can compare it with CannaTrace until a live connection is approved.
  */

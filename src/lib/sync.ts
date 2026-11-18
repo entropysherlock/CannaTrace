@@ -1,6 +1,6 @@
-import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, lte } from "drizzle-orm";
 import { facilities, syncEvents, type SyncEvent } from "@/db/schema";
-import { db, type Tx } from "./db";
+import { db, pool, type Tx } from "./db";
 import { todayIn } from "./distribution-math";
 import { enqueueWebhooks } from "./integrations";
 import { InventoryError } from "./inventory-math";
@@ -168,7 +168,8 @@ export async function enqueueSyncEvent(
   });
 }
 
-export type QueueResult = { sent: number; manual: number; failed: number; retrying: number; blocked: number };
+/** deferred: facilities (or the rest of one) left for the next run because this run reached its time budget. */
+export type QueueResult = { sent: number; manual: number; failed: number; retrying: number; blocked: number; deferred: number };
 
 /**
  * Send what is due, oldest first, one facility at a time. A record that fails stops the
@@ -176,12 +177,12 @@ export type QueueResult = { sent: number; manual: number; failed: number; retryi
  * Records the system cannot take automatically are set aside for hand entry and do not block.
  */
 export async function processQueue(
-  options: { facilityId?: string; now?: Date; adapters?: Partial<Record<SystemName, Adapter>>; limit?: number } = {},
+  options: { facilityId?: string; now?: Date; adapters?: Partial<Record<SystemName, Adapter>>; limit?: number; budgetMs?: number } = {},
 ): Promise<QueueResult> {
   const now = options.now ?? new Date();
   const limit = options.limit ?? 200;
   const adapters = { ...ADAPTERS, ...options.adapters };
-  const result: QueueResult = { sent: 0, manual: 0, failed: 0, retrying: 0, blocked: 0 };
+  const result: QueueResult = { sent: 0, manual: 0, failed: 0, retrying: 0, blocked: 0, deferred: 0 };
 
   const due = await db
     .selectDistinct({ facilityId: syncEvents.facilityId })
@@ -194,61 +195,81 @@ export async function processQueue(
       ),
     );
 
+  // Stop starting new sends well before the request's time limit, so a run is never cut off mid-way.
+  const deadline = Date.now() + (options.budgetMs ?? 40_000);
   for (const { facilityId } of due) {
-    await db.transaction(async (tx) => {
-      // Only one worker per facility at a time; another one already running simply skips it.
-      const [{ locked }] = await tx.execute<{ locked: boolean }>(sql`select pg_try_advisory_xact_lock(hashtext(${`sync:${facilityId}`})) as locked`).then((r) => r.rows);
-      if (!locked) return;
-      const [facility] = await tx.select().from(facilities).where(eq(facilities.id, facilityId));
-      for (let handled = 0; handled < limit; handled++) {
-        const [event] = await tx
-          .select()
-          .from(syncEvents)
-          .where(and(eq(syncEvents.facilityId, facilityId), inArray(syncEvents.status, ["PENDING", "FAILED"])))
-          .orderBy(asc(syncEvents.seq))
-          .limit(1);
-        if (!event) return;
-        if (event.status === "FAILED") {
-          result.blocked += 1;
-          return;
-        }
-        if (event.nextAttemptAt > now) return;
+    if (Date.now() > deadline) {
+      result.deferred += 1;
+      continue;
+    }
+    // Only one worker per facility at a time; another one already running simply skips it. The lock is
+    // held on its own connection, and each record's new status is saved the moment it is sent, so a
+    // run that stops part way never forgets what the state already accepted (and never sends it twice).
+    const client = await pool.connect();
+    const key = `sync:${facilityId}`;
+    try {
+      const locked = (await client.query<{ locked: boolean }>("select pg_try_advisory_lock(hashtext($1)) as locked", [key])).rows[0].locked;
+      if (!locked) continue;
+      try {
+        const [facility] = await db.select().from(facilities).where(eq(facilities.id, facilityId));
+        for (let handled = 0; handled < limit; handled++) {
+          if (Date.now() > deadline) {
+            result.deferred += 1;
+            break;
+          }
+          const [event] = await db
+            .select()
+            .from(syncEvents)
+            .where(and(eq(syncEvents.facilityId, facilityId), inArray(syncEvents.status, ["PENDING", "FAILED"])))
+            .orderBy(asc(syncEvents.seq))
+            .limit(1);
+          if (!event) break;
+          if (event.status === "FAILED") {
+            result.blocked += 1;
+            break;
+          }
+          if (event.nextAttemptAt > now) break;
 
-        const adapter = adapters[event.system];
-        const attempts = event.attempts + 1;
-        const outcome = await adapter.send(event, { licenseNumber: facility.licenseNumber });
-        if (outcome.outcome === "SENT") {
-          await tx
+          const adapter = adapters[event.system];
+          const attempts = event.attempts + 1;
+          const outcome = await adapter.send(event, { licenseNumber: facility.licenseNumber });
+          if (outcome.outcome === "SENT") {
+            await db
+              .update(syncEvents)
+              .set({ status: "SENT", attempts, externalId: outcome.externalId ?? null, lastErrorCode: null, lastErrorDetail: null, finishedAt: now })
+              .where(eq(syncEvents.id, event.id));
+            result.sent += 1;
+            continue;
+          }
+          if (outcome.outcome === "MANUAL") {
+            await db
+              .update(syncEvents)
+              .set({ status: "MANUAL", attempts, lastErrorCode: null, lastErrorDetail: outcome.detail })
+              .where(eq(syncEvents.id, event.id));
+            result.manual += 1;
+            continue;
+          }
+          const retryAt = outcome.retryable ? nextRetryAt(attempts, now) : null;
+          await db
             .update(syncEvents)
-            .set({ status: "SENT", attempts, externalId: outcome.externalId ?? null, lastErrorCode: null, lastErrorDetail: null, finishedAt: now })
+            .set({
+              status: retryAt ? "PENDING" : "FAILED",
+              attempts,
+              nextAttemptAt: retryAt ?? event.nextAttemptAt,
+              lastErrorCode: outcome.code,
+              lastErrorDetail: outcome.detail.slice(0, 1000),
+            })
             .where(eq(syncEvents.id, event.id));
-          result.sent += 1;
-          continue;
+          if (retryAt) result.retrying += 1;
+          else result.failed += 1;
+          break;
         }
-        if (outcome.outcome === "MANUAL") {
-          await tx
-            .update(syncEvents)
-            .set({ status: "MANUAL", attempts, lastErrorCode: null, lastErrorDetail: outcome.detail })
-            .where(eq(syncEvents.id, event.id));
-          result.manual += 1;
-          continue;
-        }
-        const retryAt = outcome.retryable ? nextRetryAt(attempts, now) : null;
-        await tx
-          .update(syncEvents)
-          .set({
-            status: retryAt ? "PENDING" : "FAILED",
-            attempts,
-            nextAttemptAt: retryAt ?? event.nextAttemptAt,
-            lastErrorCode: outcome.code,
-            lastErrorDetail: outcome.detail.slice(0, 1000),
-          })
-          .where(eq(syncEvents.id, event.id));
-        if (retryAt) result.retrying += 1;
-        else result.failed += 1;
-        return;
+      } finally {
+        await client.query("select pg_advisory_unlock(hashtext($1))", [key]);
       }
-    });
+    } finally {
+      client.release();
+    }
   }
   return result;
 }

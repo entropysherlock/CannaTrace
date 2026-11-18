@@ -28,7 +28,7 @@ import { DemoVideoButton, DemoVideoPlayer, DemoVideoPoster } from "@/components/
 import { LeafMark, Logo } from "@/components/logo";
 import { liveDemoOn, signupsOpen } from "@/lib/access";
 import { CONTACT_EMAILS, mailto } from "@/lib/contact";
-import { FOUNDING, PRICES, facilitiesLabel, usd } from "@/lib/pricing";
+import { FOUNDING, PRICES, facilitiesLabel, priceSentence, usd } from "@/lib/pricing";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -211,7 +211,7 @@ const FAQ: [string, string][] = [
   ["Can I bring my data from another system?", "Yes. CannaTrace imports from NMS2S, Dutchie, and Flourish exports, including large inventories. For founding customers, we do the move for you."],
   ["Do I need special hardware?", "No. CannaTrace runs in the web browser on computers, tablets, and phones. It works with ordinary USB or Bluetooth barcode scanners and label printers."],
   ["Who can see what?", "Each person gets a role, like owner, manager, cultivation, sales, or budtender, and only sees and changes what that role allows. Every change is in the audit trail."],
-  ["How much does it cost?", "$299 a month for one facility, or $499 a month for two, with every feature and unlimited team members. Founding customers pay $100 less every month, for life."],
+  ["How much does it cost?", priceSentence()],
 ];
 
 /* ---------- Page ---------- */

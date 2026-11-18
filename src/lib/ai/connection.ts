@@ -332,21 +332,82 @@ function monthStart(now: Date): Date {
 }
 
 /** Refuse a question that would go over the business's or the person's limits. */
-export async function checkLimits(session: Pick<Session, "orgId" | "userId">, limits: ConnectionView["limits"], now = new Date()): Promise<void> {
-  const [counts] = (
-    await db.execute<{ day: number; month: number; mine: number }>(sql`
+/** How long a reservation may stay open before it stops counting (a request runs for at most 60 seconds). */
+export const RESERVATION_MS = 10 * 60 * 1000;
+
+type Executor = Pick<typeof db, "execute">;
+
+/** The questions that count toward the limits (see assertUnderLimits), as a SQL condition on ai_usage. */
+const countsToward = (now: Date) =>
+  sql`(outcome = 'OK' or input_tokens + output_tokens > 0 or (outcome = 'PENDING' and created_at > ${new Date(now.getTime() - RESERVATION_MS)}))`;
+
+/**
+ * A question counts toward the limits when it is in flight (reserved, not yet settled, and recent), was
+ * answered, or spent tokens. A request that was cancelled or failed before Claude used any tokens is
+ * released and stops counting. One that spent tokens keeps counting even if it then failed or was
+ * cancelled: the business paid for it, and otherwise starting and cancelling questions would get around
+ * the limit.
+ */
+async function assertUnderLimits(ex: Executor, session: Pick<Session, "orgId" | "userId">, limits: ConnectionView["limits"], now: Date): Promise<void> {
+  const counts = countsToward(now);
+  const [c] = (
+    await ex.execute<{ day: number; month: number; mine: number }>(sql`
       select
-        count(*) filter (where created_at > ${new Date(now.getTime() - DAY_MS)})::int as day,
-        count(*) filter (where created_at >= ${monthStart(now)})::int as month,
-        count(*) filter (where created_at > ${new Date(now.getTime() - DAY_MS)} and user_id = ${session.userId})::int as mine
+        count(*) filter (where created_at > ${new Date(now.getTime() - DAY_MS)} and ${counts})::int as day,
+        count(*) filter (where created_at >= ${monthStart(now)} and ${counts})::int as month,
+        count(*) filter (where created_at > ${new Date(now.getTime() - DAY_MS)} and user_id = ${session.userId} and ${counts})::int as mine
       from ai_usage where org_id = ${session.orgId} and created_at >= ${new Date(Math.min(monthStart(now).getTime(), now.getTime() - DAY_MS))}`)
   ).rows;
-  if (counts.mine >= limits.perPersonDailyLimit)
-    throw new InventoryError(`You've asked Tally ${counts.mine} questions in the last 24 hours, which is this business's limit per person. An owner can raise it in Settings → Tally AI.`);
-  if (counts.day >= limits.dailyLimit)
+  if (c.mine >= limits.perPersonDailyLimit)
+    throw new InventoryError(`You've asked Tally ${c.mine} questions in the last 24 hours, which is this business's limit per person. An owner can raise it in Settings → Tally AI.`);
+  if (c.day >= limits.dailyLimit)
     throw new InventoryError(`Your business has used its ${limits.dailyLimit} Tally questions for the last 24 hours. An owner can raise the limit in Settings → Tally AI.`);
-  if (counts.month >= limits.monthlyLimit)
+  if (c.month >= limits.monthlyLimit)
     throw new InventoryError(`Your business has used its ${limits.monthlyLimit} Tally questions for this month. An owner can raise the limit in Settings → Tally AI.`);
+}
+
+/** Whether one more question fits under the limits right now. A read only: use reserveUsage to take the slot. */
+export async function checkLimits(session: Pick<Session, "orgId" | "userId">, limits: ConnectionView["limits"], now = new Date()): Promise<void> {
+  await assertUnderLimits(db, session, limits, now);
+}
+
+/**
+ * Take one question's slot before Claude is called. Requests for the same business wait their turn on a
+ * lock while they count and reserve, so questions sent at the same moment can't all slip under the limit.
+ * Returns the reservation, to be settled with settleUsage when the answer ends (however it ends).
+ */
+export async function reserveUsage(
+  session: Pick<Session, "orgId" | "userId" | "name" | "facilityId" | "supportVisit">,
+  route: Exclude<TallyRoute, { kind: "off" }>,
+  now = new Date(),
+): Promise<string> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`ai_usage:${session.orgId}`}, 0))`);
+    await assertUnderLimits(tx, session, route.limits, now);
+    const [row] = await tx
+      .insert(aiUsage)
+      .values({
+        orgId: session.orgId,
+        userId: session.userId,
+        userName: session.name,
+        facilityId: session.facilityId,
+        billedTo: route.kind === "customer" ? "CUSTOMER" : route.kind === "platform" ? "PLATFORM" : "TEST",
+        model: route.model,
+        outcome: "PENDING",
+        supportVisit: Boolean(session.supportVisit),
+        createdAt: now,
+      })
+      .returning({ id: aiUsage.id });
+    return row.id;
+  });
+}
+
+/** Close a reservation with what the request actually used and how it ended. Settles once; later calls do nothing. */
+export async function settleUsage(reservationId: string, result: { inputTokens: number; outputTokens: number; outcome: string }): Promise<void> {
+  await db
+    .update(aiUsage)
+    .set({ inputTokens: result.inputTokens, outputTokens: result.outputTokens, outcome: result.outcome === "PENDING" ? "ERROR" : result.outcome })
+    .where(and(eq(aiUsage.id, reservationId), eq(aiUsage.outcome, "PENDING")));
 }
 
 export async function recordUsage(
@@ -384,23 +445,23 @@ export async function usageSummary(orgId: string, now = new Date()): Promise<Usa
   const [totals] = (
     await db.execute<{ day: number; month: number; input: number; output: number; failures: number }>(sql`
       select
-        count(*) filter (where created_at > ${new Date(now.getTime() - DAY_MS)})::int as day,
-        count(*) filter (where created_at >= ${since})::int as month,
+        count(*) filter (where created_at > ${new Date(now.getTime() - DAY_MS)} and ${countsToward(now)})::int as day,
+        count(*) filter (where created_at >= ${since} and ${countsToward(now)})::int as month,
         coalesce(sum(input_tokens) filter (where created_at >= ${since}), 0)::int as input,
         coalesce(sum(output_tokens) filter (where created_at >= ${since}), 0)::int as output,
-        count(*) filter (where created_at >= ${since} and outcome <> 'OK')::int as failures
+        count(*) filter (where created_at >= ${since} and outcome not in ('OK', 'PENDING'))::int as failures
       from ai_usage where org_id = ${orgId}`)
   ).rows;
   const people = (
     await db.execute<{ name: string; questions: number }>(sql`
       select user_name as name, count(*)::int as questions from ai_usage
-      where org_id = ${orgId} and created_at >= ${since}
+      where org_id = ${orgId} and created_at >= ${since} and ${countsToward(now)}
       group by user_name order by questions desc limit 8`)
   ).rows;
   const recentProblems = await db
     .select({ at: aiUsage.createdAt, outcome: aiUsage.outcome, name: aiUsage.userName })
     .from(aiUsage)
-    .where(and(eq(aiUsage.orgId, orgId), sql`${aiUsage.outcome} <> 'OK'`, gt(aiUsage.createdAt, new Date(now.getTime() - 7 * DAY_MS))))
+    .where(and(eq(aiUsage.orgId, orgId), sql`${aiUsage.outcome} not in ('OK', 'PENDING')`, gt(aiUsage.createdAt, new Date(now.getTime() - 7 * DAY_MS))))
     .orderBy(desc(aiUsage.createdAt))
     .limit(5);
   return {

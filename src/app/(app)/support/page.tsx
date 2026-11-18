@@ -6,6 +6,7 @@ import { StateSelect } from "@/components/state-select";
 import { encryptionStatus, secretLength } from "@/lib/ai/secret-box";
 import { licenseTypeEnum } from "@/db/schema";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { jobStatus } from "@/lib/job-runs";
 import { isPlatformAdmin, listCustomerAccounts, listSupportAdmins, recentSupportVisits } from "@/lib/platform-admin";
 import { stateName } from "@/lib/states";
 import { requireSession } from "@/lib/session";
@@ -25,7 +26,13 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
   const session = await requireSession();
   if (session.support || !(await isPlatformAdmin(session.userId))) redirect("/dashboard");
   const q = ((await searchParams).q ?? "").trim().toLowerCase();
-  const [accounts, admins, visits] = await Promise.all([listCustomerAccounts(), listSupportAdmins(), recentSupportVisits(15)]);
+  const [accounts, admins, visits, jobs] = await Promise.all([
+    listCustomerAccounts(),
+    listSupportAdmins(),
+    recentSupportVisits(15),
+    Promise.all([jobStatus("sync"), jobStatus("watch")]),
+  ]);
+  const jobTime = (d: Date) => d.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" });
   const shown = accounts.filter(
     (a) =>
       !q ||
@@ -144,6 +151,30 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
         </div>
 
         <div className="space-y-5">
+          {/* Scheduled jobs: when each last ran, and whether it is failing or late. */}
+          <Card title="Scheduled jobs">
+            <ul className="space-y-3 text-sm" data-testid="job-status">
+              {jobs.map((j) => (
+                <li key={j.job}>
+                  <p className="flex items-center justify-between gap-2 font-semibold text-slate-900">
+                    {j.label}
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-bold ${j.failing ? "bg-red-100 text-red-800" : j.late ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-800"}`}
+                    >
+                      {j.failing ? "Failing" : j.late ? "Late" : "OK"}
+                    </span>
+                  </p>
+                  <p className="text-slate-600">Runs {j.schedule}.</p>
+                  <p className="text-slate-600">
+                    {j.lastRun ? `Last run ${jobTime(j.lastRun.startedAt)}: ${j.lastRun.status.toLowerCase()}` : "Has not run yet"}
+                    {j.lastRun?.error ? ` (${j.lastRun.error})` : ""}.
+                    {j.lastOk && j.lastOk.id !== j.lastRun?.id ? ` Last success ${jobTime(j.lastOk.startedAt)}.` : ""}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </Card>
+
           <Card title="How support visits work">
             <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
               <li>You see and can do everything the business owner can.</li>

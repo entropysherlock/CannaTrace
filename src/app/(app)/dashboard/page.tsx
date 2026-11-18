@@ -125,7 +125,8 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   const scope = params.scope === "all" && facilities.length > 1 ? "all" : "one";
   const days = toRange(params.days);
   const ids = scope === "all" ? facilities.map((f) => f.id) : [session.facilityId];
-  const c = await commandCenter(session.orgId, ids, days);
+  // Alerts count only what this person may see, exactly like the bell and the Tally Watch page.
+  const c = await commandCenter(session.orgId, ids, days, (permission) => !permission || can(session, permission as Parameters<typeof can>[1]));
 
   const fmtDay = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Denver" });
   const end = new Date();
@@ -135,7 +136,9 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   const system = here.system as SystemName;
   const stateName = system === "MOCK" ? "Practice reporting" : SYSTEM_LABELS[system];
   const connected = system === "MOCK" || ADAPTERS[system].status().ready;
-  const allClear = c.reporting.upToDate && c.compliance.ledgerOff === 0 && c.alerts.urgent === 0;
+  // Practice mode sends nothing to the state: never show it as "up to date" or "all systems operational".
+  const practice = facilities.some((f) => ids.includes(f.id) && f.system === "MOCK");
+  const allClear = !practice && c.reporting.upToDate && c.compliance.ledgerOff === 0 && c.alerts.urgent === 0;
   const empty = c.plants.total + c.packages.total === 0;
 
   const takeaways: Takeaway[] = [
@@ -176,7 +179,19 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   const successRate = printed ? Math.round((c.labels.ok / printed) * 1000) / 10 : null;
 
   const checks = [
-    { label: `State reporting (${stateName})`, ok: c.reporting.upToDate && connected, word: c.reporting.failed ? `${c.reporting.failed} failed` : c.reporting.pending ? `${c.reporting.pending} waiting` : connected ? "Up to date" : "Not connected" },
+    {
+      label: `State reporting (${stateName})`,
+      ok: !practice && c.reporting.upToDate && connected,
+      word: c.reporting.failed
+        ? `${c.reporting.failed} failed`
+        : c.reporting.pending
+          ? `${c.reporting.pending} waiting`
+          : practice
+            ? "Practice: nothing sent"
+            : connected
+              ? "Up to date"
+              : "Not connected",
+    },
     { label: "Inventory matches its history", ok: c.compliance.ledgerOff === 0, word: c.compliance.ledgerOff ? `${c.compliance.ledgerOff} off` : "Reconciled" },
     { label: "State rules", ok: c.compliance.highIssues === 0, word: c.compliance.score === null ? "No rule pack" : `Score ${c.compliance.score}` },
     { label: "Audit trail", ok: true, word: `${num(c.compliance.auditToday)} today` },
@@ -245,7 +260,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
                 className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ring-1 ${allClear ? "bg-brand-50 text-brand-800 ring-brand-200" : "bg-amber-50 text-amber-900 ring-amber-200"}`}
               >
                 {allClear ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <AlertTriangle className="h-4 w-4" aria-hidden="true" />}
-                {allClear ? "All systems operational" : "Needs a look"}
+                {allClear ? "All systems operational" : practice && c.alerts.urgent === 0 && !c.reporting.failed ? "Practice mode" : "Needs a look"}
               </span>
             }
           >

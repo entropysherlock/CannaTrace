@@ -3,6 +3,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { auditLogs, facilities, invites, licenseTypeEnum, organizations, platformAdmins, users } from "@/db/schema";
 import { db } from "./db";
+import { signInStillValid } from "./sign-in-check";
 import { InventoryError } from "./inventory-math";
 import type { SessionToken } from "./session";
 import { checkEmail } from "./setup";
@@ -132,6 +133,9 @@ export async function openSupportVisit(admin: Admin, orgId: string, reason: stri
 
 /** End a support visit: log it in the customer's trail and return the support person to their own account. */
 export async function endSupportVisit(session: SessionToken & { support: NonNullable<SessionToken["support"]> }, adminName: string): Promise<SessionToken> {
+  // Leaving gives back a fresh sign-in to the support person's own account, so the visit's sign-in must
+  // still count: a stolen or outdated visit cookie can't be turned into a new, longer sign-in.
+  if (!(await signInStillValid(session.userId, session.issuedAt))) throw new InventoryError("That support visit no longer counts. Sign in again.");
   await db.insert(auditLogs).values({
     orgId: session.orgId,
     facilityId: session.facilityId,

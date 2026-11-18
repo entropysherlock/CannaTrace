@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import type { DutchieState } from "@/app/(app)/data/actions";
 import type { DutchieResult } from "@/lib/importers/dutchie";
-import type { Source } from "@/lib/importers/dutchie-parse";
+import { LOCATION_ROOMS, type Source } from "@/lib/importers/dutchie-parse";
 import { inputClass } from "@/components/ui";
 
 type Act = (formData: FormData) => Promise<DutchieState>;
@@ -12,11 +12,29 @@ type Act = (formData: FormData) => Promise<DutchieState>;
  * Big exports (a 25,000-row store is about 9 MB) are gzipped in the browser before upload, so they fit
  * through the server's upload limit; a CSV shrinks to about a sixth. The server unzips them.
  */
-async function packed(formData: FormData): Promise<FormData> {
+/** The most the server can accept in one upload (the host's limit is 4.5 MB, less room for the form). */
+const UPLOAD_LIMIT_BYTES = 4.4 * 1024 * 1024;
+
+export class TooBig extends Error {}
+
+export async function packed(formData: FormData): Promise<FormData> {
   const file = formData.get("file");
-  if (!(file instanceof File) || file.size < 512 * 1024 || typeof CompressionStream === "undefined") return formData;
-  const gz = await new Response(file.stream().pipeThrough(new CompressionStream("gzip"))).blob();
-  formData.set("file", new File([gz], `${file.name}.gz`, { type: "application/gzip" }));
+  if (!(file instanceof File)) return formData;
+  let sent: Blob = file;
+  if (file.size >= 512 * 1024 && typeof CompressionStream !== "undefined") {
+    const gz = await new Response(file.stream().pipeThrough(new CompressionStream("gzip"))).blob();
+    formData.set("file", new File([gz], `${file.name}.gz`, { type: "application/gzip" }));
+    sent = gz;
+  }
+  // Too big to upload even compressed: say so plainly instead of letting the upload fail.
+  if (sent.size > UPLOAD_LIMIT_BYTES) {
+    const mb = (sent.size / 1024 / 1024).toFixed(1);
+    throw new TooBig(
+      /\.xlsx$/i.test(file.name)
+        ? `This Excel file is ${mb} MB, and uploads can be at most 4.4 MB. Save it as CSV instead (CSV files shrink a lot when uploaded), or export one store at a time.`
+        : `This file is ${mb} MB even after compressing, and uploads can be at most 4.4 MB. Export one store or room at a time.`,
+    );
+  }
   return formData;
 }
 
@@ -119,6 +137,8 @@ export function DutchieImport({ preview, run, source = "dutchie" }: { preview: A
   const [state, setState] = useState<DutchieState>(null);
   // The stores a multi-store file names, kept while the same file is checked again with one chosen.
   const [stores, setStores] = useState<{ name: string; rows: number }[]>([]);
+  // The file's only place column is "Location" with several values: stores or rooms? The person says.
+  const [ambiguous, setAmbiguous] = useState(false);
   const [pending, start] = useTransition();
   const go = (act: Act) =>
     start(async () => {
@@ -126,16 +146,21 @@ export function DutchieImport({ preview, run, source = "dutchie" }: { preview: A
       let next: DutchieState;
       try {
         next = await act(await packed(new FormData(form.current)));
-      } catch {
+      } catch (error) {
         // A failed upload (too large, connection dropped) shows a message instead of breaking the page.
-        next = { error: UPLOAD_FAILED };
+        next = { error: error instanceof TooBig ? error.message : UPLOAD_FAILED };
       }
       setState(next);
-      if (next?.preview?.stores.length) setStores(next.preview.stores);
+      if (next?.preview?.stores.length) {
+        setStores(next.preview.stores);
+        setAmbiguous(next.preview.locationAmbiguous);
+      }
     });
   const ready = state?.preview && !state.preview.problems.length && state.preview.packages > 0;
   // Choosing a store isn't something wrong with the file: the picker above asks for it instead of a red box.
-  const needsStore = Boolean(state?.preview && stores.length > 1 && state.preview.problems.length === 1 && state.preview.stores.length > 1);
+  // A file that names any store needs one picked: that choice maps the file's store to this facility.
+  const needsStore = Boolean(state?.preview && stores.length >= 1 && state.preview.problems.length === 1 && state.preview.stores.length >= 1 && !state.preview.store);
+
   return (
     <form ref={form} className="space-y-4" onSubmit={(e) => e.preventDefault()}>
       <input type="hidden" name="source" value={source} />
@@ -156,13 +181,18 @@ export function DutchieImport({ preview, run, source = "dutchie" }: { preview: A
           onChange={() => {
             setState(null);
             setStores([]);
+            setAmbiguous(false);
           }}
         />
       </label>
-      {stores.length > 1 ? (
+      {stores.length >= 1 ? (
         <label className="block rounded-xl border-2 border-amber-300 bg-amber-50 p-4" data-testid="switch-store-picker">
           <span className="block text-sm font-bold text-amber-950">
-            Your file has {stores.length} stores. Pick the one that goes into this facility.
+            {ambiguous
+              ? `Your file's Location column names ${stores.length} places. Pick the store that goes into this facility, or say they're rooms here.`
+              : stores.length === 1
+                ? `Your file is for ${stores[0].name}. Confirm it goes into this facility.`
+                : `Your file has ${stores.length} stores. Pick the one that goes into this facility.`}
           </span>
           <span className="mb-2 block text-xs text-amber-900">CannaTrace checks it right away. To bring in another store, switch facilities and upload the same file again.</span>
           <select
@@ -177,11 +207,12 @@ export function DutchieImport({ preview, run, source = "dutchie" }: { preview: A
             }}
           >
             <option value="" disabled>
-              Choose a store from the file
+              {stores.length === 1 && !ambiguous ? "Confirm the store" : "Choose a store from the file"}
             </option>
+            {ambiguous ? <option value={LOCATION_ROOMS}>They&apos;re rooms in this facility (bring in every row)</option> : null}
             {stores.map((st) => (
               <option key={st.name} value={st.name}>
-                {st.name} ({st.rows.toLocaleString("en-US")} rows)
+                {stores.length === 1 && !ambiguous ? `Yes, ${st.name} goes into this facility` : st.name} ({st.rows.toLocaleString("en-US")} rows)
               </option>
             ))}
           </select>
