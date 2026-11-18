@@ -2,7 +2,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { CultivationTabs } from "@/components/cultivation-ui";
-import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { Card, Field, PageHeader, inputClass, ScrollBox } from "@/components/ui";
 import { cultivationTasks, harvests, locations, plantBatches, plants, strains } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
@@ -92,6 +92,7 @@ export default async function CultivationPage() {
           {batches.length === 0 ? (
             <p className="text-sm text-slate-600">No batches yet. Start one with clones or seeds.</p>
           ) : (
+            <ScrollBox label="Plant batches">
             <ul className="divide-y divide-slate-100 text-sm">
               {batches.map((batch) => (
                 <li key={batch.id}>
@@ -109,6 +110,7 @@ export default async function CultivationPage() {
                 </li>
               ))}
             </ul>
+            </ScrollBox>
           )}
         </Card>
         {canWrite ? (
@@ -169,6 +171,7 @@ export default async function CultivationPage() {
           {tasks.length === 0 ? (
             <p className="text-sm text-slate-600">Nothing on the list.</p>
           ) : (
+            <ScrollBox label="Open tasks">
             <ul className="divide-y divide-slate-100 text-sm">
               {tasks.map((task) => (
                 <li key={task.id} className="flex items-center justify-between gap-3 py-2">
@@ -190,6 +193,7 @@ export default async function CultivationPage() {
                 </li>
               ))}
             </ul>
+            </ScrollBox>
           )}
         </Card>
         {canWrite ? (

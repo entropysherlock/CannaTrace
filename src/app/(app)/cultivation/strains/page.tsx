@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
 import { CultivationTabs } from "@/components/cultivation-ui";
-import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { Card, Field, PageHeader, inputClass, ScrollBox } from "@/components/ui";
 import { strainTypeEnum, strains } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
@@ -22,6 +22,7 @@ export default async function StrainsPage() {
             {rows.length === 0 ? (
               <p className="text-sm text-slate-600">No strains yet.</p>
             ) : (
+              <ScrollBox label="Strains">
               <ul className="divide-y divide-slate-100 text-sm">
                 {rows.map((strain) => (
                   <li key={strain.id} className="flex items-center justify-between gap-3 py-2">
@@ -33,6 +34,7 @@ export default async function StrainsPage() {
                   </li>
                 ))}
               </ul>
+              </ScrollBox>
             )}
           </Card>
         </div>

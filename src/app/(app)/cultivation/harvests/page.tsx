@@ -1,7 +1,7 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { CultivationTabs, daysSince, grams } from "@/components/cultivation-ui";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, ScrollBox } from "@/components/ui";
 import { harvests, locations, strains } from "@/db/schema";
 import { db } from "@/lib/db";
 import { harvestOnHand } from "@/lib/cultivation-math";
@@ -27,7 +27,8 @@ export default async function HarvestsPage() {
           No harvests yet. On the Plants tab, tick flowering plants and choose Harvest.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <ScrollBox label="Harvests" size="lg" className="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <ul className="divide-y divide-slate-100">
           {rows.map(({ harvest, strainName, roomName }) => (
             <li key={harvest.id}>
               <Link href={`/cultivation/harvests/${harvest.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
@@ -54,6 +55,7 @@ export default async function HarvestsPage() {
             </li>
           ))}
         </ul>
+        </ScrollBox>
       )}
     </>
   );
