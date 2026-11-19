@@ -288,9 +288,23 @@ export async function closeDrawer(actor: Actor, input: { countedCash: unknown; d
       session = await lockOpenDrawer(tx, actor);
     }
     if (!session) throw new InventoryError("There is no open drawer to close.");
-    const openCarts = await tx.$count(sales, and(eq(sales.drawerSessionId, session.id), eq(sales.status, "OPEN")));
-    if (openCarts > 0) {
-      throw new InventoryError(`${openCarts} cart${openCarts === 1 ? " is" : "s are"} still open. Finish or cancel ${openCarts === 1 ? "it" : "them"} before closing the drawer.`);
+    // Empty carts (an ID was checked, nothing added) aren't shown on the register and hold nothing, so
+    // closing cancels them. Carts with items must be finished or cancelled by a person first.
+    const open = await tx
+      .select({ id: sales.id, number: sales.number, lines: sql<number>`(select count(*)::int from sale_lines sl where sl.sale_id = "sales"."id")` })
+      .from(sales)
+      .where(and(eq(sales.drawerSessionId, session.id), eq(sales.status, "OPEN")))
+      .for("update");
+    const withItems = open.filter((c) => c.lines > 0);
+    if (withItems.length > 0) {
+      const names = withItems.map((c) => c.number).join(", ");
+      throw new InventoryError(
+        `${withItems.length === 1 ? `Cart ${names} is` : `Carts ${names} are`} still open with items in ${withItems.length === 1 ? "it" : "them"}. Resume ${withItems.length === 1 ? "it" : "them"} from Held carts on the Register, then finish or cancel before closing the drawer.`,
+      );
+    }
+    for (const empty of open) {
+      await tx.update(sales).set({ status: "CANCELLED", completedAt: new Date() }).where(eq(sales.id, empty.id));
+      await audit(tx, actor, { entityType: "Sale", entityId: empty.id, action: "CANCEL", reason: "Empty cart cancelled when the drawer closed" });
     }
     const summary = await drawerSummary(tx, session);
     await tx

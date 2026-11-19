@@ -1,6 +1,6 @@
 import "server-only";
 import { after } from "next/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { facilities, stateReports, watchFindings, watchSweeps, type WatchFinding } from "@/db/schema";
 import { parseCsv } from "@/lib/csv";
 import { db } from "@/lib/db";
@@ -23,6 +23,9 @@ const SEVERITY_ORDER = { critical: 0, warning: 1, info: 2 } as Record<string, nu
  * the problem is unchanged. A check that errors is skipped, never taken as "all clear".
  */
 export async function sweepFacility(f: Scope): Promise<{ open: number; opened: number; resolved: number; failedChecks: string[] }> {
+  // A sweep is as fresh as the moment its checks started reading: a change made while it runs must
+  // trigger another look, so the sweep is stamped with its start, not its end.
+  const startedAt = new Date();
   const found: Finding[] = [];
   const failedChecks: string[] = [];
   const failedKinds = new Set<string>();
@@ -37,6 +40,13 @@ export async function sweepFacility(f: Scope): Promise<{ open: number; opened: n
   }
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`watch:${f.facilityId}`}))`);
+    // A sweep that started later has already saved fresher findings: don't overwrite them with older ones.
+    const [newer] = await tx
+      .select({ open: watchSweeps.open })
+      .from(watchSweeps)
+      .where(and(eq(watchSweeps.facilityId, f.facilityId), gt(watchSweeps.createdAt, startedAt)))
+      .limit(1);
+    if (newer) return { open: newer.open, opened: 0, resolved: 0, failedChecks };
     const existing = await tx.select().from(watchFindings).where(and(eq(watchFindings.orgId, f.orgId), eq(watchFindings.facilityId, f.facilityId)));
     const byKey = new Map(existing.map((e) => [e.key, e]));
     const now = new Date();
@@ -76,12 +86,26 @@ export async function sweepFacility(f: Scope): Promise<{ open: number; opened: n
       resolved++;
     }
     const open = found.filter((x) => byKey.get(x.key)?.status !== "DISMISSED").length;
-    await tx.insert(watchSweeps).values({ orgId: f.orgId, facilityId: f.facilityId, open, opened, resolved });
+    await tx.insert(watchSweeps).values({ orgId: f.orgId, facilityId: f.facilityId, open, opened, resolved, createdAt: startedAt });
     return { open, opened, resolved, failedChecks };
   });
 }
 
-/** Sweep only if the last one is older than FRESH_MINUTES. */
+/**
+ * Anything at this facility changed after `since`: any recorded change (every change writes the audit
+ * log: holds, moves, lab results, Tally's fixes, undos), a label print, or a new state report. A fix
+ * made anywhere then clears its finding on the next page load instead of waiting for a dismiss.
+ */
+async function changedSince(f: Scope, since: Date): Promise<boolean> {
+  const at = since.toISOString();
+  const result = await db.execute(sql`select
+    exists (select 1 from audit_logs where org_id = ${f.orgId} and facility_id = ${f.facilityId} and created_at > ${at})
+    or exists (select 1 from print_jobs where org_id = ${f.orgId} and facility_id = ${f.facilityId} and created_at > ${at})
+    or exists (select 1 from state_reports where org_id = ${f.orgId} and facility_id = ${f.facilityId} and created_at > ${at}) as changed`);
+  return Boolean((result.rows[0] as { changed: boolean } | undefined)?.changed);
+}
+
+/** Sweep if the last one is older than FRESH_MINUTES, or anything has changed at the facility since it ran. */
 export async function sweepIfStale(f: Scope): Promise<void> {
   const [last] = await db
     .select({ at: watchSweeps.createdAt })
@@ -89,7 +113,7 @@ export async function sweepIfStale(f: Scope): Promise<void> {
     .where(eq(watchSweeps.facilityId, f.facilityId))
     .orderBy(desc(watchSweeps.createdAt))
     .limit(1);
-  if (last && Date.now() - last.at.getTime() < FRESH_MINUTES * 60_000) return;
+  if (last && Date.now() - last.at.getTime() < FRESH_MINUTES * 60_000 && !(await changedSince(f, last.at))) return;
   await sweepFacility(f);
 }
 

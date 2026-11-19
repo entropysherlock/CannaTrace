@@ -30,11 +30,12 @@ import {
   type Actor,
 } from "@/lib/inventory";
 import { addToCart, checkInCustomer, closeDrawer, completeSale, openDrawer, saveRetailSettings, setMenuItem } from "@/lib/pos";
+import { sales } from "@/db/schema";
 import { PermissionError, sessionFromToken } from "@/lib/session";
 import { metrcRequest } from "@/lib/sync";
 import { setUserFacilities } from "@/lib/team";
 import { facilityToday, zoneForState } from "@/lib/time";
-import { sweepFacility } from "@/lib/watch";
+import { sweepFacility, sweepIfStale } from "@/lib/watch";
 
 /**
  * Regression tests for the problems found by role-by-role stress testing (November 2026): failed-lab
@@ -252,9 +253,44 @@ describe.skipIf(!hasDb)("stress-test fixes (database)", () => {
       await buy(bud, 1, "NM-999999"); // someone else is fine
     });
 
+    it("closes a drawer past empty carts, cancelling them, but names a cart that still has items", async () => {
+      // Bo's drawer from the previous test is open. One empty cart (ID checked, nothing added), one with an item.
+      const empty = await checkInCustomer(bud, adult());
+      const full = await checkInCustomer(bud, adult());
+      await addToCart(bud, { saleId: full.id, itemId: jar, quantity: "1" });
+      const fullNumber = (await db.select().from(sales).where(eq(sales.id, full.id)))[0].number;
+      await expect(closeDrawer(bud, { countedCash: "100" })).rejects.toThrow(new RegExp(`Cart ${fullNumber} is still open with items`));
+      // Cancel the one with items; the empty one no longer blocks the close
+      await (await import("@/lib/pos")).cancelCart(bud, { saleId: full.id });
+      await closeDrawer(bud, { countedCash: "100" });
+      expect((await db.select().from(sales).where(eq(sales.id, empty.id)))[0].status).toBe("CANCELLED");
+    });
+
     it("sells counted items in whole numbers only", async () => {
+      await openDrawer(bud, { openingCash: "100" });
       const cart = await checkInCustomer(bud, adult());
       await expect(addToCart(bud, { saleId: cart.id, itemId: jar, quantity: "1.5" })).rejects.toThrow(/whole number/);
+    });
+  });
+
+  describe("Tally Watch clears what's been fixed", () => {
+    it("drops a finding on the next look once it's fixed by hand, without a dismiss or a 15-minute wait", async () => {
+      const scope = { orgId: org, facilityId: grow };
+      const pkg = await receivePackage(growActor, { tag: tag(), itemId: bulk, quantity: "50", locationId: vault });
+      await fail(growActor, pkg.id); // failed, but still active: Watch flags it
+      await sweepFacility(scope);
+      const open = async () =>
+        (await db.execute<{ n: number }>(`select count(*)::int as n from watch_findings where facility_id = '${grow}' and "check" = 'lab_fail' and key like '%${pkg.id}%' and status = 'OPEN'` as never)).rows[0].n;
+      expect(await open()).toBe(1);
+      // Fixed on the package page, not through Watch
+      await setPackageStatus(growActor, { packageId: pkg.id, status: "ON_HOLD", reason: "failed test" });
+      await sweepIfStale(scope); // the last look was seconds ago, but something changed since
+      expect(await open()).toBe(0);
+      // Nothing changed: no new look (the last sweep stays the latest)
+      const sweeps = async () => (await db.execute<{ n: number }>(`select count(*)::int as n from watch_sweeps where facility_id = '${grow}'` as never)).rows[0].n;
+      const before = await sweeps();
+      await sweepIfStale(scope);
+      expect(await sweeps()).toBe(before);
     });
   });
 

@@ -179,7 +179,7 @@ describe.skipIf(!hasDb)("Tally: create from plain English, multi-step jobs, and 
 
   it("starts a run of 200 gummy packs, picking inputs oldest first; Undo puts the product back and cancels the run", async () => {
     const id = async (sku: string) => (await db.select().from(items).where(eq(items.sku, `${run}-${sku}`)))[0].id;
-    await expect(propose("start_production_run", owner, { product: "gummy 10pk", quantity: "200" })).rejects.toThrow(/Not enough active stock .*Distillate: short 100 g.*Gummy Base: short 200 ea/);
+    await expect(propose("start_production_run", owner, { product: "gummy 10pk", quantity: "200" })).rejects.toThrow(/^Not enough active stock(?=.*Distillate: short 100 g)(?=.*Gummy Base: short 200 ea)/);
     await confirm(
       owner,
       await propose("receive_packages", owner, {
