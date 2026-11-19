@@ -53,7 +53,7 @@ test("CannaTrace support opens a customer's account, sees it as they do, and eve
   await page.goto("/settings/facilities");
   await expect(page.getByRole("heading", { name: "Facilities" })).toBeVisible();
   await page.goto("/audit");
-  await expect(page.getByText("Olivia Owner (CannaTrace support)").first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "Audit trail entries" }).getByText("Olivia Owner (CannaTrace support)").first()).toBeVisible();
   await expect(page.getByText("Helping set up their first facility").first()).toBeVisible();
 
   // Leave: back in support's own account and console
@@ -65,7 +65,7 @@ test("CannaTrace support opens a customer's account, sees it as they do, and eve
 
   // The customer sees the visit in their own audit trail
   await customer.goto("/audit");
-  await expect(customer.getByText("Olivia Owner (CannaTrace support)").first()).toBeVisible();
+  await expect(customer.getByRole("region", { name: "Audit trail entries" }).getByText("Olivia Owner (CannaTrace support)").first()).toBeVisible();
   await customer.close();
 });
 

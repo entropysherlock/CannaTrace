@@ -19,7 +19,7 @@ export type HomeView = {
   ages: { adultMinAge: number; medicalMinAge: number };
   /** Purchase limits count per customer per day, so the ID number is needed. */
   dailyLimits: boolean;
-  heldCarts: { id: string; number: string; items: number; clerk: string; since: string }[];
+  heldCarts: { id: string; number: string; items: number; clerk: string; since: string; other?: boolean }[];
   shift: { sales: number; total: string } | null;
   recent: { id: string; number: string; status: string; total: string | null; time: string }[];
 };
@@ -299,9 +299,10 @@ export function HomeScreen({ view }: { view: HomeView }) {
                     href={`/pos/sales/${c.id}`}
                     className="flex min-h-14 items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 ring-1 ring-slate-200 hover:ring-brand-600"
                   >
-                    <span className="font-bold">Resume {c.number}</span>
-                    <span className="text-sm text-slate-600">
-                      {c.items} item{c.items === 1 ? "" : "s"} · {c.clerk} · {c.since}
+                    <span className="font-bold">{c.other ? `Take over ${c.number}` : `Resume ${c.number}`}</span>
+                    <span className="text-right text-sm text-slate-600">
+                      {c.items} item{c.items === 1 ? "" : "s"} · {c.other ? `on ${c.clerk}'s drawer` : c.clerk} · {c.since}
+                      {c.other ? <span className="block text-xs">Moves to your drawer when you open it</span> : null}
                     </span>
                   </Link>
                 </li>

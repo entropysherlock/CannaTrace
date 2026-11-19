@@ -9,12 +9,12 @@ import { Card, PageHeader, buttonLinkClass } from "@/components/ui";
 import { bomLines, boms, itemCategories, items } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
-import { requirePagePermission } from "@/lib/session";
+import { requireAnyPagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 import { recipeActiveAction } from "../actions";
 
 export default async function RecipesPage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
-  const session = await requirePagePermission("inventory.view");
+  const session = await requireAnyPagePermission("manufacturing.write", "audit.view");
   const { new: adding } = await searchParams;
   const [recipes, itemRows, categories] = await Promise.all([
     db

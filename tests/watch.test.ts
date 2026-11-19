@@ -20,12 +20,14 @@ describe("reading a state package report", () => {
   it("finds the columns, splits '12.5 Grams', and refuses files it can't use", () => {
     const { rows } = parseStateReport('﻿Tag,Item,Quantity,Status\n1A4000000000000000000001,Flower,"1,250.5 Grams",Active\n1a4000000000000000000002,Jar,12 Each,Active\n');
     expect(rows).toEqual([
-      { tag: "1A4000000000000000000001", quantity: "1250.5", unit: "Grams", item: "Flower", status: "Active" },
-      { tag: "1A4000000000000000000002", quantity: "12", unit: "Each", item: "Jar", status: "Active" },
+      { tag: "1A4000000000000000000001", quantity: "1250.5", unit: "Grams", item: "Flower", status: "Active", unreadableQuantity: null },
+      { tag: "1A4000000000000000000002", quantity: "12", unit: "Each", item: "Jar", status: "Active", unreadableQuantity: null },
     ]);
     expect(parseStateReport("Package Label,Qty,UoM\nX1,3,Ounces\n").rows[0]).toMatchObject({ tag: "X1", quantity: "3", unit: "Ounces" });
     expect(() => parseStateReport("Name,Quantity\nA,1\n")).toThrow(/Couldn't find a Tag column/);
     expect(() => parseStateReport("Tag\nA\na\n")).toThrow(/appears twice/);
+    // Text that isn't a number is kept aside, so it's reported rather than treated as a match.
+    expect(parseStateReport("Tag,Quantity\nX2,abc\n").rows[0]).toMatchObject({ quantity: null, unreadableQuantity: "abc" });
   });
 });
 

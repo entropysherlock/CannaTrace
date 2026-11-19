@@ -12,6 +12,7 @@ import {
   destroyPlants,
   findStrainByName,
   finishHarvest,
+  reopenHarvest,
   harvestPlants,
   logHarvestWaste,
   movePlants,
@@ -203,6 +204,18 @@ export async function packageHarvestAction(_state: FormState, formData: FormData
     revalidatePath("/cultivation", "layout");
     revalidatePath("/inventory");
     return { ok: `Created package ${pkg.tag}.` };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function reopenHarvestAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const reason = field(formData, "reason").trim();
+    if (!reason) return { error: "Say why the harvest is being reopened." };
+    await reopenHarvest(await cultivationActor(), { harvestId: field(formData, "harvestId"), reason });
+    revalidatePath("/cultivation", "layout");
+    return { ok: "Harvest reopened." };
   } catch (error) {
     return toFormError(error);
   }

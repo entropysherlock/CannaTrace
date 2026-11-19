@@ -140,15 +140,16 @@ export default async function MenuPage() {
               <Field label="Shelf price per unit, in dollars" hint="Before tax.">
                 <input name="price" inputMode="decimal" required className={inputClass} />
               </Field>
-              <Field label="Counts toward which purchase limit">
-                <select name="limitCategory" defaultValue="NONE" className={inputClass}>
+              <Field label="Counts toward which purchase limit" hint="Changing only the price? Leave this on Keep, so the item's purchase limit stays as it is.">
+                <select name="limitCategory" defaultValue="KEEP" className={inputClass}>
+                  <option value="KEEP">Keep what the item counts toward now</option>
                   <option value="NONE">None (accessories and the like)</option>
                   <option value="FLOWER">Flower, in grams</option>
                   <option value="CONCENTRATE">Concentrate, in grams</option>
                   <option value="EDIBLE">Edible, in milligrams of THC</option>
                 </select>
               </Field>
-              <Field label="How much one unit counts" hint="For example 3.5 for a 3.5 g jar, or 100 for a 100 mg pack of gummies. Leave empty for None.">
+              <Field label="How much one unit counts" hint="For example 3.5 for a 3.5 g jar, or 100 for a 100 mg pack of gummies. Leave empty for Keep or None.">
                 <input name="limitPerUnit" inputMode="decimal" className={inputClass} />
               </Field>
             </ActionForm>

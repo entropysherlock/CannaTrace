@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AssistantPanel } from "@/components/assistant-panel";
 import { WalkthroughProvider } from "@/components/walkthrough";
-import { WALKTHROUGHS } from "@/lib/walkthroughs";
+import { sellsRetail, walkthroughsFor } from "@/lib/walkthroughs";
 import { Logo } from "@/components/logo";
 import { MainColumn } from "@/components/main-column";
 import { FacilitySwitcher, TopBarRight } from "@/components/top-bar";
@@ -32,7 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const alerts = (await openFindings(session)).length;
   const facilities = visibleFacilities(
     await db
-      .select({ id: facilitiesTable.id, name: facilitiesTable.name, licenseNumber: facilitiesTable.licenseNumber })
+      .select({ id: facilitiesTable.id, name: facilitiesTable.name, licenseNumber: facilitiesTable.licenseNumber, licenseType: facilitiesTable.licenseType })
       .from(facilitiesTable)
       // Hidden facilities stay off the menu and Dashboard, except the one you're in.
       .where(and(eq(facilitiesTable.orgId, session.orgId), or(eq(facilitiesTable.active, true), eq(facilitiesTable.id, session.facilityId))))
@@ -40,6 +40,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     session,
   );
 
+  // The register only exists where the facility sells to customers.
+  const hereType = facilities.find((f) => f.id === session.facilityId)?.licenseType;
+  const hasRegister = sellsRetail(hereType);
   // Related pages share one sidebar entry and show as tabs at the top of the page.
   const tabs = (list: [string, string, boolean][]) => list.filter(([, , show]) => show).map(([href, label]) => ({ href, label }));
   const entry = (key: string, label: string, list: Tab[]): NavItem | null => (list.length ? { key, label, href: list[0].href, tabs: list } : null);
@@ -62,7 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         ),
         entry("manufacturing", "Manufacturing", tabs([["/manufacturing", "Manufacturing", can(session, "manufacturing.write") || can(session, "audit.view")]])),
         entry("distribution", "Distribution", tabs([["/distribution", "Distribution", can(session, "sales.view")]])),
-        entry("register", "Register", tabs([["/pos", "Register", can(session, "pos.use")]])),
+        entry("register", "Register", tabs([["/pos", "Register", can(session, "pos.use") && hasRegister]])),
       ].filter((x): x is NavItem => Boolean(x)),
     },
     {
@@ -119,7 +122,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ].filter((g) => g.items.length);
 
   return (
-    <WalkthroughProvider allowed={WALKTHROUGHS.filter((w) => can(session, w.permission)).map((w) => w.id)}>
+    <WalkthroughProvider allowed={walkthroughsFor((p) => can(session, p), hereType)}>
     <div className="min-h-screen md:flex">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-brand-950 p-4 text-white short:py-3 md:flex print:!hidden">
         <Link href="/" className="mb-6 flex justify-center short:mb-3" title="CannaTrace home">

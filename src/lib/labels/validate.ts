@@ -122,7 +122,7 @@ export function checkRecord(design: LabelDesign, kind: LabelKind, record: LabelR
     if (pkgStatus === "DESTROYED" || pkgStatus === "FINISHED") {
       issues.push({ code: "PACKAGE_GONE", severity: "block", category: "INCONSISTENT_DATA", recordRef: ref, message: `${ref} is ${pkgStatus.toLowerCase()}, so it should not get a new label.` });
     } else if (pkgStatus === "ON_HOLD" || pkgStatus === "QUARANTINE") {
-      issues.push({ code: "PACKAGE_HELD", severity: kind === "PRODUCT" || kind === "TRANSFER" ? "block" : "warn", category: "INCONSISTENT_DATA", recordRef: ref, message: `${ref} is ${pkgStatus.toLowerCase().replace("_", " ")}.`, fix: "Release the hold before printing sale or transfer labels." });
+      issues.push({ code: "PACKAGE_HELD", severity: kind === "PRODUCT" || kind === "TRANSFER" ? "block" : "warn", category: "INCONSISTENT_DATA", recordRef: ref, message: `${ref} is ${pkgStatus === "QUARANTINE" ? "in quarantine" : "on hold"}.`, fix: "Release the hold before printing sale or transfer labels." });
     }
   }
   const qty = v["_package.quantity"];

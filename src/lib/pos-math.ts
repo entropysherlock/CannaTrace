@@ -59,7 +59,7 @@ export function limitProblem(usage: Limits, limits: Limits): string | null {
   for (const category of ["FLOWER", "CONCENTRATE", "EDIBLE"] as const) {
     if (usage[category].gt(limits[category])) {
       const { name, unit } = LIMIT_LABELS[category];
-      return `That puts the cart at ${usage[category].toString()} ${unit} of ${name.toLowerCase()}. The limit is ${limits[category].toString()} ${unit} per purchase.`;
+      return `That puts the cart at ${usage[category].toString()} ${unit} of ${name.toLowerCase().replace("thc", "THC")}. The limit is ${limits[category].toString()} ${unit} per purchase.`;
     }
   }
   return null;

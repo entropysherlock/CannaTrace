@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { customers, destinations, itemCategories, items, locations, locationTypeEnum, unitEnum } from "@/db/schema";
 import { readTable } from "./csv";
 import { db } from "./db";
@@ -45,6 +45,9 @@ export async function importCsv(actor: Actor, kind: ImportKind, text: string): P
       const need = (row: { line: number; values: Record<string, string> }, name: string) => {
         const value = row.values[name];
         if (!value) throw new RowError(`${name} is empty`);
+        // Names show up on screens, labels, and receipts: keep them to a sensible length.
+        const max = name === "address" ? 300 : 120;
+        if (value.length > max) throw new RowError(`${name} is ${value.length} characters long; keep it to ${max}`);
         return value;
       };
       const each = async (fn: (row: (typeof rows)[number]) => Promise<void>) => {
@@ -67,11 +70,13 @@ export async function importCsv(actor: Actor, kind: ImportKind, text: string): P
           const categoryName = need(row, "category");
           let categoryId = categoryIds.get(categoryName.toLowerCase());
           if (!categoryId) {
-            await tx.insert(itemCategories).values({ orgId: actor.orgId, name: categoryName }).onConflictDoNothing();
-            const [cat] = await tx
-              .select({ id: itemCategories.id })
-              .from(itemCategories)
-              .where(and(eq(itemCategories.orgId, actor.orgId), eq(itemCategories.name, categoryName)));
+            // "flower" and "Flower" are the same category: use the existing one whatever its capitals.
+            const sameName = and(eq(itemCategories.orgId, actor.orgId), sql`lower(${itemCategories.name}) = lower(${categoryName})`);
+            let [cat] = await tx.select({ id: itemCategories.id }).from(itemCategories).where(sameName).limit(1);
+            if (!cat) {
+              await tx.insert(itemCategories).values({ orgId: actor.orgId, name: categoryName }).onConflictDoNothing();
+              [cat] = await tx.select({ id: itemCategories.id }).from(itemCategories).where(sameName).limit(1);
+            }
             categoryId = cat.id;
             categoryIds.set(categoryName.toLowerCase(), categoryId);
           }
@@ -89,6 +94,13 @@ export async function importCsv(actor: Actor, kind: ImportKind, text: string): P
           const type = need(row, "type").toUpperCase();
           if (!(locationTypeEnum.enumValues as readonly string[]).includes(type)) throw new RowError("type must be ROOM, RACK, or BIN");
           const name = need(row, "name");
+          // "VAULT A" is the same place as "Vault A".
+          const [same] = await tx
+            .select({ name: locations.name })
+            .from(locations)
+            .where(and(eq(locations.facilityId, actor.facilityId), sql`lower(${locations.name}) = lower(${name})`))
+            .limit(1);
+          if (same) throw new RowError(`a location called ${same.name} already exists here`);
           const [loc] = await tx
             .insert(locations)
             .values({ orgId: actor.orgId, facilityId: actor.facilityId, name, type: type as "ROOM" })
@@ -136,16 +148,19 @@ export async function importCsv(actor: Actor, kind: ImportKind, text: string): P
         const skuIds = new Map((await tx.select({ id: items.id, sku: items.sku }).from(items).where(eq(items.orgId, actor.orgId))).map((i) => [i.sku, i.id]));
         const locationIds = new Map(
           (await tx.select({ id: locations.id, name: locations.name }).from(locations).where(and(eq(locations.orgId, actor.orgId), eq(locations.facilityId, actor.facilityId)))).map(
-            (l) => [l.name.toLowerCase(), l.id],
+            (l) => [l.name, l.id],
           ),
         );
+        // Exact name first; otherwise the first location whose name matches ignoring capitals.
+        const findLocation = (name: string) =>
+          locationIds.get(name) ?? [...locationIds.entries()].find(([n]) => n.toLowerCase() === name.toLowerCase())?.[1];
         await each(async (row) => {
           // A blank tag gets a generated one (PKG-000123).
           if (row.values.tag?.trim()) normalizeTag(row.values.tag);
           parsePositiveQty(need(row, "quantity"));
           const itemId = skuIds.get(need(row, "sku").toUpperCase());
           if (!itemId) throw new RowError(`no item with SKU ${row.values.sku}; import items first`);
-          const locationId = locationIds.get(need(row, "location").toLowerCase());
+          const locationId = findLocation(need(row, "location"));
           if (!locationId) throw new RowError(`no location called ${row.values.location} at this facility`);
           // A failed insert inside a savepoint keeps the outer transaction usable for checking later rows.
           await tx.transaction((sp) =>

@@ -17,6 +17,15 @@ async function isSignedIn(request: NextRequest): Promise<boolean> {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // A broken link (a cut-off %-escape, say) can't be read as a page address: show "not found", not a server error.
+  try {
+    decodeURIComponent(pathname);
+  } catch {
+    return new NextResponse("That link is broken or incomplete. Go back and try again, or start from the dashboard.", {
+      status: 400,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
   // Scheduled sync runs authenticate with their own secret, not a sign-in cookie.
   if (pathname.startsWith("/api/sync/") || pathname === "/api/watch/run") return NextResponse.next();
   // The REST API authenticates with API keys, not a sign-in cookie.

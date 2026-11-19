@@ -219,6 +219,8 @@ export function parseStateReport(text: string) {
     return {
       tag: (r[tagCol] ?? "").trim().toUpperCase(),
       quantity: m ? m[1] : null,
+      // Text in the quantity column that isn't a number: reported, never treated as a match.
+      unreadableQuantity: raw && !m ? raw.slice(0, 40) : null,
       unit: unit && stateUnit(unit) ? unit : unit,
       item: itemCol >= 0 ? (r[itemCol] ?? "").trim().slice(0, 200) || null : null,
       status: statusCol >= 0 ? (r[statusCol] ?? "").trim().slice(0, 40) || null : null,

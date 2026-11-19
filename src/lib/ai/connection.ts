@@ -249,6 +249,7 @@ export async function setLimits(
     enabled: input.enabled,
   };
   if (limits.perPersonDailyLimit > limits.dailyLimit) throw new InventoryError("The per-person limit can't be more than the business's daily limit.");
+  if (limits.dailyLimit > limits.monthlyLimit) throw new InventoryError("The daily limit can't be more than the monthly limit.");
   const updated = await db.update(aiConnections).set(limits).where(eq(aiConnections.orgId, session.orgId)).returning({ orgId: aiConnections.orgId });
   if (!updated.length) throw new InventoryError("Connect Tally first.");
   await log(session, "LIMITS_CHANGED", limits);
@@ -359,7 +360,9 @@ async function assertUnderLimits(ex: Executor, session: Pick<Session, "orgId" | 
       from ai_usage where org_id = ${session.orgId} and created_at >= ${new Date(Math.min(monthStart(now).getTime(), now.getTime() - DAY_MS))}`)
   ).rows;
   if (c.mine >= limits.perPersonDailyLimit)
-    throw new InventoryError(`You've asked Tally ${c.mine} questions in the last 24 hours, which is this business's limit per person. An owner can raise it in Settings → Tally AI.`);
+    throw new InventoryError(
+      `You've reached this business's limit of ${limits.perPersonDailyLimit} Tally question${limits.perPersonDailyLimit === 1 ? "" : "s"} per person in 24 hours. An owner can raise it in Settings → Tally AI.`,
+    );
   if (c.day >= limits.dailyLimit)
     throw new InventoryError(`Your business has used its ${limits.dailyLimit} Tally questions for the last 24 hours. An owner can raise the limit in Settings → Tally AI.`);
   if (c.month >= limits.monthlyLimit)

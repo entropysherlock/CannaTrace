@@ -22,7 +22,7 @@ export function Tip({ text, label = "More info" }: { text: ReactNode; label?: st
       </span>
       <span
         role="tooltip"
-        className="pointer-events-none invisible absolute left-1/2 top-full z-30 mt-2 w-72 -translate-x-1/2 rounded-lg bg-brand-950 px-3 py-2 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-white opacity-0 shadow-lg transition group-focus-within/tip:visible group-focus-within/tip:opacity-100 group-hover/tip:visible group-hover/tip:opacity-100"
+        className="pointer-events-none invisible absolute left-1/2 top-full z-30 mt-2 w-[min(18rem,calc(100vw-2rem))] max-sm:hidden max-sm:group-hover/tip:block max-sm:group-focus-within/tip:block -translate-x-1/2 rounded-lg bg-brand-950 px-3 py-2 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-white opacity-0 shadow-lg transition group-focus-within/tip:visible group-focus-within/tip:opacity-100 group-hover/tip:visible group-hover/tip:opacity-100"
       >
         {text}
       </span>

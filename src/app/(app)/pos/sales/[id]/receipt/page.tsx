@@ -83,7 +83,9 @@ export default async function ReceiptPage({
   const canVoid =
     sale.status === "COMPLETED" &&
     row.drawerStatus === "OPEN" &&
-    can(session, "pos.manage");
+    can(session, "pos.manage") &&
+    // After a return, the rest is returned, not voided (a void would restock the returned part twice).
+    returns.length === 0;
 
   const justPaid = sale.status === "COMPLETED" && happenedWithin(sale.completedAt, 10 * 60 * 1000);
   const debit = new Decimal(

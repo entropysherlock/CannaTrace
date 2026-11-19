@@ -52,20 +52,20 @@ export function RegisterShell({ info, children }: { info: ShellInfo; children: R
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-[#eef3ef] text-slate-900 print:static print:bg-white">
-      <header className="flex h-14 shrink-0 items-center gap-3 bg-brand-950 px-3 text-white print:hidden">
+      <header className="flex h-14 shrink-0 items-center gap-1 bg-brand-950 px-2 text-white sm:gap-3 sm:px-3 print:hidden">
         <Link href="/pos" className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-white/10" title="Register home">
           <LeafMark className="h-7 w-7 text-brand-200" />
-          <span className="font-display text-lg font-bold tracking-tight">Register</span>
+          <span className="hidden font-display text-lg font-bold tracking-tight min-[400px]:inline">Register</span>
         </Link>
         <div className="hidden min-w-0 flex-1 items-center gap-3 truncate text-sm text-brand-100 md:flex">
           <span className="truncate font-semibold text-white">{info.storeName}</span>
           <span className="truncate">{info.drawerLine}</span>
         </div>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex min-w-0 items-center gap-0.5 sm:gap-1">
           <span className="hidden px-2 text-sm text-brand-100 lg:inline">
             {info.clerkName} · <Clock timeZone={info.timeZone} />
           </span>
-          <a href="/pos/display" target="ct-customer-display" className={barButton} title="Open the customer-facing screen in a new window">
+          <a href="/pos/display" target="ct-customer-display" className={`${barButton} max-sm:hidden`} title="Open the customer-facing screen in a new window">
             <MonitorSmartphone className="h-5 w-5" aria-hidden="true" />
             <span className="hidden xl:inline">Customer screen</span>
           </a>
@@ -91,13 +91,13 @@ export function RegisterShell({ info, children }: { info: ShellInfo; children: R
             {muted ? <VolumeX className="h-5 w-5" aria-hidden="true" /> : <Volume2 className="h-5 w-5" aria-hidden="true" />}
             <span className="sr-only">{muted ? "Sounds off" : "Sounds on"}</span>
           </button>
-          <button type="button" className={barButton} onClick={toggleFull} title={full ? "Leave full screen" : "Full screen"}>
+          <button type="button" className={`${barButton} max-sm:hidden`} onClick={toggleFull} title={full ? "Leave full screen" : "Full screen"}>
             {full ? <Minimize2 className="h-5 w-5" aria-hidden="true" /> : <Maximize2 className="h-5 w-5" aria-hidden="true" />}
             <span className="sr-only">{full ? "Leave full screen" : "Full screen"}</span>
           </button>
-          <Link href="/dashboard" className={`${barButton} ml-1 border border-white/15`}>
+          <Link href="/dashboard" className={`${barButton} ml-1 shrink-0 border border-white/15`} title="Leave the register">
             <LogOut className="h-5 w-5" aria-hidden="true" />
-            <span>Exit</span>
+            <span className="max-[380px]:sr-only">Exit</span>
           </Link>
         </div>
       </header>

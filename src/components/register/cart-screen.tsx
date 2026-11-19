@@ -325,7 +325,14 @@ export function CartScreen({ view }: { view: CartView }) {
 
           {view.discounts.length ? (
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Discount">
-              {[{ id: "", name: "", label: "No discount" }, ...view.discounts].map((d) => {
+              {[
+                { id: "", name: "", label: "No discount" },
+                ...view.discounts,
+                // A discount a manager has since removed stays on carts already using it: show it, so it's visible.
+                ...(view.discountName && !view.discounts.some((d) => d.name === view.discountName)
+                  ? [{ id: "__applied", name: view.discountName, label: `${view.discountName} (no longer offered)` }]
+                  : []),
+              ].map((d) => {
                 const on = d.id ? view.discountName === d.name : view.discountName === null;
                 return (
                   <button
@@ -334,7 +341,7 @@ export function CartScreen({ view }: { view: CartView }) {
                     role="radio"
                     aria-checked={on}
                     disabled={pending}
-                    onClick={() => act(() => terminalDiscount(view.saleId, d.id))}
+                    onClick={() => (d.id === "__applied" ? undefined : act(() => terminalDiscount(view.saleId, d.id)))}
                     className={`h-9 rounded-full px-3 text-sm font-semibold ${on ? "bg-brand-700 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:ring-brand-600"}`}
                   >
                     {d.label}

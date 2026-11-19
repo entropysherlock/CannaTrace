@@ -1,11 +1,11 @@
 import Decimal from "decimal.js";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { CartScreen, type CartView } from "@/components/register/cart-screen";
 import { RegisterShell } from "@/components/register/shell";
-import { discountPresets, itemCategories, items, packages, retailPrices, sales } from "@/db/schema";
+import { discountPresets, itemCategories, items, retailPrices, sales } from "@/db/schema";
 import { db } from "@/lib/db";
-import { cartLines, getRetailSettings, saleTotals, storePack } from "@/lib/pos";
+import { cartLines, getRetailSettings, saleTotals, sellableByItem, storePack } from "@/lib/pos";
 import { LIMIT_LABELS, limitUsage, quickCashAmounts } from "@/lib/pos-math";
 import { effectiveLimits } from "@/lib/rules";
 import { requirePagePermission } from "@/lib/session";
@@ -39,7 +39,6 @@ export default async function CartPage({ params }: { params: Promise<{ id: strin
         price: retailPrices.price,
         limitCategory: items.limitCategory,
         limitPerUnit: items.limitPerUnit,
-        stock: sql<string>`coalesce((select sum(${packages.quantity}) from ${packages} where ${packages.itemId} = ${items.id} and ${packages.facilityId} = ${session.facilityId} and ${packages.status} = 'ACTIVE'), 0)`,
       })
       .from(retailPrices)
       .innerJoin(items, eq(items.id, retailPrices.itemId))
@@ -53,6 +52,7 @@ export default async function CartPage({ params }: { params: Promise<{ id: strin
       .orderBy(asc(discountPresets.name)),
   ]);
 
+  const sellable = await sellableByItem(db, session, pack);
   const totals = saleTotals(lines, sale, settings);
   const usage = limitUsage(lines);
   const { limits } = effectiveLimits(
@@ -78,7 +78,7 @@ export default async function CartPage({ params }: { params: Promise<{ id: strin
       unitLabel: unitLabel(l.unit),
     })),
     menu: menu.map((m) => {
-      const stock = new Decimal(m.stock);
+      const stock = sellable.get(m.id) ?? new Decimal(0);
       const limit = m.limitCategory !== "NONE" && m.limitPerUnit ? `Counts ${num(m.limitPerUnit)} ${LIMIT_LABELS[m.limitCategory].unit} ${m.limitCategory === "EDIBLE" ? "edible THC" : LIMIT_LABELS[m.limitCategory].name.toLowerCase()}` : null;
       return {
         id: m.id,
