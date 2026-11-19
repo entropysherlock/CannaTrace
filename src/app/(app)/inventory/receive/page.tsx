@@ -3,6 +3,7 @@ import { ActionForm } from "@/components/action-form";
 import { CreatableSelect } from "@/components/contextual-create";
 import { ItemFields } from "@/components/item-fields";
 import { LocationFields } from "@/components/quick-fields";
+import { addVendorConfig } from "@/components/vendor-drawer";
 import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { and, asc, eq } from "drizzle-orm";
@@ -18,6 +19,8 @@ import { receiveAction } from "../actions";
 export default async function ReceivePage() {
   const session = await requirePagePermission("inventory.write");
   const canManageCatalog = can(session, "catalog.manage");
+  // Vendors are managed by sales, as on the Vendors tab.
+  const canAddVendor = can(session, "sales.write");
   const [items, locations, vendors, categories] = await Promise.all([
     db
       .select()
@@ -96,17 +99,14 @@ export default async function ReceivePage() {
               }
               deniedHint="Location missing? Someone who manages the catalog can add it on the Locations page."
             />
-            {vendors.length ? (
-              <Field label="Bought from (optional)">
-                <select name="vendorId" defaultValue="" className={inputClass}>
-                  <option value="">Not bought from a vendor</option>
-                  {vendors.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+            {vendors.length || canAddVendor ? (
+              <CreatableSelect
+                name="vendorId"
+                label="Bought from (optional)"
+                placeholder="Not bought from a vendor"
+                options={vendors.map((v) => ({ id: v.id, label: v.name }))}
+                create={canAddVendor ? addVendorConfig : undefined}
+              />
             ) : null}
             <Field label="Lot number (optional)">
               <input name="lotNumber" className={inputClass} />

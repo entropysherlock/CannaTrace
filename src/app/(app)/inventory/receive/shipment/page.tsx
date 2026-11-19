@@ -1,5 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import { LocationFields } from "@/components/quick-fields";
+import { addVendorConfig } from "@/components/vendor-drawer";
 import { ShipmentReceive } from "@/components/shipment-receive";
 import { Card, PageHeader } from "@/components/ui";
 import { customers, locations as locationsTable } from "@/db/schema";
@@ -38,6 +39,7 @@ export default async function ReceiveShipmentPage() {
           receive={receiveShipmentAction}
           locations={locations}
           vendors={vendors}
+          addVendor={can(session, "sales.write") ? addVendorConfig : undefined}
           addLocation={
             can(session, "catalog.manage")
               ? {

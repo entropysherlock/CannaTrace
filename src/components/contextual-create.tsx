@@ -15,10 +15,26 @@ export type CreateConfig = {
   /** One line under the heading, e.g. where else the record will show up. */
   intro?: string;
   /** The record's own fields, with the same names its server function reads. */
-  fields: ReactNode;
+  fields?: ReactNode;
+  /**
+   * For records with many required fields: a guided side drawer that asks for them a step at a time.
+   * Each step is checked before moving on, and every step's answers are sent together at the end.
+   */
+  steps?: { title: string; fields: ReactNode }[];
   action: (formData: FormData) => Promise<CreateResult>;
   submitLabel: string;
 };
+
+/** Options in order, bunched by group (ungrouped ones stand alone), for <optgroup>s. */
+function groupsOf(options: CreateOption[]): [string | undefined, CreateOption[]][] {
+  const out: [string | undefined, CreateOption[]][] = [];
+  for (const o of options) {
+    const last = out[out.length - 1];
+    if (last && last[0] === o.group && o.group) last[1].push(o);
+    else out.push([o.group, [o]]);
+  }
+  return out;
+}
 
 /**
  * A dropdown with a "+ Add …" button beside it, for when the record an employee needs isn't there yet.
@@ -71,7 +87,7 @@ export function CreatableSelect({
   const options = useMemo(() => {
     const merged = [...initialOptions];
     for (const o of added) if (!merged.some((m) => m.id === o.id)) merged.push(o);
-    return added.length ? merged.sort((a, b) => a.label.localeCompare(b.label)) : merged;
+    return added.length ? merged.sort((a, b) => (a.group ?? "").localeCompare(b.group ?? "") || a.label.localeCompare(b.label)) : merged;
   }, [initialOptions, added]);
   const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
@@ -128,11 +144,23 @@ export function CreatableSelect({
           <option value="" disabled={required}>
             {options.length === 0 ? `None yet${create ? ": add one →" : ""}` : placeholder}
           </option>
-          {options.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label}
-            </option>
-          ))}
+          {groupsOf(options).map(([group, list]) =>
+            group ? (
+              <optgroup key={group} label={group}>
+                {list.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </optgroup>
+            ) : (
+              list.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))
+            ),
+          )}
         </select>
         {create ? (
           <button
@@ -164,56 +192,91 @@ export function CreatableSelect({
   );
 }
 
-/** The add form, in a modal dialog drawn outside the parent form. A bottom sheet on phones. */
+/**
+ * The add form, drawn outside the parent form. A centred dialog for short records, or a guided side
+ * drawer (`steps`) for long ones. On phones both are a bottom sheet.
+ */
 function CreateDialog({
   title,
   intro,
   fields,
+  steps,
   action,
   submitLabel,
   onCreated,
   onCancel,
-}: {
-  title: string;
-  intro?: string;
-  fields: ReactNode;
-  action: (formData: FormData) => Promise<CreateResult>;
-  submitLabel: string;
-  onCreated: (option: CreateOption) => void;
-  onCancel: () => void;
-}) {
+}: CreateConfig & { onCreated: (option: CreateOption) => void; onCancel: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState<CreateOption | null>(null);
+  const [confirm, setConfirm] = useState<CreateResult["confirm"] | null>(null);
+  const [step, setStep] = useState(0);
   const [pending, start] = useTransition();
   const titleId = useId();
+  const pages = steps?.length ? steps : [{ title: "", fields }];
+  const guided = pages.length > 1 || Boolean(steps?.length);
+  const last = step === pages.length - 1;
+
+  const focusFirst = (index: number) =>
+    requestAnimationFrame(() =>
+      formRef.current
+        ?.querySelector<HTMLElement>(`[data-step="${index}"] :is(input:not([type=hidden]), select, textarea)`)
+        ?.focus(),
+    );
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     dialog.showModal();
     // Start typing in the first box straight away.
-    dialog.querySelector<HTMLElement>("input:not([type=hidden]), select, textarea")?.focus();
+    focusFirst(0);
     return () => {
       if (dialog.open) dialog.close();
     };
   }, []);
 
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
-    // Handled by hand so a failed save keeps what was typed in the dialog, too.
-    event.preventDefault();
-    event.stopPropagation();
-    const data = new FormData(event.currentTarget);
+  /** Checks only the boxes on this step, showing the browser's own message on the first one that's wrong. */
+  const stepIsValid = (index: number) => {
+    const boxes = formRef.current?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+      `[data-step="${index}"] :is(input, select, textarea)`,
+    );
+    for (const box of Array.from(boxes ?? [])) {
+      if (!box.checkValidity()) {
+        box.reportValidity();
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const go = (index: number) => {
+    setStep(index);
+    focusFirst(index);
+  };
+
+  const send = (data: FormData) =>
     start(async () => {
       try {
         const result = await action(data);
         if (result.created) return onCreated(result.created);
         setExisting(result.existing ?? null);
-        setError(result.existing ? null : (result.error ?? "Could not save. Nothing was changed."));
+        setConfirm(result.confirm ?? null);
+        setError(result.existing || result.confirm ? null : (result.error ?? "Could not save. Nothing was changed."));
       } catch {
         setError("Could not reach CannaTrace. Check the connection and try again. Nothing was changed.");
       }
     });
+
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    // Handled by hand so a failed save keeps what was typed in the dialog, too.
+    event.preventDefault();
+    event.stopPropagation();
+    if (!stepIsValid(step)) return;
+    // Enter on an early step moves on rather than saving half a record.
+    if (!last) return go(step + 1);
+    setConfirm(null);
+    send(new FormData(event.currentTarget));
   };
 
   return createPortal(
@@ -221,14 +284,19 @@ function CreateDialog({
       ref={dialogRef}
       aria-labelledby={titleId}
       data-testid="contextual-create"
+      data-variant={guided ? "drawer" : "dialog"}
       // Escape closes the dialog; cancelling leaves the task exactly as it was.
       onCancel={(e) => {
         e.preventDefault();
         if (!pending) onCancel();
       }}
-      className="m-0 mt-auto w-full max-w-none rounded-t-2xl bg-white p-0 shadow-2xl backdrop:bg-brand-950/50 sm:m-auto sm:w-[min(92vw,28rem)] sm:rounded-2xl"
+      className={`m-0 mt-auto max-h-[92dvh] w-dvw max-w-dvw overflow-y-auto overflow-x-hidden rounded-t-2xl bg-white p-0 shadow-2xl backdrop:bg-brand-950/50 ${
+        guided
+          ? "sm:mr-0 sm:ml-auto sm:mt-0 sm:h-dvh sm:max-h-dvh sm:w-[30rem] sm:rounded-none sm:rounded-l-2xl"
+          : "sm:m-auto sm:w-[min(92vw,28rem)] sm:rounded-2xl"
+      }`}
     >
-      <form onSubmit={submit} className="space-y-4 p-5">
+      <form ref={formRef} onSubmit={submit} className="flex min-h-full flex-col gap-4 p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 id={titleId} className="text-lg font-bold text-brand-950">
@@ -246,7 +314,31 @@ function CreateDialog({
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
-        {fields}
+
+        {guided ? (
+          <ol className="flex gap-1.5" aria-label="Steps">
+            {pages.map((p, i) => (
+              <li key={p.title} className="min-w-0 flex-1" aria-current={i === step ? "step" : undefined}>
+                <span className={`block h-1.5 rounded-full ${i <= step ? "bg-brand-600" : "bg-slate-200"}`} />
+                <span className={`mt-1 block truncate text-xs ${i === step ? "font-bold text-brand-900" : "text-slate-500"}`}>{p.title}</span>
+              </li>
+            ))}
+          </ol>
+        ) : null}
+        {guided ? (
+          <p className="sr-only" aria-live="polite">
+            Step {step + 1} of {pages.length}: {pages[step].title}
+          </p>
+        ) : null}
+
+        {/* Every step stays in the form (hidden when it isn't current) so all answers are sent together. */}
+        {pages.map((p, i) => (
+          <fieldset key={p.title || i} data-step={i} hidden={i !== step} className="min-w-0 space-y-4">
+            {guided ? <legend className="sr-only">{p.title}</legend> : null}
+            {p.fields}
+          </fieldset>
+        ))}
+
         {error ? (
           <p role="alert" className="whitespace-pre-line rounded-lg border-l-4 border-red-600 bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
             {error}
@@ -266,7 +358,36 @@ function CreateDialog({
             </button>
           </div>
         ) : null}
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        {confirm ? (
+          <div role="alert" className="rounded-lg border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            <p className="font-medium">{confirm.message}</p>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                if (!formRef.current) return;
+                const data = new FormData(formRef.current);
+                data.set("confirm", "1");
+                send(data);
+              }}
+              className="mt-2 inline-flex min-h-10 items-center rounded-md bg-amber-600 px-3 text-sm font-bold text-white hover:bg-amber-700"
+            >
+              {confirm.label}
+            </button>
+          </div>
+        ) : null}
+
+        <div className="mt-auto flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+          {guided && step > 0 ? (
+            <button
+              type="button"
+              onClick={() => go(step - 1)}
+              disabled={pending}
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border-2 border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 hover:bg-slate-50 sm:mr-auto"
+            >
+              Back
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onCancel}
@@ -280,7 +401,7 @@ function CreateDialog({
             disabled={pending}
             className="inline-flex min-h-11 items-center justify-center rounded-lg bg-brand-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
           >
-            {pending ? "Saving…" : submitLabel}
+            {pending ? "Saving…" : last ? submitLabel : "Next"}
           </button>
         </div>
       </form>

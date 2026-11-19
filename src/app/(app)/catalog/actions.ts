@@ -8,21 +8,15 @@ import { createLocation } from "@/lib/facilities";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { generateSku, normalizeSku } from "@/lib/ids";
 import { renameItem, saveItemDetails } from "@/lib/item-details";
+import { createCategory } from "@/lib/quick-item";
 import { requirePermission } from "@/lib/session";
 
 export async function addCategory(_state: FormState, formData: FormData): Promise<FormState> {
   try {
     const session = await requirePermission("catalog.manage");
-    const name = field(formData, "name");
-    if (!name) return { error: "Enter a category name." };
-    const [row] = await db
-      .insert(itemCategories)
-      .values({ orgId: session.orgId, name })
-      .onConflictDoNothing({ target: [itemCategories.orgId, itemCategories.name] })
-      .returning({ id: itemCategories.id });
-    if (!row) return { error: `There is already a category called ${name}.` };
+    const category = await createCategory({ orgId: session.orgId, userId: session.userId, userName: session.name, facilityId: session.facilityId }, field(formData, "name"));
     revalidatePath("/catalog");
-    return { ok: `Added ${name}.` };
+    return { ok: `Added ${category.name}.` };
   } catch (error) {
     return toFormError(error);
   }

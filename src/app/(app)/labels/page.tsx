@@ -38,7 +38,14 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
       .limit(1000);
     ids = rows.map((r) => r.id);
   }
-  const [templates, printers, candidates, jobs] = await Promise.all([listTemplates(session), listPrinters(session), labelCandidates(session), listJobs(session, 40)]);
+  const [allTemplates, printers, candidates, jobs] = await Promise.all([
+    listTemplates(session, { includeArchived: true }),
+    listPrinters(session),
+    labelCandidates(session),
+    listJobs(session, 40),
+  ]);
+  const templates = allTemplates.filter((t) => !t.archived);
+  const archivedTemplates = allTemplates.filter((t) => t.archived).map((t) => ({ id: t.id, name: t.name, kind: t.kind }));
   const open = jobs.filter((j) => j.job.status === "QUEUED" || j.job.status === "RENDERED" || j.job.status === "FAILED");
 
   return (
@@ -49,6 +56,7 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
       />
       <PrintStation
         templates={templates.map((t) => ({ id: t.id, name: t.name, kind: t.kind, isDefault: t.isDefault, jurisdiction: t.jurisdiction, size: sizeLabel(t.design.widthMm, t.design.heightMm) }))}
+        archivedTemplates={archivedTemplates}
         printers={printers.map((p) => ({ id: p.id, name: p.name, isDefault: p.isDefault }))}
         candidates={candidates}
         initialKind={kind}

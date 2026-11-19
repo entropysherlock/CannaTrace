@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
+import { ShipToPicker } from "@/components/ship-to-picker";
 import { DistributionTabs, Pill, usd } from "@/components/distribution-ui";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { customers, destinations, orderLines, orders } from "@/db/schema";
@@ -35,7 +36,12 @@ export default async function OrdersPage() {
       .where(and(eq(destinations.orgId, session.orgId), eq(destinations.active, true), eq(customers.active, true), eq(customers.weSellTo, true)))
       .orderBy(asc(customers.name), asc(destinations.name)),
   ]);
-  const vendorsWithDestinations = [...new Map(customerRows.map((d) => [d.vendorId, d.vendor])).entries()];
+  // Vendors you sell to, for "another location for …" in the add drawer.
+  const sellTo = await db
+    .select({ id: customers.id, name: customers.name })
+    .from(customers)
+    .where(and(eq(customers.orgId, session.orgId), eq(customers.active, true), eq(customers.weSellTo, true)))
+    .orderBy(asc(customers.name));
 
   return (
     <>
@@ -69,39 +75,16 @@ export default async function OrdersPage() {
         </div>
         {can(session, "sales.write") ? (
           <Card title="Start an order">
-            {customerRows.length === 0 ? (
-              <p className="text-sm text-slate-600">
-                Add a vendor you sell to, with a destination, on the{" "}
-                <Link href="/distribution/customers" className="font-semibold text-brand-700 hover:underline">
-                  Vendors
-                </Link>{" "}
-                tab.
-              </p>
-            ) : (
-              <ActionForm action={orderAction} submitLabel="Start order">
-                <Field label="Ship to" hint="Vendor and destination. Its license is checked when the order ships.">
-                  <select name="destinationId" required defaultValue="" className={inputClass}>
-                    <option value="" disabled>
-                      Choose a vendor and destination
-                    </option>
-                    {vendorsWithDestinations.map(([vendorId, vendor]) => (
-                      <optgroup key={vendorId} label={vendor}>
-                        {customerRows
-                          .filter((d) => d.vendorId === vendorId)
-                          .map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name === vendor ? vendor : `${vendor} – ${d.name}`} ({d.license})
-                            </option>
-                          ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Notes (optional)">
-                  <input name="notes" maxLength={500} className={inputClass} />
-                </Field>
-              </ActionForm>
-            )}
+            <ActionForm action={orderAction} submitLabel="Start order">
+              <ShipToPicker
+                canAdd
+                options={customerRows.map((d) => ({ id: d.id, label: `${d.name === d.vendor ? d.vendor : `${d.vendor} – ${d.name}`} (${d.license})`, group: d.vendor }))}
+                vendors={sellTo}
+              />
+              <Field label="Notes (optional)">
+                <input name="notes" maxLength={500} className={inputClass} />
+              </Field>
+            </ActionForm>
           </Card>
         ) : null}
       </div>

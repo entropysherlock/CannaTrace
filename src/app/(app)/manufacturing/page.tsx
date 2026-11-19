@@ -4,10 +4,12 @@ import Link from "next/link";
 import { CheckCircle2, CircleDollarSign, Factory, FlaskConical, Gauge, Plus, Search, X, type LucideIcon } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ManufacturingTabs } from "@/components/manufacturing-tabs";
+import { RecipePicker } from "@/components/recipe-form";
 import { Card, Field, PageHeader, ScrollBox, buttonLinkClass, inputClass } from "@/components/ui";
 import { boms, items, productionRuns } from "@/db/schema";
 import { db } from "@/lib/db";
 import { suggestRunName, summarizeRuns, yieldPercent } from "@/lib/manufacturing-math";
+import { itemCategoryNames } from "@/lib/quick-create-data";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
@@ -64,7 +66,7 @@ export default async function ManufacturingPage({ searchParams }: { searchParams
   const q = (params.q ?? "").trim().slice(0, 80);
   const canWrite = can(session, "manufacturing.write");
 
-  const [runs, recipes] = await Promise.all([
+  const [runs, recipes, itemRows, categories] = await Promise.all([
     db
       .select({ run: productionRuns, recipeName: boms.name, itemName: items.name, unit: items.unit })
       .from(productionRuns)
@@ -79,6 +81,11 @@ export default async function ManufacturingPage({ searchParams }: { searchParams
       .innerJoin(items, eq(items.id, boms.outputItemId))
       .where(and(eq(boms.orgId, session.orgId), eq(boms.active, true)))
       .orderBy(asc(boms.name)),
+    // For "+ Add recipe", only fetched when this person can start a run.
+    canWrite
+      ? db.select({ id: items.id, name: items.name, unit: items.unit }).from(items).where(and(eq(items.orgId, session.orgId), eq(items.active, true))).orderBy(asc(items.name))
+      : Promise.resolve([]),
+    canWrite ? itemCategoryNames(session.orgId) : Promise.resolve([]),
   ]);
 
   const stats = summarizeRuns(runs.map((r) => r.run));
@@ -88,7 +95,8 @@ export default async function ManufacturingPage({ searchParams }: { searchParams
     ({ run, recipeName, itemName }) =>
       (!status || run.status === status) && (!needle || [run.name, recipeName, itemName].some((t) => t.toLowerCase().includes(needle))),
   );
-  const showForm = canWrite && recipes.length > 0 && (params.new === "1" || runs.length === 0);
+  // With no recipes yet the form still shows: "+ Add recipe" makes the first one without leaving it.
+  const showForm = canWrite && (params.new === "1" || runs.length === 0);
 
   return (
     <>
@@ -96,7 +104,7 @@ export default async function ManufacturingPage({ searchParams }: { searchParams
         title="Manufacturing"
         subtitle="Turn input packages into finished product, with yield and cost on every run."
         action={
-          canWrite && recipes.length > 0 && !showForm ? (
+          canWrite && !showForm ? (
             <Link href={`${href(status, q, "new")}#new-run`} className={buttonLinkClass} data-testid="new-run">
               <Plus className="h-4 w-4" aria-hidden="true" />
               New run
@@ -136,18 +144,12 @@ export default async function ManufacturingPage({ searchParams }: { searchParams
                 <Field label="Run name or number" hint="Suggested for today. Change it to your own batch number if you have one.">
                   <input name="name" required maxLength={80} defaultValue={suggestRunName(runs.map((r) => r.run.name), new Date(), zone)} className={inputClass} />
                 </Field>
-                <Field label="Recipe">
-                  <select name="recipeId" required defaultValue="" className={inputClass}>
-                    <option value="" disabled>
-                      Choose a recipe
-                    </option>
-                    {recipes.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} (one batch makes {num(r.outputQuantity)} {unitLabel(r.unit)})
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                <RecipePicker
+                  recipes={recipes.map((r) => ({ id: r.id, label: `${r.name} (one batch makes ${num(r.outputQuantity)} ${unitLabel(r.unit)})` }))}
+                  items={itemRows.map((item) => ({ id: item.id, label: `${item.name} (${unitLabel(item.unit)})` }))}
+                  categories={categories}
+                  canAddItems
+                />
                 <Field label="How many batches" hint="1 makes the recipe once. 2.5 makes it two and a half times.">
                   <input name="batches" inputMode="decimal" defaultValue="1" required className={inputClass} />
                 </Field>

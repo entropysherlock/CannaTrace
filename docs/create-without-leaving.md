@@ -35,17 +35,17 @@ Legend: ✅ done in this change · ⏭ next · 🧭 needs a guided drawer (compl
 | Cultivation | Move plants / harvest (plants page) | Room / dry room | Leave for Settings | `settings.manage` | `addRoom` | ✅ |
 | Cultivation | Package a harvest (harvest page) | Item counted by weight; location | "Add an item … on the Items page first" | `catalog.manage` | `quickAddItem` (weight units only, checked on the server); `createLocation` | ✅ |
 | Inventory | Receive (`/inventory/receive`) | Item | Leave for Catalog | `catalog.manage` | `quickAddItem` | ✅ |
-| Inventory | Receive / receive shipment | Vendor | Leave for Distribution → Customers | `sales.write` | `createCustomer` (vendors are customer records) | 🧭 license fields |
+| Inventory | Receive / receive shipment | Vendor | Leave for Distribution → Vendors | `sales.write` | `createCustomer` (vendors are customer records); matched on license number | ✅ guided drawer |
 | Inventory | Receive / receive shipment | Location | Leave for Locations | `catalog.manage` | `createLocation` (moved into the library; the Locations page uses it too) | ✅ |
-| Catalog | Add item | Category | "Add a category first" | `catalog.manage` | `addCategory` → move to lib | ⏭ |
+| Catalog | Add item | Category | "Add a category first" | `catalog.manage` | `createCategory` (moved into the library) | ✅ |
 | Manufacturing | Recipe form | Input/output item | Had its own inline box | `manufacturing.write` or `catalog.manage` | `quickAddItem` | ✅ moved onto `CreatableSelect` |
-| Manufacturing | Start a production run | Recipe | Leave for Recipes tab | `manufacturing.write` | `createRecipe` | 🧭 inputs and outputs |
-| Distribution | New order (`/distribution`) | Customer; destination | "Add a customer, then start an order" | `sales.write` | `createCustomer`, `createDestination` | 🧭 license verification |
+| Manufacturing | Start a production run | Recipe (and any item it needs, in a dialog on top) | Leave for Recipes tab | `manufacturing.write` | `createRecipe` | ✅ guided drawer |
+| Distribution | New order (`/distribution`) | New vendor, or a new destination for an existing one | "Add a customer, then start an order" | `sales.write` | `createCustomer`, `createDestination`; optional license check via `verifyCustomerLicense` / `verifyDestinationLicense` | ✅ guided drawer |
 | Distribution | Order → ship | Driver; vehicle | "Add a driver and a vehicle first" | `sales.write` | `createDriver`, `createVehicle` (now return the new id); matched on license number / plate | ✅ |
 | Distribution | Order → add line | Item | Leave for Catalog | `catalog.manage` | `quickAddItem` | ✅ |
 | Register | Menu (`/pos/menu`) | Item | Leave for Catalog | `pos.manage` + `catalog.manage` | `quickAddItem` | ✅ |
-| SmartLabel | Print station | Label template | "No template for this label type yet" | `labels.manage` | template service | 🧭 designer |
-| SmartLabel | Print station | Printer preset | Leave for Printers | `labels.manage` | `savePrinterAction` → lib | ⏭ |
+| SmartLabel | Print station | Label template | "No template for this label type yet" | `labels.manage` | `createTemplate` (copy), `setTemplateArchived` (bring back); a new design opens the designer in a new tab | ✅ |
+| SmartLabel | Print station | Printer preset | Leave for Printers | `labels.manage` | `savePrinter` | ✅ |
 
 Pickers that only choose among existing records and should **not** get a create button: plants, packages, batches, harvests, allocations, order lines, and anything whose creation is itself a compliance event.
 
@@ -61,9 +61,22 @@ Pickers that only choose among existing records and should **not** get a create 
 2. ✅ Rooms and locations everywhere they are picked (batch tag, plant move and harvest, harvest packaging, receive, receive shipment).
 3. ✅ Items: receive, harvest packaging, order lines, register menu, and the recipe form (its own inline box is gone).
 4. ✅ Driver and vehicle on the order page. The "add a driver and a vehicle first" dead end is gone.
-5. Next: guided drawers for customer or vendor with license verification, destination, recipe, label template and printer preset. Category on the Catalog page is quick (one field) and can go in at the same time.
+5. ✅ Guided drawers: vendor while receiving, ship-to (new vendor or new destination) on a new order, recipe on a production run. Plus category on the Catalog page, and template and printer preset at the SmartLabel print station.
+
+## Guided drawers
+
+A `CreateConfig` with `steps` opens as a side drawer (a bottom sheet on phones) that asks for a record a step at a time:
+- **Next** checks the current step's required boxes first. Enter on an early step moves on rather than saving.
+- **Back** keeps everything typed. All steps' answers are sent together at the end.
+- A dialog can open on top of the drawer (for example **+ Add item** inside **+ Add recipe**). Each closes back to the one beneath it.
+- **License check step:** the license is never verified silently. The last step offers an explicit, unticked "I looked this license up on the state's license search today" box. Ticking it calls the same verification function as the vendor page, logged the same way. An already-expired license can't be ticked. Left unticked, the vendor or destination starts unverified, and orders to it can't be confirmed or shipped until someone verifies it, exactly as before.
+- **Confirm before changing related records:** a server action can answer `confirm` instead of saving. For example, a license already on file belongs to a vendor not yet marked "we buy from". The drawer shows the question, and only a press of its button sends the form again with `confirm=1`.
+
+The SmartLabel template designer stays a full page. When there's nothing to copy, **Design one in a new tab** opens it, so the print station keeps the chosen records.
 
 ## Tests
+
+Guided drawers: vendor while receiving (step checks, Back keeps answers, saved unverified), an existing license offered with a yes-first "we buy from" change, inventory staff told who adds vendors, a new order shipping to a new vendor (ticked as checked) or a new location of an existing one (left unverified, and the order says so), an expired license refused for the check, a recipe with a brand-new output item added in a dialog on top of the drawer, a category while adding an item, a template copy and printer preset at the print station (records stay chosen), print-only staff with no add buttons, and the drawer as a phone bottom sheet. `tests/quick-create.test.ts` covers the library pieces.
 
 Also exercised: tagging plants into a new room, moving ticked plants into a new room (the ticks stay), packaging a harvest (weight units only, and an existing "each" item can't be used), receiving with a new item and location, receiving a shipment with a new location, an order line with a new item (sales staff without catalog rights see who to ask), a register menu item, the recipe form (`manufacturing.spec.ts`), and a new driver and vehicle on the Ship step (`distribution.spec.ts`).
 

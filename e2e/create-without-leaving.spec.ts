@@ -394,3 +394,216 @@ test("register: a menu item can be added to the catalog while setting its shelf 
   await page.getByRole("button", { name: "Save menu item" }).click();
   await expect(page.getByText("Menu item saved.")).toBeVisible();
 });
+
+// ---------- Guided drawers for records with many required fields ----------
+
+const nextYear = `${new Date().getFullYear() + 1}-06-30`;
+
+test("inventory: a vendor is added through the guided drawer while receiving, step by step", async ({ page }) => {
+  const id = run();
+  await signIn(page, "manager@demo.test", "/inventory/receive");
+  await page.locator('input[name="quantity"]').fill("3");
+  await page.locator('input[name="note"]').fill(`note ${id}`);
+  await page.getByRole("button", { name: "Add vendor" }).click();
+  const drawer = dialog(page);
+  await expect(drawer).toHaveAttribute("data-variant", "drawer");
+  await expect(drawer.getByRole("list", { name: "Steps" }).locator('[aria-current="step"]')).toContainText("Business & license");
+
+  // Next checks this step's required boxes before moving on.
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await expect(drawer.locator('input[name="name"]')).toBeFocused();
+  await expect(drawer.locator('input[name="phone"]')).toBeHidden();
+
+  await drawer.locator('input[name="name"]').fill(`Grower ${id}`);
+  await drawer.locator('input[name="licenseNumber"]').fill(`lic-${id}`);
+  await drawer.locator('input[name="licenseType"]').fill("Producer");
+  await drawer.locator('input[name="licenseExpires"]').fill(nextYear);
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await drawer.locator('input[name="phone"]').fill("505-555-0199");
+  // Back keeps what was typed on the first step.
+  await drawer.getByRole("button", { name: "Back" }).click();
+  await expect(drawer.locator('input[name="name"]')).toHaveValue(`Grower ${id}`);
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await expect(drawer.locator('input[name="phone"]')).toHaveValue("505-555-0199");
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await expect(drawer.locator('input[name="verifyNow"]')).not.toBeChecked();
+  await drawer.getByRole("button", { name: "Save vendor" }).click();
+  await expect(drawer).toBeHidden();
+
+  await expect(page.locator('select[name="vendorId"] option:checked')).toHaveText(`Grower ${id}`);
+  await expect(page.locator('input[name="quantity"]')).toHaveValue("3");
+  await expect(page.locator('input[name="note"]')).toHaveValue(`note ${id}`);
+
+  // Saved like the Vendors tab: a vendor we buy from, license not yet verified.
+  await page.goto("/distribution/customers");
+  await page.getByRole("link", { name: new RegExp(`Grower ${id}`) }).click();
+  await expect(page.getByText("license has not been verified yet")).toBeVisible();
+});
+
+test("inventory: a license already on file is never added twice; marking it 'we buy from' needs a yes", async ({ page }) => {
+  await signIn(page, "manager@demo.test", "/inventory/receive");
+  await page.locator('input[name="quantity"]').fill("5");
+  await page.getByRole("button", { name: "Add vendor" }).click();
+  const drawer = dialog(page);
+  await drawer.locator('input[name="name"]').fill("Bosque (typed again)");
+  await drawer.locator('input[name="licenseNumber"]').fill("demo-ret-0533");
+  await drawer.locator('input[name="licenseType"]').fill("Retailer");
+  await drawer.locator('input[name="licenseExpires"]').fill(nextYear);
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await drawer.getByRole("button", { name: "Save vendor" }).click();
+  await expect(drawer.getByRole("alert")).toContainText("Bosque Wellness already has license DEMO-RET-0533");
+  await drawer.getByRole("button", { name: "Mark Bosque Wellness as one you buy from and use it" }).click();
+  await expect(drawer).toBeHidden();
+  await expect(page.locator('select[name="vendorId"] option:checked')).toHaveText("Bosque Wellness");
+  await expect(page.locator('input[name="quantity"]')).toHaveValue("5");
+  await page.goto("/distribution/customers");
+  await expect(page.getByText("Bosque (typed again)")).toHaveCount(0);
+});
+
+test("inventory staff can receive but are told who adds vendors", async ({ page }) => {
+  await signIn(page, "inventory@demo.test", "/inventory/receive");
+  await expect(page.getByRole("button", { name: "Add item" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add vendor" })).toHaveCount(0);
+});
+
+test("distribution: a new order can ship to a brand-new vendor or a new location of an existing one", async ({ page }) => {
+  const id = run();
+  await signIn(page, "sales@demo.test", "/distribution");
+  await page.locator('input[name="notes"]').fill(`notes ${id}`);
+
+  // A brand-new vendor; ticking the license check verifies it the same way the vendor page does.
+  await page.getByRole("button", { name: "Add destination" }).click();
+  const drawer = dialog(page);
+  await drawer.locator('input[name="name"]').fill(`Shop ${id}`);
+  await drawer.locator('input[name="licenseNumber"]').fill(`R-${id}`);
+  await drawer.locator('input[name="licenseType"]').fill("Retailer");
+  await drawer.locator('input[name="licenseExpires"]').fill(nextYear);
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await drawer.locator('input[name="verifyNow"]').check();
+  await drawer.getByRole("button", { name: "Save and pick" }).click();
+  await expect(drawer).toBeHidden();
+  await expect(page.locator('select[name="destinationId"] option:checked')).toHaveText(`Shop ${id} (R-${id.toUpperCase()})`);
+  await expect(page.locator('input[name="notes"]')).toHaveValue(`notes ${id}`);
+
+  // Another licensed location for a vendor already on file.
+  await page.getByRole("button", { name: "Add destination" }).click();
+  await drawer.getByLabel("Who is it for?").selectOption({ label: "Another location for Turquoise Trail Dispensary" });
+  await drawer.locator('input[name="destinationName"]').fill(`Uptown ${id}`);
+  await drawer.locator('input[name="licenseNumber"]').fill(`U-${id}`);
+  await drawer.locator('input[name="licenseType"]').fill("Retailer");
+  await drawer.locator('input[name="licenseExpires"]').fill(nextYear);
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await expect(drawer.locator('input[name="paymentTermsDays"]')).toHaveCount(0);
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await drawer.getByRole("button", { name: "Save and pick" }).click();
+  await expect(drawer).toBeHidden();
+  await expect(page.locator('select[name="destinationId"] option:checked')).toHaveText(`Turquoise Trail Dispensary – Uptown ${id} (U-${id.toUpperCase()})`);
+
+  // An expired license can't be ticked as verified.
+  await page.getByRole("button", { name: "Add destination" }).click();
+  await drawer.locator('input[name="name"]').fill(`Old ${id}`);
+  await drawer.locator('input[name="licenseNumber"]').fill(`X-${id}`);
+  await drawer.locator('input[name="licenseType"]').fill("Retailer");
+  await drawer.locator('input[name="licenseExpires"]').fill("2020-01-31");
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await drawer.locator('input[name="verifyNow"]').check();
+  await drawer.getByRole("button", { name: "Save and pick" }).click();
+  await expect(drawer.getByRole("alert")).toContainText("expired on 2020-01-31");
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+
+  await page.getByRole("button", { name: "Start order" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^SO-\d{5}/ })).toBeVisible();
+  // It ships to the new location, which wasn't ticked as checked, so the order says so.
+  await expect(page.getByText(`Turquoise Trail Dispensary (Uptown ${id})'s license has not been verified yet`)).toBeVisible();
+});
+
+test("manufacturing: a recipe, and an item it needs, are added without leaving Start a new run", async ({ page }) => {
+  const id = run();
+  await signIn(page, "manager@demo.test", "/manufacturing?new=1");
+  await page.locator('input[name="name"]').fill(`RUN-${id}`);
+  await page.locator('input[name="batches"]').fill("2");
+  await page.getByRole("button", { name: "Add recipe" }).click();
+  const drawer = page.getByRole("dialog", { name: "Add a recipe" });
+  await drawer.locator('input[name="name"]').fill(`Rosin ${id}`);
+  // The item it makes doesn't exist yet: a second dialog opens on top of the drawer.
+  await drawer.getByRole("button", { name: "Add item" }).click();
+  const itemDialog = page.getByRole("dialog", { name: "Add an item" });
+  await itemDialog.getByLabel("Item name").fill(`Rosin Jar ${id}`);
+  await itemDialog.locator('select[name="unit"]').selectOption("EACH");
+  await itemDialog.getByRole("button", { name: "Save item" }).click();
+  await expect(itemDialog).toBeHidden();
+  await expect(drawer).toBeVisible();
+  await expect(drawer.locator('select[name="outputItemId"] option:checked')).toHaveText(`Rosin Jar ${id} (ea)`);
+  await drawer.locator('input[name="outputQuantity"]').fill("10");
+  await drawer.getByRole("button", { name: "Next" }).click();
+  await drawer.getByLabel("Input item 1").selectOption({ label: "Blue Mesa Flower (bulk) (g)" });
+  await drawer.getByLabel("Input quantity 1").fill("35");
+  await drawer.getByRole("button", { name: "Save recipe" }).click();
+  await expect(drawer).toBeHidden();
+  await expect(page.locator('select[name="recipeId"] option:checked')).toHaveText(`Rosin ${id} (one batch makes 10 ea)`);
+  await expect(page.locator('input[name="name"]').first()).toHaveValue(`RUN-${id}`);
+  await expect(page.locator('input[name="batches"]')).toHaveValue("2");
+});
+
+test("catalog: a category is added while adding an item", async ({ page }) => {
+  const id = run();
+  await signIn(page, "inventory@demo.test", "/catalog");
+  const form = page.locator('form:has(select[name="categoryId"])');
+  await form.locator('input[name="name"]').fill(`Topical ${id}`);
+  await form.getByRole("button", { name: "Add category" }).click();
+  await dialog(page).getByLabel("Category name").fill(`Topicals ${id}`);
+  await dialog(page).getByRole("button", { name: "Save category" }).click();
+  await expect(dialog(page)).toBeHidden();
+  await expect(form.locator('select[name="categoryId"] option:checked')).toHaveText(`Topicals ${id}`);
+  await expect(form.locator('input[name="name"]')).toHaveValue(`Topical ${id}`);
+});
+
+test("SmartLabel: a template copy and a printer preset are added without losing the chosen records", async ({ page }) => {
+  const id = run();
+  await signIn(page, "manager@demo.test", "/labels?kind=PACKAGE");
+  const firstRecord = page.locator('input[type="checkbox"]').first();
+  await firstRecord.check();
+  await page.getByRole("button", { name: "Add template" }).click();
+  await dialog(page).getByLabel("Name for the new template").fill(`Pkg ${id}`);
+  await dialog(page).getByRole("button", { name: "Save template" }).click();
+  await expect(dialog(page)).toBeHidden();
+  await expect(page.getByLabel("Template", { exact: true }).locator("option:checked")).toContainText(`Pkg ${id}`);
+  await expect(firstRecord).toBeChecked();
+
+  await page.getByRole("button", { name: "Add printer" }).click();
+  await dialog(page).getByLabel("Printer name").fill(`Zebra ${id}`);
+  await dialog(page).getByLabel("Shift right (mm)").fill("1.5");
+  await dialog(page).getByRole("button", { name: "Save printer" }).click();
+  await expect(dialog(page)).toBeHidden();
+  await expect(page.getByLabel("Printer", { exact: true }).locator("option:checked")).toHaveText(`Zebra ${id}`);
+  await expect(firstRecord).toBeChecked();
+  await page.getByRole("button", { name: "Check and preview" }).click();
+  await expect(page.getByText(/ready to print|labels? ready|Preview/i).first()).toBeVisible();
+});
+
+test("SmartLabel: people who only print can't add templates or printers", async ({ page }) => {
+  await signIn(page, "budtender@demo.test", "/labels?kind=PACKAGE");
+  await expect(page.getByRole("button", { name: "Add template" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add printer" })).toHaveCount(0);
+});
+
+test.describe("guided drawer on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("opens as a bottom sheet that fits and scrolls", async ({ page }) => {
+    await signIn(page, "manager@demo.test", "/inventory/receive");
+    const add = page.getByRole("button", { name: "Add vendor" });
+    await add.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await add.tap();
+    const box = await dialog(page).boundingBox();
+    const view = await page.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }));
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(view.w + 1);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(view.h + 1);
+    await expect(dialog(page).getByRole("button", { name: "Next" })).toBeInViewport();
+  });
+});

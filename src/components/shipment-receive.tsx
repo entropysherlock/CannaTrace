@@ -24,6 +24,7 @@ export function ShipmentReceive({
   locations,
   vendors,
   addLocation,
+  addVendor,
 }: {
   check: Act;
   receive: Act;
@@ -31,6 +32,8 @@ export function ShipmentReceive({
   vendors: Option[];
   /** Set when this person may add locations, so a missing one is added without leaving the shipment. */
   addLocation?: CreateConfig;
+  /** Set when this person may add vendors (sales), through the guided vendor drawer. */
+  addVendor?: CreateConfig;
 }) {
   const form = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<ShipmentState>(null);
@@ -88,17 +91,14 @@ export function ShipmentReceive({
           create={addLocation}
           deniedHint="Location missing? Someone who manages the catalog can add it on the Locations page."
         />
-        <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-slate-800">Vendor (optional)</span>
-          <select name="vendorId" defaultValue="" className={inputClass} onChange={() => setState(null)}>
-            <option value="">Not listed</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <CreatableSelect
+          name="vendorId"
+          label="Vendor (optional)"
+          placeholder="Not listed"
+          options={vendors.map((v) => ({ id: v.id, label: v.name }))}
+          onChange={() => setState(null)}
+          create={addVendor}
+        />
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-slate-800">Manifest file (CSV or Excel)</span>
           <input
