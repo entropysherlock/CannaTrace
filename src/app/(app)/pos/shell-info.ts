@@ -21,6 +21,7 @@ export async function shellInfo(session: Session): Promise<ShellInfo & { drawerI
     storeName: facility?.name ?? "Store",
     clerkName: session.name,
     canManage: can(session, "pos.manage"),
+    timeZone: zone,
     drawerId: drawer?.id ?? null,
     drawerLine: drawer
       ? `Your drawer open since ${drawer.openedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: zone })} by ${drawer.openedBy}`
