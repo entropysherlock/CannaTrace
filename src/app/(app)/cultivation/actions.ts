@@ -10,6 +10,7 @@ import {
   createTask,
   destroyBatchPlants,
   destroyPlants,
+  findStrainByName,
   finishHarvest,
   harvestPlants,
   logHarvestWaste,
@@ -18,7 +19,9 @@ import {
   recordDryWeight,
   tagPlants,
 } from "@/lib/cultivation";
+import { toCreateError, type CreateResult } from "@/lib/contextual-create";
 import { expandTags, parseTagList } from "@/lib/cultivation-math";
+import { addRoom, findLocationByName } from "@/lib/facilities";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { InventoryError, type Actor } from "@/lib/inventory";
 import { requirePermission } from "@/lib/session";
@@ -42,6 +45,49 @@ export async function strainAction(_state: FormState, formData: FormData): Promi
     return { ok: `Added ${name}.` };
   } catch (error) {
     return toFormError(error);
+  }
+}
+
+// ---- Create without leaving: prerequisites added from inside the Start a batch form ----
+
+/** Add a strain from the batch form. Same checks, rules, and audit entry as the Strains tab. */
+export async function quickStrainAction(formData: FormData): Promise<CreateResult> {
+  try {
+    const actor = await cultivationActor();
+    const name = field(formData, "name");
+    const twin = await findStrainByName(actor.orgId, name);
+    if (twin?.active) return { existing: { id: twin.id, label: twin.name } };
+    if (twin) return { error: `A strain called ${twin.name} is already on file but turned off, so it can't be picked. Use a different name.` };
+    const strain = await createStrain(actor, { name, type: field(formData, "type"), floweringDays: field(formData, "floweringDays") });
+    revalidatePath("/cultivation", "layout");
+    return { created: { id: strain.id, label: name.replace(/\s+/g, " ") } };
+  } catch (error) {
+    return toCreateError(error);
+  }
+}
+
+/**
+ * Add a room from the batch form. Rooms are facility settings, so this needs the same
+ * "settings.manage" permission as Settings → Facilities, and it is always made at the facility
+ * the employee is signed in to.
+ */
+export async function quickRoomAction(formData: FormData): Promise<CreateResult> {
+  try {
+    const session = await requirePermission("settings.manage");
+    const name = field(formData, "name");
+    const twin = await findLocationByName(session.orgId, session.facilityId, name);
+    if (twin) return { existing: { id: twin.id, label: twin.name } };
+    const room = await addRoom(
+      { orgId: session.orgId, userId: session.userId, userName: session.name, facilityId: session.facilityId },
+      session.facilityId,
+      { name, area: field(formData, "area") },
+    );
+    revalidatePath("/cultivation", "layout");
+    revalidatePath("/settings/facilities");
+    revalidatePath("/locations");
+    return { created: { id: room.id, label: room.name } };
+  } catch (error) {
+    return toCreateError(error);
   }
 }
 

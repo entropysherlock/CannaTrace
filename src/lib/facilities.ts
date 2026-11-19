@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { auditLogs, facilities, licenseTypeEnum, locations, organizations } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
@@ -123,6 +123,17 @@ async function facilityInOrg(actor: FacilityActor, facilityId: string) {
   const [f] = await db.select({ id: facilities.id }).from(facilities).where(and(eq(facilities.id, facilityId), eq(facilities.orgId, actor.orgId)));
   if (!f) throw new InventoryError("That facility was not found.");
   return f;
+}
+
+/** A room or location at this facility with this name, ignoring letter case and extra spaces. */
+export async function findLocationByName(orgId: string, facilityId: string, name: string): Promise<{ id: string; name: string } | null> {
+  const clean = name.trim().replace(/\s+/g, " ");
+  if (!clean) return null;
+  const [row] = await db
+    .select({ id: locations.id, name: locations.name })
+    .from(locations)
+    .where(and(eq(locations.orgId, orgId), eq(locations.facilityId, facilityId), sql`lower(btrim(${locations.name})) = lower(${clean})`));
+  return row ?? null;
 }
 
 /** A room is a ROOM location with an area type. It shows up anywhere the facility's locations are listed. */

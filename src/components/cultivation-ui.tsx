@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { inputClass } from "./ui";
+import { strainTypeEnum } from "@/db/schema";
+import { ROOM_AREAS } from "@/lib/rooms";
+import { Field, inputClass } from "./ui";
 import { WeightUnitSelect } from "./weight-unit-select";
 
 const TABS = [
@@ -47,4 +49,47 @@ export function grams(value: string | null): string {
 
 export function daysSince(date: Date): number {
   return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86_400_000));
+}
+
+/** A strain's fields. Used by the Strains tab and by "Add strain" inside Start a batch, so both ask the same things. */
+export function StrainFields() {
+  return (
+    <>
+      <Field label="Name">
+        <input name="name" required maxLength={80} className={inputClass} />
+      </Field>
+      <Field label="Type">
+        <select name="type" required defaultValue="HYBRID" className={inputClass}>
+          {strainTypeEnum.enumValues.map((type) => (
+            <option key={type} value={type}>
+              {type === "CBD" ? "CBD" : type.charAt(0) + type.slice(1).toLowerCase()}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Flowering days (optional)">
+        <input name="floweringDays" inputMode="numeric" className={inputClass} />
+      </Field>
+    </>
+  );
+}
+
+/** A room's fields for the quick add, the same two that Settings → Facilities asks for. */
+export function QuickRoomFields() {
+  return (
+    <>
+      <Field label="Room name" hint='Any name you like, for example "Clone Room 2".'>
+        <input name="name" required maxLength={80} className={inputClass} />
+      </Field>
+      <Field label="Room area type">
+        <select name="area" required defaultValue="PROPAGATION" className={inputClass}>
+          {ROOM_AREAS.map((a) => (
+            <option key={a.value} value={a.value}>
+              {a.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+    </>
+  );
 }
