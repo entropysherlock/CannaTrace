@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LabelLink } from "@/components/labels/label-link";
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, or } from "drizzle-orm";
 import { ScanInput } from "@/components/scan-input";
 import { buttonLinkClass, inputBase, PageHeader, ScrollBox, StatusBadge } from "@/components/ui";
 import { items, locations, packages, type PackageStatus } from "@/db/schema";
@@ -9,18 +9,40 @@ import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { formatQty } from "@/lib/units";
 
+const PAGE_SIZE = 200;
 const STATUSES: PackageStatus[] = ["ACTIVE", "ALLOCATED", "ON_HOLD", "QUARANTINE", "FINISHED", "DESTROYED"];
 
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
 }) {
   const session = await requirePagePermission("inventory.view");
-  const { q = "", status = "" } = await searchParams;
+  const { q = "", status = "", page: pageParam = "1" } = await searchParams;
   const query = q.trim();
   // Escape LIKE wildcards so a scanned tag containing % or _ is matched literally.
   const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
+  const filter =
+    and(
+      eq(packages.orgId, session.orgId),
+      eq(packages.facilityId, session.facilityId),
+      STATUSES.includes(status as PackageStatus) ? eq(packages.status, status as PackageStatus) : undefined,
+      query
+        ? or(
+            ilike(packages.tag, pattern),
+            ilike(packages.lotNumber, pattern),
+            ilike(items.name, pattern),
+            ilike(items.sku, pattern),
+          )
+        : undefined,
+    );
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(packages)
+    .innerJoin(items, eq(items.id, packages.itemId))
+    .where(filter);
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(pages, Math.max(1, Number.parseInt(pageParam, 10) || 1));
   const rows = await db
     .select({
       id: packages.id,
@@ -34,29 +56,30 @@ export default async function InventoryPage({
     .from(packages)
     .innerJoin(items, eq(items.id, packages.itemId))
     .leftJoin(locations, eq(locations.id, packages.locationId))
-    .where(
-      and(
-        eq(packages.orgId, session.orgId),
-        eq(packages.facilityId, session.facilityId),
-        STATUSES.includes(status as PackageStatus) ? eq(packages.status, status as PackageStatus) : undefined,
-        query
-          ? or(
-              ilike(packages.tag, pattern),
-              ilike(packages.lotNumber, pattern),
-              ilike(items.name, pattern),
-              ilike(items.sku, pattern),
-            )
-          : undefined,
-      ),
-    )
-    .orderBy(desc(packages.createdAt))
-    .limit(200);
+    .where(filter)
+    .orderBy(desc(packages.createdAt), desc(packages.id))
+    .limit(PAGE_SIZE)
+    .offset((page - 1) * PAGE_SIZE);
+  const first = total ? (page - 1) * PAGE_SIZE + 1 : 0;
+  const last = (page - 1) * PAGE_SIZE + rows.length;
+  const pageHref = (n: number) => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (status) params.set("status", status);
+    if (n > 1) params.set("page", String(n));
+    const qs = params.toString();
+    return qs ? `/inventory?${qs}` : "/inventory";
+  };
 
   return (
     <>
       <PageHeader
         title="Inventory"
-        subtitle={`${rows.length} package${rows.length === 1 ? "" : "s"} shown`}
+        subtitle={
+          total <= PAGE_SIZE
+            ? `${total.toLocaleString("en-US")} package${total === 1 ? "" : "s"}`
+            : `Showing ${first.toLocaleString("en-US")}–${last.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} packages`
+        }
         action={
           <div className="flex flex-wrap items-center gap-2">
             {can(session, "labels.print") ? (
@@ -116,6 +139,27 @@ export default async function InventoryPage({
           ))}
         </ul>
         </ScrollBox>
+        {pages > 1 ? (
+          <nav aria-label="Pages" className="flex items-center justify-between gap-2 border-t border-slate-200 px-4 py-3 text-sm">
+            {page > 1 ? (
+              <Link href={pageHref(page - 1)} className="font-semibold text-brand-700 hover:underline">
+                ← Newer
+              </Link>
+            ) : (
+              <span className="text-slate-400">← Newer</span>
+            )}
+            <span className="text-slate-600">
+              Page {page} of {pages}
+            </span>
+            {page < pages ? (
+              <Link href={pageHref(page + 1)} className="font-semibold text-brand-700 hover:underline">
+                Older →
+              </Link>
+            ) : (
+              <span className="text-slate-400">Older →</span>
+            )}
+          </nav>
+        ) : null}
         </div>
       )}
     </>

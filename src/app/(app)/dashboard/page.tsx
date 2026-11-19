@@ -22,7 +22,7 @@ import {
   XCircle,
   type LucideIcon,
 } from "lucide-react";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, or } from "drizzle-orm";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ActivityChart } from "@/components/activity-chart";
@@ -123,7 +123,8 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
     await db
       .select({ id: facilitiesTable.id, name: facilitiesTable.name, license: facilitiesTable.licenseNumber, system: facilitiesTable.trackTraceSystem })
       .from(facilitiesTable)
-      .where(eq(facilitiesTable.orgId, session.orgId))
+      // Hidden facilities stay off the menu and Dashboard, except the one you're in.
+      .where(and(eq(facilitiesTable.orgId, session.orgId), or(eq(facilitiesTable.active, true), eq(facilitiesTable.id, session.facilityId))))
       .orderBy(asc(facilitiesTable.name)),
     session,
   );
@@ -175,7 +176,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   };
   const flow = [
     { icon: Sprout, label: "Cultivation", value: `${num(c.plants.total)} plants`, href: links.cultivation },
-    { icon: Boxes, label: "Inventory", value: `${num(c.packages.active)} packages`, href: links.inventory },
+    { icon: Boxes, label: "Inventory", value: `${num(c.packages.active)} in stock`, href: links.inventory },
     { icon: FlaskConical, label: "Manufacturing", value: `${num(c.production.inProgress)} run${c.production.inProgress === 1 ? "" : "s"} going`, href: links.manufacturing },
     { icon: Truck, label: "Distribution", value: `${num(c.orders.open)} open order${c.orders.open === 1 ? "" : "s"}`, href: links.distribution },
     { icon: Store, label: "Retail", value: `${usd(c.sales.today)} today`, href: links.retail },
@@ -230,9 +231,9 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
         <Kpi
           icon={Boxes}
           value={num(c.packages.active)}
-          label="Active packages"
+          label="Packages in stock"
           href={links.inventory}
-          sub={<span className="text-xs text-slate-500">{c.packages.held ? `${num(c.packages.held)} on hold or quarantined` : "none on hold"}</span>}
+          sub={<span className="text-xs text-slate-500">of {num(c.packages.total)} total{c.packages.held ? ` · ${num(c.packages.held)} on hold or quarantined` : ""}</span>}
         />
         <Kpi icon={Truck} value={num(c.orders.open)} label="Open wholesale orders" href={links.distribution} sub={<span className="text-xs text-slate-500">{num(c.orders.toShip)} to pick or ship</span>} />
         <Kpi icon={CircleDollarSign} value={usd(c.sales.today)} label="Sales today" href={links.reports} sub={<span className="text-xs text-slate-500">{num(c.sales.todayTickets)} sale{c.sales.todayTickets === 1 ? "" : "s"} and invoices</span>} />

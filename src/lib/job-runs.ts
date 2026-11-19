@@ -1,7 +1,7 @@
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, min } from "drizzle-orm";
 import vercel from "../../vercel.json";
-import { jobRuns, type JobRun } from "@/db/schema";
+import { jobRuns, syncEvents, type JobRun } from "@/db/schema";
 import { db } from "@/lib/db";
 
 /**
@@ -75,8 +75,13 @@ export type JobStatus = {
   failing: boolean;
 };
 
-/** Where each job stands: last run, last success, and whether it's late or failing. */
-export async function jobStatus(job: JobName, now = new Date()): Promise<JobStatus> {
+/**
+ * Where each job stands: last run, last success, and whether it's late or failing.
+ * `waitingSince` is the oldest piece of work the job should have picked up (for sync, the oldest
+ * waiting state record). A job that has never run is only late once that work has waited longer
+ * than a full run interval: a brand-new deployment isn't "late" before its first scheduled time.
+ */
+export async function jobStatus(job: JobName, now = new Date(), waitingSince?: Date | null): Promise<JobStatus> {
   const [lastRun] = await db.select().from(jobRuns).where(eq(jobRuns.job, job)).orderBy(desc(jobRuns.startedAt)).limit(1);
   const [lastOk] = await db
     .select()
@@ -84,10 +89,18 @@ export async function jobStatus(job: JobName, now = new Date()): Promise<JobStat
     .where(and(eq(jobRuns.job, job), eq(jobRuns.status, "OK")))
     .orderBy(desc(jobRuns.startedAt))
     .limit(1);
+  if (waitingSince === undefined && job === "sync") {
+    // The sync job is platform-wide: its oldest work is the oldest waiting record anywhere.
+    const [oldest] = await db.select({ at: min(syncEvents.createdAt) }).from(syncEvents).where(eq(syncEvents.status, "PENDING"));
+    waitingSince = oldest?.at ?? null;
+  }
   const cron = cronFor(job);
   const every = expectedEveryHours(cron);
-  // Late: a scheduled job with no success within its interval plus 2 hours' slack.
-  const late = every !== null && (!lastOk || now.getTime() - lastOk.startedAt.getTime() > (every + 2) * 3600_000);
+  // Late: a scheduled job with no success within its interval plus 2 hours' slack. With no success
+  // on record at all, measure from its first attempt, or else from the oldest work waiting for it.
+  const slack = every === null ? 0 : (every + 2) * 3600_000;
+  const since = lastOk?.startedAt ?? lastRun?.startedAt ?? waitingSince ?? null;
+  const late = every !== null && since !== null && now.getTime() - since.getTime() > slack;
   return {
     job,
     label: JOB_LABEL[job],
@@ -99,4 +112,18 @@ export async function jobStatus(job: JobName, now = new Date()): Promise<JobStat
     // A run still marked RUNNING after 10 minutes was cut off before it could finish.
     failing: lastRun?.status === "FAILED" || (lastRun?.status === "RUNNING" && now.getTime() - lastRun.startedAt.getTime() > 10 * 60_000),
   };
+}
+
+/**
+ * Vercel calls scheduled jobs with "Authorization: Bearer <CRON_SECRET>" only when CRON_SECRET is set
+ * in the project. If a scheduled call arrives and the secret isn't set, every run would be refused
+ * silently; record it as a failed run instead so the app warns about it.
+ */
+export async function recordMissingSecret(job: JobName, request: Request): Promise<void> {
+  if (process.env.CRON_SECRET) return;
+  if (!(request.headers.get("user-agent") ?? "").toLowerCase().startsWith("vercel-cron")) return;
+  await db
+    .insert(jobRuns)
+    .values({ job, status: "FAILED", finishedAt: new Date(), error: "CRON_SECRET is not set in Vercel, so the scheduled run was refused." })
+    .catch(() => {});
 }

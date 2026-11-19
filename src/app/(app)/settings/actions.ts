@@ -6,7 +6,7 @@ import { facilities, users } from "@/db/schema";
 import { canUseFacility } from "@/lib/facility-access";
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { addFacility, addRoom, renameBusiness, updateFacility, updateRoom } from "@/lib/facilities";
+import { addFacility, addRoom, renameBusiness, setFacilityHidden, updateFacility, updateRoom } from "@/lib/facilities";
 import { roomAreaLabel } from "@/lib/rooms";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { createSession, requirePermission, requireSession } from "@/lib/session";
@@ -117,4 +117,12 @@ export async function loadSampleFacilityAction(): Promise<FormState> {
   } catch (e) {
     return toFormError(e);
   }
+}
+
+/** Hide a facility from the menu and Dashboard, or show it again. Nothing is deleted. */
+export async function setFacilityHiddenAction(formData: FormData): Promise<void> {
+  const session = await requirePermission("settings.manage");
+  await setFacilityHidden(actorOf(session), field(formData, "facilityId"), field(formData, "hidden") === "1").catch(() => {});
+  revalidatePath("/", "layout");
+  redirect("/settings/facilities");
 }

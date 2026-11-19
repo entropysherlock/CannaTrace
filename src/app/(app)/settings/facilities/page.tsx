@@ -10,7 +10,7 @@ import { ROOM_AREAS, roomAreaLabel } from "@/lib/rooms";
 import { requirePagePermission } from "@/lib/session";
 import { hasRulePack, stateName } from "@/lib/states";
 import { SAMPLE_LICENSE } from "@/lib/demo/sample-facility";
-import { addFacilityAction, addRoomAction, loadSampleFacilityAction, switchFacility, updateFacilityAction, updateRoomAction } from "../actions";
+import { addFacilityAction, addRoomAction, loadSampleFacilityAction, setFacilityHiddenAction, switchFacility, updateFacilityAction, updateRoomAction } from "../actions";
 
 export const instant = false;
 // Loading the sample facility makes a few thousand records; give it time on the server.
@@ -141,20 +141,43 @@ export default async function FacilitiesPage() {
             return (
               <Card
                 key={f.id}
-                title={f.name}
+                title={
+                  f.active ? (
+                    f.name
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      {f.name}
+                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold uppercase text-slate-700">Hidden</span>
+                    </span>
+                  )
+                }
                 action={
                   current ? (
                     <span className="rounded-full bg-brand-600 px-2.5 py-0.5 text-[11px] font-bold uppercase text-white">You&apos;re here</span>
                   ) : (
-                    <form action={switchFacility}>
-                      <input type="hidden" name="facilityId" value={f.id} />
-                      <button type="submit" className="text-sm font-semibold text-brand-700 hover:underline">
-                        Switch to this facility
-                      </button>
-                    </form>
+                    <div className="flex items-center gap-4">
+                      <form action={switchFacility}>
+                        <input type="hidden" name="facilityId" value={f.id} />
+                        <button type="submit" className="text-sm font-semibold text-brand-700 hover:underline">
+                          Switch to this facility
+                        </button>
+                      </form>
+                      <form action={setFacilityHiddenAction}>
+                        <input type="hidden" name="facilityId" value={f.id} />
+                        <input type="hidden" name="hidden" value={f.active ? "1" : "0"} />
+                        <button type="submit" className="text-sm font-semibold text-slate-600 hover:underline" data-testid="facility-hide">
+                          {f.active ? "Hide" : "Show again"}
+                        </button>
+                      </form>
+                    </div>
                   )
                 }
               >
+                {f.active ? null : (
+                  <p className="mb-3 text-sm text-slate-600">
+                    Hidden from the facility menu and the Dashboard. Nothing was deleted: its records, audit trail, and state reports are kept.
+                  </p>
+                )}
                 <dl className="mb-4 grid grid-cols-2 gap-y-1 text-sm sm:grid-cols-4" data-testid="facility-details">
                   <dt className="text-slate-600">License</dt>
                   <dd className="font-semibold">{f.licenseNumber}</dd>

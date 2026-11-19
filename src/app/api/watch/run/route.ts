@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { deleteExpiredAttachments } from "@/lib/assistant/attachments/store";
-import { recordRun } from "@/lib/job-runs";
+import { recordMissingSecret, recordRun } from "@/lib/job-runs";
 import { sweepAll } from "@/lib/watch";
 
 export const maxDuration = 60;
@@ -11,7 +11,10 @@ export async function GET(request: Request) {
   const given = request.headers.get("authorization") ?? "";
   const expected = `Bearer ${secret ?? ""}`;
   const ok = Boolean(secret) && given.length === expected.length && timingSafeEqual(Buffer.from(given), Buffer.from(expected));
-  if (!ok) return Response.json({ error: "Not allowed." }, { status: 401 });
+  if (!ok) {
+    await recordMissingSecret("watch", request);
+    return Response.json({ error: "Not allowed." }, { status: 401 });
+  }
   try {
     return Response.json(await recordRun("watch", async () => ({ ...(await sweepAll()), expiredFiles: await deleteExpiredAttachments() })));
   } catch {
