@@ -7,6 +7,7 @@ import type { Actor } from "@/lib/inventory";
 import {
   closeDrawer,
   createDiscount,
+  removeDiscount,
   saveRetailSettings,
   setMenuItem,
   voidSale,
@@ -95,6 +96,16 @@ export async function menuItemAction(_state: FormState, formData: FormData): Pro
     });
     refresh();
     return { ok: "Menu item saved." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function removeDiscountAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const name = await removeDiscount(await manager(), { discountId: field(formData, "discountId") });
+    refresh();
+    return { ok: `Removed ${name}.` };
   } catch (error) {
     return toFormError(error);
   }

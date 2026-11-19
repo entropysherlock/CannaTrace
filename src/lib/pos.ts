@@ -143,6 +143,19 @@ export async function createDiscount(actor: Actor, input: { name: string; percen
   const percent = parsePercent(input.percent, "Discount");
   if (percent.lte(0)) throw new InventoryError("Discount must be more than zero.");
   await db.transaction(async (tx) => {
+    // Names are matched ignoring capitals, so "veteran" and "Veteran" are the same discount.
+    const [same] = await tx
+      .select()
+      .from(discountPresets)
+      .where(and(eq(discountPresets.orgId, actor.orgId), sql`lower(${discountPresets.name}) = lower(${name})`))
+      .for("update");
+    if (same?.active) throw new InventoryError(`There is already a discount called ${same.name}.`);
+    if (same) {
+      // It was removed before: bring it back with the new percentage.
+      await tx.update(discountPresets).set({ active: true, percent: percent.toFixed(3) }).where(eq(discountPresets.id, same.id));
+      await audit(tx, actor, { entityType: "Discount", entityId: same.id, action: "RESTORE", after: { name: same.name, percent: percent.toString() } });
+      return;
+    }
     const [row] = await tx
       .insert(discountPresets)
       .values({ orgId: actor.orgId, name, percent: percent.toFixed(3) })
@@ -150,6 +163,23 @@ export async function createDiscount(actor: Actor, input: { name: string; percen
       .returning({ id: discountPresets.id });
     if (!row) throw new InventoryError(`There is already a discount called ${name}.`);
     await audit(tx, actor, { entityType: "Discount", entityId: row.id, action: "CREATE", after: { name, percent: percent.toString() } });
+  });
+}
+
+/**
+ * Take a discount off the store's list. It's switched off rather than deleted, so past sales and receipts
+ * keep their record of it. Carts that already have it keep it; it can't be chosen for new ones.
+ */
+export async function removeDiscount(actor: Actor, input: { discountId: string }): Promise<string> {
+  return db.transaction(async (tx) => {
+    const [discount] = await tx
+      .update(discountPresets)
+      .set({ active: false })
+      .where(and(eq(discountPresets.id, input.discountId), eq(discountPresets.orgId, actor.orgId), eq(discountPresets.active, true)))
+      .returning();
+    if (!discount) throw new InventoryError("That discount was not found. It may already be removed.");
+    await audit(tx, actor, { entityType: "Discount", entityId: discount.id, action: "REMOVE", before: { name: discount.name, percent: discount.percent } });
+    return discount.name;
   });
 }
 

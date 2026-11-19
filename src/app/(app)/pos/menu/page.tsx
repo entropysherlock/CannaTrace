@@ -13,7 +13,7 @@ import { getRetailSettings } from "@/lib/pos";
 import { LIMIT_LABELS } from "@/lib/pos-math";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
-import { discountPresetAction, menuItemAction } from "../actions";
+import { discountPresetAction, menuItemAction, removeDiscountAction } from "../actions";
 
 export default async function MenuPage() {
   const session = await requirePagePermission("pos.manage");
@@ -31,7 +31,11 @@ export default async function MenuPage() {
       .from(items)
       .where(and(eq(items.orgId, session.orgId), eq(items.active, true)))
       .orderBy(asc(items.name)),
-    db.select().from(discountPresets).where(eq(discountPresets.orgId, session.orgId)).orderBy(asc(discountPresets.name)),
+    db
+      .select()
+      .from(discountPresets)
+      .where(and(eq(discountPresets.orgId, session.orgId), eq(discountPresets.active, true)))
+      .orderBy(asc(discountPresets.name)),
   ]);
   const num = (value: Decimal.Value) => new Decimal(value).toString();
   const prefills: StatePrefill[] = Object.values(PACKS)
@@ -90,9 +94,12 @@ export default async function MenuPage() {
             ) : (
               <ul className="divide-y divide-slate-100 text-sm">
                 {discounts.map((d) => (
-                  <li key={d.id} className="flex justify-between gap-3 py-2">
+                  <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
                     <span className="font-medium text-slate-900">{d.name}</span>
-                    <span className="font-semibold">{num(d.percent)}% off</span>
+                    <span className="ml-auto font-semibold">{num(d.percent)}% off</span>
+                    <ActionForm action={removeDiscountAction} submitLabel={`Remove ${d.name}`} quiet className="flex items-start">
+                      <input type="hidden" name="discountId" value={d.id} />
+                    </ActionForm>
                   </li>
                 ))}
               </ul>
