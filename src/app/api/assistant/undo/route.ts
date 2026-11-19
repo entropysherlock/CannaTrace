@@ -9,6 +9,7 @@ import { currentSession } from "@/lib/session";
 import { tallyChanges } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { inFacilityZone } from "@/lib/time";
+import { refreshWatch } from "@/lib/watch";
 
 /** One-click Undo for a change Tally made. Same permissions as making it; all or nothing. */
 export async function POST(request: Request) {
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
       undoChange({ userId: session.userId, userName: `${session.name} (undo via assistant)`, orgId: session.orgId, facilityId: session.facilityId }, String(changeId)),
     );
     revalidatePath("/", "layout");
+    await refreshWatch(session);
     return NextResponse.json({ ok: message });
   } catch (error) {
     if (error instanceof InventoryError) return NextResponse.json({ error: error.message }, { status: 422 });
