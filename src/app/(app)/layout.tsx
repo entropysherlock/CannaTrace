@@ -5,7 +5,7 @@ import { WALKTHROUGHS } from "@/lib/walkthroughs";
 import { Logo } from "@/components/logo";
 import { MainColumn } from "@/components/main-column";
 import { FacilitySwitcher, TopBarRight } from "@/components/top-bar";
-import { openFindings } from "@/lib/watch";
+import { openFindings, sweepIfStaleBriefly } from "@/lib/watch";
 import { tallyAvailability } from "@/lib/ai/connection";
 import { retentionHours } from "@/lib/assistant/attachments/store";
 import { BottomNav, SectionTabs, SideNav, type NavGroup, type NavItem, type Tab } from "@/components/side-nav";
@@ -26,7 +26,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await requireSession();
   const supportAdmin = !session.support && (await isPlatformAdmin(session.userId));
   const tally = await tallyAvailability(session);
-  // The bell in the top bar: what Tally Watch has open at this facility.
+  // The bell in the top bar: what Tally Watch has open at this facility. Re-check first when anything has
+  // changed since the last look, so a fixed problem drops off without anyone dismissing it.
+  await sweepIfStaleBriefly(session, 1500);
   const alerts = (await openFindings(session)).length;
   const facilities = visibleFacilities(
     await db

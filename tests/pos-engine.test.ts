@@ -194,7 +194,7 @@ describe.skipIf(!hasDb)("point of sale engine (database)", () => {
     await expect(completeSale(actor, { saleId: second.id, paymentMethod: "DEBIT" })).rejects.toThrow(/sold out while this cart was open. Only 1 is left/);
     expect(await qty(only.id)).toBe("1");
     expect((await sale(second.id)).status).toBe("OPEN");
-    await expect(closeDrawer(actor, { countedCash: "0" })).rejects.toThrow(/1 cart is still open/);
+    await expect(closeDrawer(actor, { countedCash: "0" })).rejects.toThrow(/Cart S-\d{5} is still open with items/);
     await cancelCart(actor, { saleId: second.id });
   });
 
