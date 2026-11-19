@@ -93,4 +93,31 @@ describe.skipIf(!hasDb)("the lock in practice (database)", () => {
     });
     await expect(acceptInvite(token, { name: "Invitee", password: "a-long-enough-password" })).rejects.toThrow(/invite-only/);
   });
+
+  it("lets a listed owner bring on staff by invite, and keeps them signed in while the owner is listed", async () => {
+    locked();
+    const ownerEmail = `${run}-owner@listed.invalid`;
+    process.env.ALLOWED_SIGNIN_EMAILS = ownerEmail;
+    const [org] = await db.insert(organizations).values({ name: `Listed ${run}` }).returning();
+    const [f] = await db.insert(facilities).values({ orgId: org.id, name: "Store", licenseNumber: `${run}-L`, licenseType: "RETAIL", state: "NM" }).returning();
+    const [owner] = await db.insert(users).values({ orgId: org.id, name: "Owner", email: ownerEmail, passwordHash: "x", role: "OWNER" }).returning();
+    const { createHash, randomBytes } = await import("node:crypto");
+    const token = randomBytes(24).toString("base64url");
+    // The budtender's own email is not on the list
+    await db.insert(invites).values({
+      orgId: org.id,
+      email: `${run}-budtender@elsewhere.invalid`,
+      role: "BUDTENDER",
+      tokenHash: createHash("sha256").update(token).digest("hex"),
+      invitedBy: owner.id,
+      expiresAt: new Date(Date.now() + 3600_000),
+    });
+    const joined = await acceptInvite(token, { name: "New Budtender", password: "a-long-enough-password" });
+    expect(joined.role).toBe("BUDTENDER");
+    const signedIn = await cookie({ userId: joined.userId, orgId: org.id, facilityId: f.id, name: "New Budtender" });
+    expect(await sessionFromToken(signedIn)).not.toBeNull();
+    // If the business no longer has anyone on the list, its staff are signed out too
+    await db.update(users).set({ active: false }).where(eq(users.id, owner.id));
+    expect(await sessionFromToken(signedIn)).toBeNull();
+  });
 });
