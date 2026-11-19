@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { jobRuns } from "@/db/schema";
 import { db } from "@/lib/db";
-import { cronFor, describeSchedule, expectedEveryHours, jobStatus, recordRun } from "@/lib/job-runs";
+import { cronFor, describeSchedule, expectedEveryHours, jobStatus, recordMissingSecret, recordRun } from "@/lib/job-runs";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 
@@ -30,7 +30,10 @@ describe.skipIf(!hasDb)("recording each run (database)", () => {
   });
   it("records a run that worked and one that failed, and flags a job that's failing or late", async () => {
     await db.delete(jobRuns).where(eq(jobRuns.job, "watch"));
-    expect(await jobStatus("watch")).toMatchObject({ lastRun: null, late: true, failing: false });
+    // Never run: not late until its work has waited longer than a full day plus slack.
+    expect(await jobStatus("watch", new Date(), null)).toMatchObject({ lastRun: null, late: false, failing: false });
+    expect(await jobStatus("watch", new Date(), new Date(Date.now() - 3 * 3600_000))).toMatchObject({ lastRun: null, late: false });
+    expect(await jobStatus("watch", new Date(), new Date(Date.now() - 30 * 3600_000))).toMatchObject({ lastRun: null, late: true, failing: false });
     expect(await recordRun("watch", async () => ({ facilities: 3 }))).toEqual({ facilities: 3 });
     expect(await jobStatus("watch")).toMatchObject({ late: false, failing: false, lastRun: { status: "OK", summary: { facilities: 3 } } });
     await expect(recordRun("watch", async () => Promise.reject(new Error("database went away")))).rejects.toThrow(/went away/);
@@ -39,6 +42,22 @@ describe.skipIf(!hasDb)("recording each run (database)", () => {
     expect(failing.lastOk?.status).toBe("OK");
     // A day and a half later with no new success, a daily job is late
     expect((await jobStatus("watch", new Date(Date.now() + 36 * 3600_000))).late).toBe(true);
+  });
+  it("records a scheduled call refused because CRON_SECRET isn't set, so the app can warn", async () => {
+    await db.delete(jobRuns).where(eq(jobRuns.job, "watch"));
+    const saved = process.env.CRON_SECRET;
+    delete process.env.CRON_SECRET;
+    try {
+      await recordMissingSecret("watch", new Request("https://x/api/watch/run", { headers: { "user-agent": "vercel-cron/1.0" } }));
+      await recordMissingSecret("watch", new Request("https://x/api/watch/run", { headers: { "user-agent": "curl/8" } }));
+    } finally {
+      if (saved !== undefined) process.env.CRON_SECRET = saved;
+    }
+    const runs = await db.select().from(jobRuns).where(eq(jobRuns.job, "watch"));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ status: "FAILED" });
+    expect(runs[0].error).toMatch(/CRON_SECRET/);
+    expect((await jobStatus("watch")).failing).toBe(true);
   });
   it("treats a run that never finished (cut off) as failing once it's clearly stuck", async () => {
     await db.delete(jobRuns).where(eq(jobRuns.job, "watch"));

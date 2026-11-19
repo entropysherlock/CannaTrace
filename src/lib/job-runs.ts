@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, min } from "drizzle-orm";
 import vercel from "../../vercel.json";
-import { jobRuns, syncEvents, type JobRun } from "@/db/schema";
+import { facilities, jobRuns, syncEvents, type JobRun } from "@/db/schema";
 import { db } from "@/lib/db";
 
 /**
@@ -92,6 +92,10 @@ export async function jobStatus(job: JobName, now = new Date(), waitingSince?: D
   if (waitingSince === undefined && job === "sync") {
     // The sync job is platform-wide: its oldest work is the oldest waiting record anywhere.
     const [oldest] = await db.select({ at: min(syncEvents.createdAt) }).from(syncEvents).where(eq(syncEvents.status, "PENDING"));
+    waitingSince = oldest?.at ?? null;
+  } else if (waitingSince === undefined && job === "watch") {
+    // The Tally Watch sweep has work as soon as any facility exists.
+    const [oldest] = await db.select({ at: min(facilities.createdAt) }).from(facilities);
     waitingSince = oldest?.at ?? null;
   }
   const cron = cronFor(job);
