@@ -85,8 +85,8 @@ test("a manager adds a missing strain and room inside Start a batch, then starts
   await expect(page.getByText(`Room ${id}`, { exact: true })).toHaveCount(1);
   // Logged like any other new strain or room.
   await page.goto("/audit");
-  await expect(page.getByText(/create\s+strain/).first()).toBeVisible();
-  await expect(page.getByText(/create\s+location/).first()).toBeVisible();
+  await expect(page.getByText(`Strain ${id}`).first()).toBeVisible();
+  await expect(page.getByText(`Room ${id}`).first()).toBeVisible();
 });
 
 test("cancelling, with Escape or the button, leaves the batch form as it was and saves nothing", async ({ page }) => {
