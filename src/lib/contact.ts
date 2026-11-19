@@ -1,3 +1,3 @@
-/** Who to reach about CannaTrace: the public site's demo, pricing, and contact links. */
-export const CONTACT_EMAILS = ["calebwestfall1989@gmail.com", "ccwestfall85@gmail.com"];
-export const mailto = (subject: string) => `mailto:${CONTACT_EMAILS.join(",")}?subject=${encodeURIComponent(subject)}`;
+/** Who to reach about CannaTrace: the public site's demo, pricing, and contact buttons. Addresses are not printed on the site. */
+export const CONTACT_EMAIL = "calebwestfall1989@gmail.com";
+export const mailto = (subject: string) => `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`;

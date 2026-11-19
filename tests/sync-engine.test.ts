@@ -173,7 +173,7 @@ describe.skipIf(!hasDb)("compliance sync (database)", () => {
     expect(await processQueue({ facilityId: actor.facilityId })).toMatchObject({ manual: 2, failed: 0 });
     const [first, second] = (await events()).filter((e) => e.status !== "RESOLVED");
     expect(first).toMatchObject({ status: "MANUAL", system: "NMS2S" });
-    expect(first.lastErrorDetail).toMatch(/has not published the full NMS2S API/);
+    expect(first.lastErrorDetail).toMatch(/asked New Mexico.s Cannabis Control Division for NMS2S integrator access/);
 
     await expect(resolveEvent(actor, { eventId: first.id, note: " " })).rejects.toThrow(/Say what was done/);
     await resolveEvent(actor, { eventId: first.id, note: "Entered in NMS2S by hand" });

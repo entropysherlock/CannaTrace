@@ -2,7 +2,7 @@ import { Check, Gift, MapPin } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
-import { CONTACT_EMAILS, mailto } from "@/lib/contact";
+import { mailto } from "@/lib/contact";
 import { liveDemoOn } from "@/lib/access";
 import { FEATURES, FOUNDING, PRICES, facilitiesLabel, usd } from "@/lib/pricing";
 
@@ -144,15 +144,10 @@ export default function PricingPage() {
             ) : null}
           </div>
           <p className="mt-6 text-sm text-brand-200">
-            Or email{" "}
-            {CONTACT_EMAILS.map((e, i) => (
-              <span key={e}>
-                {i ? " or " : ""}
-                <a href={`mailto:${e}`} className="font-semibold text-white underline hover:no-underline">
-                  {e}
-                </a>
-              </span>
-            ))}
+            Questions?{" "}
+            <a href={mailto("CannaTrace question")} className="font-semibold text-white underline hover:no-underline">
+              Contact us
+            </a>
           </p>
         </section>
       </main>

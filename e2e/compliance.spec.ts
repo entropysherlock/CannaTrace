@@ -37,9 +37,9 @@ test("state reporting: practice mode sends, NMS2S lists records for hand entry",
   await expect(seen(page, `Received package ${run}-A: 2 kg`)).toBeVisible();
   await page.getByRole("button", { name: "Send now" }).click();
   await expect(seen(page, "Done: 1 need entering by hand.")).toBeVisible();
-  await expect(seen(page, "has not published the full NMS2S API")).toBeVisible();
+  await expect(seen(page, "asked New Mexico's Cannabis Control Division for NMS2S integrator access")).toBeVisible();
 
-  // The Command Center lists it under Compliance status, and counts it as a pending report
+  // The Dashboard lists it under Compliance status, and counts it as a pending report
   await page.goto("/dashboard");
   await expect(seen(page, "1 record to enter in the state system by hand")).toBeVisible();
   await expect(page.getByTestId("kpi-pending-reports")).toContainText("1");

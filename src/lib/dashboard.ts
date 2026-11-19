@@ -4,7 +4,7 @@ import { scanFacility } from "@/lib/rules/scan";
 import { DEFAULT_ZONE, facilityZone } from "./time";
 
 /**
- * Everything on the Command Center (the dashboard), for one facility or every facility in the business,
+ * Everything on the Dashboard, for one facility or every facility in the business,
  * over the last 7, 30, or 90 days. Days are counted in Mountain time, where New Mexico facilities are.
  */
 

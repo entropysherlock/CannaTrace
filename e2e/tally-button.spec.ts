@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-// Tally's floating button is on every tab. Only the Command Center hides it on wide screens, where Tally is docked beside the cards.
-test("Tally's floating button is on every tab, even after visiting the Command Center", async ({ page }) => {
+// Tally's floating button is on every tab. Only the Dashboard hides it on wide screens, where Tally is docked beside the cards.
+test("Tally's floating button is on every tab, even after visiting the Dashboard", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto("/login");
   await page.getByLabel("Email").fill("owner@demo.test");
@@ -22,7 +22,7 @@ test("Tally's floating button is on every tab, even after visiting the Command C
     // Other tabs keep their usual width
     expect((await page.getByTestId("page-column").boundingBox())!.width).toBeLessThanOrEqual(1152);
   }
-  // Back on the Command Center it's docked again, and the button opens the panel everywhere else
+  // Back on the Dashboard it's docked again, and the button opens the panel everywhere else
   await nav.getByRole("link", { name: "Dashboard", exact: true }).click();
   await expect(launcher).toBeHidden();
   await nav.getByRole("link", { name: "Inventory", exact: true }).click();

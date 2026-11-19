@@ -132,7 +132,7 @@ export const ADAPTERS: Record<SystemName, Adapter> = {
     "Automatic sending to BioTrack is not built. New Mexico stopped using BioTrack in September 2026. Enter these records in BioTrack by hand.",
   ),
   NMS2S: manualAdapter(
-    "New Mexico has not published the full NMS2S API that software needs to send these records. Enter them in NMS2S by hand until it does.",
+    "CannaTrace has asked New Mexico's Cannabis Control Division for NMS2S integrator access. Until the state approves it, enter these records in NMS2S by hand.",
   ),
 };
 

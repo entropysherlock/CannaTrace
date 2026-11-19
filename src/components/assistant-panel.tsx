@@ -93,7 +93,7 @@ export function AssistantPanel({
   const [dragging, setDragging] = useState(false);
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  // Only the Command Center docks Tally beside its cards (on wide screens), so only there is the floating button hidden.
+  // Only the Dashboard docks Tally beside its cards (on wide screens), so only there is the floating button hidden.
   // Go by the address, not the page contents: visited pages stay loaded in the background.
   const docked = usePathname() === "/dashboard";
   const panelRef = useRef<HTMLElement>(null);

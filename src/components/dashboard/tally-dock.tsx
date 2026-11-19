@@ -16,7 +16,7 @@ const ICONS = {
 
 export type Takeaway = { icon: keyof typeof ICONS; text: string };
 
-/** Tally on the Command Center: a summary of the numbers, and questions that open Tally already asking them. */
+/** Tally on the Dashboard: a summary of the numbers, and questions that open Tally already asking them. */
 export function TallyDock({ name, summary, takeaways, prompts }: { name: string; summary: string; takeaways: Takeaway[]; prompts: string[] }) {
   const [text, setText] = useState("");
   return (

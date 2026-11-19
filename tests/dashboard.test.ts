@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 
-describe("Command Center numbers", () => {
+describe("Dashboard numbers", () => {
   it("compares periods as a percent, and has nothing to say without a period before", () => {
     expect(change(112, 100)).toBe(12);
     expect(change(90, 120)).toBe(-25);
@@ -45,7 +45,7 @@ async function busiest(): Promise<string> {
   return rows.rows[0].org_id;
 }
 
-describe.skipIf(!hasDb)("Command Center numbers (database)", () => {
+describe.skipIf(!hasDb)("Dashboard numbers (database)", () => {
   it("adds up one facility or the whole business, over 7, 30, or 90 days", async () => {
     const [demo] = await db.select().from(organizations).where(eq(organizations.name, "Demo Cannabis Co"));
     const org = demo?.id ?? (await db.select().from(organizations).limit(1))[0].id;
