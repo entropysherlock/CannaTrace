@@ -58,17 +58,38 @@ export function encryptionReady(): boolean {
 
 const aad = (orgId: string) => Buffer.from(`cannatrace:ai-key:${orgId}`);
 
+/**
+ * Seal a secret bound to an explicit context (for example a state-system credential bound to one
+ * business, facility, system, and environment). A value sealed for one context can't be opened for
+ * another. Same format and master keys as sealSecret.
+ */
+export function sealSecretFor(plaintext: string, context: string): string {
+  return sealWith(plaintext, Buffer.from(`cannatrace:secret:${context}`));
+}
+
+export function openSecretFor(sealed: string, context: string): string {
+  return openWith(sealed, Buffer.from(`cannatrace:secret:${context}`));
+}
+
 export function sealSecret(plaintext: string, orgId: string): string {
+  return sealWith(plaintext, aad(orgId));
+}
+
+function sealWith(plaintext: string, additional: Buffer): string {
   const { current } = keys();
   if (!current) throw new SecretBoxError("Key storage is not set up on this server (AI_KEY_ENCRYPTION_KEY is missing).");
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", current.key, iv);
-  cipher.setAAD(aad(orgId));
+  cipher.setAAD(additional);
   const body = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   return ["v1", current.id, iv.toString("base64"), cipher.getAuthTag().toString("base64"), body.toString("base64")].join(".");
 }
 
 export function openSecret(sealed: string, orgId: string): string {
+  return openWith(sealed, aad(orgId));
+}
+
+function openWith(sealed: string, additional: Buffer): string {
   const [version, keyId, iv, tag, body] = sealed.split(".");
   if (version !== "v1" || !keyId || !iv || !tag || !body) throw new SecretBoxError("The stored key is in an unknown format.");
   const { current, previous } = keys();
@@ -76,7 +97,7 @@ export function openSecret(sealed: string, orgId: string): string {
   if (!master) throw new SecretBoxError("The stored key was saved with an encryption key this server no longer has.");
   try {
     const decipher = createDecipheriv("aes-256-gcm", master.key, Buffer.from(iv, "base64"));
-    decipher.setAAD(aad(orgId));
+    decipher.setAAD(additional);
     decipher.setAuthTag(Buffer.from(tag, "base64"));
     return Buffer.concat([decipher.update(Buffer.from(body, "base64")), decipher.final()]).toString("utf8");
   } catch {
