@@ -27,7 +27,7 @@ import Link from "next/link";
 import { DemoVideoButton, DemoVideoPlayer, DemoVideoPoster } from "@/components/demo-video";
 import { LeafMark, Logo } from "@/components/logo";
 import { liveDemoOn, signupsOpen } from "@/lib/access";
-import { CONTACT_EMAILS, mailto } from "@/lib/contact";
+import { mailto } from "@/lib/contact";
 import { FOUNDING, PRICES, facilitiesLabel, priceSentence, usd } from "@/lib/pricing";
 import { getSession } from "@/lib/session";
 
@@ -138,7 +138,7 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     kicker: "Compliance",
     title: "Your state's rules, built in",
     text: "CannaTrace scores how well you're following your state's rules and tells you what to fix, with a link to fix it.",
-    points: ["Rules for 23 adult-use states, starting with New Mexico", "A compliance score and a to-fix list", "Purchase limits, ages, testing, and waste rules", "Every rule linked to the regulation"],
+    points: ["New Mexico rules in depth, plus 22 more adult-use states", "A compliance score and a to-fix list", "Purchase limits, ages, testing, and waste rules", "Every rule linked to the regulation"],
     src: "/site/rules.webp",
     alt: "The CannaTrace State rules page with a compliance score and New Mexico rules in effect",
   },
@@ -148,7 +148,7 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     kicker: "State reporting",
     title: "A reporting queue you can trust",
     text: "Every change that the state needs to hear about is queued, sent, and tracked, so nothing slips through.",
-    points: ["See what's waiting, sent, or failed", "Records to enter by hand are listed for you", "Metrc and BioTrack connections, live once approved", "Practice mode to try it with nothing sent"],
+    points: ["See what's waiting, sent, or failed", "Records to enter by hand are listed for you", "New Mexico NMS2S connection: state access requested", "Practice mode to try it with nothing sent"],
     src: "/site/compliance.webp",
     alt: "The CannaTrace State reporting page with recent records marked sent",
   },
@@ -206,8 +206,8 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
 
 const FAQ: [string, string][] = [
   ["Is this real software?", "Yes. Every screen on this page is a real screenshot of CannaTrace, filled with sample data for a made-up business. You can sign up, or open the sample business and click around yourself."],
-  ["Which states does CannaTrace work in?", "CannaTrace has the rules for 23 adult-use states built in, starting with New Mexico, where it's made. That covers purchase limits, ages, lab testing, and waste."],
-  ["Does it connect to Metrc, BioTrack, or NMS2S?", "The Metrc and BioTrack connections are built. Turning on a live connection needs CannaTrace to be approved as an integrator in your state. Until then, CannaTrace keeps a queue of everything the state needs and lists exactly what to enter by hand."],
+  ["Which states does CannaTrace work in?", "CannaTrace is made in New Mexico, and New Mexico's rules are built in the deepest: purchase limits, ages, lab testing, waste, manifests, and recalls. Colorado, California, and Michigan have detailed rules too, and 19 more adult-use states have their purchase limits, minimum age, and testing rules, each linked to the regulation."],
+  ["Does it connect to NMS2S or Metrc?", "New Mexico uses NMS2S, which replaced BioTrack in September 2026. CannaTrace has asked the Cannabis Control Division for integrator access; a live connection turns on once the state approves it. In Metrc states, a live connection also needs state approval first. Until then, CannaTrace keeps a queue of everything the state needs and lists exactly what to enter by hand, and you keep using NMS2S as the state requires."],
   ["Can I bring my data from another system?", "Yes. CannaTrace imports from NMS2S, Dutchie, and Flourish exports, including large inventories. For founding customers, we do the move for you."],
   ["Do I need special hardware?", "No. CannaTrace runs in the web browser on computers, tablets, and phones. It works with ordinary USB or Bluetooth barcode scanners and label printers."],
   ["Who can see what?", "Each person gets a role, like owner, manager, cultivation, sales, or budtender, and only sees and changes what that role allows. Every change is in the audit trail."],
@@ -645,15 +645,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <div className="text-sm">
             <p className="font-bold text-slate-950">Contact us</p>
             <p className="mt-1 text-slate-600">Questions, pricing, or a demo? Email us and we&apos;ll get back to you.</p>
-            <ul className="mt-2 space-y-1">
-              {CONTACT_EMAILS.map((email) => (
-                <li key={email}>
-                  <a href={`mailto:${email}`} className="font-semibold text-brand-700 hover:underline">
-                    {email}
-                  </a>
-                </li>
-              ))}
-            </ul>
+            <a
+              href={mailto("CannaTrace question")}
+              className="mt-3 inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-brand-800"
+            >
+              Contact us
+            </a>
             <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
               <a href={DEMO_LINK} className="font-semibold text-slate-800 hover:text-brand-700">
                 Book a demo
