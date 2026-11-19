@@ -41,7 +41,7 @@ import { requireSession } from "@/lib/session";
 import { facilityZone } from "@/lib/time";
 import { ADAPTERS } from "@/lib/sync";
 import { SYSTEM_LABELS, type SystemName } from "@/lib/sync-math";
-import { sweepIfStale } from "@/lib/watch";
+import { sweepIfStaleBriefly } from "@/lib/watch";
 
 export const metadata = { title: "Dashboard · CannaTrace" };
 
@@ -117,7 +117,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   const session = await requireSession();
   const zone = await facilityZone(session.facilityId);
   const params = await searchParams;
-  await sweepIfStale(session);
+  await sweepIfStaleBriefly(session);
 
   const facilities = visibleFacilities(
     await db
