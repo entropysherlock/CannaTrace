@@ -181,7 +181,7 @@ export async function destroyBatchPlants(
   await db.transaction(async (tx) => {
     const batch = await lockBatch(tx, actor, input.batchId);
     if (count > batch.untaggedCount) {
-      throw new InventoryError(`This batch only has ${batch.untaggedCount} untagged plants left.`);
+      throw new InventoryError(`This batch only has ${batch.untaggedCount} untagged plant${batch.untaggedCount === 1 ? "" : "s"} left.`);
     }
     const left = batch.untaggedCount - count;
     await tx

@@ -42,6 +42,10 @@ import { addToCart, checkInCustomer, closeDrawer, completeSale, openDrawer, retu
 import { saleLines, apiKeys } from "@/db/schema";
 import { receiveShipment } from "@/lib/shipments";
 import { requiresLabBeforeRetail } from "@/lib/rules";
+import { statusWords } from "@/lib/inventory-math";
+import { sellsRetail, walkthroughsFor } from "@/lib/walkthroughs";
+import { saveStateReport } from "@/lib/watch";
+import { inventoryTransactions } from "@/db/schema";
 import { clearSignInFailures, MAX_PER_EMAIL, recordSignInFailure, signInLocked } from "@/lib/sign-in-throttle";
 
 /**
@@ -396,6 +400,36 @@ describe.skipIf(!hasDb)("QA round fixes (database)", () => {
         .values({ orgId: org, facilityId: grow, tag: tag(), itemId: bulk, quantity: "5", unit: "G", locationId: vault, status: "ON_HOLD" })
         .returning();
       expect(p.heldSince).toBeInstanceOf(Date);
+    });
+  });
+
+  describe("25 to 33 and smaller fixes", () => {
+    it("records a customer return as a return in the inventory history", async () => {
+      const cart = await checkInCustomer(manager, adult());
+      await addToCart(manager, { saleId: cart.id, itemId: jar, quantity: "1" });
+      const sold = await completeSale(manager, { saleId: cart.id, paymentMethod: "CASH", cashTendered: "100" });
+      const [line] = await returnableLines(db, cart.id);
+      await returnSale(manager, { saleId: cart.id, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "CASH", disposition: "RESTOCK", reason: "back" });
+      const history = await db.select().from(inventoryTransactions).where(eq(inventoryTransactions.facilityId, store));
+      const back = history.filter((t) => t.note?.includes(`from sale ${sold.number}`));
+      expect(back.map((t) => t.type)).toEqual(["RETURN"]);
+    });
+
+    it("words statuses and offers the register walkthrough only where there's a register", () => {
+      expect(statusWords("QUARANTINE")).toBe("in quarantine");
+      expect(statusWords("ON_HOLD")).toBe("on hold");
+      expect(sellsRetail("RETAIL")).toBe(true);
+      expect(sellsRetail("CULTIVATION")).toBe(false);
+      expect(walkthroughsFor(() => true, "CULTIVATION")).not.toContain("register-shift");
+      expect(walkthroughsFor(() => true, "RETAIL")).toContain("register-shift");
+    });
+
+    it("flags a state quantity it can't read instead of calling it a match", async () => {
+      const p = await receivePackage(growActor, { tag: tag(), itemId: jar, quantity: "50", locationId: vault });
+      await saveStateReport({ ...growActor, name: growActor.userName } as never, { fileName: "state.csv", text: `Tag,Quantity,Status\n${p.tag},abc,Active\n` });
+      const found = await db.select().from(watchFindings).where(and(eq(watchFindings.facilityId, grow), eq(watchFindings.key, `state_qty_unreadable:${p.id}`)));
+      expect(found).toHaveLength(1);
+      expect(found[0].detail).toContain('"abc"');
     });
   });
 

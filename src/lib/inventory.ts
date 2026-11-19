@@ -20,7 +20,7 @@ import { db, type Tx } from "./db";
 import { generateTags, tagOrGenerate } from "./ids";
 import { packFor, wasteRule } from "./rules";
 import { enqueueSyncEvent } from "./sync";
-import { InventoryError, MAX_QTY, applyDelta, assertWholeForUnit, normalizeTag, parsePositiveQty, planSplit, weightedAverageCost } from "./inventory-math";
+import { InventoryError, MAX_QTY, applyDelta, assertWholeForUnit, normalizeTag, parsePositiveQty, planSplit, statusWords, weightedAverageCost } from "./inventory-math";
 import { facilityToday, facilityZone } from "./time";
 import { roundQty } from "./units";
 
@@ -272,7 +272,7 @@ export async function consumeFromPackageInTx(
 export async function returnToPackageInTx(
   tx: Tx,
   actor: Actor,
-  input: { packageId: string; quantity: Decimal; note: string; auditAction?: string },
+  input: { packageId: string; quantity: Decimal; note: string; auditAction?: string; type?: "CONVERT_IN" | "RETURN" },
 ): Promise<Package> {
   const pkg = await lockPackage(tx, actor, input.packageId);
   if (pkg.status === "DESTROYED") throw new InventoryError(`Package ${pkg.tag} was destroyed, so nothing can be returned to it.`);
@@ -286,7 +286,7 @@ export async function returnToPackageInTx(
     orgId: actor.orgId,
     facilityId: actor.facilityId,
     packageId: pkg.id,
-    type: "CONVERT_IN",
+    type: input.type ?? "CONVERT_IN",
     quantityDelta: store(change.delta),
     quantityBefore: store(change.before),
     quantityAfter: store(change.after),
@@ -441,7 +441,7 @@ export async function adjustPackage(
 function assertActive(pkg: Package, verb: string) {
   if (pkg.status !== "ACTIVE") {
     throw new InventoryError(
-      `Package ${pkg.tag} is ${pkg.status.replace("_", " ").toLowerCase()}, so it cannot be ${verb}. Release it first.`,
+      `Package ${pkg.tag} is ${statusWords(pkg.status)}, so it cannot be ${verb}. Release it first.`,
     );
   }
 }

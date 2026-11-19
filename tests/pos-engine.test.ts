@@ -164,7 +164,7 @@ describe.skipIf(!hasDb)("point of sale engine (database)", () => {
     const cart = await checkInCustomer(actor, adult);
     await addToCart(actor, { saleId: cart.id, itemId: jar, quantity: "16" }); // 56 g, under 56.7
     await expect(addToCart(actor, { saleId: cart.id, itemId: jar, quantity: "1" })).rejects.toThrow(/59.5 g of flower. The limit is 56.7 g/);
-    await expect(addToCart(actor, { saleId: cart.id, itemId: gummies, quantity: "9" })).rejects.toThrow(/900 mg of edible thc/);
+    await expect(addToCart(actor, { saleId: cart.id, itemId: gummies, quantity: "9" })).rejects.toThrow(/900 mg of edible THC/);
     const lines = await db.execute<{ quantity: string }>(sql`select quantity from sale_lines where sale_id = ${cart.id}`);
     expect(lines.rows).toHaveLength(1); // the refused lines were not kept
     expect(new Decimal(lines.rows[0].quantity).toString()).toBe("16");

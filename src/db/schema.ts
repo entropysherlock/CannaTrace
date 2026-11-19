@@ -79,6 +79,8 @@ export const transactionTypeEnum = pgEnum("transaction_type", [
   "SELL",
   "DESTROY",
   "STATUS_CHANGE",
+  /** Stock coming back from a customer: a return or a voided sale. */
+  "RETURN",
 ]);
 
 export const limitCategoryEnum = pgEnum("limit_category", ["NONE", "FLOWER", "CONCENTRATE", "EDIBLE"]);

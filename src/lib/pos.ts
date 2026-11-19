@@ -719,6 +719,9 @@ export async function setCartDiscount(actor: Actor, input: { saleId: string; dis
     const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
     if (!input.discountId) {
       await tx.update(sales).set({ discountName: null, discountPercent: "0" }).where(eq(sales.id, sale.id));
+      if (sale.discountName) {
+        await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "DISCOUNT_REMOVED", before: { number: sale.number, name: sale.discountName, percent: sale.discountPercent } });
+      }
       return;
     }
     const [discount] = await tx
@@ -851,6 +854,7 @@ export async function voidSale(actor: Actor, input: { saleId: string; reason: st
         quantity: new Decimal(row.quantity),
         note: `Sale ${sale.number} voided: ${reason}`,
         auditAction: "RETURNED_FROM_VOIDED_SALE",
+        type: "RETURN",
       });
     }
     await tx.update(sales).set({ status: "VOIDED", voidReason: reason }).where(eq(sales.id, sale.id));
@@ -1001,6 +1005,7 @@ export async function returnSale(
             quantity: take,
             note: `Return ${number} from sale ${sale.number}: ${reason}`,
             auditAction: "RETURNED_BY_CUSTOMER",
+            type: "RETURN",
           });
           if (input.disposition === "DISPOSE") {
             // Opened or damaged: written off straight away, so it can't be sold again.

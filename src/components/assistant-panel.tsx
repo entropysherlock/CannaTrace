@@ -289,7 +289,7 @@ export function AssistantPanel({
         aria-label="Tally, the CannaTrace assistant"
         aria-hidden={!open}
         inert={!open}
-        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-out sm:w-[440px] print:hidden ${open ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-out sm:w-[440px] print:hidden ${open ? "translate-x-0" : "invisible translate-x-full shadow-none [transition:transform_300ms_ease-out,visibility_0s_300ms]"}`}
         onDragOver={(e) => {
           if (!enabled || busy || !Array.from(e.dataTransfer.types).includes("Files")) return;
           e.preventDefault();

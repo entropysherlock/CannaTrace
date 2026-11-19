@@ -216,3 +216,10 @@ export async function requirePagePermission(permission: Permission): Promise<Ses
   if (!can(session, permission)) redirect("/dashboard");
   return session;
 }
+
+/** A page anyone with at least one of these permissions may open. */
+export async function requireAnyPagePermission(...permissions: Permission[]): Promise<Session> {
+  const session = await requireSession();
+  if (!permissions.some((p) => can(session, p))) redirect("/dashboard");
+  return session;
+}

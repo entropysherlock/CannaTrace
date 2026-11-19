@@ -87,3 +87,9 @@ export function normalizeTag(raw: unknown): string {
   }
   return tag;
 }
+
+/** A package status as words that fit "Package X is ___": "on hold", "in quarantine", "finished". */
+export function statusWords(status: string): string {
+  if (status === "QUARANTINE") return "in quarantine";
+  return status.replace(/_/g, " ").toLowerCase();
+}

@@ -19,13 +19,15 @@ export function InviteForm({
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const [copied, setCopied] = useState(false);
+  // Remembered between invites: React resets a submitted form, which would quietly put the next invite back on Read-only.
+  const [role, setRole] = useState("builtin:READ_ONLY");
   return (
     <form action={formAction} className="space-y-4" onSubmit={() => setCopied(false)}>
       <Field label="Their email">
         <input name="email" type="email" required autoComplete="off" className={inputClass} />
       </Field>
       <Field label="Role">
-        <select name="role" required defaultValue="builtin:READ_ONLY" className={inputClass}>
+        <select name="role" required value={role} onChange={(e) => setRole(e.target.value)} className={inputClass}>
           <optgroup label="Built-in roles">
             {builtIn.map((o) => (
               <option key={o.value} value={o.value}>

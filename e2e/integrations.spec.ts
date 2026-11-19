@@ -49,7 +49,7 @@ test("reports, CSV export and import, API keys, and the REST API", async ({ page
     buffer: Buffer.from(`name,sku,category,unit\nImported jar,${run}-A,Flower,EACH\n`),
   });
   await page.getByRole("button", { name: "Import", exact: true }).click();
-  await expect(seen(page, "Imported 1 items row.")).toBeVisible();
+  await expect(seen(page, "Imported 1 row of items.")).toBeVisible();
 
   // API key
   await page.goto("/integrations");
