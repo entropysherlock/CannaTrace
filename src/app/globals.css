@@ -2,6 +2,10 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/bricolage-grotesque";
 
+/* Laptop-height screens: the sidebar tightens so every entry fits without scrolling. */
+@custom-variant short (@media (max-height: 820px));
+@custom-variant shorter (@media (max-height: 680px));
+
 @theme {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: "Bricolage Grotesque Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
@@ -43,4 +47,10 @@ main table tbody tr:hover {
 
 body {
   font-family: var(--font-sans);
+}
+
+/* If a very short window still can't fit the sidebar, scroll it with a slim scrollbar that matches the dark panel. */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.2) transparent;
 }
