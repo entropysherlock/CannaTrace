@@ -54,7 +54,7 @@ test("an owner connects the business's Claude account, sets limits, and the team
   await expect(panel.getByRole("cell", { name: "Packages in stock" })).toBeVisible();
   await panel.getByLabel("Message the assistant").fill("and again?");
   await panel.getByLabel("Message the assistant").press("Enter");
-  await expect(panel.getByText(/which is this business's limit per person/)).toBeVisible();
+  await expect(panel.getByText(/Tally questions? per person in 24 hours/)).toBeVisible();
 
   // Usage shows up for the owner
   await page.reload();

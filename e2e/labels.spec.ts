@@ -21,12 +21,18 @@ async function switchFacility(page: Page, name: string) {
   await expect(page.locator("#facilityId option:checked")).toContainText(name);
 }
 
-test("SmartLabel sits under Operations, directly below Register", async ({ page }) => {
+test("SmartLabel sits under Operations, directly below Register, and the Register only shows at a store", async ({ page }) => {
   await signIn(page, "owner@demo.test");
-  const links = await page.getByRole("navigation", { name: "Main" }).getByRole("link").allTextContents();
+  const nav = () => page.getByRole("navigation", { name: "Main" }).getByRole("link").allTextContents();
+  // The grow has no register, so it isn't offered there.
+  await switchFacility(page, "Rio Grande");
+  expect((await nav()).map((l) => l.trim())).not.toContain("Register");
+  await switchFacility(page, "Sandia Storefront");
+  const links = await nav();
   const register = links.findIndex((l) => l.trim() === "Register");
   expect(register).toBeGreaterThan(-1);
   expect(links[register + 1].trim()).toBe("SmartLabel AI");
+  await switchFacility(page, "Rio Grande");
 });
 
 test("a new package's label fills in, checks, prints as an exact-size PDF, and reprints without touching inventory", async ({ page }) => {

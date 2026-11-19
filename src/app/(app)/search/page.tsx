@@ -16,6 +16,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const session = await requireSession();
   const q = ((await searchParams).q ?? "").trim().slice(0, 80);
   const org = session.orgId;
+  // Records that live at a facility are searched at the facility the person is working in, the same as every
+  // other page, so search never shows another facility's stock (or one they aren't allowed into).
+  const fac = session.facilityId;
   const like = `%${q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
   const groups: { label: string; hits: Hit[] }[] = [];
   if (q.length >= 2) {
@@ -25,15 +28,15 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             .select({ id: packages.id, tag: packages.tag, lot: packages.lotNumber, status: packages.status, item: items.name })
             .from(packages)
             .innerJoin(items, eq(items.id, packages.itemId))
-            .where(and(eq(packages.orgId, org), or(ilike(packages.tag, like), ilike(packages.lotNumber, like), ilike(items.name, like))))
+            .where(and(eq(packages.orgId, org), eq(packages.facilityId, fac), or(ilike(packages.tag, like), ilike(packages.lotNumber, like), ilike(items.name, like))))
             .orderBy(desc(packages.createdAt))
             .limit(10)
         : [],
       can(session, "cultivation.view")
-        ? db.select({ id: plants.id, tag: plants.tag, phase: plants.phase, batchId: plants.batchId }).from(plants).where(and(eq(plants.orgId, org), ilike(plants.tag, like))).limit(10)
+        ? db.select({ id: plants.id, tag: plants.tag, phase: plants.phase, batchId: plants.batchId }).from(plants).where(and(eq(plants.orgId, org), eq(plants.facilityId, fac), ilike(plants.tag, like))).limit(10)
         : [],
       can(session, "cultivation.view")
-        ? db.select({ id: harvests.id, name: harvests.name, status: harvests.status }).from(harvests).where(and(eq(harvests.orgId, org), ilike(harvests.name, like))).limit(10)
+        ? db.select({ id: harvests.id, name: harvests.name, status: harvests.status }).from(harvests).where(and(eq(harvests.orgId, org), eq(harvests.facilityId, fac), ilike(harvests.name, like))).limit(10)
         : [],
       can(session, "inventory.view")
         ? db.select({ id: items.id, name: items.name, sku: items.sku }).from(items).where(and(eq(items.orgId, org), or(ilike(items.name, like), ilike(items.sku, like)))).limit(10)
@@ -43,7 +46,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             .select({ id: orders.id, number: orders.number, status: orders.status, customer: customers.name })
             .from(orders)
             .innerJoin(customers, eq(customers.id, orders.customerId))
-            .where(and(eq(orders.orgId, org), or(ilike(orders.number, like), ilike(customers.name, like))))
+            .where(and(eq(orders.orgId, org), eq(orders.facilityId, fac), or(ilike(orders.number, like), ilike(customers.name, like))))
             .orderBy(desc(orders.createdAt))
             .limit(10)
         : [],

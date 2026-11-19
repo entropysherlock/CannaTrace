@@ -9,7 +9,7 @@ import { boms, items, productionRuns } from "@/db/schema";
 import { db } from "@/lib/db";
 import { suggestRunName, summarizeRuns, yieldPercent } from "@/lib/manufacturing-math";
 import { can } from "@/lib/rbac";
-import { requirePagePermission } from "@/lib/session";
+import { requireAnyPagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 import { startRunAction } from "./actions";
 import { facilityZone } from "@/lib/time";
@@ -57,7 +57,7 @@ function href(status: string, q: string, extra = "") {
 }
 
 export default async function ManufacturingPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string; new?: string }> }) {
-  const session = await requirePagePermission("inventory.view");
+  const session = await requireAnyPagePermission("manufacturing.write", "audit.view");
   const zone = await facilityZone(session.facilityId);
   const params = await searchParams;
   const status = STATUSES.some((s) => s.key === params.status) ? (params.status as string) : "";

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { toCsv } from "@/lib/csv";
 import { db } from "@/lib/db";
+import { facilityZone } from "@/lib/time";
 import { can, type Permission } from "@/lib/rbac";
 import { currentSession } from "@/lib/session";
 
@@ -70,10 +71,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tab
   if (!spec) return new Response("Unknown export.", { status: 404 });
   if (!can(session, spec.permission)) return new Response("Your role cannot download this.", { status: 403 });
   const result = await db.execute(spec.query(session.orgId, session.facilityId));
+  // Times in the facility's own time zone, the same as on screen, rather than raw UTC.
+  const zone = await facilityZone(session.facilityId);
+  const when = (v: unknown) =>
+    v instanceof Date
+      ? v.toLocaleString("sv-SE", { timeZone: zone, hour12: false }).replace(",", "")
+      : typeof v === "string" && /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:?\d{2})?|Z)$/.test(v)
+        ? new Date(v.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00")).toLocaleString("sv-SE", { timeZone: zone, hour12: false }).replace(",", "")
+        : v;
   // Columns are aliased c1..cN in header order, so two source columns with the same name cannot collide.
   const csv = toCsv(
     spec.headers,
-    result.rows.map((row) => spec.headers.map((_, i) => (row as Record<string, unknown>)[`c${i + 1}`])),
+    result.rows.map((row) => spec.headers.map((_, i) => when((row as Record<string, unknown>)[`c${i + 1}`]))),
   );
   const date = new Date().toISOString().slice(0, 10);
   return new Response(csv, {

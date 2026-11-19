@@ -5,6 +5,7 @@ import {
   harvestPackages,
   harvests,
   items,
+  locations,
   plantBatches,
   plants,
   strains,
@@ -180,7 +181,7 @@ export async function destroyBatchPlants(
   await db.transaction(async (tx) => {
     const batch = await lockBatch(tx, actor, input.batchId);
     if (count > batch.untaggedCount) {
-      throw new InventoryError(`This batch only has ${batch.untaggedCount} untagged plants left.`);
+      throw new InventoryError(`This batch only has ${batch.untaggedCount} untagged plant${batch.untaggedCount === 1 ? "" : "s"} left.`);
     }
     const left = batch.untaggedCount - count;
     await tx
@@ -270,7 +271,8 @@ export async function movePlants(actor: Actor, input: { plantIds: string[]; loca
       .update(plants)
       .set({ locationId: input.locationId })
       .where(inArray(plants.id, rows.map((p) => p.id)));
-    await auditPlants(tx, actor, rows, "MOVE", { locationId: input.locationId });
+    const [room] = await tx.select({ name: locations.name }).from(locations).where(eq(locations.id, input.locationId));
+    await auditPlants(tx, actor, rows, "MOVE", { locationId: input.locationId, locationName: room?.name ?? null });
     return rows.length;
   });
 }
@@ -349,7 +351,7 @@ export async function harvestPlants(
       entityType: "Harvest",
       entityId: harvest.id,
       action: "CREATE",
-      after: { name, plantCount: rows.length, wetWeightGrams: wet.toString() },
+      after: { name, plantCount: rows.length, wetWeightGrams: wet.toString(), plantTags: rows.map((p) => p.tag) },
     });
     return harvest;
   });
@@ -438,10 +440,17 @@ export async function packageFromHarvest(
   return db.transaction(async (tx) => {
     const harvest = await lockHarvest(tx, actor, input.harvestId);
     const [item] = await tx
-      .select({ unit: items.unit })
+      .select({ unit: items.unit, name: items.name, strain: items.strain })
       .from(items)
       .where(and(eq(items.id, input.itemId), eq(items.orgId, actor.orgId), eq(items.active, true)));
     if (!item) throw new InventoryError("Pick an item from the list.");
+    // A harvest's product keeps its strain: packaging it as another strain's item would mislabel it from here on.
+    if (item.strain?.trim() && harvest.strainId) {
+      const [strain] = await tx.select({ name: strains.name }).from(strains).where(eq(strains.id, harvest.strainId));
+      if (strain && strain.name.trim().toLowerCase() !== item.strain.trim().toLowerCase()) {
+        throw new InventoryError(`${item.name} is ${item.strain}, but this harvest is ${strain.name}. Pick a ${strain.name} item, or one with no strain set (such as mixed trim).`);
+      }
+    }
     if (dimensionOf(item.unit) !== "WEIGHT") {
       throw new InventoryError("Harvests can only be packaged into items tracked by weight, such as bulk flower or trim.");
     }
@@ -480,7 +489,12 @@ export async function finishHarvest(actor: Actor, input: { harvestId: string }):
   return db.transaction(async (tx) => {
     const harvest = await lockHarvest(tx, actor, input.harvestId);
     const onHand = harvestOnHand(harvest);
-    if (harvest.dryWeight !== null && onHand.gt(0)) {
+    // Without a dry weight, everything not packaged or logged as waste would be written off as "moisture loss":
+    // the whole harvest could vanish from tracking with one click.
+    if (harvest.dryWeight === null) {
+      throw new InventoryError("Record the dry weight first. Then package the dried product or log it as waste before finishing.");
+    }
+    if (onHand.gt(0)) {
       throw new InventoryError(
         `${onHand.toString()} g of dried product is still unaccounted for. Package it or log it as waste before finishing.`,
       );

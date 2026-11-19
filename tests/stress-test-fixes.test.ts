@@ -168,8 +168,9 @@ describe.skipIf(!hasDb)("stress-test fixes (database)", () => {
 
     it("is followed into packages split from it, can't be picked for an order, and can't be used in production", async () => {
       const pkg = await receivePackage(growActor, { tag: tag(), itemId: jar, quantity: "20", locationId: vault });
-      await fail(growActor, pkg.id); // recorded directly, so the package is still active
+      // Split first: a failed package can't be split, but a part split off before the result came back carries it.
       const { children } = await splitPackage(growActor, { packageId: pkg.id, parts: [{ quantity: "5" }] });
+      await fail(growActor, pkg.id); // recorded directly, so the package is still active
       expect(await db.transaction((tx) => latestLabStatus(tx, children[0].id))).toBe("FAIL");
 
       const o = await createOrder(growActor, { customerId });

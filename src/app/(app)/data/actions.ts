@@ -23,7 +23,7 @@ export async function importAction(_state: FormState, formData: FormData): Promi
       await file.text(),
     );
     revalidatePath("/", "layout");
-    return { ok: `Imported ${result.count} ${IMPORT_KINDS[kind].label.toLowerCase()} row${result.count === 1 ? "" : "s"}.` };
+    return { ok: `Imported ${result.count} row${result.count === 1 ? "" : "s"} of ${IMPORT_KINDS[kind].label.toLowerCase()}.` };
   } catch (error) {
     return toFormError(error);
   }

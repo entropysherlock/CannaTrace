@@ -4,6 +4,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { and, asc, eq, isNull, lte, sql } from "drizzle-orm";
 import { apiKeys, webhookDeliveries, webhooks, type ApiKey, type Webhook } from "@/db/schema";
+import { logAdminAction } from "./audit-log";
 import { db, type Tx } from "./db";
 import { InventoryError } from "./inventory-math";
 import { nextRetryAt } from "./sync-math";
@@ -20,23 +21,34 @@ export async function createApiKey(actor: Actor, input: { name: string; canWrite
   if (!name) throw new InventoryError("Name the key after what will use it, for example \"Accounting export\".");
   const key = `ct_${randomBytes(24).toString("base64url")}`;
   const prefix = key.slice(0, 10);
-  await db.insert(apiKeys).values({
-    orgId: actor.orgId,
-    facilityId: actor.facilityId,
-    name,
-    prefix,
-    keyHash: hashKey(key),
-    canWrite: input.canWrite,
-    createdByName: actor.userName,
+  await db.transaction(async (tx) => {
+    const [made] = await tx
+      .insert(apiKeys)
+      .values({
+        orgId: actor.orgId,
+        facilityId: actor.facilityId,
+        name,
+        prefix,
+        keyHash: hashKey(key),
+        canWrite: input.canWrite,
+        createdByName: actor.userName,
+      })
+      .returning({ id: apiKeys.id });
+    // The prefix identifies the key; the key itself is never logged.
+    await logAdminAction(tx, actor, { entityType: "ApiKey", entityId: made.id, action: "CREATE", after: { name, prefix, canWrite: input.canWrite } });
   });
   return { key, prefix };
 }
 
 export async function revokeApiKey(actor: Actor, input: { keyId: string }): Promise<void> {
-  await db
-    .update(apiKeys)
-    .set({ revokedAt: new Date() })
-    .where(and(eq(apiKeys.id, input.keyId), eq(apiKeys.orgId, actor.orgId), isNull(apiKeys.revokedAt)));
+  await db.transaction(async (tx) => {
+    const [gone] = await tx
+      .update(apiKeys)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(apiKeys.id, input.keyId), eq(apiKeys.orgId, actor.orgId), isNull(apiKeys.revokedAt)))
+      .returning({ id: apiKeys.id, name: apiKeys.name, prefix: apiKeys.prefix });
+    if (gone) await logAdminAction(tx, actor, { entityType: "ApiKey", entityId: gone.id, action: "REVOKE", before: { name: gone.name, prefix: gone.prefix } });
+  });
 }
 
 /** Find the live key behind an "Authorization: Bearer ..." header. */
@@ -111,22 +123,32 @@ export async function createWebhook(actor: Actor, input: { url: string; events: 
   const events = input.events.filter((e) => (WEBHOOK_EVENTS as readonly string[]).includes(e));
   if (events.length === 0) throw new InventoryError("Tick at least one event to send.");
   const secret = `whsec_${randomBytes(24).toString("base64url")}`;
-  await db.insert(webhooks).values({
-    orgId: actor.orgId,
-    facilityId: actor.facilityId,
-    url: url.toString(),
-    secret,
-    events,
-    createdByName: actor.userName,
+  await db.transaction(async (tx) => {
+    const [made] = await tx
+      .insert(webhooks)
+      .values({
+        orgId: actor.orgId,
+        facilityId: actor.facilityId,
+        url: url.toString(),
+        secret,
+        events,
+        createdByName: actor.userName,
+      })
+      .returning({ id: webhooks.id });
+    await logAdminAction(tx, actor, { entityType: "Webhook", entityId: made.id, action: "CREATE", after: { url: url.toString(), events } });
   });
   return { secret };
 }
 
 export async function setWebhookActive(actor: Actor, input: { webhookId: string; active: boolean }): Promise<void> {
-  await db
-    .update(webhooks)
-    .set({ active: input.active })
-    .where(and(eq(webhooks.id, input.webhookId), eq(webhooks.orgId, actor.orgId)));
+  await db.transaction(async (tx) => {
+    const [changed] = await tx
+      .update(webhooks)
+      .set({ active: input.active })
+      .where(and(eq(webhooks.id, input.webhookId), eq(webhooks.orgId, actor.orgId)))
+      .returning({ id: webhooks.id, url: webhooks.url });
+    if (changed) await logAdminAction(tx, actor, { entityType: "Webhook", entityId: changed.id, action: input.active ? "TURN_ON" : "TURN_OFF", after: { url: changed.url } });
+  });
 }
 
 /** Queue a delivery to every active webhook at this facility that wants this event. Runs inside the change's transaction. */

@@ -39,7 +39,7 @@ import {
   splitPackageInTx,
   type Actor,
 } from "./inventory";
-import { assertWholeForUnit, normalizeTag, parsePositiveQty } from "./inventory-math";
+import { assertWholeForUnit, normalizeTag, parsePositiveQty, statusWords } from "./inventory-math";
 import { nextNumber } from "./numbering";
 
 const store = (value: Decimal) => value.toFixed(4);
@@ -387,7 +387,7 @@ export async function allocateToOrder(
     const source = await lockPackage(tx, actor, found.id);
     if (source.itemId !== line.itemId) throw new InventoryError(`Package ${tag} holds a different item than this order line.`);
     if (source.status !== "ACTIVE") {
-      throw new InventoryError(`Package ${tag} is ${source.status.replace("_", " ").toLowerCase()} and cannot be put on an order.`);
+      throw new InventoryError(`Package ${tag} is ${statusWords(source.status)} and cannot be put on an order.`);
     }
     await assertNotFailedLab(tx, source, "put on an order");
 

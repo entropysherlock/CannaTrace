@@ -54,3 +54,9 @@ body {
   scrollbar-width: thin;
   scrollbar-color: rgb(255 255 255 / 0.2) transparent;
 }
+
+/* Grid columns may shrink below their content's width, so wide tables scroll inside their card and long names
+   truncate, instead of pushing the whole page sideways on a phone. */
+main .grid > * {
+  min-width: 0;
+}

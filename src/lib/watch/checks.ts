@@ -346,6 +346,20 @@ async function reconcile(f: Scope): Promise<Finding[]> {
         });
       continue;
     }
+    const unreadable = (theirs as { unreadableQuantity?: string | null } | undefined)?.unreadableQuantity;
+    if (active && theirsActive && theirs!.quantity === null && unreadable) {
+      if (mismatches++ < PER_CHECK)
+        out.push({
+          key: `state_qty_unreadable:${s(p.id)}`,
+          check: "state_qty",
+          severity: "warning",
+          title: `Couldn't read the state's quantity for ${s(p.tag)}`,
+          detail: `The ${source} shows "${unreadable}" as its quantity, so it couldn't be compared with the ${new Decimal(s(p.quantity)).toString()} ${s(p.unit).toLowerCase()} here. Check the export and upload it again.`,
+          permission: "compliance.view",
+          href: `/inventory/${s(p.id)}`,
+        });
+      continue;
+    }
     if (!active || !theirsActive || theirs!.quantity === null) continue;
     let stateQty: Decimal;
     try {

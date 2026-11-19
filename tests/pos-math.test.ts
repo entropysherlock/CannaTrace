@@ -52,7 +52,7 @@ describe("purchase limits", () => {
     expect(limitProblem(limitUsage([{ ...jar, quantity: "17" }]), limits)).toBe(
       "That puts the cart at 59.5 g of flower. The limit is 56.7 g per purchase.",
     );
-    expect(limitProblem(limitUsage([{ ...gummies, quantity: "9" }]), limits)).toMatch(/900 mg of edible thc. The limit is 800 mg/);
+    expect(limitProblem(limitUsage([{ ...gummies, quantity: "9" }]), limits)).toMatch(/900 mg of edible THC. The limit is 800 mg/);
   });
 });
 

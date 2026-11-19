@@ -13,7 +13,7 @@ import { harvestOnHand } from "@/lib/cultivation-math";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
-import { dryWeightAction, finishHarvestAction, packageHarvestAction, wasteAction } from "../../actions";
+import { dryWeightAction, finishHarvestAction, packageHarvestAction, reopenHarvestAction, wasteAction } from "../../actions";
 import { facilityZone } from "@/lib/time";
 
 export default async function HarvestPage({ params }: { params: Promise<{ id: string }> }) {
@@ -87,7 +87,18 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
               </dd>
             </dl>
           </Card>
-          {canWrite ? (
+          {canWrite && !open ? (
+            <Card title="Reopen harvest">
+              <ActionForm action={reopenHarvestAction} submitLabel="Reopen harvest">
+                {hidden}
+                <p className="text-xs text-slate-600">Finished by mistake, or something still needs recording? Reopen it, then finish it again when it&apos;s done.</p>
+                <Field label="Why it's being reopened" hint="Saved in the audit trail.">
+                  <input name="reason" required maxLength={300} className={inputClass} />
+                </Field>
+              </ActionForm>
+            </Card>
+          ) : null}
+          {canWrite && open ? (
             <>
               <Card title="Record dry weight">
                 <ActionForm action={dryWeightAction} submitLabel="Save dry weight">
@@ -100,7 +111,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
               <Card title="Finish harvest">
                 <ActionForm action={finishHarvestAction} submitLabel="Finish harvest">
                   {hidden}
-                  <p className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium leading-relaxed text-amber-900"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Closes the harvest for good. Any wet weight not packaged or logged as waste is recorded as moisture loss.</span></p>
+                  <p className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium leading-relaxed text-amber-900"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Closes the harvest. Needs a dry weight, with all dried product packaged or logged as waste; the rest of the wet weight is recorded as moisture loss.</span></p>
                 </ActionForm>
               </Card>
             </>

@@ -45,8 +45,18 @@ export type Walkthrough = {
   summary: string;
   minutes: number;
   permission: Permission;
+  /** Only offered at facilities with a register (retail stores and microbusinesses). */
+  retailOnly?: boolean;
   steps: Step[];
 };
+
+/** Facilities that sell to customers, and so have a register. */
+export const sellsRetail = (licenseType: string | null | undefined) => licenseType === "RETAIL" || licenseType === "MICROBUSINESS";
+
+/** The walkthroughs someone may run here: their role allows it, and the facility has what it needs. */
+export function walkthroughsFor(can: (p: Permission) => boolean, licenseType: string | null | undefined): string[] {
+  return WALKTHROUGHS.filter((w) => can(w.permission) && (!w.retailOnly || sellsRetail(licenseType))).map((w) => w.id);
+}
 
 const HARVEST = /^\/cultivation\/harvests\/[^/]+$/;
 const BATCH = /^\/cultivation\/batches\/[^/]+$/;
@@ -303,6 +313,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
   },
   {
     id: "register-shift",
+    retailOnly: true,
     title: "Run a register shift",
     summary: "Open your drawer, check ID, ring up a sale, take payment, and count out.",
     minutes: 5,

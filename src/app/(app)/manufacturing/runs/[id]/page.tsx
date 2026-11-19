@@ -11,7 +11,7 @@ import { bomLines, boms, items, locations, packages, productionInputs, productio
 import { db } from "@/lib/db";
 import { inputCost, weightLoss, yieldPercent } from "@/lib/manufacturing-math";
 import { can } from "@/lib/rbac";
-import { requirePagePermission } from "@/lib/session";
+import { requireAnyPagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 import { addInputAction, cancelRunAction, completeRunAction, removeInputAction } from "../../actions";
 import { facilityZone } from "@/lib/time";
@@ -20,7 +20,7 @@ const money = (value: Decimal.Value) => `$${new Decimal(value).toFixed(2)}`;
 const num = (value: Decimal.Value) => new Decimal(value).toString();
 
 export default async function RunPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requirePagePermission("inventory.view");
+  const session = await requireAnyPagePermission("manufacturing.write", "audit.view");
   const zone = await facilityZone(session.facilityId);
   const { id } = await params;
   const [row] = await db

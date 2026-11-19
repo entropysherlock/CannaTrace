@@ -65,12 +65,23 @@ export default async function ReportsPage() {
              coalesce(sum(p.quantity * p.cost_per_unit), 0) as value
       from packages p where ${onHand} group by 1 order by oldest desc`),
     rows(sql`
-      select to_char(date_trunc('day', completed_at at time zone ${zone}), 'YYYY-MM-DD') as day,
-             count(*)::int as sales, sum(total) as total, sum(discount_total) as discounts,
-             sum(excise_tax + sales_tax) as tax
-      from sales where org_id = ${org} and facility_id = ${fac} and status = 'COMPLETED'
-        and completed_at > now() - interval '30 days'
-      group by 1 order by 1 desc`),
+      with s as (
+        select to_char(date_trunc('day', completed_at at time zone ${zone}), 'YYYY-MM-DD') as day,
+               count(*)::int as sales, sum(total) as total, sum(discount_total) as discounts,
+               sum(excise_tax + sales_tax) as tax
+        from sales where org_id = ${org} and facility_id = ${fac} and status = 'COMPLETED'
+          and completed_at > now() - interval '30 days'
+        group by 1
+      ),
+      r as (
+        select to_char(date_trunc('day', created_at at time zone ${zone}), 'YYYY-MM-DD') as day, sum(amount) as refunds
+        from sale_returns where org_id = ${org} and facility_id = ${fac} and created_at > now() - interval '30 days'
+        group by 1
+      )
+      select coalesce(s.day, r.day) as day, coalesce(s.sales, 0) as sales, coalesce(s.total, 0) as total,
+             coalesce(s.discounts, 0) as discounts, coalesce(s.tax, 0) as tax, coalesce(r.refunds, 0) as refunds
+      from s full join r on r.day = s.day
+      order by 1 desc`),
     rows(sql`
       select coalesce(sum(i.total) filter (where i.created_at > now() - interval '30 days'), 0) as invoiced_30,
              coalesce(sum(i.total - coalesce(p.paid, 0)), 0) as outstanding,
@@ -95,13 +106,19 @@ export default async function ReportsPage() {
 
   const totalValue = value.reduce((s, r) => s.add(dec(r.value)), new Decimal(0));
   const uncosted = value.reduce((s, r) => s + Number(r.uncosted), 0);
-  const retailTotal = retail.reduce((s, r) => s.add(dec(r.total)), new Decimal(0));
+  // Net of refunds: a returned sale shouldn't still count as money taken.
+  const retailTotal = retail.reduce((s, r) => s.add(dec(r.total)).sub(dec(r.refunds)), new Decimal(0));
+  const refundTotal = retail.reduce((s, r) => s.add(dec(r.refunds)), new Decimal(0));
   const syncCount = (status: string) => Number(sync.find((r) => r.status === status)?.n ?? 0);
   const [w] = wholesale;
 
   const tiles = [
     { label: "Inventory value at cost", value: usd(totalValue), sub: uncosted ? `${uncosted} package${uncosted === 1 ? " has" : "s have"} no cost` : "every package has a cost" },
-    { label: "Retail sales, last 30 days", value: usd(retailTotal), sub: `${retail.reduce((s, r) => s + Number(r.sales), 0)} sales` },
+    {
+      label: "Retail sales, last 30 days",
+      value: usd(retailTotal),
+      sub: `${retail.reduce((s, r) => s + Number(r.sales), 0)} sales${refundTotal.gt(0) ? ` · after ${usd(refundTotal)} refunded` : ""}`,
+    },
     { label: "Owed to you (wholesale)", value: usd(dec(w?.outstanding)), sub: dec(w?.overdue).gt(0) ? `${usd(dec(w?.overdue))} overdue` : "nothing overdue" },
     {
       label: "State reporting",
@@ -152,8 +169,16 @@ export default async function ReportsPage() {
         </Card>
         <Card title="Retail sales by day (last 30 days)">
           <Table
-            head={["Day", "Sales", "Discounts", "Tax", "Total"]}
-            body={retail.map((r) => [String(r.day), Number(r.sales), usd(dec(r.discounts)), usd(dec(r.tax)), usd(dec(r.total))])}
+            head={["Day", "Sales", "Discounts", "Tax", "Total", "Refunds", "Net"]}
+            body={retail.map((r) => [
+              String(r.day),
+              Number(r.sales),
+              usd(dec(r.discounts)),
+              usd(dec(r.tax)),
+              usd(dec(r.total)),
+              dec(r.refunds).gt(0) ? `−${usd(dec(r.refunds))}` : usd(0),
+              usd(dec(r.total).sub(dec(r.refunds))),
+            ])}
             empty="No retail sales in the last 30 days at this facility."
           />
         </Card>

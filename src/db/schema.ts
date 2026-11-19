@@ -79,6 +79,8 @@ export const transactionTypeEnum = pgEnum("transaction_type", [
   "SELL",
   "DESTROY",
   "STATUS_CHANGE",
+  /** Stock coming back from a customer: a return or a voided sale. */
+  "RETURN",
 ]);
 
 export const limitCategoryEnum = pgEnum("limit_category", ["NONE", "FLOWER", "CONCENTRATE", "EDIBLE"]);
@@ -1583,4 +1585,16 @@ export const printJobs = pgTable(
     uniqueIndex("print_jobs_idempotency_key").on(t.orgId, t.idempotencyKey),
     index("print_jobs_scope_idx").on(t.orgId, t.facilityId, t.createdAt),
   ],
+);
+
+/** Failed sign-in attempts, kept briefly to slow down password guessing. Keys are hashed; no passwords are stored. */
+export const signInFailures = pgTable(
+  "sign_in_failures",
+  {
+    id: id(),
+    /** sha256 of "email:<address>" or "ip:<address>" */
+    key: text("key").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("sign_in_failures_key_idx").on(t.key, t.createdAt)],
 );

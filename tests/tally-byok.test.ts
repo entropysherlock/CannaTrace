@@ -206,7 +206,7 @@ describe.skipIf(!hasDb)("business Claude connections (database)", () => {
     await checkLimits(owner, limits);
     await recordUsage(owner, route, { inputTokens: 100, outputTokens: 20, outcome: "OK" });
     await recordUsage(owner, route, { inputTokens: 100, outputTokens: 20, outcome: "OK" });
-    await expect(checkLimits(owner, limits)).rejects.toThrow(/limit per person/);
+    await expect(checkLimits(owner, limits)).rejects.toThrow(new RegExp(`limit of ${limits.perPersonDailyLimit} Tally questions? per person`));
     await checkLimits(manager, limits);
     await recordUsage(manager, route, { inputTokens: 1, outputTokens: 1, outcome: "NO_CREDIT" });
     await expect(checkLimits(manager, limits)).rejects.toThrow(/used its 3 Tally questions for the last 24 hours/);
@@ -228,7 +228,7 @@ describe.skipIf(!hasDb)("business Claude connections (database)", () => {
     const tries = await Promise.allSettled(Array.from({ length: 10 }, () => reserveUsage(owner, route)));
     const taken = tries.filter((t) => t.status === "fulfilled").map((t) => (t as PromiseFulfilledResult<string>).value);
     expect(taken).toHaveLength(3);
-    expect(tries.filter((t) => t.status === "rejected").every((t) => /limit per person|used its 3/.test(String((t as PromiseRejectedResult).reason)))).toBe(true);
+    expect(tries.filter((t) => t.status === "rejected").every((t) => /Tally questions? per person|used its 3/.test(String((t as PromiseRejectedResult).reason)))).toBe(true);
     expect(await db.$count(aiUsage, eq(aiUsage.orgId, owner.orgId))).toBe(3);
     await expect(checkLimits(owner, route.limits)).rejects.toThrow();
 
