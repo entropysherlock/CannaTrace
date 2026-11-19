@@ -1584,3 +1584,113 @@ export const printJobs = pgTable(
     index("print_jobs_scope_idx").on(t.orgId, t.facilityId, t.createdAt),
   ],
 );
+
+/*
+ * NMS2S integration preparation (New Mexico). These tables hold CannaTrace's own records about its
+ * exchanges with the state system. None of them is a copy of the state's data model: the official
+ * NMS2S API specification has not been received yet, so state-side identifiers are opaque strings.
+ */
+export const nms2sEnvironmentEnum = pgEnum("nms2s_environment", ["UAT", "PRODUCTION"]);
+
+/** State-system credentials, sealed per business, facility, and environment. Values are never stored in the clear. */
+export const nms2sCredentials = pgTable(
+  "nms2s_credentials",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    environment: nms2sEnvironmentEnum("environment").notNull(),
+    sealed: text("sealed").notNull(),
+    /** Names of the fields stored (never their values), and a short hint per field for recognition. */
+    fieldHints: jsonb("field_hints").$type<Record<string, string>>().notNull(),
+    savedByName: text("saved_by_name").notNull(),
+    savedAt: timestamp("saved_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("nms2s_credentials_scope_key").on(t.facilityId, t.environment)],
+);
+
+/**
+ * Durable ledger of every write CannaTrace attempts against the state system. The idempotency key is
+ * derived from the local record that caused the write, so a retry can never become a second write.
+ */
+export const nms2sRequests = pgTable(
+  "nms2s_requests",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    environment: nms2sEnvironmentEnum("environment").notNull(),
+    transport: text("transport").notNull(),
+    operation: text("operation").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    localEntityType: text("local_entity_type").notNull(),
+    localEntityId: text("local_entity_id").notNull(),
+    syncEventId: text("sync_event_id"),
+    /** PREPARED, IN_FLIGHT, ACCEPTED, REJECTED, RETRYABLE, UNKNOWN_OUTCOME, RESOLVED_APPLIED, RESOLVED_NOT_APPLIED */
+    status: text("status").notNull().default("PREPARED"),
+    attempts: integer("attempts").notNull().default(0),
+    leaseUntil: timestamp("lease_until", { withTimezone: true }),
+    lastErrorKind: text("last_error_kind"),
+    lastErrorDetail: text("last_error_detail"),
+    stateReference: text("state_reference"),
+    resolvedByName: text("resolved_by_name"),
+    resolvedNote: text("resolved_note"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("nms2s_requests_key").on(t.facilityId, t.environment, t.idempotencyKey),
+    index("nms2s_requests_status_idx").on(t.facilityId, t.environment, t.status),
+  ],
+);
+
+/** Confirmed links between a CannaTrace record and the state system's identifier for it. */
+export const nms2sIdMap = pgTable(
+  "nms2s_id_map",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    environment: nms2sEnvironmentEnum("environment").notNull(),
+    entityType: text("entity_type").notNull(),
+    localId: text("local_id").notNull(),
+    stateId: text("state_id").notNull(),
+    /** WRITE_RESPONSE or CONFIRMED_BY_PERSON */
+    source: text("source").notNull(),
+    confirmedByName: text("confirmed_by_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("nms2s_id_map_local_key").on(t.facilityId, t.environment, t.entityType, t.localId),
+    uniqueIndex("nms2s_id_map_state_key").on(t.facilityId, t.environment, t.entityType, t.stateId),
+  ],
+);
+
+/** Saved reconciliation results. Read-only comparisons: nothing here changes inventory. */
+export const nms2sReconciliations = pgTable(
+  "nms2s_reconciliations",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    environment: nms2sEnvironmentEnum("environment").notNull(),
+    transport: text("transport").notNull(),
+    startedByName: text("started_by_name").notNull(),
+    counts: jsonb("counts").$type<Record<string, number>>().notNull(),
+    findings: jsonb("findings").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("nms2s_reconciliations_scope_idx").on(t.facilityId, t.createdAt)],
+);
+
+export type Nms2sRequest = typeof nms2sRequests.$inferSelect;
+export type Nms2sIdLink = typeof nms2sIdMap.$inferSelect;
