@@ -362,8 +362,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </ul>
           </div>
           <figure>
-            <Screen src="/site/command-center.webp" alt="The CannaTrace Command Center with plants, packages, sales, the operations flow, charts, and the Tally assistant" priority />
-            <figcaption className="mt-2 text-center text-xs text-slate-500">The real CannaTrace Command Center, shown with sample data.</figcaption>
+            <Screen src="/site/command-center.webp" alt="The CannaTrace Dashboard with plants, packages, sales, the operations flow, charts, and the Tally assistant" priority />
+            <figcaption className="mt-2 text-center text-xs text-slate-500">The real CannaTrace Dashboard, shown with sample data.</figcaption>
           </figure>
         </div>
       </section>
@@ -497,7 +497,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </ul>
           </div>
           <div className="grid grid-cols-3 gap-3 sm:gap-6">
-            <Phone src="/site/phone-dashboard.webp" alt="The CannaTrace Command Center on a phone" />
+            <Phone src="/site/phone-dashboard.webp" alt="The CannaTrace Dashboard on a phone" />
             <Phone src="/site/phone-inventory.webp" alt="CannaTrace inventory on a phone" />
             <Phone src="/site/phone-register.webp" alt="The CannaTrace register on a phone" />
           </div>
@@ -590,7 +590,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <div className="relative">
             <h2 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">See CannaTrace in Action</h2>
             <p className="mt-3 max-w-lg text-lg text-slate-700">
-              A one-minute tour: the Command Center, plants, inventory, manufacturing, wholesale, the register, labels, state rules, Tally, and reports.
+              A one-minute tour: the Dashboard, plants, inventory, manufacturing, wholesale, the register, labels, state rules, Tally, and reports.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <DemoVideoButton className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-6 py-3 font-bold text-white shadow-sm hover:bg-brand-800">

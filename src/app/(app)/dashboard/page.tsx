@@ -43,7 +43,7 @@ import { ADAPTERS } from "@/lib/sync";
 import { SYSTEM_LABELS, type SystemName } from "@/lib/sync-math";
 import { sweepIfStale } from "@/lib/watch";
 
-export const metadata = { title: "Command Center · CannaTrace" };
+export const metadata = { title: "Dashboard · CannaTrace" };
 
 const num = (v: number) => v.toLocaleString("en-US");
 
@@ -206,11 +206,11 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   const compliant = checks.every((ch) => ch.ok);
 
   return (
-    // data-wide lets the Command Center use the full screen width instead of the usual page column.
+    // data-wide lets the Dashboard use the full screen width instead of the usual page column.
     <div data-wide>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Command Center</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Dashboard</h1>
           <p className="mt-1 text-sm text-slate-600">
             Your seed-to-sale operations at a glance · <span className="whitespace-nowrap">{span}</span>
           </p>

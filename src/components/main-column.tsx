@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 /**
- * The page column. The Command Center uses the full screen width; every other tab keeps the usual column.
+ * The page column. The Dashboard uses the full screen width; every other tab keeps the usual column.
  * Goes by the address, not the page contents: visited pages stay loaded in the background.
  */
 export function MainColumn({ children }: { children: ReactNode }) {

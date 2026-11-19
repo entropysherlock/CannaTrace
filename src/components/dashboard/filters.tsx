@@ -3,7 +3,7 @@
 import { Building2, CalendarDays } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
-/** Which facilities and how many days the Command Center covers. Changing either reloads the numbers. */
+/** Which facilities and how many days the Dashboard covers. Changing either reloads the numbers. */
 export function DashboardFilters({ scope, days, facilityName, facilityCount }: { scope: "one" | "all"; days: number; facilityName: string; facilityCount: number }) {
   const router = useRouter();
   const path = usePathname();
