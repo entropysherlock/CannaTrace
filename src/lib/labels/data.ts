@@ -126,6 +126,54 @@ async function harvestsFor(ids: string[]) {
   );
 }
 
+type LabRow = typeof labResults.$inferSelect;
+
+/** The lab result that stands for a package: a failed test stands until a later one passes; otherwise the newest. */
+function standing(rows: LabRow[]): LabRow | undefined {
+  const newest = rows[0];
+  const decisive = rows.find((r) => r.status === "PASS" || r.status === "FAIL");
+  return decisive?.status === "FAIL" ? decisive : newest;
+}
+
+/**
+ * The lab result that applies to each package: its own, or, when it has none, the closest source packages'
+ * (a split, pick, or merge keeps its source's test). A failed source wins over a passed one.
+ */
+async function labsFor(scope: Scope, ids: string[]): Promise<Map<string, LabRow>> {
+  const out = new Map<string, LabRow>();
+  let frontier = new Map<string, Set<string>>(ids.map((id) => [id, new Set([id])]));
+  for (let step = 0; step < 6 && frontier.size > 0; step++) {
+    const current = [...frontier.keys()];
+    const rows = await db
+      .select()
+      .from(labResults)
+      .where(and(eq(labResults.orgId, scope.orgId), inArray(labResults.packageId, current)))
+      .orderBy(desc(labResults.createdAt));
+    const byPackage = new Map<string, LabRow[]>();
+    for (const r of rows) byPackage.set(r.packageId, [...(byPackage.get(r.packageId) ?? []), r]);
+    for (const [pkgId, list] of byPackage) {
+      const lab = standing(list);
+      if (!lab) continue;
+      for (const origin of frontier.get(pkgId) ?? []) {
+        const had = out.get(origin);
+        if (!had || (lab.status === "FAIL" && had.status !== "FAIL")) out.set(origin, lab);
+      }
+    }
+    // Only climb from packages that had no result of their own, for origins still without one.
+    const climb = current.filter((id) => !byPackage.has(id) && [...(frontier.get(id) ?? [])].some((o) => !out.has(o)));
+    if (!climb.length) break;
+    const parents = await db.select().from(packageLineage).where(inArray(packageLineage.childId, climb));
+    const next = new Map<string, Set<string>>();
+    for (const link of parents) {
+      const set = next.get(link.parentId) ?? new Set<string>();
+      for (const o of frontier.get(link.childId) ?? []) if (!out.has(o)) set.add(o);
+      if (set.size) next.set(link.parentId, set);
+    }
+    frontier = next;
+  }
+  return out;
+}
+
 const pct = (v: string | null | undefined) => (v === null || v === undefined ? null : `${trim(v, 3)}%`);
 
 /** Throw if any requested id wasn't found here. Records at another facility look exactly like records that don't exist. */
@@ -143,13 +191,7 @@ async function packageRecords(scope: Scope, ids: string[], fac: Record<string, s
     .where(and(eq(packages.orgId, scope.orgId), eq(packages.facilityId, scope.facilityId), inArray(packages.id, ids)));
   requireAll(ids, new Set(rows.map((r) => r.pkg.id)), "package");
 
-  const labs = await db
-    .select()
-    .from(labResults)
-    .where(and(eq(labResults.orgId, scope.orgId), eq(labResults.facilityId, scope.facilityId), inArray(labResults.packageId, ids)))
-    .orderBy(desc(labResults.createdAt));
-  const latestLab = new Map<string, (typeof labs)[number]>();
-  for (const l of labs) if (!latestLab.has(l.packageId)) latestLab.set(l.packageId, l);
+  const latestLab = await labsFor(scope, ids);
 
   const origin = await harvestsFor(ids);
   const types = await strainTypes(

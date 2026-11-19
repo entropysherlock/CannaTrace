@@ -196,7 +196,13 @@ export async function latestLabStatus(tx: Tx, packageId: string): Promise<"PASS"
       select l.parent_id, a.depth + 1 from ${packageLineage} l join ancestors a on l.child_id = a.id where a.depth < 25
     ),
     latest as (
-      select distinct on (a.id) a.id, a.depth, lr.status::text as status
+      -- A failed test stands until a later test PASSES: a newer pending (or re-sampled) result doesn't clear it.
+      select distinct on (a.id) a.id, a.depth,
+        case
+          when (select lr2.status::text from ${labResults} lr2 where lr2.package_id = a.id and lr2.status in ('PASS', 'FAIL')
+                order by lr2.created_at desc limit 1) = 'FAIL' then 'FAIL'
+          else lr.status::text
+        end as status
       from ancestors a join ${labResults} lr on lr.package_id = a.id
       order by a.id, lr.created_at desc
     )
@@ -457,6 +463,7 @@ export async function splitPackageInTx(
   {
     const source = await lockPackage(tx, actor, input.packageId);
     assertActive(source, "split");
+    await assertNotFailedLab(tx, source, "split");
     const plan = planSplit(source.quantity, parts.map((p) => p.quantity as Decimal.Value));
     plan.parts.forEach((part) => assertWholeForUnit(source.unit, part, "Each split quantity"));
 
@@ -551,7 +558,10 @@ export async function mergePackages(
     // Sorted ids give every transaction the same lock order, which prevents deadlocks.
     const sources: Package[] = [];
     for (const id of ids) sources.push(await lockPackage(tx, actor, id));
-    for (const source of sources) assertActive(source, "merged");
+    for (const source of sources) {
+      assertActive(source, "merged");
+      await assertNotFailedLab(tx, source, "merged");
+    }
     const first = sources[0];
     if (sources.some((s) => s.itemId !== first.itemId || s.unit !== first.unit)) {
       throw new InventoryError("Only packages of the same item can be merged.");
@@ -852,6 +862,7 @@ export async function recordCycleCount(
         throw new InventoryError(`Package ${pkg.tag} was moved out of this location during the count. Start the count again.`);
       }
       assertEditable(pkg.status);
+      assertWholeForUnit(pkg.unit, line.counted, `Counted amount for ${pkg.tag}`);
       const change = applyDelta(pkg.quantity, line.counted.sub(pkg.quantity));
       lines.push({ packageId: pkg.id, expected: store(change.before), counted: store(change.after) });
       if (change.delta.isZero()) continue;
@@ -990,12 +1001,29 @@ export async function addLabResult(
       entityType: "Package",
       entityId: pkg.id,
       action: "LAB_RESULT",
-      after: { labName, status, thcPercent, cbdPercent, ...profile, terpenes, sampleDate, coaFileName: coa?.name ?? null },
+      after: { tag: pkg.tag, labName, status, thcPercent, cbdPercent, ...profile, terpenes, sampleDate, coaFileName: coa?.name ?? null },
     });
     let quarantined = false;
     if (status === "FAIL" && (pkg.status === "ACTIVE" || pkg.status === "ON_HOLD")) {
       await changeStatus(tx, actor, pkg, "QUARANTINE", `Failed lab test at ${labName}`);
       quarantined = true;
+    }
+    if (status === "FAIL") {
+      // Packages already made from this one (splits, picks, merges, production) carry its result unless they
+      // have their own; hold every one of them here too, so none can be sold before anyone notices.
+      const made = await tx.execute(sql`
+        with recursive descendants(id, depth) as (
+          select ${pkg.id}::text, 0
+          union all
+          select l.child_id, d.depth + 1 from ${packageLineage} l join descendants d on l.parent_id = d.id where d.depth < 25
+        )
+        select distinct p.id from descendants d join ${packages} p on p.id = d.id
+        where d.depth > 0 and p.org_id = ${actor.orgId} and p.facility_id = ${actor.facilityId} and p.status in ('ACTIVE', 'ON_HOLD')`);
+      for (const row of made.rows as { id: string }[]) {
+        if ((await latestLabStatus(tx, row.id)) !== "FAIL") continue;
+        const child = await lockPackage(tx, actor, row.id);
+        await changeStatus(tx, actor, child, "QUARANTINE", `Made from ${pkg.tag}, which failed a lab test at ${labName}`);
+      }
     }
     return { id: result.id, quarantined };
   });

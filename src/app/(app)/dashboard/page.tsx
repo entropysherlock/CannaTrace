@@ -133,7 +133,13 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   const days = toRange(params.days);
   const ids = scope === "all" ? facilities.map((f) => f.id) : [session.facilityId];
   // Alerts count only what this person may see, exactly like the bell and the Tally Watch page.
-  const c = await commandCenter(session.orgId, ids, days, (permission) => !permission || can(session, permission as Parameters<typeof can>[1]));
+  const c = await commandCenter(
+    session.orgId,
+    ids,
+    days,
+    (permission) => !permission || can(session, permission as Parameters<typeof can>[1]),
+    facilities.map((f) => f.id),
+  );
 
   const fmtDay = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: zone });
   const end = new Date();

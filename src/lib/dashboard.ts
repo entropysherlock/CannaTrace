@@ -47,10 +47,18 @@ export type CommandCenter = Awaited<ReturnType<typeof commandCenter>>;
  * sales plus invoices, by the facility's local day; alerts are open Tally Watch items this person may see (canSee
  * is the same test the bell and the Tally Watch page use).
  */
-export async function commandCenter(orgId: string, facilityIds: string[], days: Range, canSee: (permission: string | null) => boolean = () => true) {
+export async function commandCenter(
+  orgId: string,
+  facilityIds: string[],
+  days: Range,
+  canSee: (permission: string | null) => boolean = () => true,
+  /** Every facility this person may see (not hidden, and allowed for them). Cards that list facilities use only these. */
+  visibleIds: string[] = facilityIds,
+) {
   const ids = facilityIds;
   // The facilities as one Postgres array (ids are UUIDs, so a comma can't appear inside one).
   const inIds = sql`string_to_array(${ids.join(",")}, ',')`;
+  const visible = sql`string_to_array(${visibleIds.join(",")}, ',')`;
   // Days are counted in the first facility's own time zone (a business's stores are normally in one state).
   const TZ = ids.length ? await facilityZone(ids[0]) : DEFAULT_ZONE;
   const start = sql`(now() at time zone ${TZ})::date - ${days - 1}::int`;
@@ -130,7 +138,7 @@ export async function commandCenter(orgId: string, facilityIds: string[], days: 
       from print_jobs where org_id = ${orgId} and facility_id = any(${inIds}) and created_at > now() - make_interval(days => ${days})`),
     q(sql`select w.id, w.facility_id, w.severity, w.title, w.href, w.permission, w.created_at, f.name as facility
       from watch_findings w join facilities f on f.id = w.facility_id
-      where w.org_id = ${orgId} and w.status = 'OPEN'
+      where w.org_id = ${orgId} and w.status = 'OPEN' and w.facility_id = any(${visible})
       order by case w.severity when 'critical' then 0 when 'warning' then 1 else 2 end, w.created_at desc`),
     q(sql`select a.id, a.entity_type, a.entity_id, a.action, a.user_name, a.created_at, a.after, f.name as facility
       from audit_logs a left join facilities f on f.id = a.facility_id
@@ -142,7 +150,7 @@ export async function commandCenter(orgId: string, facilityIds: string[], days: 
         (select count(*) from packages p where p.facility_id = f.id and p.status in ('ACTIVE','ALLOCATED')) as packages,
         (select coalesce(sum(s.total), 0) from sales s where s.facility_id = f.id and s.status = 'COMPLETED' and ${local(sql`s.completed_at`)} >= ${start})
           + (select coalesce(sum(i.total), 0) from invoices i where i.facility_id = f.id and ${local(sql`i.created_at`)} >= ${start}) as sales
-      from facilities f where f.org_id = ${orgId} order by f.name`),
+      from facilities f where f.org_id = ${orgId} and f.id = any(${visible}) order by f.name`),
     q(sql`select
         count(*) filter (where status in ('DRAFT','CONFIRMED','PACKED','SHIPPED')) as open,
         count(*) filter (where status in ('CONFIRMED','PACKED')) as to_ship

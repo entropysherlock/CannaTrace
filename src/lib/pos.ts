@@ -104,6 +104,8 @@ export async function saveRetailSettings(
   });
 }
 
+const MAX_SHELF_PRICE = 100_000;
+
 /** Put an item on this store's menu (or change it): its shelf price and how it counts toward purchase limits. */
 export async function setMenuItem(
   actor: Actor,
@@ -111,19 +113,26 @@ export async function setMenuItem(
 ): Promise<void> {
   const price = parsePrice(input.price, "Shelf price");
   if (price.lte(0)) throw new InventoryError("Shelf price must be more than zero.");
-  if (!["NONE", "FLOWER", "CONCENTRATE", "EDIBLE"].includes(input.limitCategory)) throw new InventoryError("Choose how this item counts toward purchase limits.");
-  const limitCategory = input.limitCategory as LimitCategory;
-  const limitPerUnit =
-    limitCategory === "NONE"
-      ? null
-      : store(parsePositiveQty(input.limitPerUnit, limitCategory === "EDIBLE" ? "Milligrams of THC per unit" : "Grams per unit"));
+  if (price.decimalPlaces() > 2) throw new InventoryError("Shelf price can't have fractions of a cent.");
+  if (price.gt(MAX_SHELF_PRICE)) throw new InventoryError(`Shelf price can't be more than $${MAX_SHELF_PRICE.toLocaleString("en-US")}.`);
+  // KEEP (the form's default) changes only the price: a price change must never quietly drop an item's purchase limit.
+  const keep = !input.limitCategory || input.limitCategory === "KEEP";
+  if (!keep && !["NONE", "FLOWER", "CONCENTRATE", "EDIBLE"].includes(input.limitCategory)) throw new InventoryError("Choose how this item counts toward purchase limits.");
   await db.transaction(async (tx) => {
-    const [item] = await tx
-      .update(items)
-      .set({ limitCategory, limitPerUnit })
+    const [current] = await tx
+      .select({ id: items.id, name: items.name, limitCategory: items.limitCategory, limitPerUnit: items.limitPerUnit })
+      .from(items)
       .where(and(eq(items.id, input.itemId), eq(items.orgId, actor.orgId)))
-      .returning({ id: items.id, name: items.name });
-    if (!item) throw new InventoryError("Pick an item from the list.");
+      .for("update");
+    if (!current) throw new InventoryError("Pick an item from the list.");
+    const limitCategory = (keep ? current.limitCategory : input.limitCategory) as LimitCategory;
+    const limitPerUnit = keep
+      ? current.limitPerUnit
+      : limitCategory === "NONE"
+        ? null
+        : store(parsePositiveQty(input.limitPerUnit, limitCategory === "EDIBLE" ? "Milligrams of THC per unit" : "Grams per unit"));
+    if (!keep) await tx.update(items).set({ limitCategory, limitPerUnit }).where(eq(items.id, current.id));
+    const item = current;
     await tx
       .insert(retailPrices)
       .values({ facilityId: actor.facilityId, itemId: item.id, price: store(price) })
@@ -328,8 +337,12 @@ export async function closeDrawer(actor: Actor, input: { countedCash: unknown; d
     const withItems = open.filter((c) => c.lines > 0);
     if (withItems.length > 0) {
       const names = withItems.map((c) => c.number).join(", ");
+      const one = withItems.length === 1;
+      const lead = `${one ? `Cart ${names} is` : `Carts ${names} are`} still open with items in ${one ? "it" : "them"}`;
       throw new InventoryError(
-        `${withItems.length === 1 ? `Cart ${names} is` : `Carts ${names} are`} still open with items in ${withItems.length === 1 ? "it" : "them"}. Resume ${withItems.length === 1 ? "it" : "them"} from Held carts on the Register, then finish or cancel before closing the drawer.`,
+        session.userId && session.userId !== actor.userId
+          ? `${lead} on ${session.openedByName}'s drawer. Ask them to finish or cancel ${one ? "it" : "them"}, or take ${one ? "it" : "them"} over from Held carts on your Register (it moves to your drawer), then close this drawer.`
+          : `${lead}. Resume ${one ? "it" : "them"} from Held carts on the Register, then finish or cancel before closing the drawer.`,
       );
     }
     for (const empty of open) {
@@ -414,7 +427,31 @@ async function lockSale(tx: Tx, actor: Actor, saleId: string, allowed: Sale["sta
     .for("update");
   if (!sale) throw new InventoryError("That sale was not found at this store.");
   if (!allowed.includes(sale.status)) throw new InventoryError(`Sale ${sale.number} is ${sale.status.toLowerCase()} and cannot be ${verb}.`);
+  if (sale.status === "OPEN") return takeOverCart(tx, actor, sale);
   return sale;
+}
+
+/**
+ * A cart belongs to the drawer it was started on. When someone else picks it up (a held cart resumed by another
+ * budtender), it moves to their own open drawer first, so the cash they take lands in the till they'll count.
+ */
+async function takeOverCart(tx: Tx, actor: Actor, sale: Sale): Promise<Sale> {
+  const mine = await lockOpenDrawer(tx, actor);
+  if (mine && mine.id === sale.drawerSessionId) return sale;
+  if (!mine) throw new InventoryError(`Cart ${sale.number} was started on ${sale.userName}'s drawer. Open your own drawer to take it over.`);
+  const [moved] = await tx
+    .update(sales)
+    .set({ drawerSessionId: mine.id, userId: actor.userId, userName: actor.userName })
+    .where(eq(sales.id, sale.id))
+    .returning();
+  await audit(tx, actor, {
+    entityType: "Sale",
+    entityId: sale.id,
+    action: "TAKE_OVER",
+    before: { number: sale.number, drawerSessionId: sale.drawerSessionId, servedBy: sale.userName },
+    after: { number: sale.number, drawerSessionId: mine.id, servedBy: actor.userName },
+  });
+  return moved;
 }
 
 export type CartRow = {
@@ -774,6 +811,12 @@ export async function voidSale(actor: Actor, input: { saleId: string; reason: st
     if (session.status !== "OPEN") {
       throw new InventoryError("This sale is from a drawer that has already been closed and counted, so it cannot be voided here.");
     }
+    // A void undoes the whole sale. Once part of it has been returned, that part is already back (and refunded),
+    // so voiding would restock it a second time: record the rest as a return instead.
+    const [returned] = await tx.select({ number: saleReturns.number }).from(saleReturns).where(eq(saleReturns.saleId, sale.id)).limit(1);
+    if (returned) {
+      throw new InventoryError(`Sale ${sale.number} already has a return (${returned.number}), so it can't be voided. Record a return for the rest of it instead.`);
+    }
     const taken = await tx
       .select({ packageId: saleLinePackages.packageId, quantity: saleLinePackages.quantity })
       .from(saleLinePackages)
@@ -808,7 +851,7 @@ export function msAgo(ms: number): Date {
 export const RETURN_DISPOSITIONS = ["RESTOCK", "DISPOSE"] as const;
 export const REFUND_METHODS = ["CASH", "CARD"] as const;
 
-export type ReturnableLine = { saleLineId: string; itemName: string; sold: string; returned: string; returnable: string; unitPrice: string };
+export type ReturnableLine = { saleLineId: string; itemName: string; unit: string; sold: string; returned: string; returnable: string; unitPrice: string };
 
 /** Each line of a sale with how much is still returnable. */
 export async function returnableLines(tx: Tx | typeof db, saleId: string): Promise<ReturnableLine[]> {
@@ -816,6 +859,7 @@ export async function returnableLines(tx: Tx | typeof db, saleId: string): Promi
     .select({
       saleLineId: saleLines.id,
       itemName: items.name,
+      unit: items.unit,
       sold: saleLines.quantity,
       unitPrice: saleLines.unitPrice,
       returned: sql<string>`coalesce((select sum(${saleReturnLines.quantity}) from ${saleReturnLines} where ${saleReturnLines.saleLineId} = ${saleLines.id}), 0)`,
@@ -875,6 +919,7 @@ export async function returnSale(
         const line = lines.find((l) => l.saleLineId === w.saleLineId);
         if (!line) throw new InventoryError("One of those items isn't on this sale.");
         const quantity = parsePositiveQty(w.raw, `Quantity of ${line.itemName}`);
+        assertWholeForUnit(line.unit, quantity, `Quantity of ${line.itemName}`);
         if (quantity.gt(line.returnable))
           throw new InventoryError(`Only ${line.returnable} of ${line.itemName} can still be returned (${line.sold} sold, ${line.returned} already returned).`);
         plan.push({ line, quantity });

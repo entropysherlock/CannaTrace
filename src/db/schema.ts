@@ -1584,3 +1584,15 @@ export const printJobs = pgTable(
     index("print_jobs_scope_idx").on(t.orgId, t.facilityId, t.createdAt),
   ],
 );
+
+/** Failed sign-in attempts, kept briefly to slow down password guessing. Keys are hashed; no passwords are stored. */
+export const signInFailures = pgTable(
+  "sign_in_failures",
+  {
+    id: id(),
+    /** sha256 of "email:<address>" or "ip:<address>" */
+    key: text("key").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("sign_in_failures_key_idx").on(t.key, t.createdAt)],
+);

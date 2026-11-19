@@ -1,9 +1,10 @@
 import "server-only";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { auditLogs, customers, facilities, items, packages } from "@/db/schema";
+import { auditLogs, customers, facilities, inventoryTransactions, items, orderAllocations, orders, packages } from "@/db/schema";
 import { db } from "@/lib/db";
 import { audit, createPackageInTx, type Actor } from "@/lib/inventory";
-import { InventoryError } from "@/lib/inventory-math";
+import Decimal from "decimal.js";
+import { assertWholeForUnit, InventoryError } from "@/lib/inventory-math";
 import { SYSTEM_LABELS, type SystemName } from "@/lib/sync-math";
 import { parseManifest, reviewShipment, type Received, type ReviewLine } from "@/lib/shipments-parse";
 
@@ -54,6 +55,15 @@ export async function receiveShipment(
   const itemFor = (l: ReviewLine) =>
     (l.sku ? catalog.find((i) => i.sku === l.sku!.toUpperCase()) : undefined) ?? catalog.find((i) => i.name.toLowerCase() === l.product.toLowerCase());
   const lines = reviewed.lines.map((l) => ({ ...l, item: itemFor(l) }));
+  const unitOf = new Map((await db.select({ id: items.id, unit: items.unit }).from(items).where(eq(items.orgId, actor.orgId))).map((i) => [i.id, i.unit]));
+  for (const l of lines) {
+    if (l.status === "MISSING" || !l.item) continue;
+    try {
+      assertWholeForUnit(unitOf.get(l.item.id) ?? "G", l.received, `${l.tag}: quantity received`);
+    } catch (e) {
+      problems.push((e as Error).message);
+    }
+  }
   const unknown = lines.filter((l) => !l.item && l.status !== "MISSING");
   if (unknown.length)
     problems.push(
@@ -63,14 +73,41 @@ export async function receiveShipment(
         .join(", ")}${unknown.length > 5 ? ", …" : ""}). Add ${unknown.length === 1 ? "it" : "them"} in Catalog with the same name or SKU, then check again.`,
     );
 
-  // Tags already in use anywhere in the business
+  // Tags already in use anywhere in the business. The one exception is a transfer between this business's own
+  // facilities: a package another facility shipped on this same manifest is taken in here (moved), not created twice.
   const tags = lines.filter((l) => l.status !== "MISSING").map((l) => l.tag);
+  const transfers = new Map<string, { id: string; itemId: string }>();
   if (tags.length) {
     const taken = await db
-      .select({ tag: packages.tag })
+      .select({ id: packages.id, tag: packages.tag, itemId: packages.itemId, facilityId: packages.facilityId, status: packages.status, quantity: packages.quantity })
       .from(packages)
       .where(and(eq(packages.orgId, actor.orgId), inArray(packages.tag, tags)));
-    for (const t of taken) problems.push(`${t.tag} is already in CannaTrace. A package can only be received once.`);
+    const shipped = taken.length
+      ? await db
+          .select({ packageId: orderAllocations.packageId })
+          .from(orderAllocations)
+          .innerJoin(orders, eq(orders.id, orderAllocations.orderId))
+          .where(
+            and(
+              eq(orders.orgId, actor.orgId),
+              eq(orders.manifestNumber, manifestNumber),
+              inArray(orders.status, ["SHIPPED", "DELIVERED"]),
+              inArray(
+                orderAllocations.packageId,
+                taken.map((t) => t.id),
+              ),
+            ),
+          )
+      : [];
+    const onManifest = new Set(shipped.map((r) => r.packageId));
+    for (const t of taken) {
+      if (onManifest.has(t.id) && t.facilityId !== actor.facilityId && t.status === "FINISHED" && Number(t.quantity) === 0) transfers.set(t.tag, { id: t.id, itemId: t.itemId });
+      else problems.push(`${t.tag} is already in CannaTrace. A package can only be received once.`);
+    }
+    for (const l of lines) {
+      const moved = transfers.get(l.tag);
+      if (moved && l.item && l.item.id !== moved.itemId) problems.push(`${l.tag} was shipped as a different product than "${l.product}". Check the manifest.`);
+    }
   }
 
   // The vendor, when given, must be one this business buys from
@@ -124,6 +161,11 @@ export async function receiveShipment(
     if (await received(tx)) throw new InventoryError(`Manifest ${manifestNumber} was already received at this facility.`);
     for (const l of lines) {
       if (l.status === "MISSING" || !l.item) continue;
+      const moved = transfers.get(l.tag);
+      if (moved) {
+        await takeInTransferInTx(tx, actor, { packageId: moved.id, quantity: l.received, locationId: input.locationId, manifestNumber, expected: l.quantity, reason: l.reason });
+        continue;
+      }
       const pkg = await createPackageInTx(tx, actor, {
         tag: l.tag,
         itemId: l.item.id,
@@ -152,4 +194,46 @@ export async function receiveShipment(
     });
   });
   return { ...result, received: true };
+}
+
+/**
+ * Take in a package another of this business's facilities shipped on this manifest: the same package (tag, lot,
+ * lab results, lineage) moves to this facility with what arrived, instead of a second package with the same tag.
+ */
+async function takeInTransferInTx(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  actor: Actor,
+  input: { packageId: string; quantity: string; locationId: string; manifestNumber: string; expected: string; reason?: string | null },
+) {
+  const [pkg] = await tx.select().from(packages).where(and(eq(packages.id, input.packageId), eq(packages.orgId, actor.orgId))).for("update");
+  if (!pkg || pkg.status !== "FINISHED" || Number(pkg.quantity) !== 0) throw new InventoryError(`${pkg?.tag ?? "A package"} changed while receiving. Check the manifest again.`);
+  const [location] = await tx.execute(sql`select 1 from locations where id = ${input.locationId} and facility_id = ${actor.facilityId}`).then((r) => r.rows);
+  if (!location) throw new InventoryError("Choose where the shipment is put away.");
+  const quantity = new Decimal(input.quantity).toFixed(4);
+  const [after] = await tx
+    .update(packages)
+    .set({ facilityId: actor.facilityId, locationId: input.locationId, quantity, status: "ACTIVE", heldSince: null })
+    .where(eq(packages.id, pkg.id))
+    .returning();
+  await tx.insert(inventoryTransactions).values({
+    orgId: actor.orgId,
+    facilityId: actor.facilityId,
+    packageId: pkg.id,
+    type: "RECEIVE",
+    quantityDelta: quantity,
+    quantityBefore: "0",
+    quantityAfter: quantity,
+    unit: pkg.unit,
+    toLocationId: input.locationId,
+    note: `Manifest ${input.manifestNumber} (transfer from another of our facilities)`,
+    userId: actor.userId,
+  });
+  await audit(tx, actor, {
+    entityType: "Package",
+    entityId: pkg.id,
+    action: "RECEIVE_SHIPMENT",
+    before: { tag: pkg.tag, facilityId: pkg.facilityId, status: pkg.status, quantity: pkg.quantity },
+    after: { tag: after.tag, quantity: after.quantity, unit: after.unit, status: after.status, locationId: after.locationId, manifestNumber: input.manifestNumber, transfer: true, expected: input.expected, ...(input.reason ? { shortReason: input.reason } : {}) },
+    reason: `Manifest ${input.manifestNumber}`,
+  });
 }
