@@ -103,10 +103,11 @@ function assertEditable(status: PackageStatus) {
 
 export async function assertLocation(tx: Tx, actor: Actor, locationId: string) {
   const [location] = await tx
-    .select({ id: locations.id })
+    .select({ id: locations.id, name: locations.name })
     .from(locations)
     .where(and(eq(locations.id, locationId), eq(locations.orgId, actor.orgId), eq(locations.facilityId, actor.facilityId)));
   if (!location) throw new InventoryError("That location does not exist at this facility.");
+  return location;
 }
 
 /**
@@ -341,7 +342,7 @@ export async function movePackage(
     assertEditable(pkg.status);
     if (!input.toLocationId) throw new InventoryError("Choose a location to move to.");
     if (pkg.locationId === input.toLocationId) throw new InventoryError("The package is already in that location.");
-    await assertLocation(tx, actor, input.toLocationId);
+    const destination = await assertLocation(tx, actor, input.toLocationId);
 
     const [updated] = await tx
       .update(packages)
@@ -367,7 +368,7 @@ export async function movePackage(
       entityId: pkg.id,
       action: "MOVE",
       before: snapshot(pkg),
-      after: snapshot(updated),
+      after: { ...snapshot(updated), locationName: destination.name },
       reason: input.note,
     });
     return updated;

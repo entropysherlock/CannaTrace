@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, lte } from "drizzle-orm";
 import { facilities, syncEvents, type SyncEvent } from "@/db/schema";
+import { logAdminAction } from "./audit-log";
 import { db, pool, type Tx } from "./db";
 import { todayIn } from "./distribution-math";
 import { enqueueWebhooks } from "./integrations";
@@ -299,6 +300,7 @@ export async function retryEvent(actor: Actor, input: { eventId: string }): Prom
       .update(syncEvents)
       .set({ status: "PENDING", system: facility.system, nextAttemptAt: new Date() })
       .where(eq(syncEvents.id, event.id));
+    await logAdminAction(tx, actor, { entityType: "StateRecord", entityId: event.id, action: "RETRY", before: { status: event.status, summary: event.summary }, after: { status: "PENDING", system: facility.system } });
   });
 }
 
@@ -313,14 +315,21 @@ export async function resolveEvent(actor: Actor, input: { eventId: string; note:
       .update(syncEvents)
       .set({ status: "RESOLVED", resolvedBy: actor.userName, resolvedNote: note, finishedAt: new Date() })
       .where(eq(syncEvents.id, event.id));
+    await logAdminAction(tx, actor, { entityType: "StateRecord", entityId: event.id, action: "MARK_HANDLED", before: { status: event.status, summary: event.summary }, after: { status: "RESOLVED" }, reason: note });
   });
 }
 
 /** Choose which state system this facility reports to. Applies to records saved from now on. */
 export async function setFacilitySystem(actor: Actor, input: { system: string }): Promise<void> {
   if (!(input.system in SYSTEM_LABELS)) throw new InventoryError("Choose a state system.");
-  await db
-    .update(facilities)
-    .set({ trackTraceSystem: input.system as SystemName })
-    .where(and(eq(facilities.id, actor.facilityId), eq(facilities.orgId, actor.orgId)));
+  await db.transaction(async (tx) => {
+    const [before] = await tx
+      .select({ system: facilities.trackTraceSystem })
+      .from(facilities)
+      .where(and(eq(facilities.id, actor.facilityId), eq(facilities.orgId, actor.orgId)))
+      .for("update");
+    if (!before || before.system === input.system) return;
+    await tx.update(facilities).set({ trackTraceSystem: input.system as SystemName }).where(eq(facilities.id, actor.facilityId));
+    await logAdminAction(tx, actor, { entityType: "Facility", entityId: actor.facilityId, action: "STATE_SYSTEM_CHANGE", before: { system: before.system }, after: { system: input.system } });
+  });
 }

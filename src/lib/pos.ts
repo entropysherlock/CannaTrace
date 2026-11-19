@@ -510,7 +510,8 @@ export async function storePack(tx: Tx | typeof db, facilityId: string): Promise
 const passedLab = sql`(select lr.status from lab_results lr where lr.package_id = ${packages.id} order by lr.created_at desc limit 1) = 'PASS'`;
 
 /** A package's most recent lab result did not fail (no result counts as not failed). Failed product is never sold, in any state. */
-const notFailedLab = sql`coalesce((select lr.status::text from lab_results lr where lr.package_id = ${packages.id} order by lr.created_at desc limit 1), '') <> 'FAIL'`;
+// A failed result stands until a later PASS: a newer pending result doesn't make the package sellable again.
+const notFailedLab = sql`coalesce((select lr.status::text from lab_results lr where lr.package_id = ${packages.id} and lr.status in ('PASS', 'FAIL') order by lr.created_at desc limit 1), '') <> 'FAIL'`;
 
 /** Sellable stock of an item at this store: active packages, and only lab-passed ones where the state requires testing. */
 async function inStock(tx: Tx, actor: Actor, itemId: string, pack: StatePack | null): Promise<{ sellable: Decimal; waitingOnLab: Decimal }> {
@@ -525,6 +526,21 @@ async function inStock(tx: Tx, actor: Actor, itemId: string, pack: StatePack | n
   const total = new Decimal(row.total);
   const sellable = gate ? new Decimal(row.passed) : total;
   return { sellable, waitingOnLab: total.sub(sellable) };
+}
+
+/** What the register can actually sell of each item at this store: the same rule a sale is checked against. */
+export async function sellableByItem(tx: Tx | typeof db, actor: Pick<Actor, "orgId" | "facilityId">, pack: StatePack | null): Promise<Map<string, Decimal>> {
+  const gate = requiresLabBeforeRetail(pack);
+  const rows = await tx
+    .select({
+      itemId: packages.itemId,
+      total: sql<string>`coalesce(sum(${packages.quantity}), 0)`,
+      passed: sql<string>`coalesce(sum(${packages.quantity}) filter (where ${passedLab}), 0)`,
+    })
+    .from(packages)
+    .where(and(eq(packages.orgId, actor.orgId), eq(packages.facilityId, actor.facilityId), eq(packages.status, "ACTIVE"), notFailedLab))
+    .groupBy(packages.itemId);
+  return new Map(rows.map((r) => [r.itemId, new Decimal(gate ? r.passed : r.total)]));
 }
 
 /**
@@ -623,6 +639,12 @@ async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, itemId: str
   } else {
     await tx.insert(saleLines).values({ saleId: sale.id, itemId: item.id, quantity: store(newQuantity), unitPrice: item.price });
   }
+  // An open cart follows the menu: when a price changed since a line was added, every line takes today's shelf
+  // price on the next change, so one item never shows two prices.
+  await tx.execute(sql`
+    update sale_lines sl set unit_price = rp.price
+    from retail_prices rp
+    where sl.sale_id = ${sale.id} and rp.item_id = sl.item_id and rp.facility_id = ${actor.facilityId} and sl.unit_price <> rp.price`);
   const settings = await getRetailSettings(tx, actor.facilityId);
   const problem = limitCheck(await cartLines(tx, sale.id), settings, pack, sale.customerType, await earlierToday(tx, sale));
   if (problem) throw new InventoryError(problem);

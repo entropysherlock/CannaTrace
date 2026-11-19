@@ -20,6 +20,8 @@ const EVENT_TYPES: Record<string, string> = {
   "Package:CREATED_FROM_HARVEST": "PACKAGE_CREATED_FROM_HARVEST",
   "Package:DESTROY": "PACKAGE_DESTROYED",
   "Package:LAB_RESULT": "LAB_RESULT_RECORDED",
+  // What production used up: the state needs the inputs as well as the package it made.
+  "Package:USED_IN_PRODUCTION": "PACKAGE_USED_IN_PRODUCTION",
   "PlantBatch:CREATE": "PLANT_BATCH_CREATED",
   "PlantBatch:TAG_PLANTS": "PLANTS_TAGGED",
   "PlantBatch:DESTROY_PLANTS": "PLANT_BATCH_PLANTS_DESTROYED",
@@ -68,7 +70,9 @@ export function describeEvent(type: string, before: Json, after: Json): string {
     case "PACKAGE_ADJUSTED":
       return `Adjusted package ${tag} from ${amount(b.quantity)} to ${amount(a.quantity)} ${unit(a.unit)}`;
     case "PACKAGE_MOVED":
-      return `Moved package ${tag} to a new location`;
+      return `Moved package ${tag} to ${a.locationName ? str(a.locationName) : "a new location"}`;
+    case "PACKAGE_USED_IN_PRODUCTION":
+      return `Used ${amount(new Decimal(str(b.quantity) || "0").sub(str(a.quantity) || "0").toString())} ${unit(a.unit ?? b.unit)} of package ${tag} in production`;
     case "PACKAGE_CREATED_FROM_PACKAGES":
       return `Created package ${tag} (${amount(a.quantity)} ${unit(a.unit)}) from ${Array.isArray(a.from) ? a.from.join(", ") : str(a.from ?? a.run) || "other packages"}`;
     case "PACKAGE_CREATED_FROM_HARVEST":
@@ -76,7 +80,7 @@ export function describeEvent(type: string, before: Json, after: Json): string {
     case "PACKAGE_DESTROYED":
       return `Destroyed package ${tag} (${amount(b.quantity)} ${unit(b.unit)})`;
     case "LAB_RESULT_RECORDED":
-      return `Recorded a ${str(a.status).toLowerCase()} lab result from ${str(a.labName)}`;
+      return `Recorded a ${str(a.status).toLowerCase()} lab result${tag ? ` for package ${tag}` : ""} from ${str(a.labName)}`;
     case "PLANT_BATCH_CREATED":
       return `Started plant batch ${str(a.name)} with ${str(a.count)} ${str(a.source).toLowerCase()}s`;
     case "PLANTS_TAGGED":
@@ -86,11 +90,11 @@ export function describeEvent(type: string, before: Json, after: Json): string {
     case "PLANT_PHASE_CHANGED":
       return `Plant ${tag} changed to ${str(a.phase).toLowerCase()}`;
     case "PLANT_MOVED":
-      return `Plant ${tag} moved to a new room`;
+      return `Plant ${tag} moved to ${a.locationName ? str(a.locationName) : "a new room"}`;
     case "PLANT_DESTROYED":
       return `Destroyed plant ${tag}`;
     case "HARVEST_CREATED":
-      return `Harvested ${plants(a.plantCount)} as ${str(a.name)}: ${amount(a.wetWeightGrams)} g wet`;
+      return `Harvested ${plants(a.plantCount)} as ${str(a.name)}: ${amount(a.wetWeightGrams)} g wet${Array.isArray(a.plantTags) && a.plantTags.length ? ` (${a.plantTags.length > 12 ? `${a.plantTags.slice(0, 12).join(", ")} and ${a.plantTags.length - 12} more` : a.plantTags.join(", ")})` : ""}`;
     case "HARVEST_WASTE_RECORDED":
       return `Logged ${amount(a.wasteGrams)} g of harvest waste`;
     case "HARVEST_FINISHED":

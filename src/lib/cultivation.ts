@@ -5,6 +5,7 @@ import {
   harvestPackages,
   harvests,
   items,
+  locations,
   plantBatches,
   plants,
   strains,
@@ -270,7 +271,8 @@ export async function movePlants(actor: Actor, input: { plantIds: string[]; loca
       .update(plants)
       .set({ locationId: input.locationId })
       .where(inArray(plants.id, rows.map((p) => p.id)));
-    await auditPlants(tx, actor, rows, "MOVE", { locationId: input.locationId });
+    const [room] = await tx.select({ name: locations.name }).from(locations).where(eq(locations.id, input.locationId));
+    await auditPlants(tx, actor, rows, "MOVE", { locationId: input.locationId, locationName: room?.name ?? null });
     return rows.length;
   });
 }
@@ -349,7 +351,7 @@ export async function harvestPlants(
       entityType: "Harvest",
       entityId: harvest.id,
       action: "CREATE",
-      after: { name, plantCount: rows.length, wetWeightGrams: wet.toString() },
+      after: { name, plantCount: rows.length, wetWeightGrams: wet.toString(), plantTags: rows.map((p) => p.tag) },
     });
     return harvest;
   });

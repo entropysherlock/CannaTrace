@@ -19,12 +19,18 @@ import {
 } from "@/db/schema";
 import { db, pool } from "@/lib/db";
 import { commandCenter } from "@/lib/dashboard";
+import { importCsv } from "@/lib/importer";
+import { createApiKey, createWebhook, revokeApiKey, setWebhookActive } from "@/lib/integrations";
+import { setFacilitySystem } from "@/lib/sync";
+import { describeEvent } from "@/lib/sync-math";
+import { actionLabel, changedFields, entityLabel, recordName } from "@/lib/audit-format";
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { addOrderLine, allocateToOrder, confirmOrder, createCustomer, createDriver, createOrder, createVehicle, deliverOrder, packOrder, shipOrder, verifyCustomerLicense } from "@/lib/distribution";
 import {
   addLabResult,
   latestLabStatus,
   mergePackages,
+  movePackage,
   receivePackage,
   recordCycleCount,
   setPackageStatus,
@@ -32,8 +38,10 @@ import {
   type Actor,
 } from "@/lib/inventory";
 import { finishHarvest, packageFromHarvest, recordDryWeight, reopenHarvest } from "@/lib/cultivation";
-import { addToCart, checkInCustomer, closeDrawer, completeSale, openDrawer, returnableLines, returnSale, saveRetailSettings, setMenuItem, voidSale } from "@/lib/pos";
+import { addToCart, checkInCustomer, closeDrawer, completeSale, openDrawer, returnableLines, returnSale, saveRetailSettings, sellableByItem, setMenuItem, storePack, voidSale } from "@/lib/pos";
+import { saleLines, apiKeys } from "@/db/schema";
 import { receiveShipment } from "@/lib/shipments";
+import { requiresLabBeforeRetail } from "@/lib/rules";
 import { clearSignInFailures, MAX_PER_EMAIL, recordSignInFailure, signInLocked } from "@/lib/sign-in-throttle";
 
 /**
@@ -292,6 +300,102 @@ describe.skipIf(!hasDb)("QA round fixes (database)", () => {
       const c = await commandCenter(org, [store], 30, () => true, [store, grow]);
       expect(c.facilities.map((f) => f.name).sort()).toEqual(["Grow", "Store"]);
       expect(JSON.stringify(c)).not.toContain("Hidden site alert");
+    });
+  });
+
+  describe("14 and 15: admin changes are audited", () => {
+    it("records state-system changes, API keys, and webhooks, with no secret in the entry", async () => {
+      await setFacilitySystem(growActor, { system: "NMS2S" });
+      await setFacilitySystem(growActor, { system: "NMS2S" }); // unchanged: no entry
+      const { key } = await createApiKey(growActor, { name: "Accounting", canWrite: false });
+      const [made] = await db.select().from(apiKeys).where(eq(apiKeys.orgId, org));
+      await revokeApiKey(growActor, { keyId: made.id });
+      await createWebhook(growActor, { url: "https://example.com/hook", events: ["PACKAGE_ADJUSTED"] });
+      const log = await db.select().from(auditLogs).where(and(eq(auditLogs.orgId, org), eq(auditLogs.facilityId, grow)));
+      const actions = log.map((l) => `${l.entityType}:${l.action}`);
+      expect(actions.filter((a) => a === "Facility:STATE_SYSTEM_CHANGE")).toHaveLength(1);
+      expect(actions).toEqual(expect.arrayContaining(["ApiKey:CREATE", "ApiKey:REVOKE", "Webhook:CREATE"]));
+      expect(JSON.stringify(log)).not.toContain(key);
+      const hook = log.find((l) => l.entityType === "Webhook")!;
+      await setWebhookActive(growActor, { webhookId: hook.entityId, active: false });
+      expect(await db.$count(auditLogs, and(eq(auditLogs.entityId, hook.entityId), eq(auditLogs.action, "TURN_OFF")))).toBe(1);
+    });
+
+    it("reads as plain English on the audit trail", () => {
+      expect(actionLabel("KEY_CONNECTED")).toBe("connected an AI key for");
+      expect(actionLabel("facility.hidden")).toBe("hid");
+      expect(actionLabel("SOMETHING_NEW")).toBe("something new");
+      expect(entityLabel("TallyAI")).toBe("Tally AI");
+      expect(entityLabel("PlantBatch")).toBe("plant batch");
+      expect(recordName(null, { tag: "CT-1", quantity: "3" })).toBe("CT-1");
+      expect(changedFields({ quantity: "5", locationId: "a" }, { quantity: "4", locationId: "b" })).toEqual([{ field: "quantity", from: "5", to: "4" }]);
+    });
+  });
+
+  describe("17: state records say what to enter", () => {
+    it("names the package, room, production inputs, and harvested plants", async () => {
+      const p = await receivePackage(growActor, { tag: tag(), itemId: bulk, quantity: "20", locationId: vault });
+      const [room] = await db.insert(locations).values({ orgId: org, facilityId: grow, name: "Cure Room", type: "ROOM" }).returning();
+      await movePackage(growActor, { packageId: p.id, toLocationId: room.id });
+      const [moved] = await db.select().from(auditLogs).where(and(eq(auditLogs.entityId, p.id), eq(auditLogs.action, "MOVE")));
+      expect(describeEvent("PACKAGE_MOVED", moved.before as never, moved.after as never)).toBe(`Moved package ${p.tag} to Cure Room`);
+      expect(describeEvent("LAB_RESULT_RECORDED", null, { tag: "CT-9", status: "FAIL", labName: "SW Labs" })).toBe("Recorded a fail lab result for package CT-9 from SW Labs");
+      expect(describeEvent("PACKAGE_USED_IN_PRODUCTION", { tag: "CT-9", quantity: "100", unit: "G" }, { tag: "CT-9", quantity: "30", unit: "G" })).toBe("Used 70 g of package CT-9 in production");
+      expect(describeEvent("HARVEST_CREATED", null, { name: "H1", plantCount: 2, wetWeightGrams: "500", plantTags: ["P-1", "P-2"] })).toContain("(P-1, P-2)");
+    });
+  });
+
+  describe("18, 19 and 21: sales numbers and the register", () => {
+    it("shows today's sales net of refunds", async () => {
+      const before = await commandCenter(org, [store], 7);
+      const cart = await checkInCustomer(manager, adult());
+      await addToCart(manager, { saleId: cart.id, itemId: jar, quantity: "2" });
+      await completeSale(manager, { saleId: cart.id, paymentMethod: "CASH", cashTendered: "500" });
+      const [line] = await returnableLines(db, cart.id);
+      const refund = await returnSale(manager, { saleId: cart.id, lines: [{ saleLineId: line.saleLineId, quantity: "2" }], refundMethod: "CASH", disposition: "RESTOCK", reason: "returned" });
+      expect(Number(refund.amount)).toBeGreaterThan(0);
+      const after = await commandCenter(org, [store], 7);
+      // Sold and fully refunded today: the money taken nets to nothing, but the sale still counts as a ticket.
+      expect(after.sales.today).toBeCloseTo(before.sales.today, 2);
+      expect(after.sales.todayTickets).toBe(before.sales.todayTickets + 1);
+    });
+
+    it("updates an open cart to a new shelf price on its next change", async () => {
+      const cart = await checkInCustomer(manager, adult());
+      await addToCart(manager, { saleId: cart.id, itemId: jar, quantity: "1" });
+      await setMenuItem(manager, { itemId: jar, price: "37", limitCategory: "KEEP" });
+      await addToCart(manager, { saleId: cart.id, itemId: jar, quantity: "1" });
+      const [l] = await db.select().from(saleLines).where(eq(saleLines.saleId, cart.id));
+      expect(Number(l.unitPrice)).toBe(37);
+      await setMenuItem(manager, { itemId: jar, price: "35", limitCategory: "KEEP" });
+    });
+
+    it("counts only what can be sold on the register tiles", async () => {
+      const pack = await storePack(db, store);
+      const before = (await sellableByItem(db, manager, pack)).get(jar)?.toNumber() ?? 0;
+      await receivePackage(manager, { tag: tag(), itemId: jar, quantity: "30", locationId: floor }); // no lab result yet
+      const after = (await sellableByItem(db, manager, pack)).get(jar)?.toNumber() ?? 0;
+      // New Mexico requires a passing lab result before retail sale, so untested stock isn't counted as sellable.
+      expect(requiresLabBeforeRetail(pack)).toBe(true);
+      expect(after).toBe(before);
+    });
+  });
+
+  describe("22 and 23: imports and holds", () => {
+    it("matches existing locations and categories whatever their capitals, and limits name length", async () => {
+      await expect(importCsv(growActor, "locations", "name,type\nVAULT,ROOM\n")).rejects.toThrow(/a location called Vault already exists/);
+      await importCsv(growActor, "items", `name,sku,category,unit,strain\nTest Gummy,${run}-GUM,ALL,EACH,\n`);
+      const cats = await db.select().from(itemCategories).where(eq(itemCategories.orgId, org));
+      expect(cats.map((c) => c.name)).toEqual(["All"]);
+      await expect(importCsv(growActor, "items", `name,sku,category,unit,strain\n${"x".repeat(200)},${run}-LONG,All,EACH,\n`)).rejects.toThrow(/keep it to 120/);
+    });
+
+    it("gives every held package a hold start, however it got there", async () => {
+      const [p] = await db
+        .insert(packages)
+        .values({ orgId: org, facilityId: grow, tag: tag(), itemId: bulk, quantity: "5", unit: "G", locationId: vault, status: "ON_HOLD" })
+        .returning();
+      expect(p.heldSince).toBeInstanceOf(Date);
     });
   });
 
