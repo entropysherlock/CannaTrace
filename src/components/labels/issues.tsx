@@ -1,4 +1,5 @@
 import { AlertOctagon, AlertTriangle, CheckCircle2, ExternalLink, Info } from "lucide-react";
+import Link from "next/link";
 import type { LabelIssue } from "@/lib/labels/types";
 
 const CATEGORY: Record<LabelIssue["category"], string> = {
@@ -10,6 +11,9 @@ const CATEGORY: Record<LabelIssue["category"], string> = {
 };
 
 const ORDER: LabelIssue["category"][] = ["MISSING_DATA", "INCONSISTENT_DATA", "BARCODE", "LAYOUT", "JURISDICTION"];
+
+/** Where to go to fix an issue. A null href means it can only be explained, not opened. */
+export type IssueLink = { href: string | null; label: string };
 
 export type PackInfo = { state: string; name: string; source: string; url: string; checked: string } | null;
 
@@ -27,6 +31,7 @@ export function IssueList({
   checkedRules,
   manualRules,
   count,
+  linkFor,
 }: {
   issues: LabelIssue[];
   blocked: boolean;
@@ -34,6 +39,7 @@ export function IssueList({
   checkedRules: number;
   manualRules: number;
   count?: number;
+  linkFor?: (issue: LabelIssue) => IssueLink | null;
 }) {
   const blocks = issues.filter((i) => i.severity === "block").length;
   const warns = issues.filter((i) => i.severity === "warn").length;
@@ -85,6 +91,19 @@ export function IssueList({
                     {issue.citation ? <span className="ml-1 text-xs text-slate-500">{issue.citation}</span> : null}
                   </p>
                   {issue.fix ? <p className="text-xs text-slate-600">{issue.fix}</p> : null}
+                  {issue.severity === "block" && linkFor && (n === 1 || !issue.recordRef)
+                    ? (() => {
+                        const link = linkFor(issue);
+                        if (!link) return null;
+                        return link.href ? (
+                          <Link href={link.href} target="_blank" className="mt-0.5 inline-flex items-center gap-1 text-xs font-bold text-brand-700 underline hover:no-underline">
+                            {link.label} <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          </Link>
+                        ) : (
+                          <p className="mt-0.5 text-xs font-semibold text-slate-600">{link.label}</p>
+                        );
+                      })()
+                    : null}
                 </div>
               </li>
             ))}

@@ -3,11 +3,11 @@
 import { Printer, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Field, inputClass } from "@/components/ui";
 import type { LabelIssue, LabelKind } from "@/lib/labels/types";
 import { LABEL_KINDS } from "@/lib/labels/types";
-import { IssueList, type PackInfo } from "./issues";
+import { IssueList, type IssueLink, type PackInfo } from "./issues";
 import { JobActions, newRequestKey, printJobPdf } from "./job-actions";
 
 export type TemplateOption = { id: string; name: string; kind: LabelKind; isDefault: boolean; jurisdiction: string | null; size: string };
@@ -19,12 +19,22 @@ type Preview = {
   size: { widthMm: number; heightMm: number };
   count: number;
   previews: { ref: string; svg: string }[];
+  records?: { ref: string; sourceId: string }[];
   issues: LabelIssue[];
   blocked: boolean;
   pack: PackInfo;
   checkedRules: number;
   manualRules: number;
 };
+
+/** Where a person goes to fix a record's data, by label type. */
+function recordHref(kind: LabelKind, id: string): string | null {
+  if (kind === "PACKAGE" || kind === "PRODUCT") return `/inventory/${id}`;
+  if (kind === "BATCH") return `/cultivation/batches/${id}`;
+  if (kind === "TRANSFER") return `/distribution/orders/${id}`;
+  if (kind === "PLANT") return "/cultivation/plants";
+  return null;
+}
 
 /** Pick records, check them, preview at real size, and create one print job. */
 export function PrintStation({
@@ -57,6 +67,7 @@ export function PrintStation({
   const [job, setJob] = useState<{ id: string; status: string; labelCount: number; duplicate: boolean } | null>(null);
   // One key per checked request: pressing Print twice, or retrying after a dropped connection, can't make two jobs.
   const [requestKey, setRequestKey] = useState(newRequestKey);
+  const issuesRef = useRef<HTMLDivElement>(null);
 
   const shown = useMemo(() => {
     const rows = candidates[kind] ?? [];
@@ -85,12 +96,12 @@ export function PrintStation({
     reset();
   }
 
-  async function check() {
+  async function check(ids: string[] = [...selected]) {
     setBusy(true);
     setError(null);
     setJob(null);
     try {
-      const res = await fetch("/api/labels/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateId, sourceIds: [...selected] }) });
+      const res = await fetch("/api/labels/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateId, sourceIds: ids }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setPreview(data);
@@ -127,6 +138,45 @@ export function PrintStation({
     } finally {
       setBusy(false);
     }
+  }
+
+  // Which chosen records have a problem that blocks printing. A record-level problem names the record in
+  // recordRef (a transfer's labels are "<order> · <line>"), so match on the record's own reference.
+  const rows = candidates[kind] ?? [];
+  // The check reports which record each label came from; fall back to the list for older responses.
+  const recordFor = (ref: string | undefined): { id: string; ref: string } | undefined => {
+    if (!ref) return undefined;
+    const hit = preview?.records?.find((r) => r.ref === ref);
+    if (hit) return { id: hit.sourceId, ref: rows.find((r) => r.id === hit.sourceId)?.ref ?? ref };
+    return rows.find((r) => selected.has(r.id) && (r.ref === ref || ref.startsWith(`${r.ref} · `)));
+  };
+  const blocking = preview?.issues.filter((i) => i.severity === "block") ?? [];
+  const blockedIds = new Set(blocking.map((i) => recordFor(i.recordRef)?.id).filter((x): x is string => Boolean(x)));
+  const designBlocked = blocking.some((i) => !recordFor(i.recordRef));
+  const printable = [...selected].filter((id) => !blockedIds.has(id));
+
+  /** A link to where each problem can be fixed: the record's own page, or the template for design problems. */
+  const linkFor = (issue: LabelIssue): IssueLink | null => {
+    const record = recordFor(issue.recordRef);
+    if (record) {
+      const href = recordHref(kind, record.id);
+      if (!href) return null;
+      const lab = issue.code === "LAB_MISSING" || issue.code === "LAB_FAILED" || /lab result/i.test(issue.fix ?? "");
+      return { href, label: lab ? `Open ${record.ref} to add its lab result` : `Open ${record.ref}` };
+    }
+    if (issue.recordRef || !preview) return null;
+    return canManage ? { href: `/labels/templates/${preview.template.id}`, label: "Fix it in the template" } : { href: null, label: "A manager can fix this in the template." };
+  };
+
+  function showProblems() {
+    issuesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    issuesRef.current?.focus({ preventScroll: true });
+  }
+
+  function leaveOutBlocked() {
+    const next = new Set(printable);
+    setSelected(next);
+    void check([...next]);
   }
 
   const askTally = () => {
@@ -234,7 +284,7 @@ export function PrintStation({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={busy || !templateId || selected.size === 0} onClick={check} className="inline-flex min-h-11 items-center gap-2 rounded-lg border-2 border-brand-600 bg-white px-5 text-sm font-bold text-brand-800 transition hover:bg-brand-50 disabled:opacity-50">
+          <button type="button" disabled={busy || !templateId || selected.size === 0} onClick={() => check()} className="inline-flex min-h-11 items-center gap-2 rounded-lg border-2 border-brand-600 bg-white px-5 text-sm font-bold text-brand-800 transition hover:bg-brand-50 disabled:opacity-50">
             Check and preview
           </button>
           <button type="button" data-assistant-trigger onClick={askTally} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-brand-800 hover:bg-brand-50">
@@ -282,7 +332,9 @@ export function PrintStation({
               ))}
               {preview.count > preview.previews.length ? <p className="self-center text-xs text-slate-600">+ {preview.count - preview.previews.length} more</p> : null}
             </div>
-            <IssueList issues={preview.issues} blocked={preview.blocked} pack={preview.pack} checkedRules={preview.checkedRules} manualRules={preview.manualRules} count={preview.count} />
+            <div ref={issuesRef} tabIndex={-1} className="scroll-mt-24 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-red-400">
+              <IssueList issues={preview.issues} blocked={preview.blocked} pack={preview.pack} checkedRules={preview.checkedRules} manualRules={preview.manualRules} count={preview.count} linkFor={linkFor} />
+            </div>
             {job ? (
               <div className="space-y-2 rounded-lg border border-brand-200 bg-brand-50 p-3" data-testid="label-job">
                 <p className="text-sm font-semibold text-brand-900">
@@ -293,10 +345,34 @@ export function PrintStation({
                 </p>
                 <JobActions id={job.id} status={job.status} />
               </div>
+            ) : preview.blocked ? (
+              <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3" data-testid="label-blocked-actions">
+                <p className="text-sm font-semibold text-red-900">
+                  {blockedIds.size && !designBlocked
+                    ? `${blockedIds.size} of ${selected.size} label${selected.size === 1 ? "" : "s"} can't print until ${blockedIds.size === 1 ? "its record is" : "their records are"} fixed.`
+                    : designBlocked
+                      ? "The template has a problem that stops every label from printing. Use the link next to it to fix the template."
+                      : "These labels can't print until the problems above are fixed."}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={showProblems} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-red-700">
+                    Show what to fix
+                  </button>
+                  {!designBlocked && blockedIds.size && printable.length ? (
+                    <button type="button" disabled={busy} onClick={leaveOutBlocked} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-brand-300 bg-white px-4 text-sm font-bold text-brand-800 transition hover:bg-brand-50 disabled:opacity-50">
+                      <Printer className="h-4 w-4" aria-hidden="true" />
+                      Leave {blockedIds.size === 1 ? "it" : "them"} out and print the other {printable.length}
+                    </button>
+                  ) : null}
+                  <button type="button" disabled={busy} onClick={() => check()} className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50">
+                    I fixed it, check again
+                  </button>
+                </div>
+              </div>
             ) : (
-              <button type="button" disabled={busy || preview.blocked} onClick={createJob} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" disabled={busy} onClick={createJob} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">
                 <Printer className="h-4 w-4" aria-hidden="true" />
-                {preview.blocked ? "Fix the blocking problems to print" : `Print ${preview.count * copies} label${preview.count * copies === 1 ? "" : "s"}`}
+                {`Print ${preview.count * copies} label${preview.count * copies === 1 ? "" : "s"}`}
               </button>
             )}
           </>
