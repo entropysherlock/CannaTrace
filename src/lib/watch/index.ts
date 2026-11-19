@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { facilities, stateReports, watchFindings, watchSweeps, type WatchFinding } from "@/db/schema";
 import { parseCsv } from "@/lib/csv";
@@ -90,6 +91,22 @@ export async function sweepIfStale(f: Scope): Promise<void> {
     .limit(1);
   if (last && Date.now() - last.at.getTime() < FRESH_MINUTES * 60_000) return;
   await sweepFacility(f);
+}
+
+/**
+ * For pages: start the stale-check sweep but never hold the page longer than `waitMs` for it.
+ * If it's still running, the page shows the last saved findings and the sweep finishes after
+ * the response is sent (Next.js `after`), so the next visit has fresh findings.
+ */
+export async function sweepIfStaleBriefly(f: Scope, waitMs = 2500): Promise<void> {
+  const sweeping = sweepIfStale(f).catch((error) => console.error("watch sweep failed", f.facilityId, error));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<"timeout">((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), waitMs);
+  });
+  const result = await Promise.race([sweeping.then(() => "done" as const), timedOut]);
+  clearTimeout(timer);
+  if (result === "timeout") after(() => sweeping);
 }
 
 /** Every facility, for the scheduled run. */

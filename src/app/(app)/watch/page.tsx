@@ -2,14 +2,14 @@ import { PageHeader } from "@/components/ui";
 import { WatchSection } from "@/components/watch-section";
 import { requireSession } from "@/lib/session";
 import { describeSchedule, cronFor } from "@/lib/job-runs";
-import { FRESH_MINUTES, openFindings, sweepIfStale } from "@/lib/watch";
+import { FRESH_MINUTES, openFindings, sweepIfStaleBriefly } from "@/lib/watch";
 
 export const metadata = { title: "Tally Watch · CannaTrace" };
 
 /** Everything Tally Watch has found at this facility, with one-click fixes. */
 export default async function WatchPage() {
   const session = await requireSession();
-  await sweepIfStale(session);
+  await sweepIfStaleBriefly(session);
   const findings = await openFindings(session);
   return (
     <>
