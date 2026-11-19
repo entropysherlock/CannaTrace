@@ -77,7 +77,7 @@ export default async function InventoryPage({
         title="Inventory"
         subtitle={
           total <= PAGE_SIZE
-            ? `${total.toLocaleString("en-US")} package${total === 1 ? "" : "s"}`
+            ? `${total.toLocaleString("en-US")} package${total === 1 ? "" : "s"} shown`
             : `Showing ${first.toLocaleString("en-US")}–${last.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} packages`
         }
         action={

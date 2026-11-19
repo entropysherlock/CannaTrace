@@ -1,7 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { HomeScreen, type HomeView } from "@/components/register/home-screen";
 import { RegisterShell } from "@/components/register/shell";
-import { saleLines, sales } from "@/db/schema";
+import { sales } from "@/db/schema";
 import { db } from "@/lib/db";
 import { getRetailSettings, storePack } from "@/lib/pos";
 import { can } from "@/lib/rbac";
@@ -27,7 +27,8 @@ export default async function RegisterPage() {
           userName: sales.userName,
           createdAt: sales.createdAt,
           completedAt: sales.completedAt,
-          lineCount: sql<number>`(select count(*)::int from ${saleLines} where ${saleLines.saleId} = ${sales.id})`,
+          // Fully qualified: inside the subquery an unqualified "id" would mean sale_lines.id, so the count was always 0.
+          lineCount: sql<number>`(select count(*)::int from sale_lines sl where sl.sale_id = "sales"."id")`,
         })
         .from(sales)
         .where(and(eq(sales.drawerSessionId, info.drawerId), eq(sales.orgId, session.orgId)))
