@@ -11,9 +11,12 @@ export type ShellInfo = {
   clerkName: string;
   drawerLine: string;
   canManage: boolean;
+  /** The store's time zone, so the clock matches every other time on the register. */
+  timeZone: string;
 };
 
-function Clock() {
+/** The store's time, not the device's: a tablet set to the wrong zone still shows the same time as the receipts. */
+function Clock({ timeZone }: { timeZone: string }) {
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
     const tick = () => setNow(new Date());
@@ -24,7 +27,7 @@ function Clock() {
       clearInterval(id);
     };
   }, []);
-  return <span className="tabular-nums">{now ? now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}</span>;
+  return <span className="tabular-nums">{now ? now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone }) : ""}</span>;
 }
 
 const barButton =
@@ -60,7 +63,7 @@ export function RegisterShell({ info, children }: { info: ShellInfo; children: R
         </div>
         <div className="ml-auto flex items-center gap-1">
           <span className="hidden px-2 text-sm text-brand-100 lg:inline">
-            {info.clerkName} · <Clock />
+            {info.clerkName} · <Clock timeZone={info.timeZone} />
           </span>
           <a href="/pos/display" target="ct-customer-display" className={barButton} title="Open the customer-facing screen in a new window">
             <MonitorSmartphone className="h-5 w-5" aria-hidden="true" />
