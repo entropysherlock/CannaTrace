@@ -12,6 +12,8 @@ export async function POST(req: Request) {
       template: { id: p.template.id, name: p.template.name, kind: p.template.kind, jurisdiction: p.template.jurisdiction, version: p.version },
       size: { widthMm: p.design.widthMm, heightMm: p.design.heightMm },
       count: p.records.length,
+      // Which chosen record each label reference belongs to, so the page can link a problem to its record.
+      records: p.records.map((r) => ({ ref: r.ref, sourceId: r.sourceId })),
       previews: p.records.slice(0, 12).map((r) => ({ ref: r.ref, svg: renderLabelSvg(p.design, r.values) })),
       issues: p.issues,
       blocked: p.blocked,
