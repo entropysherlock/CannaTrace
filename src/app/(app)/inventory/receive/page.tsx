@@ -1,17 +1,27 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
+import { CreatableSelect } from "@/components/contextual-create";
+import { ItemFields } from "@/components/item-fields";
+import { LocationFields } from "@/components/quick-fields";
+import { addVendorConfig } from "@/components/vendor-drawer";
 import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { and, asc, eq } from "drizzle-orm";
 import { customers, items as itemsTable, locations as locationsTable } from "@/db/schema";
 import { db } from "@/lib/db";
+import { itemCategoryNames } from "@/lib/quick-create-data";
+import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
+import { quickItemAction, quickLocationAction } from "../../quick-create-actions";
 import { unitLabel } from "@/lib/units";
 import { receiveAction } from "../actions";
 
 export default async function ReceivePage() {
   const session = await requirePagePermission("inventory.write");
-  const [items, locations, vendors] = await Promise.all([
+  const canManageCatalog = can(session, "catalog.manage");
+  // Vendors are managed by sales, as on the Vendors tab.
+  const canAddVendor = can(session, "sales.write");
+  const [items, locations, vendors, categories] = await Promise.all([
     db
       .select()
       .from(itemsTable)
@@ -27,6 +37,7 @@ export default async function ReceivePage() {
       .from(customers)
       .where(and(eq(customers.orgId, session.orgId), eq(customers.active, true), eq(customers.weBuyFrom, true)))
       .orderBy(asc(customers.name)),
+    canManageCatalog ? itemCategoryNames(session.orgId) : Promise.resolve([]),
   ]);
 
   return (
@@ -45,44 +56,57 @@ export default async function ReceivePage() {
             <Field label="Package tag (blank to generate)" hint="Leave blank and CannaTrace makes a new unique ID (PKG-000123). Or scan a state tag with a barcode scanner, tap Scan to use the camera, or type it in.">
               <ScanInput name="tag" autoFocus placeholder="Blank = new PKG- ID" />
             </Field>
-            <Field label="Item">
-              <select name="itemId" required className={inputClass} defaultValue="">
-                <option value="" disabled>
-                  Choose an item
-                </option>
-                {items.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} ({unitLabel(item.unit)})
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <CreatableSelect
+              name="itemId"
+              label="Item"
+              required
+              placeholder="Choose an item"
+              options={items.map((item) => ({ id: item.id, label: `${item.name} (${unitLabel(item.unit)})` }))}
+              create={
+                canManageCatalog
+                  ? {
+                      buttonLabel: "Add item",
+                      title: "Add an item",
+                      intro: "It goes into your catalog too, and is picked for this package.",
+                      submitLabel: "Save item",
+                      action: quickItemAction,
+                      fields: <ItemFields categories={categories} />,
+                    }
+                  : undefined
+              }
+              deniedHint="Item missing? Someone who manages the catalog can add it on the Items page."
+            />
             <Field label="Quantity" hint="In the item's unit of measure.">
               <input name="quantity" inputMode="decimal" required className={inputClass} />
             </Field>
-            <Field label="Put away to">
-              <select name="locationId" required className={inputClass} defaultValue="">
-                <option value="" disabled>
-                  Choose a location
-                </option>
-                {locations.map((location) => (
-                  <option key={location.id} value={location.id}>
-                    {location.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {vendors.length ? (
-              <Field label="Bought from (optional)">
-                <select name="vendorId" defaultValue="" className={inputClass}>
-                  <option value="">Not bought from a vendor</option>
-                  {vendors.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+            <CreatableSelect
+              name="locationId"
+              label="Put away to"
+              required
+              placeholder="Choose a location"
+              options={locations.map((location) => ({ id: location.id, label: location.name }))}
+              create={
+                canManageCatalog
+                  ? {
+                      buttonLabel: "Add location",
+                      title: "Add a location",
+                      intro: "It's added to this facility's locations and picked for this package.",
+                      submitLabel: "Save location",
+                      action: quickLocationAction,
+                      fields: <LocationFields />,
+                    }
+                  : undefined
+              }
+              deniedHint="Location missing? Someone who manages the catalog can add it on the Locations page."
+            />
+            {vendors.length || canAddVendor ? (
+              <CreatableSelect
+                name="vendorId"
+                label="Bought from (optional)"
+                placeholder="Not bought from a vendor"
+                options={vendors.map((v) => ({ id: v.id, label: v.name }))}
+                create={canAddVendor ? addVendorConfig : undefined}
+              />
             ) : null}
             <Field label="Lot number (optional)">
               <input name="lotNumber" className={inputClass} />

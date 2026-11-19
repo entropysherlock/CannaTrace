@@ -4,6 +4,9 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
+import { CreatableSelect } from "@/components/contextual-create";
+import { ItemFields } from "@/components/item-fields";
+import { LocationFields } from "@/components/quick-fields";
 import { CultivationTabs, WeightInput, grams } from "@/components/cultivation-ui";
 import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, inputClass, ScrollBox } from "@/components/ui";
@@ -12,9 +15,13 @@ import { db } from "@/lib/db";
 import { harvestOnHand } from "@/lib/cultivation-math";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
-import { unitLabel } from "@/lib/units";
+import { unitLabel, type UnitCode } from "@/lib/units";
+import { quickItemAction, quickLocationAction } from "../../../quick-create-actions";
 import { dryWeightAction, finishHarvestAction, packageHarvestAction, reopenHarvestAction, wasteAction } from "../../actions";
+import { itemCategoryNames } from "@/lib/quick-create-data";
 import { facilityZone } from "@/lib/time";
+
+const WEIGHT_UNITS: UnitCode[] = ["G", "KG", "OZ", "LB", "MG"];
 
 export default async function HarvestPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("cultivation.view");
@@ -56,6 +63,9 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
   const onHand = harvestOnHand(harvest);
   const open = harvest.status === "DRYING";
   const canWrite = open && can(session, "cultivation.write");
+  const canAddItem = can(session, "catalog.manage");
+  const canAddLocation = can(session, "catalog.manage");
+  const categories = canAddItem ? await itemCategoryNames(session.orgId) : [];
   const hidden = <input type="hidden" name="harvestId" value={harvest.id} />;
   const moisture =
     harvest.moistureLoss ?? (harvest.dryWeight ? new Decimal(harvest.wetWeight).sub(harvest.dryWeight).toString() : null);
@@ -121,40 +131,57 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
         <div className="space-y-5">
           {canWrite ? (
             <Card title="Package from this harvest">
-              {weightItems.length === 0 ? (
-                <p className="text-sm text-slate-600">Add an item tracked by weight (such as bulk flower) on the Items page first.</p>
-              ) : (
-                <ActionForm action={packageHarvestAction} submitLabel="Create package">
-                  {hidden}
-                  <Field label="New package tag (blank to generate)" hint="Leave blank and CannaTrace makes a new unique ID (PKG-000123). Or scan or type a state tag.">
-                    <ScanInput name="tag" placeholder="Blank = new PKG- ID" />
-                  </Field>
-                  <Field label="Item">
-                    <select name="itemId" required defaultValue="" className={inputClass}>
-                      <option value="" disabled>
-                        Choose an item
-                      </option>
-                      {weightItems.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} ({unitLabel(item.unit)})
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Quantity" hint="In the item's unit of measure.">
-                    <input name="quantity" inputMode="decimal" required className={inputClass} />
-                  </Field>
-                  <Field label="Put away to">
-                    <select name="locationId" required defaultValue={harvest.locationId} className={inputClass}>
-                      {rooms.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </ActionForm>
-              )}
+              <ActionForm action={packageHarvestAction} submitLabel="Create package">
+                {hidden}
+                <Field label="New package tag (blank to generate)" hint="Leave blank and CannaTrace makes a new unique ID (PKG-000123). Or scan or type a state tag.">
+                  <ScanInput name="tag" placeholder="Blank = new PKG- ID" />
+                </Field>
+                <CreatableSelect
+                  name="itemId"
+                  label="Item"
+                  hint="Only items counted by weight can be packaged from a harvest."
+                  required
+                  placeholder="Choose an item"
+                  options={weightItems.map((item) => ({ id: item.id, label: `${item.name} (${unitLabel(item.unit)})` }))}
+                  create={
+                    canAddItem
+                      ? {
+                          buttonLabel: "Add item",
+                          title: "Add an item counted by weight",
+                          intro: "It goes into your catalog too, and is picked for this package.",
+                          submitLabel: "Save item",
+                          action: quickItemAction,
+                          fields: <ItemFields categories={categories} units={WEIGHT_UNITS} />,
+                        }
+                      : undefined
+                  }
+                  deniedHint="Item missing? Someone who manages the catalog can add it on the Items page."
+                />
+                <Field label="Quantity" hint="In the item's unit of measure.">
+                  <input name="quantity" inputMode="decimal" required className={inputClass} />
+                </Field>
+                <CreatableSelect
+                  name="locationId"
+                  label="Put away to"
+                  required
+                  placeholder="Choose a location"
+                  defaultValue={harvest.locationId}
+                  options={rooms.map((r) => ({ id: r.id, label: r.name }))}
+                  create={
+                    canAddLocation
+                      ? {
+                          buttonLabel: "Add location",
+                          title: "Add a location",
+                          intro: "It's added to this facility's locations and picked for this package.",
+                          submitLabel: "Save location",
+                          action: quickLocationAction,
+                          fields: <LocationFields />,
+                        }
+                      : undefined
+                  }
+                  deniedHint="Location missing? Someone who manages the catalog can add it on the Locations page."
+                />
+              </ActionForm>
             </Card>
           ) : null}
           <Card title="Packages made">

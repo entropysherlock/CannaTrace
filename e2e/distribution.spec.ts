@@ -64,10 +64,24 @@ test("sell wholesale: customer, order, pick, ship, manifest, invoice, payment", 
   await page.getByRole("button", { name: "Mark packed" }).click();
   await expect(page.getByText("Choose a driver and vehicle, then ship.")).toBeVisible();
 
-  // Ship
-  await page.locator('select[name="driverId"]').selectOption({ label: "Dana Ortiz" });
-  await page.locator('select[name="vehicleId"]').selectOption({ index: 1 });
+  // Ship. The date goes in first; adding a new driver and van on the spot must not lose it.
   await page.locator('input[name="departAt"]').fill("2026-11-17T09:30");
+  await page.getByRole("button", { name: "Add driver" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.locator('input[name="name"]').fill(`Driver ${run}`);
+  await dialog.locator('input[name="licenseNumber"]').fill(`DL-${run}`);
+  await dialog.getByRole("button", { name: "Save driver" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('select[name="driverId"] option:checked')).toHaveText(`Driver ${run}`);
+  await page.getByRole("button", { name: "Add vehicle" }).click();
+  await dialog.locator('input[name="make"]').fill("Ram");
+  await dialog.locator('input[name="model"]').fill("ProMaster");
+  await dialog.locator('input[name="plate"]').fill(`v${run}`.slice(0, 12));
+  await dialog.getByRole("button", { name: "Save vehicle" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('select[name="vehicleId"] option:checked')).toContainText("Ram ProMaster");
+  await expect(page.locator('select[name="driverId"] option:checked')).toHaveText(`Driver ${run}`);
+  await expect(page.locator('input[name="departAt"]')).toHaveValue("2026-11-17T09:30");
   await page.getByRole("button", { name: "Ship order" }).click();
   await expect(page.getByText("On the road.")).toBeVisible();
 
@@ -76,7 +90,7 @@ test("sell wholesale: customer, order, pick, ship, manifest, invoice, payment", 
   await expect(page.getByRole("heading", { name: "Transfer manifest" })).toBeVisible();
   await expect(page.getByRole("cell", { name: `${run}-OUT` })).toHaveCount(1);
   await expect(page.getByText(`Shop ${run}`).filter({ visible: true }).first()).toBeVisible();
-  await expect(page.getByText("Dana Ortiz").filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByText(`Driver ${run}`).filter({ visible: true }).first()).toBeVisible();
 
   // The shipped package left inventory; the rest stayed
   await page.goto(`/inventory?q=${run}`);

@@ -1,8 +1,8 @@
 import { asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
-import { CultivationTabs } from "@/components/cultivation-ui";
-import { Card, Field, PageHeader, inputClass, ScrollBox } from "@/components/ui";
-import { strainTypeEnum, strains } from "@/db/schema";
+import { CultivationTabs, StrainFields } from "@/components/cultivation-ui";
+import { Card, PageHeader, ScrollBox } from "@/components/ui";
+import { strains } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
@@ -41,21 +41,7 @@ export default async function StrainsPage() {
         {can(session, "cultivation.write") ? (
           <Card title="Add a strain">
             <ActionForm action={strainAction} submitLabel="Add strain">
-              <Field label="Name">
-                <input name="name" required className={inputClass} />
-              </Field>
-              <Field label="Type">
-                <select name="type" required defaultValue="HYBRID" className={inputClass}>
-                  {strainTypeEnum.enumValues.map((type) => (
-                    <option key={type} value={type}>
-                      {type === "CBD" ? "CBD" : type.charAt(0) + type.slice(1).toLowerCase()}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Flowering days (optional)">
-                <input name="floweringDays" inputMode="numeric" className={inputClass} />
-              </Field>
+              <StrainFields />
             </ActionForm>
           </Card>
         ) : null}

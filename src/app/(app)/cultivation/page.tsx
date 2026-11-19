@@ -1,17 +1,22 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
-import { CultivationTabs } from "@/components/cultivation-ui";
+import { CreatableSelect } from "@/components/contextual-create";
+import { CultivationTabs, StrainFields } from "@/components/cultivation-ui";
+import { RoomFields } from "@/components/quick-fields";
 import { Card, Field, PageHeader, inputClass, ScrollBox } from "@/components/ui";
 import { cultivationTasks, harvests, locations, plantBatches, plants, strains } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
-import { batchAction, completeTaskAction, taskAction } from "./actions";
+import { quickRoomAction } from "../quick-create-actions";
+import { batchAction, completeTaskAction, quickStrainAction, taskAction } from "./actions";
 
 export default async function CultivationPage() {
   const session = await requirePagePermission("cultivation.view");
   const canWrite = can(session, "cultivation.write");
+  // Rooms are facility settings: only people who manage settings can add one from here.
+  const canAddRoom = can(session, "settings.manage");
   const inFacility = <T extends { orgId: unknown; facilityId: unknown }>(t: T) =>
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     and(eq(t.orgId as any, session.orgId), eq(t.facilityId as any, session.facilityId));
@@ -89,7 +94,7 @@ export default async function CultivationPage() {
 
       {/* Each list sits beside the form that adds to it, so the two columns stay even. */}
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <div id="batches" className="scroll-mt-24">
+        <div id="batches" className="min-w-0 scroll-mt-24">
         <Card title="Plant batches" className={canWrite ? "h-full" : undefined}>
           {batches.length === 0 ? (
             <p className="text-sm text-slate-600">No batches yet. Start one with clones or seeds.</p>
@@ -118,56 +123,58 @@ export default async function CultivationPage() {
         </div>
         {canWrite ? (
           <Card title="Start a batch" className="h-full">
-            {strainRows.length === 0 ? (
-              <p className="text-sm text-slate-600">
-                Add a strain first on the{" "}
-                <Link href="/cultivation/strains" className="font-semibold text-brand-700 hover:underline">
-                  Strains
-                </Link>{" "}
-                tab.
-              </p>
-            ) : (
-              <ActionForm action={batchAction} submitLabel="Start batch">
-                <Field label="Batch name">
-                  <input name="name" required className={inputClass} />
-                </Field>
-                <Field label="Strain">
-                  <select name="strainId" required defaultValue="" className={inputClass}>
-                    <option value="" disabled>
-                      Choose a strain
-                    </option>
-                    {strainRows.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
+            <ActionForm action={batchAction} submitLabel="Start batch">
+              <Field label="Batch name">
+                <input name="name" required className={inputClass} />
+              </Field>
+              {/* A missing strain or room is added right here, without leaving the batch. */}
+              <CreatableSelect
+                name="strainId"
+                label="Strain"
+                required
+                placeholder="Choose a strain"
+                options={strainRows.map((s) => ({ id: s.id, label: s.name }))}
+                create={{
+                  buttonLabel: "Add strain",
+                  title: "Add a strain",
+                  intro: "It's saved to your Strains list and picked for this batch.",
+                  submitLabel: "Save strain",
+                  action: quickStrainAction,
+                  fields: <StrainFields />,
+                }}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Started from">
+                  <select name="source" defaultValue="CLONE" className={inputClass}>
+                    <option value="CLONE">Clones</option>
+                    <option value="SEED">Seeds</option>
                   </select>
                 </Field>
-                <div className="grid grid-cols-2 gap-2">
-                  <Field label="Started from">
-                    <select name="source" defaultValue="CLONE" className={inputClass}>
-                      <option value="CLONE">Clones</option>
-                      <option value="SEED">Seeds</option>
-                    </select>
-                  </Field>
-                  <Field label="How many">
-                    <input name="count" inputMode="numeric" required className={inputClass} />
-                  </Field>
-                </div>
-                <Field label="Room">
-                  <select name="locationId" required defaultValue="" className={inputClass}>
-                    <option value="" disabled>
-                      Choose a room
-                    </option>
-                    {rooms.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
+                <Field label="How many">
+                  <input name="count" inputMode="numeric" required className={inputClass} />
                 </Field>
-              </ActionForm>
-            )}
+              </div>
+              <CreatableSelect
+                name="locationId"
+                label="Room"
+                required
+                placeholder="Choose a room"
+                options={rooms.map((r) => ({ id: r.id, label: r.name }))}
+                create={
+                  canAddRoom
+                    ? {
+                        buttonLabel: "Add room",
+                        title: "Add a room",
+                        intro: "It's added to this facility's rooms and picked for this batch.",
+                        submitLabel: "Save room",
+                        action: quickRoomAction,
+                        fields: <RoomFields />,
+                      }
+                    : undefined
+                }
+                deniedHint="Room missing? Ask a manager to add it in Settings → Facilities."
+              />
+            </ActionForm>
           </Card>
         ) : null}
         <Card title="Open tasks" className={canWrite ? "h-full" : undefined}>

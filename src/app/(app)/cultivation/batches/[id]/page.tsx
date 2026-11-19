@@ -4,12 +4,15 @@ import Link from "next/link";
 import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
+import { CreatableSelect } from "@/components/contextual-create";
+import { RoomFields } from "@/components/quick-fields";
 import { CultivationTabs, WeightInput } from "@/components/cultivation-ui";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { locations, plantBatches, plants, strains } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
+import { quickRoomAction } from "../../../quick-create-actions";
 import { destroyBatchAction, tagPlantsAction } from "../../actions";
 import { facilityZone } from "@/lib/time";
 
@@ -112,15 +115,27 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
                 <Field label="Or scan each tag" hint="One per line. If you fill this in, the two boxes above are ignored.">
                   <textarea name="tagList" rows={3} autoCapitalize="characters" className={`${inputClass} py-2 font-mono`} />
                 </Field>
-                <Field label="Put them in">
-                  <select name="locationId" defaultValue={batch.locationId} className={inputClass}>
-                    {rooms.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                <CreatableSelect
+                  name="locationId"
+                  label="Put them in"
+                  required
+                  placeholder="Choose a room"
+                  defaultValue={batch.locationId}
+                  options={rooms.map((r) => ({ id: r.id, label: r.name }))}
+                  create={
+                    can(session, "settings.manage")
+                      ? {
+                          buttonLabel: "Add room",
+                          title: "Add a room",
+                          intro: "It's added to this facility's rooms and picked for these plants.",
+                          submitLabel: "Save room",
+                          action: quickRoomAction,
+                          fields: <RoomFields defaultArea="VEGETATIVE" />,
+                        }
+                      : undefined
+                  }
+                  deniedHint="Room missing? Ask a manager to add it in Settings → Facilities."
+                />
               </ActionForm>
             </Card>
             <Card title="Record lost plants">

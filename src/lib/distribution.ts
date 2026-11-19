@@ -197,20 +197,21 @@ export async function setPrice(actor: Actor, input: { priceListId: string; itemI
   });
 }
 
-export async function createDriver(actor: Actor, input: { name: string; licenseNumber: string; phone?: string }): Promise<void> {
+export async function createDriver(actor: Actor, input: { name: string; licenseNumber: string; phone?: string }): Promise<{ id: string }> {
   const name = required(input.name, "Enter the driver's name.", 100);
   const licenseNumber = required(input.licenseNumber, "Enter the driver's license number. It is printed on the manifest.", 40);
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     const [driver] = await tx.insert(drivers).values({ orgId: actor.orgId, name, licenseNumber, phone: text(input.phone, 40) }).returning({ id: drivers.id });
     await audit(tx, actor, { entityType: "Driver", entityId: driver.id, action: "CREATE", after: { name } });
+    return driver;
   });
 }
 
-export async function createVehicle(actor: Actor, input: { make: string; model: string; plate: string }): Promise<void> {
+export async function createVehicle(actor: Actor, input: { make: string; model: string; plate: string }): Promise<{ id: string }> {
   const make = required(input.make, "Enter the vehicle make.", 60);
   const model = required(input.model, "Enter the vehicle model.", 60);
   const plate = required(input.plate, "Enter the license plate.", 20).toUpperCase();
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     const [vehicle] = await tx
       .insert(vehicles)
       .values({ orgId: actor.orgId, make, model, plate })
@@ -218,6 +219,7 @@ export async function createVehicle(actor: Actor, input: { make: string; model: 
       .returning({ id: vehicles.id });
     if (!vehicle) throw new InventoryError(`A vehicle with plate ${plate} already exists.`);
     await audit(tx, actor, { entityType: "Vehicle", entityId: vehicle.id, action: "CREATE", after: { make, model, plate } });
+    return vehicle;
   });
 }
 

@@ -2,26 +2,21 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { auditLogs, itemCategories, items, locations, unitEnum, locationTypeEnum } from "@/db/schema";
+import { auditLogs, itemCategories, items, unitEnum } from "@/db/schema";
 import { db } from "@/lib/db";
+import { createLocation } from "@/lib/facilities";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { generateSku, normalizeSku } from "@/lib/ids";
 import { renameItem, saveItemDetails } from "@/lib/item-details";
+import { createCategory } from "@/lib/quick-item";
 import { requirePermission } from "@/lib/session";
 
 export async function addCategory(_state: FormState, formData: FormData): Promise<FormState> {
   try {
     const session = await requirePermission("catalog.manage");
-    const name = field(formData, "name");
-    if (!name) return { error: "Enter a category name." };
-    const [row] = await db
-      .insert(itemCategories)
-      .values({ orgId: session.orgId, name })
-      .onConflictDoNothing({ target: [itemCategories.orgId, itemCategories.name] })
-      .returning({ id: itemCategories.id });
-    if (!row) return { error: `There is already a category called ${name}.` };
+    const category = await createCategory({ orgId: session.orgId, userId: session.userId, userName: session.name, facilityId: session.facilityId }, field(formData, "name"));
     revalidatePath("/catalog");
-    return { ok: `Added ${name}.` };
+    return { ok: `Added ${category.name}.` };
   } catch (error) {
     return toFormError(error);
   }
@@ -97,32 +92,12 @@ export async function setItemActive(formData: FormData): Promise<void> {
 export async function addLocation(_state: FormState, formData: FormData): Promise<FormState> {
   try {
     const session = await requirePermission("catalog.manage");
-    const name = field(formData, "name");
-    const type = field(formData, "type") as (typeof locationTypeEnum.enumValues)[number];
-    if (!name) return { error: "Enter a location name." };
-    if (!locationTypeEnum.enumValues.includes(type)) return { error: "Choose a location type." };
-    const created = await db.transaction(async (tx) => {
-      const [location] = await tx
-        .insert(locations)
-        .values({ orgId: session.orgId, facilityId: session.facilityId, name, type })
-        .onConflictDoNothing({ target: [locations.facilityId, locations.name] })
-        .returning({ id: locations.id });
-      if (!location) return null;
-      await tx.insert(auditLogs).values({
-        orgId: session.orgId,
-        facilityId: session.facilityId,
-        userId: session.userId,
-        userName: session.name,
-        entityType: "Location",
-        entityId: location.id,
-        action: "CREATE",
-        after: { name, type },
-      });
-      return location;
-    });
-    if (!created) return { error: `This facility already has a location called ${name}.` };
+    const location = await createLocation(
+      { orgId: session.orgId, userId: session.userId, userName: session.name, facilityId: session.facilityId },
+      { name: field(formData, "name"), type: field(formData, "type") },
+    );
     revalidatePath("/locations");
-    return { ok: `Added ${name}.` };
+    return { ok: `Added ${location.name}.` };
   } catch (error) {
     return toFormError(error);
   }

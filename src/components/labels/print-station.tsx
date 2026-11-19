@@ -4,6 +4,8 @@ import { Printer, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
+import { quickPrinterAction, quickTemplateAction } from "@/app/(app)/quick-create-actions";
+import { CreatableSelect } from "@/components/contextual-create";
 import { Field, inputClass } from "@/components/ui";
 import type { LabelIssue, LabelKind } from "@/lib/labels/types";
 import { LABEL_KINDS } from "@/lib/labels/types";
@@ -11,6 +13,62 @@ import { IssueList, type IssueLink, type PackInfo } from "./issues";
 import { JobActions, newRequestKey, printJobPdf } from "./job-actions";
 
 export type TemplateOption = { id: string; name: string; kind: LabelKind; isDefault: boolean; jurisdiction: string | null; size: string };
+export type ArchivedTemplate = { id: string; name: string; kind: LabelKind };
+
+/** Where a new template starts: a copy of one you have (named here), or an archived one brought back. */
+function TemplateSourceFields({ copies, archived }: { copies: TemplateOption[]; archived: ArchivedTemplate[] }) {
+  const first = copies[0] ? `copy:${copies[0].id}` : archived[0] ? `restore:${archived[0].id}` : "";
+  const [source, setSource] = useState(first);
+  const copying = source.startsWith("copy:");
+  return (
+    <>
+      <Field label="Start from">
+        <select name="source" required value={source} onChange={(e) => setSource(e.target.value)} className={inputClass}>
+          {copies.map((t) => (
+            <option key={t.id} value={`copy:${t.id}`}>
+              A copy of {t.name}
+            </option>
+          ))}
+          {archived.map((t) => (
+            <option key={t.id} value={`restore:${t.id}`}>
+              Bring back {t.name} (archived)
+            </option>
+          ))}
+        </select>
+      </Field>
+      {copying ? (
+        <Field label="Name for the new template">
+          <input name="name" required maxLength={80} className={inputClass} />
+        </Field>
+      ) : null}
+      <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-slate-800">
+        <input type="checkbox" name="makeDefault" className="h-5 w-5 accent-brand-700" /> Make it the default for this label type
+      </label>
+    </>
+  );
+}
+
+/** A printer preset: the same things the Printers tab asks for. */
+function PrinterFields() {
+  return (
+    <>
+      <Field label="Printer name">
+        <input name="name" required maxLength={60} placeholder="Packaging room Zebra" className={inputClass} />
+      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Shift right (mm)">
+          <input name="offsetXMm" type="number" step="0.1" min={-20} max={20} defaultValue={0} className={inputClass} />
+        </Field>
+        <Field label="Shift down (mm)">
+          <input name="offsetYMm" type="number" step="0.1" min={-20} max={20} defaultValue={0} className={inputClass} />
+        </Field>
+      </div>
+      <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-slate-800">
+        <input type="checkbox" name="isDefault" className="h-5 w-5 accent-brand-700" /> Use this printer by default
+      </label>
+    </>
+  );
+}
 export type PrinterOption = { id: string; name: string; isDefault: boolean };
 export type CandidateRow = { id: string; ref: string; detail: string; status?: string };
 
@@ -39,6 +97,7 @@ function recordHref(kind: LabelKind, id: string): string | null {
 /** Pick records, check them, preview at real size, and create one print job. */
 export function PrintStation({
   templates,
+  archivedTemplates = [],
   printers,
   candidates,
   initialKind,
@@ -46,6 +105,8 @@ export function PrintStation({
   canManage,
 }: {
   templates: TemplateOption[];
+  /** Archived templates, which "+ Add template" can bring back. */
+  archivedTemplates?: ArchivedTemplate[];
   printers: PrinterOption[];
   candidates: Record<LabelKind, CandidateRow[]>;
   initialKind: LabelKind;
@@ -75,6 +136,8 @@ export function PrintStation({
     return q ? rows.filter((r) => `${r.ref} ${r.detail}`.toLowerCase().includes(q)) : rows;
   }, [candidates, kind, query]);
   const kindTemplates = templates.filter((t) => t.kind === kind);
+  const kindArchived = archivedTemplates.filter((t) => t.kind === kind);
+  const kindLabel = LABEL_KINDS.find((k) => k.kind === kind)?.label ?? "Label";
 
   function reset() {
     setPreview(null);
@@ -206,30 +269,48 @@ export function PrintStation({
           ))}
         </div>
 
-        <Field label="Template">
-          {kindTemplates.length ? (
-            <select
-              className={inputClass}
-              value={templateId}
-              onChange={(e) => {
-                setTemplateId(e.target.value);
-                reset();
-              }}
-            >
-              {kindTemplates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} · {t.size}
-                  {t.isDefault ? " (default)" : ""}
-                  {t.jurisdiction ? ` · ${t.jurisdiction} rules` : ""}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-              No template for this label type yet. {canManage ? <Link className="font-semibold text-brand-700 underline" href="/labels/templates/new">Make one</Link> : "Ask a manager to make one."}
-            </p>
-          )}
-        </Field>
+        {/* Remounted per label type, so each type keeps its own list and choice. */}
+        <CreatableSelect
+          key={kind}
+          name="templateId"
+          label="Template"
+          required
+          placeholder="Choose a template"
+          defaultValue={templateId}
+          options={kindTemplates.map((t) => ({
+            id: t.id,
+            label: `${t.name} · ${t.size}${t.isDefault ? " (default)" : ""}${t.jurisdiction ? ` · ${t.jurisdiction} rules` : ""}`,
+          }))}
+          onChange={(id) => {
+            setTemplateId(id);
+            reset();
+          }}
+          create={
+            canManage && kindTemplates.length + kindArchived.length > 0
+              ? {
+                  buttonLabel: "Add template",
+                  title: `Add a ${kindLabel.toLowerCase()} template`,
+                  intro: "Start from one you have. It's picked here, and your chosen records stay chosen. Fine-tune it later in the designer.",
+                  submitLabel: "Save template",
+                  action: quickTemplateAction,
+                  fields: <TemplateSourceFields copies={kindTemplates} archived={kindArchived} />,
+                }
+              : undefined
+          }
+          deniedHint={
+            canManage ? (
+              <>
+                No {kindLabel.toLowerCase()} template to start from yet.{" "}
+                <Link className="font-semibold text-brand-700 underline" href="/labels/templates/new" target="_blank" rel="noopener">
+                  Design one in a new tab
+                </Link>
+                , then come back. What you&apos;ve chosen here stays put.
+              </>
+            ) : (
+              "Template missing? Ask a manager to make one."
+            )
+          }
+        />
 
         <div>
           <div className="mb-1 flex items-center justify-between gap-2">
@@ -271,16 +352,32 @@ export function PrintStation({
           <Field label="Copies of each">
             <input type="number" min={1} max={50} className={inputClass} value={copies} onChange={(e) => { setCopies(Math.max(1, Math.min(50, Number(e.target.value) || 1))); setJob(null); setRequestKey(newRequestKey()); }} />
           </Field>
-          <Field label="Printer" hint="Printer settings shift the label to line up with your stock. Set them up on the Printers tab.">
-            <select className={inputClass} value={printerId} onChange={(e) => { setPrinterId(e.target.value); setJob(null); setRequestKey(newRequestKey()); }}>
-              <option value="">No offset</option>
-              {printers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <CreatableSelect
+            name="printerId"
+            label="Printer"
+            hint="Printer settings shift the label to line up with your stock."
+            placeholder="No offset"
+            defaultValue={printerId}
+            options={printers.map((p) => ({ id: p.id, label: p.name }))}
+            onChange={(id) => {
+              setPrinterId(id);
+              setJob(null);
+              setRequestKey(newRequestKey());
+            }}
+            create={
+              canManage
+                ? {
+                    buttonLabel: "Add printer",
+                    title: "Add a printer",
+                    intro: "Saved to your printers and picked for this job.",
+                    submitLabel: "Save printer",
+                    action: quickPrinterAction,
+                    fields: <PrinterFields />,
+                  }
+                : undefined
+            }
+            compact
+          />
         </div>
 
         <div className="flex flex-wrap gap-2">

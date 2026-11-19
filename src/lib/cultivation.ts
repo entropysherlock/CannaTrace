@@ -42,11 +42,17 @@ export async function createStrain(
   actor: Actor,
   input: { name: string; type: string; floweringDays?: unknown },
 ): Promise<{ id: string }> {
-  const name = requireText(input.name, "Enter a strain name.");
+  const name = requireText(input.name, "Enter a strain name.").replace(/\s+/g, " ").slice(0, 80);
   if (!["INDICA", "SATIVA", "HYBRID", "CBD"].includes(input.type)) throw new InventoryError("Choose a strain type.");
   const daysText = String(input.floweringDays ?? "").trim();
   const floweringDays = daysText === "" ? null : parseCount(daysText, "Flowering days");
   return db.transaction(async (tx) => {
+    // "blue dream" next to "Blue Dream" is the same strain typed twice, not a new one.
+    const [twin] = await tx
+      .select({ name: strains.name })
+      .from(strains)
+      .where(and(eq(strains.orgId, actor.orgId), sql`lower(btrim(${strains.name})) = lower(${name})`));
+    if (twin) throw new InventoryError(`There is already a strain called ${twin.name}.`);
     const [strain] = await tx
       .insert(strains)
       .values({ orgId: actor.orgId, name, type: input.type as "INDICA", floweringDays })
@@ -56,6 +62,17 @@ export async function createStrain(
     await audit(tx, actor, { entityType: "Strain", entityId: strain.id, action: "CREATE", after: { name, type: input.type } });
     return strain;
   });
+}
+
+/** A strain with this name, ignoring letter case, so a quick add can offer it instead of making a twin. */
+export async function findStrainByName(orgId: string, name: string): Promise<{ id: string; name: string; active: boolean } | null> {
+  const clean = name.trim().replace(/\s+/g, " ");
+  if (!clean) return null;
+  const [row] = await db
+    .select({ id: strains.id, name: strains.name, active: strains.active })
+    .from(strains)
+    .where(and(eq(strains.orgId, orgId), sql`lower(btrim(${strains.name})) = lower(${clean})`));
+  return row ?? null;
 }
 
 /** Start a group of immature plants (clones or seeds) that are not individually tagged yet. */

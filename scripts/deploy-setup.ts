@@ -1,5 +1,5 @@
 /**
- * Runs before every production build (npm run vercel-build):
+ * Runs before every build on Vercel (npm run vercel-build). On the production deployment it:
  * 1. brings the database up to date with every migration in ./drizzle, and
  * 2. removes the made-up demo company if an earlier deploy loaded it.
  * Production never loads demo data. The first visitor is sent to /setup to create the real business.
@@ -9,6 +9,13 @@ import { db, pool } from "@/lib/db";
 import { removeDemoCompany } from "./remove-demo";
 
 async function main() {
+  // Preview deployments (pull requests, branches) never touch a database while building: a preview
+  // that shared production's settings would otherwise migrate the live database, or remove data, from
+  // unmerged code. Only the production deployment of main brings the database up to date.
+  if (process.env.VERCEL_ENV === "preview") {
+    console.log("Preview deployment: skipping database setup. Previews never change a database while building.");
+    return;
+  }
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set. Connect a Postgres database in your hosting settings.");
   const secret = process.env.AUTH_SECRET ?? "";
   if (secret.length < 32) throw new Error("AUTH_SECRET must be set to a random string of at least 32 characters.");
@@ -25,4 +32,4 @@ main()
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
   })
-  .finally(() => pool.end());
+  .finally(() => pool.end().catch(() => {}));

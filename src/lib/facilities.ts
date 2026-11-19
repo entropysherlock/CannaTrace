@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { auditLogs, facilities, licenseTypeEnum, locations, organizations } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
@@ -123,6 +123,47 @@ async function facilityInOrg(actor: FacilityActor, facilityId: string) {
   const [f] = await db.select({ id: facilities.id }).from(facilities).where(and(eq(facilities.id, facilityId), eq(facilities.orgId, actor.orgId)));
   if (!f) throw new InventoryError("That facility was not found.");
   return f;
+}
+
+export type LocationType = "ROOM" | "RACK" | "BIN";
+const LOCATION_TYPES: LocationType[] = ["ROOM", "RACK", "BIN"];
+
+/** A storage location (room, rack, or bin) at the actor's facility, as added on the Locations page. */
+export async function createLocation(actor: FacilityActor, input: { name: string; type: string }): Promise<{ id: string; name: string }> {
+  const name = input.name.trim().replace(/\s+/g, " ").slice(0, 80);
+  if (!name) throw new InventoryError("Enter a location name.");
+  if (!LOCATION_TYPES.includes(input.type as LocationType)) throw new InventoryError("Choose a location type.");
+  const type = input.type as LocationType;
+  return db.transaction(async (tx) => {
+    const [location] = await tx
+      .insert(locations)
+      .values({ orgId: actor.orgId, facilityId: actor.facilityId, name, type })
+      .onConflictDoNothing({ target: [locations.facilityId, locations.name] })
+      .returning({ id: locations.id });
+    if (!location) throw new InventoryError(`This facility already has a location called ${name}.`);
+    await tx.insert(auditLogs).values({
+      orgId: actor.orgId,
+      facilityId: actor.facilityId,
+      userId: actor.userId,
+      userName: actor.userName,
+      entityType: "Location",
+      entityId: location.id,
+      action: "CREATE",
+      after: { name, type },
+    });
+    return { id: location.id, name };
+  });
+}
+
+/** A room or location at this facility with this name, ignoring letter case and extra spaces. */
+export async function findLocationByName(orgId: string, facilityId: string, name: string): Promise<{ id: string; name: string } | null> {
+  const clean = name.trim().replace(/\s+/g, " ");
+  if (!clean) return null;
+  const [row] = await db
+    .select({ id: locations.id, name: locations.name })
+    .from(locations)
+    .where(and(eq(locations.orgId, orgId), eq(locations.facilityId, facilityId), sql`lower(btrim(${locations.name})) = lower(${clean})`));
+  return row ?? null;
 }
 
 /** A room is a ROOM location with an area type. It shows up anywhere the facility's locations are listed. */

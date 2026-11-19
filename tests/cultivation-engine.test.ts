@@ -20,6 +20,7 @@ import {
   createStrain,
   destroyBatchPlants,
   destroyPlants,
+  findStrainByName,
   finishHarvest,
   harvestPlants,
   logHarvestWaste,
@@ -93,6 +94,13 @@ describe.skipIf(!hasDb)("cultivation engine (database)", () => {
 
   it("rejects a duplicate strain name", async () => {
     await expect(createStrain(actor, { name: "Alpha", type: "SATIVA" })).rejects.toThrow(/already a strain/);
+  });
+
+  it("treats a name that differs only in case or spacing as the same strain", async () => {
+    await expect(createStrain(actor, { name: "  alPHA ", type: "SATIVA" })).rejects.toThrow("There is already a strain called Alpha.");
+    expect(await findStrainByName(actor.orgId, " ALPHA  ")).toMatchObject({ id: strainA, name: "Alpha", active: true });
+    expect(await findStrainByName(actor.orgId, "Gamma")).toBeNull();
+    expect(await findStrainByName("no-such-business", "Alpha")).toBeNull();
   });
 
   it("tags plants out of a batch and closes it when none are left", async () => {

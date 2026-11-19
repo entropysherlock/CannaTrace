@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
+import { CreatableSelect } from "@/components/contextual-create";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { itemCategories, items, unitEnum } from "@/db/schema";
 import { db } from "@/lib/db";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
+import { quickCategoryAction } from "../quick-create-actions";
 import { addCategory, addItem, setItemActive } from "./actions";
 
 export default async function CatalogPage() {
@@ -69,45 +71,48 @@ export default async function CatalogPage() {
         </div>
         <div className="space-y-5">
           <Card title="Add an item">
-            {categories.length === 0 ? (
-              <p className="text-sm text-slate-600">Add a category first.</p>
-            ) : (
-              <ActionForm action={addItem} submitLabel="Add item">
-                <Field label="Name">
-                  <input name="name" required className={inputClass} />
-                </Field>
-                <Field label="SKU (blank to generate)" hint="Leave blank and CannaTrace makes one from the category, like FLO-0007. You can change it later on the item's page.">
-                  <input name="sku" autoCapitalize="characters" placeholder="Blank = generated" className={inputClass} />
-                </Field>
-                <Field label="Category">
-                  <select name="categoryId" required defaultValue="" className={inputClass}>
-                    <option value="" disabled>
-                      Choose a category
+            <ActionForm action={addItem} submitLabel="Add item">
+              <Field label="Name">
+                <input name="name" required className={inputClass} />
+              </Field>
+              <Field label="SKU (blank to generate)" hint="Leave blank and CannaTrace makes one from the category, like FLO-0007. You can change it later on the item's page.">
+                <input name="sku" autoCapitalize="characters" placeholder="Blank = generated" className={inputClass} />
+              </Field>
+              <CreatableSelect
+                name="categoryId"
+                label="Category"
+                required
+                placeholder="Choose a category"
+                options={categories.map((c) => ({ id: c.id, label: c.name }))}
+                create={{
+                  buttonLabel: "Add category",
+                  title: "Add a category",
+                  intro: "It's picked for this item, and new SKUs in it start with its first letters.",
+                  submitLabel: "Save category",
+                  action: quickCategoryAction,
+                  fields: (
+                    <Field label="Category name">
+                      <input name="name" required maxLength={60} placeholder="e.g. Edibles" className={inputClass} />
+                    </Field>
+                  ),
+                }}
+              />
+              <Field label="Unit of measure" hint="Cannot be changed later, because existing packages depend on it.">
+                <select name="unit" required defaultValue="" className={inputClass}>
+                  <option value="" disabled>
+                    Choose a unit
+                  </option>
+                  {unitEnum.enumValues.map((u) => (
+                    <option key={u} value={u}>
+                      {unitLabel(u)}
                     </option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Unit of measure" hint="Cannot be changed later, because existing packages depend on it.">
-                  <select name="unit" required defaultValue="" className={inputClass}>
-                    <option value="" disabled>
-                      Choose a unit
-                    </option>
-                    {unitEnum.enumValues.map((u) => (
-                      <option key={u} value={u}>
-                        {unitLabel(u)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Strain (optional)">
-                  <input name="strain" className={inputClass} />
-                </Field>
-              </ActionForm>
-            )}
+                  ))}
+                </select>
+              </Field>
+              <Field label="Strain (optional)">
+                <input name="strain" className={inputClass} />
+              </Field>
+            </ActionForm>
           </Card>
           <Card title="Add a category">
             <ActionForm action={addCategory} submitLabel="Add category">
