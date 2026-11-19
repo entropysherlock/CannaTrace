@@ -5,6 +5,9 @@ import Link from "next/link";
 import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
+import { CreatableSelect } from "@/components/contextual-create";
+import { ItemFields } from "@/components/item-fields";
+import { DriverFields, VehicleFields } from "@/components/quick-fields";
 import { DistributionTabs, Pill, unitPrice, usd } from "@/components/distribution-ui";
 import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
@@ -12,6 +15,7 @@ import { customers, destinations, drivers, invoices, items, orderAllocations, or
 import { db } from "@/lib/db";
 import { licenseProblem, lineTotal } from "@/lib/distribution-math";
 import { can } from "@/lib/rbac";
+import { itemCategoryNames } from "@/lib/quick-create-data";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 import { facilityToday } from "@/lib/time";
@@ -25,6 +29,7 @@ import {
   shipAction,
   unallocateAction,
 } from "../../actions";
+import { quickDriverAction, quickItemAction, quickVehicleAction } from "../../../quick-create-actions";
 
 const NEXT_STEP: Record<string, string> = {
   DRAFT: "Add the lines, then confirm the order.",
@@ -74,6 +79,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
   const canSell = can(session, "sales.write");
   const canFulfil = canSell || can(session, "inventory.write");
+  const canManageCatalog = can(session, "catalog.manage");
+  const categories = canManageCatalog && order.status === "DRAFT" ? await itemCategoryNames(session.orgId) : [];
   // The destination's license is the one checked when the order ships.
   const problem = row.destination ? licenseProblem({ ...row.destination, name: `${customer.name} (${row.destination.name})` }, today) : licenseProblem(customer, today);
   const hidden = <input type="hidden" name="orderId" value={order.id} />;
@@ -217,18 +224,26 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               <Card title="Add a line">
                 <ActionForm action={lineAction} submitLabel="Add line">
                   {hidden}
-                  <Field label="Item">
-                    <select name="itemId" required defaultValue="" className={inputClass}>
-                      <option value="" disabled>
-                        Choose an item
-                      </option>
-                      {itemRows.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} ({unitLabel(item.unit)})
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
+                  <CreatableSelect
+                    name="itemId"
+                    label="Item"
+                    required
+                    placeholder="Choose an item"
+                    options={itemRows.map((item) => ({ id: item.id, label: `${item.name} (${unitLabel(item.unit)})` }))}
+                    create={
+                      canManageCatalog
+                        ? {
+                            buttonLabel: "Add item",
+                            title: "Add an item",
+                            intro: "It goes into your catalog too, and is picked for this line. Set its price on the Prices tab, or type one below.",
+                            submitLabel: "Save item",
+                            action: quickItemAction,
+                            fields: <ItemFields categories={categories} />,
+                          }
+                        : undefined
+                    }
+                    deniedHint="Item missing? Someone who manages the catalog can add it on the Items page."
+                  />
                   <Field label="Quantity">
                     <input name="quantity" inputMode="decimal" required className={inputClass} />
                   </Field>
@@ -281,50 +296,56 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           {order.status === "PACKED" && canFulfil ? (
             <>
               <Card title="Ship">
-                {driverRows.length === 0 || vehicleRows.length === 0 ? (
-                  <p className="text-sm text-slate-600">
-                    Add a driver and a vehicle first on the{" "}
-                    <Link href="/distribution/fleet" className="font-semibold text-brand-700 hover:underline">
-                      Drivers and vehicles
-                    </Link>{" "}
-                    tab.
-                  </p>
-                ) : (
-                  <ActionForm action={shipAction} submitLabel="Ship order">
-                    {hidden}
-                    <Field label="Driver">
-                      <select name="driverId" required defaultValue="" className={inputClass}>
-                        <option value="" disabled>
-                          Choose a driver
-                        </option>
-                        {driverRows.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Vehicle">
-                      <select name="vehicleId" required defaultValue="" className={inputClass}>
-                        <option value="" disabled>
-                          Choose a vehicle
-                        </option>
-                        {vehicleRows.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {v.make} {v.model} · {v.plate}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Departure date and time">
-                      <input name="departAt" type="datetime-local" required className={inputClass} />
-                    </Field>
-                    <Field label="Route notes (optional)">
-                      <input name="routeNotes" maxLength={500} className={inputClass} />
-                    </Field>
-                    <p className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium leading-relaxed text-amber-900"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Shipping removes the packages from inventory and creates the invoice. It cannot be undone.</span></p>
-                  </ActionForm>
-                )}
+                <ActionForm action={shipAction} submitLabel="Ship order">
+                  {hidden}
+                  <CreatableSelect
+                    name="driverId"
+                    label="Driver"
+                    required
+                    placeholder="Choose a driver"
+                    options={driverRows.map((d) => ({ id: d.id, label: d.name }))}
+                    create={
+                      canSell
+                        ? {
+                            buttonLabel: "Add driver",
+                            title: "Add a driver",
+                            intro: "Saved to Drivers and vehicles and picked for this shipment.",
+                            submitLabel: "Save driver",
+                            action: quickDriverAction,
+                            fields: <DriverFields />,
+                          }
+                        : undefined
+                    }
+                    deniedHint="Driver missing? Someone in sales can add one under Drivers and vehicles."
+                  />
+                  <CreatableSelect
+                    name="vehicleId"
+                    label="Vehicle"
+                    required
+                    placeholder="Choose a vehicle"
+                    options={vehicleRows.map((v) => ({ id: v.id, label: `${v.make} ${v.model} · ${v.plate}` }))}
+                    create={
+                      canSell
+                        ? {
+                            buttonLabel: "Add vehicle",
+                            title: "Add a vehicle",
+                            intro: "Saved to Drivers and vehicles and picked for this shipment.",
+                            submitLabel: "Save vehicle",
+                            action: quickVehicleAction,
+                            fields: <VehicleFields />,
+                          }
+                        : undefined
+                    }
+                    deniedHint="Vehicle missing? Someone in sales can add one under Drivers and vehicles."
+                  />
+                  <Field label="Departure date and time">
+                    <input name="departAt" type="datetime-local" required className={inputClass} />
+                  </Field>
+                  <Field label="Route notes (optional)">
+                    <input name="routeNotes" maxLength={500} className={inputClass} />
+                  </Field>
+                  <p className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium leading-relaxed text-amber-900"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Shipping removes the packages from inventory and creates the invoice. It cannot be undone.</span></p>
+                </ActionForm>
               </Card>
               <Card title="Reopen for changes">{step("reopen", "Reopen order")}</Card>
             </>

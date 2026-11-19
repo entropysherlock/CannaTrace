@@ -125,6 +125,36 @@ async function facilityInOrg(actor: FacilityActor, facilityId: string) {
   return f;
 }
 
+export type LocationType = "ROOM" | "RACK" | "BIN";
+const LOCATION_TYPES: LocationType[] = ["ROOM", "RACK", "BIN"];
+
+/** A storage location (room, rack, or bin) at the actor's facility, as added on the Locations page. */
+export async function createLocation(actor: FacilityActor, input: { name: string; type: string }): Promise<{ id: string; name: string }> {
+  const name = input.name.trim().replace(/\s+/g, " ").slice(0, 80);
+  if (!name) throw new InventoryError("Enter a location name.");
+  if (!LOCATION_TYPES.includes(input.type as LocationType)) throw new InventoryError("Choose a location type.");
+  const type = input.type as LocationType;
+  return db.transaction(async (tx) => {
+    const [location] = await tx
+      .insert(locations)
+      .values({ orgId: actor.orgId, facilityId: actor.facilityId, name, type })
+      .onConflictDoNothing({ target: [locations.facilityId, locations.name] })
+      .returning({ id: locations.id });
+    if (!location) throw new InventoryError(`This facility already has a location called ${name}.`);
+    await tx.insert(auditLogs).values({
+      orgId: actor.orgId,
+      facilityId: actor.facilityId,
+      userId: actor.userId,
+      userName: actor.userName,
+      entityType: "Location",
+      entityId: location.id,
+      action: "CREATE",
+      after: { name, type },
+    });
+    return { id: location.id, name };
+  });
+}
+
 /** A room or location at this facility with this name, ignoring letter case and extra spaces. */
 export async function findLocationByName(orgId: string, facilityId: string, name: string): Promise<{ id: string; name: string } | null> {
   const clean = name.trim().replace(/\s+/g, " ");

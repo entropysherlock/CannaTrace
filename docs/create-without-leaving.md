@@ -31,33 +31,42 @@ Legend: ✅ done in this change · ⏭ next · 🧭 needs a guided drawer (compl
 |---|---|---|---|---|---|---|
 | Cultivation | Start a batch (`/cultivation`) | Strain | Form hidden; "add a strain on the Strains tab" | `cultivation.write` | `createStrain` | ✅ |
 | Cultivation | Start a batch | Room | Leave for Settings → Facilities | `settings.manage` | `addRoom` | ✅ |
-| Cultivation | Tag plants (batch page) | Room | Leave for Settings | `settings.manage` | `addRoom` | ⏭ |
-| Cultivation | Move plants / harvest (plants page) | Room / dry room | Leave for Settings | `settings.manage` | `addRoom` | ⏭ |
-| Cultivation | Package a harvest (harvest page) | Bulk item; location | "Add an item … on the Items page first" | `catalog.manage` | `quickAddItem`; `addLocation` | ⏭ |
-| Inventory | Receive (`/inventory/receive`) | Item | Leave for Catalog | `catalog.manage` | `quickAddItem` | ⏭ |
+| Cultivation | Tag plants (batch page) | Room | Leave for Settings | `settings.manage` | `addRoom` | ✅ |
+| Cultivation | Move plants / harvest (plants page) | Room / dry room | Leave for Settings | `settings.manage` | `addRoom` | ✅ |
+| Cultivation | Package a harvest (harvest page) | Item counted by weight; location | "Add an item … on the Items page first" | `catalog.manage` | `quickAddItem` (weight units only, checked on the server); `createLocation` | ✅ |
+| Inventory | Receive (`/inventory/receive`) | Item | Leave for Catalog | `catalog.manage` | `quickAddItem` | ✅ |
 | Inventory | Receive / receive shipment | Vendor | Leave for Distribution → Customers | `sales.write` | `createCustomer` (vendors are customer records) | 🧭 license fields |
-| Inventory | Receive / receive shipment | Location | Leave for Locations | `catalog.manage` | `addLocation` → move to lib | ⏭ |
+| Inventory | Receive / receive shipment | Location | Leave for Locations | `catalog.manage` | `createLocation` (moved into the library; the Locations page uses it too) | ✅ |
 | Catalog | Add item | Category | "Add a category first" | `catalog.manage` | `addCategory` → move to lib | ⏭ |
-| Manufacturing | Recipe form | Input/output item | Already inline (`NewItem`) | `manufacturing.write` | `quickAddItem` | ⏭ move onto `CreatableSelect` |
+| Manufacturing | Recipe form | Input/output item | Had its own inline box | `manufacturing.write` or `catalog.manage` | `quickAddItem` | ✅ moved onto `CreatableSelect` |
 | Manufacturing | Start a production run | Recipe | Leave for Recipes tab | `manufacturing.write` | `createRecipe` | 🧭 inputs and outputs |
 | Distribution | New order (`/distribution`) | Customer; destination | "Add a customer, then start an order" | `sales.write` | `createCustomer`, `createDestination` | 🧭 license verification |
-| Distribution | Order → ship | Driver; vehicle | "Add a driver and a vehicle first" | `sales.write` | `createDriver`, `createVehicle` (must return the new id) | ⏭ |
-| Distribution | Order → add line | Item | Leave for Catalog | `catalog.manage` | `quickAddItem` | ⏭ |
-| Register | Menu (`/pos/menu`) | Item / menu entry; discount preset | Leave for Catalog | `pos.manage` (+ `catalog.manage` for new items) | `menuItemAction`, `discountPresetAction` | ⏭ |
+| Distribution | Order → ship | Driver; vehicle | "Add a driver and a vehicle first" | `sales.write` | `createDriver`, `createVehicle` (now return the new id); matched on license number / plate | ✅ |
+| Distribution | Order → add line | Item | Leave for Catalog | `catalog.manage` | `quickAddItem` | ✅ |
+| Register | Menu (`/pos/menu`) | Item | Leave for Catalog | `pos.manage` + `catalog.manage` | `quickAddItem` | ✅ |
 | SmartLabel | Print station | Label template | "No template for this label type yet" | `labels.manage` | template service | 🧭 designer |
 | SmartLabel | Print station | Printer preset | Leave for Printers | `labels.manage` | `savePrinterAction` → lib | ⏭ |
 
 Pickers that only choose among existing records and should **not** get a create button: plants, packages, batches, harvests, allocations, order lines, and anything whose creation is itself a compliance event.
 
+## Where the pieces live
+
+- `src/components/contextual-create.tsx`: `CreatableSelect`, `CreateConfig` and the dialog.
+- `src/app/(app)/quick-create-actions.ts`: the shared quick-create actions for room, location, item, driver and vehicle. Strain is in `cultivation/actions.ts`.
+- `src/components/quick-fields.tsx` (room, location, driver, vehicle) and `src/components/item-fields.tsx` (item; safe in client components): the dialog fields, named like each record's own page.
+
 ## Rollout order
 
 1. ✅ Cultivation → Start a batch (strain and room): proves the pattern.
-2. Rooms and locations everywhere they are picked (batch tag, plant move, harvest, receive). This is the same `QuickRoomFields` and the same action.
-3. Items: receive, harvest packaging, order lines, and register menu. Move the recipe form's `NewItem` onto `CreatableSelect` so there is only one way.
-4. Driver and vehicle on the order page.
-5. Guided drawers: customer or vendor with license verification, destination, recipe, and label template.
+2. ✅ Rooms and locations everywhere they are picked (batch tag, plant move and harvest, harvest packaging, receive, receive shipment).
+3. ✅ Items: receive, harvest packaging, order lines, register menu, and the recipe form (its own inline box is gone).
+4. ✅ Driver and vehicle on the order page. The "add a driver and a vehicle first" dead end is gone.
+5. Next: guided drawers for customer or vendor with license verification, destination, recipe, label template and printer preset. Category on the Catalog page is quick (one field) and can go in at the same time.
 
 ## Tests
+
+Also exercised: tagging plants into a new room, moving ticked plants into a new room (the ticks stay), packaging a harvest (weight units only, and an existing "each" item can't be used), receiving with a new item and location, receiving a shipment with a new location, an order line with a new item (sales staff without catalog rights see who to ask), a register menu item, the recipe form (`manufacturing.spec.ts`), and a new driver and vehicle on the Ship step (`distribution.spec.ts`).
+
 
 `e2e/create-without-leaving.spec.ts` covers each of these:
 - creating, with the record selected and every other field kept

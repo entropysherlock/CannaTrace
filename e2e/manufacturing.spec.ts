@@ -119,19 +119,24 @@ test("a recipe can add the items it needs without leaving the form", async ({ pa
 
   await page.locator('input[name="name"]').fill(`Rosin ${run}`);
   // What it makes: a brand-new product
-  await page.getByLabel("What it makes").selectOption({ label: "+ New item…" });
-  await page.getByLabel("New item name").fill(`Live Rosin ${run}`);
-  await page.getByLabel("New item unit").selectOption("G");
-  await page.getByLabel("New item category").fill("Concentrates");
-  await page.getByRole("button", { name: "Add item" }).click();
+  // Each picker has its own "+ Add item"; the first is beside "What it makes".
+  await page.getByRole("button", { name: "Add item" }).nth(0).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Item name").fill(`Live Rosin ${run}`);
+  await dialog.locator('select[name="unit"]').selectOption("G");
+  await dialog.locator('input[name="category"]').fill("Concentrates");
+  await dialog.getByRole("button", { name: "Save item" }).click();
+  await expect(dialog).toBeHidden();
   await expect(page.getByLabel("What it makes")).toHaveValue(/.+/);
   await expect(page.getByLabel("What it makes").locator("option:checked")).toHaveText(`Live Rosin ${run} (g)`);
   await page.locator('input[name="outputQuantity"]').fill("20");
 
   // Input 1: another new item; input 2: an existing one, which can now be picked in any row
-  await page.getByLabel("Input item 1").selectOption({ label: "+ New item…" });
-  await page.getByLabel("New item name").fill(`Fresh Frozen ${run}`);
-  await page.getByRole("button", { name: "Add item" }).click();
+  await page.getByRole("button", { name: "Add item" }).nth(1).click();
+  await dialog.getByLabel("Item name").fill(`Fresh Frozen ${run}`);
+  await dialog.locator('select[name="unit"]').selectOption("G");
+  await dialog.getByRole("button", { name: "Save item" }).click();
+  await expect(dialog).toBeHidden();
   await expect(page.getByLabel("Input item 1").locator("option:checked")).toHaveText(`Fresh Frozen ${run} (g)`);
   await page.getByLabel("Input quantity 1").fill("100");
   await page.getByLabel("Input item 2").selectOption({ label: "Empty 3.5 g Jar with Lid (ea)" });

@@ -2,8 +2,9 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { auditLogs, itemCategories, items, locations, unitEnum, locationTypeEnum } from "@/db/schema";
+import { auditLogs, itemCategories, items, unitEnum } from "@/db/schema";
 import { db } from "@/lib/db";
+import { createLocation } from "@/lib/facilities";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { generateSku, normalizeSku } from "@/lib/ids";
 import { renameItem, saveItemDetails } from "@/lib/item-details";
@@ -97,32 +98,12 @@ export async function setItemActive(formData: FormData): Promise<void> {
 export async function addLocation(_state: FormState, formData: FormData): Promise<FormState> {
   try {
     const session = await requirePermission("catalog.manage");
-    const name = field(formData, "name");
-    const type = field(formData, "type") as (typeof locationTypeEnum.enumValues)[number];
-    if (!name) return { error: "Enter a location name." };
-    if (!locationTypeEnum.enumValues.includes(type)) return { error: "Choose a location type." };
-    const created = await db.transaction(async (tx) => {
-      const [location] = await tx
-        .insert(locations)
-        .values({ orgId: session.orgId, facilityId: session.facilityId, name, type })
-        .onConflictDoNothing({ target: [locations.facilityId, locations.name] })
-        .returning({ id: locations.id });
-      if (!location) return null;
-      await tx.insert(auditLogs).values({
-        orgId: session.orgId,
-        facilityId: session.facilityId,
-        userId: session.userId,
-        userName: session.name,
-        entityType: "Location",
-        entityId: location.id,
-        action: "CREATE",
-        after: { name, type },
-      });
-      return location;
-    });
-    if (!created) return { error: `This facility already has a location called ${name}.` };
+    const location = await createLocation(
+      { orgId: session.orgId, userId: session.userId, userName: session.name, facilityId: session.facilityId },
+      { name: field(formData, "name"), type: field(formData, "type") },
+    );
     revalidatePath("/locations");
-    return { ok: `Added ${name}.` };
+    return { ok: `Added ${location.name}.` };
   } catch (error) {
     return toFormError(error);
   }

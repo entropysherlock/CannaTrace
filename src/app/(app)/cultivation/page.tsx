@@ -2,13 +2,15 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { CreatableSelect } from "@/components/contextual-create";
-import { CultivationTabs, QuickRoomFields, StrainFields } from "@/components/cultivation-ui";
+import { CultivationTabs, StrainFields } from "@/components/cultivation-ui";
+import { RoomFields } from "@/components/quick-fields";
 import { Card, Field, PageHeader, inputClass, ScrollBox } from "@/components/ui";
 import { cultivationTasks, harvests, locations, plantBatches, plants, strains } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
-import { batchAction, completeTaskAction, quickRoomAction, quickStrainAction, taskAction } from "./actions";
+import { quickRoomAction } from "../quick-create-actions";
+import { batchAction, completeTaskAction, quickStrainAction, taskAction } from "./actions";
 
 export default async function CultivationPage() {
   const session = await requirePagePermission("cultivation.view");
@@ -166,7 +168,7 @@ export default async function CultivationPage() {
                         intro: "It's added to this facility's rooms and picked for this batch.",
                         submitLabel: "Save room",
                         action: quickRoomAction,
-                        fields: <QuickRoomFields />,
+                        fields: <RoomFields />,
                       }
                     : undefined
                 }

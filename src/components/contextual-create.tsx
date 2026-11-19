@@ -4,7 +4,21 @@ import { Plus, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { CreateOption, CreateResult } from "@/lib/contextual-create";
-import { inputBase } from "./ui";
+import { Tip, inputBase } from "./ui";
+
+/** What a "+ Add …" button makes: its dialog's text, the record's fields, and the server action that saves it. */
+export type CreateConfig = {
+  /** Button text, e.g. "Add strain". */
+  buttonLabel: string;
+  /** Dialog heading, e.g. "Add a strain". */
+  title: string;
+  /** One line under the heading, e.g. where else the record will show up. */
+  intro?: string;
+  /** The record's own fields, with the same names its server function reads. */
+  fields: ReactNode;
+  action: (formData: FormData) => Promise<CreateResult>;
+  submitLabel: string;
+};
 
 /**
  * A dropdown with a "+ Add …" button beside it, for when the record an employee needs isn't there yet.
@@ -25,6 +39,12 @@ export function CreatableSelect({
   defaultValue = "",
   create,
   deniedHint,
+  hint,
+  hideLabel,
+  compact,
+  onCreated,
+  onChange,
+  className,
 }: {
   name: string;
   label: string;
@@ -32,19 +52,19 @@ export function CreatableSelect({
   placeholder: string;
   required?: boolean;
   defaultValue?: string;
-  create?: {
-    /** Button text, e.g. "Add strain". */
-    buttonLabel: string;
-    /** Dialog heading, e.g. "Add a strain". */
-    title: string;
-    /** One line under the heading, e.g. where else the record will show up. */
-    intro?: string;
-    /** The record's own fields, with the same names its server function reads. */
-    fields: ReactNode;
-    action: (formData: FormData) => Promise<CreateResult>;
-    submitLabel: string;
-  };
+  create?: CreateConfig;
   deniedHint?: ReactNode;
+  /** Help text in an info tip beside the label, like Field's hint. */
+  hint?: string;
+  /** Keep the label for screen readers only, for compact rows such as a recipe's input lines. */
+  hideLabel?: boolean;
+  /** An icon-only add button (its name is still read out), for narrow rows. */
+  compact?: boolean;
+  /** Told about every record added here, so sibling pickers on the same form can list it at once. */
+  onCreated?: (option: CreateOption) => void;
+  /** Told whenever the chosen record changes, by hand or because one was just added. */
+  onChange?: (id: string) => void;
+  className?: string;
 }) {
   // Records added here stay in the list even before the refreshed page sends them back.
   const [added, setAdded] = useState<CreateOption[]>([]);
@@ -64,6 +84,8 @@ export function CreatableSelect({
   const choose = (option: CreateOption) => {
     setAdded((current) => (current.some((o) => o.id === option.id) ? current : [...current, option]));
     setValue(option.id);
+    onCreated?.(option);
+    onChange?.(option.id);
     focusAfterClose.current = "select";
     setOpen(false);
   };
@@ -77,10 +99,19 @@ export function CreatableSelect({
   }, [open]);
 
   return (
-    <div className="block">
-      <label htmlFor={selectId} className="mb-1 flex items-center gap-1 text-sm font-semibold text-slate-800">
-        {label}
-      </label>
+    <div className={className ?? "block"}>
+      {hideLabel ? (
+        <label htmlFor={selectId} className="sr-only">
+          {label}
+        </label>
+      ) : (
+        <span className="mb-1 flex items-center gap-1">
+          <label htmlFor={selectId} className="text-sm font-semibold text-slate-800">
+            {label}
+          </label>
+          {hint ? <Tip text={hint} label={`About ${label}`} /> : null}
+        </span>
+      )}
       <div className="flex gap-2">
         <select
           ref={selectRef}
@@ -88,7 +119,10 @@ export function CreatableSelect({
           name={name}
           required={required}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            onChange?.(e.target.value);
+          }}
           className={`${inputBase} w-full flex-1`}
         >
           <option value="" disabled={required}>
@@ -106,10 +140,12 @@ export function CreatableSelect({
             type="button"
             onClick={() => setOpen(true)}
             aria-haspopup="dialog"
-            className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border-2 border-brand-200 bg-white px-3 text-sm font-bold text-brand-800 hover:border-brand-500 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-600"
+            aria-label={compact ? create.buttonLabel : undefined}
+            title={compact ? create.buttonLabel : undefined}
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-lg border-2 border-brand-200 bg-white px-3 text-sm font-bold text-brand-800 hover:border-brand-500 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-600"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            {create.buttonLabel}
+            {compact ? null : create.buttonLabel}
           </button>
         ) : null}
       </div>

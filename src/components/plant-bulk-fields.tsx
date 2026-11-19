@@ -1,13 +1,25 @@
 "use client";
 
 import { useState } from "react";
+import { CreatableSelect, type CreateConfig } from "./contextual-create";
 import { Field, inputClass } from "./ui";
 import { WeightUnitSelect } from "./weight-unit-select";
 
 type Option = { id: string; name: string };
 
 /** Picks what to do with the ticked plants and shows only the boxes that action needs. */
-export function PlantBulkFields({ locations }: { locations: Option[] }) {
+export function PlantBulkFields({
+  locations,
+  addMoveRoom,
+  addDryRoom,
+}: {
+  locations: Option[];
+  /** Set when this person may add rooms; the room is added without leaving the plant list. */
+  addMoveRoom?: CreateConfig;
+  addDryRoom?: CreateConfig;
+}) {
+  const options = locations.map((l) => ({ id: l.id, label: l.name }));
+  const deniedHint = "Room missing? Ask a manager to add it in Settings → Facilities.";
   const [action, setAction] = useState("");
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -37,18 +49,7 @@ export function PlantBulkFields({ locations }: { locations: Option[] }) {
       </select>
 
       {action === "MOVE" ? (
-        <Field label="Move to">
-          <select name="locationId" required defaultValue="" className={inputClass}>
-            <option value="" disabled>
-              Choose a room
-            </option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <CreatableSelect name="locationId" label="Move to" required placeholder="Choose a room" options={options} create={addMoveRoom} deniedHint={deniedHint} />
       ) : null}
 
       {action === "HARVEST" ? (
@@ -62,18 +63,7 @@ export function PlantBulkFields({ locations }: { locations: Option[] }) {
               <WeightUnitSelect name="wetUnit" remember="wet" defaultUnit="KG" />
             </span>
           </Field>
-          <Field label="Drying room">
-            <select name="dryLocationId" required defaultValue="" className={inputClass}>
-              <option value="" disabled>
-                Choose a room
-              </option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <CreatableSelect name="dryLocationId" label="Drying room" required placeholder="Choose a room" options={options} create={addDryRoom} deniedHint={deniedHint} />
         </>
       ) : null}
 

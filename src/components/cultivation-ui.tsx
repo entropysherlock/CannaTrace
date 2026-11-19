@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { strainTypeEnum } from "@/db/schema";
-import { ROOM_AREAS } from "@/lib/rooms";
 import { Field, inputClass } from "./ui";
 import { WeightUnitSelect } from "./weight-unit-select";
 
@@ -69,26 +68,6 @@ export function StrainFields() {
       </Field>
       <Field label="Flowering days (optional)">
         <input name="floweringDays" inputMode="numeric" className={inputClass} />
-      </Field>
-    </>
-  );
-}
-
-/** A room's fields for the quick add, the same two that Settings → Facilities asks for. */
-export function QuickRoomFields() {
-  return (
-    <>
-      <Field label="Room name" hint='Any name you like, for example "Clone Room 2".'>
-        <input name="name" required maxLength={80} className={inputClass} />
-      </Field>
-      <Field label="Room area type">
-        <select name="area" required defaultValue="PROPAGATION" className={inputClass}>
-          {ROOM_AREAS.map((a) => (
-            <option key={a.value} value={a.value}>
-              {a.label}
-            </option>
-          ))}
-        </select>
       </Field>
     </>
   );

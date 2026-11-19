@@ -7,15 +7,26 @@ import type { Actor } from "./inventory";
 
 type Unit = (typeof unitEnum.enumValues)[number];
 
+/** An active item with this name, ignoring letter case and extra spaces, so a quick add can offer it instead. */
+export async function findItemByName(orgId: string, name: string): Promise<{ id: string; name: string; unit: Unit } | null> {
+  const clean = name.trim().replace(/\s+/g, " ");
+  if (!clean) return null;
+  const [row] = await db
+    .select({ id: items.id, name: items.name, unit: items.unit })
+    .from(items)
+    .where(and(eq(items.orgId, orgId), eq(items.active, true), sql`lower(btrim(${items.name})) = lower(${clean})`));
+  return row ?? null;
+}
+
 /**
  * Add a catalog item without leaving the page you are on. The category is found by name or made,
  * and a SKU is generated from the category when none is given.
  */
 export async function quickAddItem(
   actor: Actor,
-  input: { name: string; unit: string; category: string; sku?: string },
+  input: { name: string; unit: string; category: string; sku?: string; strain?: string },
 ): Promise<{ id: string; name: string; unit: Unit }> {
-  const name = input.name.trim().slice(0, 120);
+  const name = input.name.trim().replace(/\s+/g, " ").slice(0, 120);
   if (!name) throw new InventoryError("Give the new item a name.");
   if (!(unitEnum.enumValues as readonly string[]).includes(input.unit)) throw new InventoryError("Choose a unit of measure for the new item.");
   const unit = input.unit as Unit;
@@ -24,7 +35,7 @@ export async function quickAddItem(
     const [dupe] = await tx
       .select({ id: items.id })
       .from(items)
-      .where(and(eq(items.orgId, actor.orgId), sql`lower(${items.name}) = lower(${name})`, eq(items.active, true)));
+      .where(and(eq(items.orgId, actor.orgId), sql`lower(btrim(${items.name})) = lower(${name})`, eq(items.active, true)));
     if (dupe) throw new InventoryError(`You already have an item called ${name}. Pick it from the list.`);
     await tx.insert(itemCategories).values({ orgId: actor.orgId, name: categoryName }).onConflictDoNothing();
     const [category] = await tx
@@ -36,7 +47,7 @@ export async function quickAddItem(
       const sku = input.sku?.trim() ? normalizeSku(input.sku) : await generateSku(tx, actor.orgId, categoryName);
       const [item] = await tx
         .insert(items)
-        .values({ orgId: actor.orgId, name, sku, unit, categoryId: category.id })
+        .values({ orgId: actor.orgId, name, sku, unit, categoryId: category.id, strain: input.strain?.trim().slice(0, 80) || null })
         .onConflictDoNothing({ target: [items.orgId, items.sku] })
         .returning({ id: items.id });
       if (item) {

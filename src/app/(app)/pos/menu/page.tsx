@@ -1,6 +1,8 @@
 import Decimal from "decimal.js";
 import { and, asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
+import { CreatableSelect } from "@/components/contextual-create";
+import { ItemFields } from "@/components/item-fields";
 import { unitPrice } from "@/components/distribution-ui";
 import { PosTabs } from "@/components/pos-tabs";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
@@ -11,12 +13,17 @@ import { StoreRulesForm, type StatePrefill } from "@/components/store-rules-form
 import { db } from "@/lib/db";
 import { getRetailSettings } from "@/lib/pos";
 import { LIMIT_LABELS } from "@/lib/pos-math";
+import { itemCategoryNames } from "@/lib/quick-create-data";
+import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
+import { quickItemAction } from "../../quick-create-actions";
 import { unitLabel } from "@/lib/units";
 import { discountPresetAction, menuItemAction, removeDiscountAction } from "../actions";
 
 export default async function MenuPage() {
   const session = await requirePagePermission("pos.manage");
+  const canManageCatalog = can(session, "catalog.manage");
+  const categories = canManageCatalog ? await itemCategoryNames(session.orgId) : [];
   const [[facility], settings, menu, itemRows, discounts] = await Promise.all([
     db.select({ state: facilities.state }).from(facilities).where(eq(facilities.id, session.facilityId)),
     getRetailSettings(db, session.facilityId),
@@ -110,18 +117,26 @@ export default async function MenuPage() {
         <div className="space-y-5">
           <Card title="Add or change a menu item">
             <ActionForm action={menuItemAction} submitLabel="Save menu item">
-              <Field label="Item">
-                <select name="itemId" required defaultValue="" className={inputClass}>
-                  <option value="" disabled>
-                    Choose an item
-                  </option>
-                  {itemRows.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} ({unitLabel(item.unit)})
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              <CreatableSelect
+                name="itemId"
+                label="Item"
+                required
+                placeholder="Choose an item"
+                options={itemRows.map((item) => ({ id: item.id, label: `${item.name} (${unitLabel(item.unit)})` }))}
+                create={
+                  canManageCatalog
+                    ? {
+                        buttonLabel: "Add item",
+                        title: "Add an item",
+                        intro: "It goes into your catalog too, and is picked here so you can set its shelf price.",
+                        submitLabel: "Save item",
+                        action: quickItemAction,
+                        fields: <ItemFields categories={categories} />,
+                      }
+                    : undefined
+                }
+                deniedHint="Item missing? Someone who manages the catalog can add it on the Items page."
+              />
               <Field label="Shelf price per unit, in dollars" hint="Before tax.">
                 <input name="price" inputMode="decimal" required className={inputClass} />
               </Field>

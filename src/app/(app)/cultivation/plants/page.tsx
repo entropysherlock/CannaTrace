@@ -4,6 +4,9 @@ import { LabelLink } from "@/components/labels/label-link";
 import { ActionForm } from "@/components/action-form";
 import { CultivationTabs, daysSince } from "@/components/cultivation-ui";
 import { PlantBulkFields } from "@/components/plant-bulk-fields";
+import { RoomFields } from "@/components/quick-fields";
+import type { CreateConfig } from "@/components/contextual-create";
+import { quickRoomAction } from "../../quick-create-actions";
 import { inputBase, PageHeader, ScrollBox } from "@/components/ui";
 import { locations, plantBatches, plants, strains } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -57,6 +60,15 @@ export default async function PlantsPage({
     db.select({ id: strains.id, name: strains.name }).from(strains).where(eq(strains.orgId, session.orgId)).orderBy(asc(strains.name)),
   ]);
   const canWrite = can(session, "cultivation.write");
+  const canAddRoom = can(session, "settings.manage");
+  const roomConfig = (area: string, use: string): CreateConfig => ({
+    buttonLabel: "Add room",
+    title: "Add a room",
+    intro: `It's added to this facility's rooms and ${use}.`,
+    submitLabel: "Save room",
+    action: quickRoomAction,
+    fields: <RoomFields defaultArea={area} />,
+  });
 
   const list = (
     <ScrollBox label="Plants" size="lg" className="rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -139,7 +151,11 @@ export default async function PlantsPage({
         <ActionForm action={plantBulkAction} submitLabel="Apply to ticked plants" className="grid gap-5 lg:grid-cols-3">
           <div className="lg:col-span-2">{list}</div>
           <div className="lg:sticky lg:top-4 lg:self-start">
-            <PlantBulkFields locations={rooms} />
+            <PlantBulkFields
+              locations={rooms}
+              addMoveRoom={canAddRoom ? roomConfig("VEGETATIVE", "picked for the move") : undefined}
+              addDryRoom={canAddRoom ? roomConfig("DRYING_TRIMMING", "picked for drying") : undefined}
+            />
           </div>
         </ActionForm>
       ) : (

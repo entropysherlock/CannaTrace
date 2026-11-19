@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import type { ShipmentState } from "@/app/(app)/inventory/actions";
 import { packed, TooBig } from "@/components/dutchie-import";
+import { CreatableSelect, type CreateConfig } from "@/components/contextual-create";
 import { inputClass } from "@/components/ui";
 import type { Received } from "@/lib/shipments-parse";
 
@@ -17,7 +18,20 @@ const STATUS = {
 } as const;
 
 /** Upload a manifest, count what arrived, explain any difference, then receive it all in one step. */
-export function ShipmentReceive({ check, receive, locations, vendors }: { check: Act; receive: Act; locations: Option[]; vendors: Option[] }) {
+export function ShipmentReceive({
+  check,
+  receive,
+  locations,
+  vendors,
+  addLocation,
+}: {
+  check: Act;
+  receive: Act;
+  locations: Option[];
+  vendors: Option[];
+  /** Set when this person may add locations, so a missing one is added without leaving the shipment. */
+  addLocation?: CreateConfig;
+}) {
   const form = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<ShipmentState>(null);
   // What the receiver counted, by tag. Lines left alone arrived as listed.
@@ -64,19 +78,16 @@ export function ShipmentReceive({ check, receive, locations, vendors }: { check:
           <span className="mb-1 block text-sm font-semibold text-slate-800">Manifest number</span>
           <input name="manifestNumber" required className={inputClass} onChange={() => setState(null)} />
         </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-semibold text-slate-800">Put away to</span>
-          <select name="locationId" required defaultValue="" className={inputClass} onChange={() => setState(null)}>
-            <option value="" disabled>
-              Choose a location
-            </option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <CreatableSelect
+          name="locationId"
+          label="Put away to"
+          required
+          placeholder="Choose a location"
+          options={locations.map((l) => ({ id: l.id, label: l.name }))}
+          onChange={() => setState(null)}
+          create={addLocation}
+          deniedHint="Location missing? Someone who manages the catalog can add it on the Locations page."
+        />
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-slate-800">Vendor (optional)</span>
           <select name="vendorId" defaultValue="" className={inputClass} onChange={() => setState(null)}>
