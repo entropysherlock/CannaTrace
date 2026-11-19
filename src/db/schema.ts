@@ -108,6 +108,8 @@ export const facilities = pgTable(
     licenseType: licenseTypeEnum("license_type").notNull(),
     state: text("state").notNull(),
     trackTraceSystem: trackTraceEnum("track_trace_system").notNull().default("MOCK"),
+    /** False when an owner has hidden it from the facility menu and Dashboard. Nothing is deleted. */
+    active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("facilities_org_license_key").on(t.orgId, t.licenseNumber)],

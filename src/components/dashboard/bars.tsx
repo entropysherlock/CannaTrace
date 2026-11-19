@@ -39,11 +39,16 @@ export function Bars({ points, unit }: { points: Point[]; unit: string }) {
           const h = (p.value / max) * (H - 6);
           return <rect key={p.day} x={34 + i * bw + bw * 0.18} y={H - h} width={bw * 0.64} height={Math.max(h, p.value ? 1 : 0)} rx="2" fill="#4caf6a" />;
         })}
-        {[0, Math.floor(data.length / 2), data.length - 1].map((i) => (
-          <text key={i} x={34 + i * bw + bw / 2} y={H + 16} textAnchor="middle" className="fill-slate-500 text-[10px]">
-            {short(data[i].day)}
-          </text>
-        ))}
+        {/* First and last labels anchor to the chart's edges so they're never cut off. */}
+        {[...new Set([0, Math.floor(data.length / 2), data.length - 1])].map((i) => {
+          const edge = data.length > 1 && i === 0 ? "start" : data.length > 1 && i === data.length - 1 ? "end" : "middle";
+          const x = edge === "start" ? 34 + i * bw : edge === "end" ? 34 + (i + 1) * bw : 34 + i * bw + bw / 2;
+          return (
+            <text key={i} x={x} y={H + 16} textAnchor={edge} className="fill-slate-500 text-[10px]">
+              {short(data[i].day)}
+            </text>
+          );
+        })}
       </svg>
       <table className="sr-only">
         <caption>{unit}</caption>

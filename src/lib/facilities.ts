@@ -62,6 +62,30 @@ export async function updateFacility(actor: FacilityActor, facilityId: string, i
   return { stateChanged: before.state !== values.state };
 }
 
+/**
+ * Hide a facility from the facility menu and the Dashboard, or show it again. Nothing is deleted:
+ * its records, audit trail, and state reports stay exactly as they are. You can't hide the one you're in.
+ */
+export async function setFacilityHidden(actor: FacilityActor, facilityId: string, hidden: boolean) {
+  const [before] = await db.select().from(facilities).where(and(eq(facilities.id, facilityId), eq(facilities.orgId, actor.orgId)));
+  if (!before) throw new InventoryError("That facility was not found.");
+  if (hidden && facilityId === actor.facilityId) throw new InventoryError("Switch to another facility before hiding this one.");
+  if (before.active === !hidden) return before;
+  await db.update(facilities).set({ active: !hidden }).where(eq(facilities.id, facilityId));
+  await db.insert(auditLogs).values({
+    orgId: actor.orgId,
+    facilityId,
+    userId: actor.userId,
+    userName: actor.userName,
+    entityType: "facility",
+    entityId: facilityId,
+    action: hidden ? "facility.hidden" : "facility.shown",
+    before: { name: before.name, hidden: !before.active },
+    after: { name: before.name, hidden },
+  });
+  return before;
+}
+
 /** Change the business's own name (not a facility's). */
 export async function renameBusiness(actor: FacilityActor, input: string): Promise<string> {
   const name = input.trim().replace(/\s+/g, " ");

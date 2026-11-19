@@ -43,7 +43,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 }
 
 /** A white card. With a title it gets a green header band, like a store system's panels. */
-export function Card({ title, children, action, className }: { title?: string; children: ReactNode; action?: ReactNode; className?: string }) {
+export function Card({ title, children, action, className }: { title?: ReactNode; children: ReactNode; action?: ReactNode; className?: string }) {
   return (
     <section className={`rounded-xl border border-brand-100 bg-white shadow-sm ${className ?? ""}`}>
       {title ? (

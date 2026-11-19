@@ -98,14 +98,14 @@ export default async function CultivationPage() {
             <ul className="divide-y divide-slate-100 text-sm">
               {batches.map((batch) => (
                 <li key={batch.id}>
-                  <Link href={`/cultivation/batches/${batch.id}`} className="flex min-h-12 flex-wrap items-center justify-between gap-2 py-2 hover:text-brand-700">
-                    <span>
+                  <Link href={`/cultivation/batches/${batch.id}`} className="flex min-h-12 items-center justify-between gap-3 py-2 hover:text-brand-700">
+                    <span className="min-w-0 flex-1 truncate">
                       <span className="font-semibold">{batch.name}</span>{" "}
                       <span className="text-slate-600">
                         · {batch.strainName} · {batch.source.toLowerCase()}s · {batch.roomName}
                       </span>
                     </span>
-                    <span className={batch.status === "CLOSED" ? "text-slate-400" : "font-semibold text-slate-900"}>
+                    <span className={`shrink-0 whitespace-nowrap ${batch.status === "CLOSED" ? "text-slate-400" : "font-semibold text-slate-900"}`}>
                       {batch.status === "CLOSED" ? "all tagged" : `${batch.untaggedCount} of ${batch.initialCount} untagged`} ›
                     </span>
                   </Link>

@@ -9,7 +9,7 @@ import { openFindings } from "@/lib/watch";
 import { tallyAvailability } from "@/lib/ai/connection";
 import { retentionHours } from "@/lib/assistant/attachments/store";
 import { BottomNav, SectionTabs, SideNav, type NavGroup, type NavItem, type Tab } from "@/components/side-nav";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, or } from "drizzle-orm";
 import { facilities as facilitiesTable } from "@/db/schema";
 import { visibleFacilities } from "@/lib/facility-access";
 import { db } from "@/lib/db";
@@ -32,7 +32,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     await db
       .select({ id: facilitiesTable.id, name: facilitiesTable.name, licenseNumber: facilitiesTable.licenseNumber })
       .from(facilitiesTable)
-      .where(eq(facilitiesTable.orgId, session.orgId))
+      // Hidden facilities stay off the menu and Dashboard, except the one you're in.
+      .where(and(eq(facilitiesTable.orgId, session.orgId), or(eq(facilitiesTable.active, true), eq(facilitiesTable.id, session.facilityId))))
       .orderBy(asc(facilitiesTable.name)),
     session,
   );

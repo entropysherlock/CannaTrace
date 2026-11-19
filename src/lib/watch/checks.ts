@@ -6,6 +6,7 @@ import { scanFacility } from "@/lib/rules/scan";
 import { convert, type UnitCode } from "@/lib/units";
 import type { Permission } from "@/lib/rbac";
 import { currentZone } from "@/lib/time";
+import { jobStatus } from "@/lib/job-runs";
 
 /**
  * Tally Watch checks. Each one is a plain database query: no AI is involved in deciding what's
@@ -224,9 +225,26 @@ async function overdue(f: Scope): Promise<Finding[]> {
 
 /** State reports that failed or must be typed in by hand. */
 async function stateReporting(f: Scope): Promise<Finding[]> {
-  const [r] = await rows(sql`select count(*) filter (where status = 'FAILED')::int as failed, count(*) filter (where status = 'MANUAL')::int as manual
+  const [r] = await rows(sql`select count(*) filter (where status = 'FAILED')::int as failed, count(*) filter (where status = 'MANUAL')::int as manual,
+    count(*) filter (where status = 'PENDING')::int as pending
     from sync_events where org_id = ${f.orgId} and facility_id = ${f.facilityId}`);
   const out: Finding[] = [];
+  // The automatic daily send is overdue or its last run failed, and this facility has records waiting on it.
+  if (Number(r?.pending) > 0) {
+    const job = await jobStatus("sync");
+    if (job.failing || job.late)
+      out.push({
+        key: "sync_late",
+        check: "sync_late",
+        severity: "critical",
+        title: job.failing
+          ? `The last automatic state send didn't finish (${plural(Number(r.pending), "record")} waiting)`
+          : `Automatic state sending hasn't run on time (${plural(Number(r.pending), "record")} waiting)`,
+        detail: "Records only reach the state when they're sent. Press Send now on State reporting, and let CannaTrace support know so the schedule gets fixed.",
+        permission: "compliance.view",
+        href: "/compliance",
+      });
+  }
   if (Number(r?.failed) > 0)
     out.push({
       key: "sync_failed",
@@ -387,7 +405,7 @@ export const CHECKS: { name: string; kinds: string[]; run: (f: Scope) => Promise
   { name: "failed lab tests", kinds: ["lab_fail"], run: failedLabs },
   { name: "failed product that left", kinds: ["recall"], run: recalls },
   { name: "state system match", kinds: ["state_report_old", "state_missing", "state_open", "state_qty", "state_only", "state_many"], run: reconcile },
-  { name: "state reporting", kinds: ["sync_failed", "sync_manual"], run: stateReporting },
+  { name: "state reporting", kinds: ["sync_failed", "sync_manual", "sync_late"], run: stateReporting },
   { name: "state rules", kinds: ["rule"], run: rules },
   { name: "licenses on open orders", kinds: ["license"], run: licenses },
   { name: "labels", kinds: ["unlabeled"], run: unlabeled },

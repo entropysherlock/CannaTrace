@@ -11,7 +11,7 @@ async function signIn(page: Page, email = "owner@demo.test") {
 test("the Command Center shows the business at a glance, for one facility or all, over 7, 30, or 90 days", async ({ page }) => {
   await signIn(page);
   await expect(page.getByRole("heading", { name: "Command Center" })).toBeVisible();
-  for (const kpi of ["plants", "active-packages", "open-wholesale-orders", "sales-today", "pending-reports", "alerts"]) await expect(page.getByTestId(`kpi-${kpi}`)).toBeVisible();
+  for (const kpi of ["plants", "packages-in-stock", "open-wholesale-orders", "sales-today", "pending-reports", "alerts"]) await expect(page.getByTestId(`kpi-${kpi}`)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Operations flow" })).toBeVisible();
   await expect(page.getByTestId("inventory-health")).toContainText("Available");
   await expect(page.getByRole("heading", { name: "Production throughput" })).toBeVisible();
