@@ -100,7 +100,11 @@ export async function receiveShipment(
           )
       : [];
     const onManifest = new Set(shipped.map((r) => r.packageId));
-    for (const t of taken) {
+    // In manifest order, so the list reads the same way as the file.
+    const byTag = new Map(taken.map((t) => [t.tag, t]));
+    for (const tagOnManifest of tags) {
+      const t = byTag.get(tagOnManifest);
+      if (!t) continue;
       if (onManifest.has(t.id) && t.facilityId !== actor.facilityId && t.status === "FINISHED" && Number(t.quantity) === 0) transfers.set(t.tag, { id: t.id, itemId: t.itemId });
       else problems.push(`${t.tag} is already in CannaTrace. A package can only be received once.`);
     }
