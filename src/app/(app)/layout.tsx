@@ -121,15 +121,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <WalkthroughProvider allowed={WALKTHROUGHS.filter((w) => can(session, w.permission)).map((w) => w.id)}>
     <div className="min-h-screen md:flex">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-brand-950 p-4 text-white md:flex print:!hidden">
-        <Link href="/" className="mb-6 flex justify-center" title="CannaTrace home">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-brand-950 p-4 text-white short:py-3 md:flex print:!hidden">
+        <Link href="/" className="mb-6 flex justify-center short:mb-3" title="CannaTrace home">
           <Logo tone="light" />
         </Link>
-        <div className="-mx-1 flex-1 overflow-y-auto px-1">
+        <div className="sidebar-scroll -mx-1 min-h-0 flex-1 overflow-y-auto px-1">
           <SideNav groups={groups} />
         </div>
-        {/* Password and sign out live in the account menu at the top right. */}
-        <div className="mt-4 border-t border-brand-800 px-2 pt-4 text-sm">
+        {/* Password and sign out live in the account menu at the top right, which also shows the name,
+            so on short screens this footer gives its room to the menu. */}
+        <div className="mt-4 border-t border-brand-800 px-2 pt-4 text-sm short:mt-3 short:pt-3 shorter:hidden">
           <p className="font-medium">{session.name}</p>
           <p className="text-brand-200">{session.roleName}</p>
         </div>

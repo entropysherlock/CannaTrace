@@ -63,7 +63,7 @@ function NavLink({ item, on, onClick }: { item: NavItem; on: boolean; onClick?: 
       href={item.href}
       onClick={onClick}
       aria-current={on ? "page" : undefined}
-      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors short:py-1.5 shorter:py-1 ${
         on ? "bg-brand-600 text-white shadow-sm" : "text-brand-100 hover:bg-brand-900 hover:text-white"
       }`}
     >
@@ -77,10 +77,10 @@ export function SideNav({ groups }: { groups: NavGroup[] }) {
   const pathname = usePathname();
   const active = activeItem(groups, pathname);
   return (
-    <nav className="flex flex-col gap-5" aria-label="Main">
+    <nav className="flex flex-col gap-5 short:gap-3 shorter:gap-2" aria-label="Main">
       {groups.map((group, i) => (
         <div key={group.heading ?? i} className="flex flex-col gap-0.5">
-          {group.heading ? <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-brand-200/70">{group.heading}</p> : null}
+          {group.heading ? <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-brand-200/70 shorter:mb-0.5">{group.heading}</p> : null}
           {group.items.map((item) => (
             <NavLink key={item.key} item={item} on={item.key === active?.key} />
           ))}
