@@ -29,8 +29,8 @@ import {
   splitPackage,
   type Actor,
 } from "@/lib/inventory";
-import { addToCart, checkInCustomer, closeDrawer, completeSale, openDrawer, saveRetailSettings, setMenuItem } from "@/lib/pos";
-import { sales } from "@/db/schema";
+import { addToCart, checkInCustomer, closeDrawer, completeSale, createDiscount, openDrawer, removeDiscount, saveRetailSettings, setCartDiscount, setMenuItem } from "@/lib/pos";
+import { discountPresets, sales } from "@/db/schema";
 import { PermissionError, sessionFromToken } from "@/lib/session";
 import { metrcRequest } from "@/lib/sync";
 import { setUserFacilities } from "@/lib/team";
@@ -270,6 +270,29 @@ describe.skipIf(!hasDb)("stress-test fixes (database)", () => {
       await openDrawer(bud, { openingCash: "100" });
       const cart = await checkInCustomer(bud, adult());
       await expect(addToCart(bud, { saleId: cart.id, itemId: jar, quantity: "1.5" })).rejects.toThrow(/whole number/);
+    });
+  });
+
+  describe("discounts", () => {
+    it("can be removed from the store's list, kept on carts that have it, and brought back by name", async () => {
+      await createDiscount(manager, { name: "Veteran", percent: "10" });
+      const [vet] = await db.select().from(discountPresets).where(eq(discountPresets.orgId, org));
+      await openDrawer(bud, { openingCash: "100" }).catch(() => {});
+      const cartWithIt = await checkInCustomer(bud, { birthDate: "1985-01-01", idExpires: addDays(todayIn(), 400), customerType: "ADULT_USE" });
+      await setCartDiscount(bud, { saleId: cartWithIt.id, discountId: vet.id });
+
+      expect(await removeDiscount(manager, { discountId: vet.id })).toBe("Veteran");
+      await expect(removeDiscount(manager, { discountId: vet.id })).rejects.toThrow(/already be removed/);
+      // A new cart can't choose it; the cart that already had it keeps it
+      const fresh = await checkInCustomer(bud, { birthDate: "1985-01-01", idExpires: addDays(todayIn(), 400), customerType: "ADULT_USE" });
+      await expect(setCartDiscount(bud, { saleId: fresh.id, discountId: vet.id })).rejects.toThrow(/Pick a discount/);
+      expect((await db.select().from(sales).where(eq(sales.id, cartWithIt.id)))[0].discountName).toBe("Veteran");
+
+      // Adding the same name again brings it back with the new percentage, instead of "already exists"
+      await createDiscount(manager, { name: "veteran", percent: "15" });
+      const [back] = await db.select().from(discountPresets).where(eq(discountPresets.id, vet.id));
+      expect([back.active, Number(back.percent)]).toEqual([true, 15]);
+      await expect(createDiscount(manager, { name: "Veteran", percent: "5" })).rejects.toThrow(/already a discount called/);
     });
   });
 

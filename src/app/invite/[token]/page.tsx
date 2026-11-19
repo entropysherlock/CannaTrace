@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { Logo } from "@/components/logo";
 import { Field, inputClass } from "@/components/ui";
+import { currentSession } from "@/lib/session";
 import { lookupInvite } from "@/lib/team";
 import { acceptInviteAction } from "./actions";
 
@@ -17,7 +18,7 @@ const PROBLEMS = {
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const invite = await lookupInvite(token);
+  const [invite, signedIn] = await Promise.all([lookupInvite(token), currentSession()]);
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-brand-50 via-white to-brand-50 px-4 py-10">
       <Link href="/" className="mb-6">
@@ -30,6 +31,12 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
             <p className="mb-5 mt-1 text-sm text-slate-600">
               You&apos;ve been invited as <strong className="text-slate-900">{invite.roleName}</strong>. Choose your password to finish.
             </p>
+            {signedIn ? (
+              <p role="note" data-testid="signed-in-note" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <strong>{signedIn.name}</strong> is signed in on this browser. A browser holds one CannaTrace sign-in at a time, so joining here
+                signs them out. To keep both signed in, open this link in a private window or another browser.
+              </p>
+            ) : null}
             <ActionForm action={acceptInviteAction} submitLabel="Join the team">
               <input type="hidden" name="token" value={token} />
               <Field label="Email">
