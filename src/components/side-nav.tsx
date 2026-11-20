@@ -161,7 +161,7 @@ export function BottomNav({ groups }: { groups: NavGroup[] }) {
       </nav>
       {open ? (
         <div
-          className="fixed inset-x-0 bottom-14 top-0 z-10 overflow-y-auto bg-brand-950 p-4 md:hidden"
+          className="fixed inset-x-0 bottom-14 top-0 z-40 overflow-y-auto overscroll-contain bg-brand-950 p-4 md:hidden"
           role="dialog"
           aria-label="Menu"
           // Close once a link is chosen.
