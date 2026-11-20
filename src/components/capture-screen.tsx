@@ -1,9 +1,10 @@
 "use client";
 
-import { Camera, CheckCircle2, ImageUp, Inbox, RefreshCw, TriangleAlert } from "lucide-react";
+import { Camera, CheckCircle2, ImageUp, Inbox, RefreshCw, ScanLine, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LeafMark } from "@/components/logo";
+import { PhoneScanner } from "@/components/phone-scanner";
 
 type Shot = { key: string; name: string; state: "sending" | "reading" | "done" | "failed"; error?: string; file: File; summary?: string; attachmentId?: string };
 
@@ -63,6 +64,7 @@ export function CaptureScreen({ person, store, justLinked }: { person: string; s
   useEffect(() => {
     shotsRef.current = shots;
   }, [shots]);
+  const [scanning, setScanning] = useState(false);
   const camera = useRef<HTMLInputElement>(null);
   const files = useRef<HTMLInputElement>(null);
 
@@ -124,6 +126,12 @@ export function CaptureScreen({ person, store, justLinked }: { person: string; s
         <span className="px-6 text-center text-sm text-brand-100">Lab certificate, manifest, harvest sheet, package, anything</span>
       </button>
       <input ref={camera} type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Take a photo" data-testid="camera-input" onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
+
+      <button type="button" onClick={() => setScanning(true)} className="flex min-h-16 items-center justify-center gap-2 rounded-2xl bg-slate-900 text-lg font-bold text-white active:bg-slate-800" data-testid="scan-barcode">
+        <ScanLine className="h-6 w-6" aria-hidden="true" />
+        Scan a barcode
+      </button>
+      {scanning ? <PhoneScanner onClose={() => setScanning(false)} /> : null}
 
       <button type="button" onClick={() => files.current?.click()} className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-brand-200 bg-white text-base font-bold text-brand-800">
         <ImageUp className="h-5 w-5" aria-hidden="true" />
