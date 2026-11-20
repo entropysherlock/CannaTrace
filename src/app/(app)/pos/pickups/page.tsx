@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { PosTabs } from "@/components/pos-tabs";
+import { reviewCount } from "@/lib/offline-sales";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { getMenuSettings, pickupQueue, type ReservationView } from "@/lib/online-menu";
 import { can } from "@/lib/rbac";
@@ -106,7 +107,7 @@ export default async function PickupsPage() {
   return (
     <>
       <PageHeader title="Pickups" subtitle="Reservations customers made on your online menu. Nothing leaves stock until you ring the sale up." />
-      <PosTabs current="/pos/pickups" canManage={canManage} pickups={open.length} />
+      <PosTabs current="/pos/pickups" canManage={canManage} pickups={open.length} review={canManage ? await reviewCount(session.facilityId) : 0} />
       {!menu?.enabled ? (
         <p role="note" className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
           The online menu is off for this store.{" "}

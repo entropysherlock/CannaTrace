@@ -13,6 +13,7 @@ import {
   voidSale,
   returnSale,
 } from "@/lib/pos";
+import { markReviewed } from "@/lib/offline-sales";
 import { saveMenuSettings, setReservationStatus, startSaleFromReservation } from "@/lib/online-menu";
 import type { Permission } from "@/lib/rbac";
 import { requirePermission } from "@/lib/session";
@@ -170,4 +171,14 @@ export async function startPickupSaleAction(_state: FormState, formData: FormDat
     return toFormError(error);
   }
   redirect(`/pos/sales/${saleId}`);
+}
+
+export async function reviewSaleAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await markReviewed(await manager(), { saleId: field(formData, "id"), note: field(formData, "note") });
+    refresh();
+    return { ok: "Marked as reviewed." };
+  } catch (error) {
+    return toFormError(error);
+  }
 }

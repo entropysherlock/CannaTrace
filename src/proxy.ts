@@ -30,6 +30,8 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith("/api/sync/") || pathname === "/api/watch/run") return NextResponse.next();
   // Uptime monitors can't sign in; the health check reveals nothing but "up" or "down".
   if (pathname === "/api/health") return NextResponse.next();
+  // The offline register's service worker must load whatever the sign-in state.
+  if (pathname === "/sw.js") return NextResponse.next();
   // A store's public menu and pickup reservations are for anyone, signed in or not.
   if (pathname.startsWith("/menu/")) return NextResponse.next();
   // The REST API authenticates with API keys, not a sign-in cookie.

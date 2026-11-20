@@ -1,9 +1,10 @@
 "use client";
 
-import { Banknote, LogOut, Maximize2, Minimize2, MonitorSmartphone, Settings2, Volume2, VolumeX } from "lucide-react";
+import { Banknote, LogOut, Maximize2, Minimize2, MonitorSmartphone, Settings2, Volume2, VolumeX, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { LeafMark } from "@/components/logo";
+import { pendingCount, refreshSnapshot } from "@/lib/offline-client";
 import { isMuted, setMuted, subscribeMuted } from "./feedback";
 
 export type ShellInfo = {
@@ -33,6 +34,51 @@ function Clock({ timeZone }: { timeZone: string }) {
 const barButton =
   "inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-brand-100 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-brand-200";
 
+const subscribeOnline = (notify: () => void) => {
+  window.addEventListener("online", notify);
+  window.addEventListener("offline", notify);
+  return () => {
+    window.removeEventListener("online", notify);
+    window.removeEventListener("offline", notify);
+  };
+};
+
+/**
+ * Gets this device ready to sell with no internet: installs the service worker, saves the offline register page and
+ * a copy of the menu and rules. Quiet and best-effort; the register works the same without it.
+ */
+function useOfflineReady() {
+  useEffect(() => {
+    if (!navigator.onLine || !("serviceWorker" in navigator)) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await navigator.serviceWorker.register("/sw.js");
+        await navigator.serviceWorker.ready;
+        // The first time, the worker takes over this page a moment after it starts; wait for that so the saves below go through it.
+        if (!navigator.serviceWorker.controller) {
+          await new Promise<void>((resolve) => {
+            navigator.serviceWorker.addEventListener("controllerchange", () => resolve(), { once: true });
+            setTimeout(resolve, 4000);
+          });
+        }
+        if (cancelled) return;
+        await refreshSnapshot();
+        const page = await fetch("/pos/offline", { credentials: "same-origin" });
+        if (!page.ok) return;
+        // Save the page's script and style files too, so it opens with no internet.
+        const files = new Set((await page.text()).match(/\/_next\/static\/[^"'\\\s<>)]+\.(?:js|css)/g) ?? []);
+        await Promise.all([...files].map((f) => fetch(f).catch(() => null)));
+      } catch {
+        // Offline selling is a safety net; never disturb the register over it.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+}
+
 /** The register runs full-window, like a dedicated terminal. Everything else in CannaTrace is one tap away. */
 export function RegisterShell({ info, children }: { info: ShellInfo; children: ReactNode }) {
   const muted = useSyncExternalStore(subscribeMuted, isMuted, () => false);
@@ -43,6 +89,17 @@ export function RegisterShell({ info, children }: { info: ShellInfo; children: R
     },
     () => Boolean(document.fullscreenElement),
     () => false,
+  );
+
+  useOfflineReady();
+  const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
+  const waiting = useSyncExternalStore(
+    (notify) => {
+      const id = setInterval(notify, 5000);
+      return () => clearInterval(id);
+    },
+    () => pendingCount(),
+    () => 0,
   );
 
   const toggleFull = () => {
@@ -101,6 +158,16 @@ export function RegisterShell({ info, children }: { info: ShellInfo; children: R
           </Link>
         </div>
       </header>
+      {!online || waiting > 0 ? (
+        <div role="status" data-testid="offline-strip" className="flex shrink-0 flex-wrap items-center gap-3 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900 print:hidden">
+          <WifiOff className="h-4 w-4" aria-hidden="true" />
+          {!online ? "No internet." : `${waiting} offline sale(s) not sent yet.`}
+          {/* A plain link, not a client-side one: with no internet the page has to load from the saved copy. */}
+          <a href="/pos/offline" className="rounded-md bg-amber-800 px-3 py-1 text-white">
+            {!online ? "Sell for cash offline" : "Open offline register"}
+          </a>
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1 print:overflow-visible">{children}</div>
     </div>
   );

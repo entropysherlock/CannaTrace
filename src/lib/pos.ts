@@ -199,7 +199,7 @@ export async function removeDiscount(actor: Actor, input: { discountId: string }
  * This person's open drawer at this store. Each person who rings sales counts their own drawer. A drawer
  * opened before drawers were per person (no owner recorded) is shared until it is closed.
  */
-async function lockOpenDrawer(tx: Tx, actor: Actor): Promise<DrawerSession | null> {
+export async function lockOpenDrawer(tx: Tx, actor: Actor): Promise<DrawerSession | null> {
   const [session] = await tx
     .select()
     .from(drawerSessions)
@@ -588,7 +588,7 @@ async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" 
 }
 
 /** The first purchase limit this cart breaks, using the stricter of the store's and the state's numbers. */
-function limitCheck(
+export function limitCheck(
   cart: Parameters<typeof limitUsage>[0],
   settings: Awaited<ReturnType<typeof getRetailSettings>>,
   pack: StatePack | null,
@@ -750,6 +750,48 @@ export async function cancelCart(actor: Actor, input: { saleId: string }): Promi
   });
 }
 
+/**
+ * Take each cart line's quantity from the oldest sellable packages, recording which packages it came from.
+ * Returns the lines the shelf could not fully cover (empty when everything was found). A normal sale refuses
+ * when anything is short; a sale rung up offline has already happened, so it keeps what was found and flags the rest.
+ */
+export async function takeSaleStock(
+  tx: Tx,
+  actor: Actor,
+  saleNumber: string,
+  lines: { id: string; itemId: string; itemName: string; quantity: Decimal.Value }[],
+  labGate: boolean,
+): Promise<{ itemName: string; found: Decimal; short: Decimal }[]> {
+  const shortages: { itemName: string; found: Decimal; short: Decimal }[] = [];
+  for (const line of lines) {
+    let need = new Decimal(line.quantity);
+    const candidates = await tx
+      .select({ id: packages.id, quantity: packages.quantity })
+      .from(packages)
+      .where(
+        and(
+          eq(packages.orgId, actor.orgId),
+          eq(packages.facilityId, actor.facilityId),
+          eq(packages.itemId, line.itemId),
+          eq(packages.status, "ACTIVE"),
+          notFailedLab,
+          labGate ? passedLab : undefined,
+        ),
+      )
+      .orderBy(asc(packages.createdAt), asc(packages.id))
+      .for("update");
+    for (const candidate of candidates) {
+      if (need.lte(0)) break;
+      const take = Decimal.min(need, candidate.quantity);
+      await consumeFromPackageInTx(tx, actor, { packageId: candidate.id, quantity: take, note: `Retail sale ${saleNumber}`, kind: "RETAIL_SALE" });
+      await tx.insert(saleLinePackages).values({ saleLineId: line.id, packageId: candidate.id, quantity: store(take) });
+      need = need.sub(take);
+    }
+    if (need.gt(0)) shortages.push({ itemName: line.itemName, found: new Decimal(line.quantity).sub(need), short: need });
+  }
+  return shortages;
+}
+
 /** Take payment. Stock comes out of the oldest packages first, and each package used is recorded. */
 export async function completeSale(
   actor: Actor,
@@ -780,33 +822,9 @@ export async function completeSale(
     });
     const change = settled.changeDue;
 
-    for (const line of lines) {
-      let need = new Decimal(line.quantity);
-      const candidates = await tx
-        .select({ id: packages.id, quantity: packages.quantity })
-        .from(packages)
-        .where(
-          and(
-            eq(packages.orgId, actor.orgId),
-            eq(packages.facilityId, actor.facilityId),
-            eq(packages.itemId, line.itemId),
-            eq(packages.status, "ACTIVE"),
-            notFailedLab,
-            labGate ? passedLab : undefined,
-          ),
-        )
-        .orderBy(asc(packages.createdAt), asc(packages.id))
-        .for("update");
-      for (const candidate of candidates) {
-        if (need.lte(0)) break;
-        const take = Decimal.min(need, candidate.quantity);
-        await consumeFromPackageInTx(tx, actor, { packageId: candidate.id, quantity: take, note: `Retail sale ${sale.number}`, kind: "RETAIL_SALE" });
-        await tx.insert(saleLinePackages).values({ saleLineId: line.id, packageId: candidate.id, quantity: store(take) });
-        need = need.sub(take);
-      }
-      if (need.gt(0)) {
-        throw new InventoryError(`${line.itemName} sold out while this cart was open. Only ${new Decimal(line.quantity).sub(need).toString()} is left. Change the cart and try again.`);
-      }
+    const shortages = await takeSaleStock(tx, actor, sale.number, lines, labGate);
+    if (shortages.length > 0) {
+      throw new InventoryError(`${shortages[0].itemName} sold out while this cart was open. Only ${shortages[0].found.toString()} is left. Change the cart and try again.`);
     }
 
     await tx
