@@ -37,6 +37,8 @@ export type CartView = {
   taxLabels: { excise: string; sales: string };
   limits: { label: string; used: string; limit: string; unit: string; share: number }[];
   quickCash: string[];
+  /** Items from a pickup reservation that could not be added (sold out, or over a purchase limit). */
+  notAdded?: string[];
 };
 
 /** Category stripe colors: common product types get a fixed color; others take the next free one in order. */
@@ -63,6 +65,7 @@ export function CartScreen({ view }: { view: CartView }) {
   const [paying, setPaying] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const search = useRef<HTMLInputElement>(null);
+  const [noticeOpen, setNoticeOpen] = useState(true);
 
   const colorOf = useMemo(() => {
     let spare = 0;
@@ -156,6 +159,19 @@ export function CartScreen({ view }: { view: CartView }) {
 
   return (
     <div className="grid h-full grid-cols-1 overflow-y-auto lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)] lg:overflow-hidden">
+      {view.notAdded && view.notAdded.length > 0 && noticeOpen ? (
+        <div role="alert" data-testid="not-added" className="fixed inset-x-4 top-20 z-40 mx-auto max-w-xl rounded-2xl bg-amber-50 p-4 shadow-lg ring-1 ring-amber-300">
+          <p className="font-bold text-amber-950">Some reserved items could not be added:</p>
+          <ul className="mt-1 list-disc pl-5 text-sm text-amber-950">
+            {view.notAdded.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+          <button type="button" onClick={() => setNoticeOpen(false)} className="mt-3 min-h-10 rounded-lg bg-amber-200 px-4 font-bold text-amber-950">
+            Got it
+          </button>
+        </div>
+      ) : null}
       {/* Products */}
       <section aria-label="Products" className="flex flex-col lg:min-h-0">
         <div className="space-y-3 border-b border-slate-200 bg-white px-4 py-3">

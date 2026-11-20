@@ -14,6 +14,8 @@ import { useScanner } from "./use-scanner";
 export type HomeView = {
   today: string;
   rulesSaved: boolean;
+  /** Online reservations waiting for pickup. */
+  pickups: number;
   canManage: boolean;
   drawerOpen: boolean;
   ages: { adultMinAge: number; medicalMinAge: number };
@@ -285,6 +287,14 @@ export function HomeScreen({ view }: { view: HomeView }) {
     <div className="grid h-full gap-5 overflow-y-auto p-5 lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
       <CheckIn view={view} />
       <div className="space-y-5">
+        {view.pickups > 0 ? (
+          <Link href="/pos/pickups" data-testid="pickups-banner" className="flex min-h-14 items-center justify-between gap-3 rounded-3xl bg-brand-700 px-5 text-white shadow-sm hover:bg-brand-800">
+            <span className="font-bold">
+              {view.pickups} pickup {view.pickups === 1 ? "reservation" : "reservations"} waiting
+            </span>
+            <span aria-hidden="true">Open →</span>
+          </Link>
+        ) : null}
         <section aria-label="Held carts" className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <h2 className="flex items-center gap-2 text-lg font-bold">
             <PauseCircle className="h-5 w-5 text-brand-700" aria-hidden="true" /> Held carts ({view.heldCarts.length})

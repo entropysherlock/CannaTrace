@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { field, toFormError, type FormState } from "@/lib/form";
 import type { Actor } from "@/lib/inventory";
 import {
@@ -13,6 +13,7 @@ import {
   voidSale,
   returnSale,
 } from "@/lib/pos";
+import { saveMenuSettings, setReservationStatus, startSaleFromReservation } from "@/lib/online-menu";
 import type { Permission } from "@/lib/rbac";
 import { requirePermission } from "@/lib/session";
 
@@ -120,4 +121,53 @@ export async function discountPresetAction(_state: FormState, formData: FormData
   } catch (error) {
     return toFormError(error);
   }
+}
+
+export async function onlineMenuAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await saveMenuSettings(await manager(), {
+      enabled: formData.get("enabled") === "on",
+      slug: field(formData, "slug"),
+      takeReservations: formData.get("takeReservations") === "on",
+      welcome: field(formData, "welcome"),
+      pickupNote: field(formData, "pickupNote"),
+    });
+    refresh();
+    return { ok: formData.get("enabled") === "on" ? "Online menu saved. It is live." : "Online menu saved. It is off." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function pickupStatusAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await setReservationStatus(await clerk(), { id: field(formData, "id"), status: field(formData, "status"), reason: field(formData, "reason") });
+    refresh();
+    return { ok: "Saved." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function startPickupSaleAction(_state: FormState, formData: FormData): Promise<FormState> {
+  let saleId: string;
+  try {
+    const r = await startSaleFromReservation(await clerk(), {
+      id: field(formData, "id"),
+      birthDate: field(formData, "birthDate"),
+      idExpires: field(formData, "idExpires"),
+      customerType: field(formData, "customerType"),
+      idNumber: field(formData, "idNumber") || undefined,
+    });
+    saleId = r.saleId;
+    refresh();
+    if (r.left.length > 0) {
+      // Show the budtender what could not be added, on the cart itself.
+      redirect(`/pos/sales/${saleId}?notAdded=${encodeURIComponent(r.left.join(" | ").slice(0, 600))}`);
+    }
+  } catch (error) {
+    unstable_rethrow(error);
+    return toFormError(error);
+  }
+  redirect(`/pos/sales/${saleId}`);
 }

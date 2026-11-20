@@ -3,6 +3,7 @@ import { HomeScreen, type HomeView } from "@/components/register/home-screen";
 import { RegisterShell } from "@/components/register/shell";
 import { drawerSessions, sales } from "@/db/schema";
 import { db } from "@/lib/db";
+import { waitingCount } from "@/lib/online-menu";
 import { getRetailSettings, storePack } from "@/lib/pos";
 import { can } from "@/lib/rbac";
 import { minimumAge } from "@/lib/rules";
@@ -64,6 +65,7 @@ export default async function RegisterPage() {
   const view: HomeView = {
     today: today,
     rulesSaved: settings.saved,
+    pickups: await waitingCount(session.facilityId),
     canManage: can(session, "pos.manage"),
     drawerOpen: Boolean(info.drawerId),
     ages: { adultMinAge: minimumAge(settings.adultMinAge, pack, "ADULT_USE"), medicalMinAge: minimumAge(settings.medicalMinAge, pack, "MEDICAL") },

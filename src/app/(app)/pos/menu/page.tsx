@@ -5,6 +5,7 @@ import { CreatableSelect } from "@/components/contextual-create";
 import { ItemFields } from "@/components/item-fields";
 import { unitPrice } from "@/components/distribution-ui";
 import { PosTabs } from "@/components/pos-tabs";
+import { waitingCount } from "@/lib/online-menu";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { discountPresets, facilities, items, retailPrices } from "@/db/schema";
 import { labelPackFor } from "@/lib/labels/jurisdictions";
@@ -18,7 +19,8 @@ import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { quickItemAction } from "../../quick-create-actions";
 import { unitLabel } from "@/lib/units";
-import { discountPresetAction, menuItemAction, removeDiscountAction } from "../actions";
+import { getMenuSettings } from "@/lib/online-menu";
+import { discountPresetAction, menuItemAction, onlineMenuAction, removeDiscountAction } from "../actions";
 
 export default async function MenuPage() {
   const session = await requirePagePermission("pos.manage");
@@ -44,6 +46,7 @@ export default async function MenuPage() {
       .where(and(eq(discountPresets.orgId, session.orgId), eq(discountPresets.active, true)))
       .orderBy(asc(discountPresets.name)),
   ]);
+  const online = await getMenuSettings(session.facilityId);
   const num = (value: Decimal.Value) => new Decimal(value).toString();
   const prefills: StatePrefill[] = Object.values(PACKS)
     .map((pack) => {
@@ -70,7 +73,7 @@ export default async function MenuPage() {
   return (
     <>
       <PageHeader title="Menu and store rules" subtitle="What this store sells, at what price, and the limits and taxes that apply here." />
-      <PosTabs current="/pos/menu" canManage />
+      <PosTabs current="/pos/menu" canManage pickups={await waitingCount(session.facilityId)} />
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card title={`On the menu (${menu.length})`}>
@@ -115,6 +118,33 @@ export default async function MenuPage() {
         </div>
 
         <div className="space-y-5">
+          <Card title="Online menu and pickups">
+            <ActionForm action={onlineMenuAction} submitLabel="Save online menu">
+              <label className="flex items-start gap-3 text-sm">
+                <input type="checkbox" name="enabled" defaultChecked={online?.enabled ?? false} className="mt-0.5 h-5 w-5 accent-brand-700" />
+                <span>
+                  <span className="font-semibold">Show a public menu for this store</span>
+                  <span className="block text-slate-600">Customers see what you can sell right now at your shelf prices, after confirming they are 21 or older. Never stock counts.</span>
+                </span>
+              </label>
+              <Field label="Menu address" hint="Letters, numbers and dashes. The page will be at /menu/your-address.">
+                <input name="slug" required defaultValue={online?.slug ?? ""} placeholder="sandia-storefront" className={inputClass} />
+              </Field>
+              <label className="flex items-start gap-3 text-sm">
+                <input type="checkbox" name="takeReservations" defaultChecked={online?.takeReservations ?? true} className="mt-0.5 h-5 w-5 accent-brand-700" />
+                <span>
+                  <span className="font-semibold">Let customers reserve for pickup</span>
+                  <span className="block text-slate-600">Reservations show on the Pickups tab. They pay and show ID in the store.</span>
+                </span>
+              </label>
+              <Field label="Welcome message (optional)">
+                <textarea name="welcome" rows={2} maxLength={400} defaultValue={online?.welcome ?? ""} className={inputClass} />
+              </Field>
+              <Field label="Pickup instructions (optional)" hint="Shown after a customer reserves. For example: hours and where to park.">
+                <textarea name="pickupNote" rows={2} maxLength={400} defaultValue={online?.pickupNote ?? ""} className={inputClass} />
+              </Field>
+            </ActionForm>
+          </Card>
           <Card title="Add or change a menu item">
             <ActionForm action={menuItemAction} submitLabel="Save menu item">
               <CreatableSelect
