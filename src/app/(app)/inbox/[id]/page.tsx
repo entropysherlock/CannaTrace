@@ -2,6 +2,7 @@ import { and, eq, gt } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CoaReview } from "@/components/coa-review";
+import { DocReview } from "@/components/doc-review";
 import { ScanAutoRead } from "@/components/scan-auto-read";
 import { PageHeader } from "@/components/ui";
 import { CheckCircle2 } from "lucide-react";
@@ -60,8 +61,10 @@ export default async function ReviewDocumentPage({ params, searchParams }: { par
       ) : scan.proposal.kind === "OTHER" ? (
         <div className="rounded-xl border border-slate-200 bg-white p-6" data-testid="not-supported">
           <h2 className="font-display text-lg font-bold">This isn&apos;t a lab certificate</h2>
-          <p className="mt-1 text-sm text-slate-600">{scan.proposal.summary} Tally can fill in lab certificates today. Delivery manifests and harvest sheets are coming next.</p>
+          <p className="mt-1 text-sm text-slate-600">{scan.proposal.summary} Tally recognises lab certificates, manifests, invoices, harvest sheets, licenses and more.</p>
         </div>
+      ) : scan.proposal.kind === "DOC" ? (
+        <DocReview attachmentId={id} name={file.name} isPdf={file.kind === "PDF"} proposal={scan.proposal} />
       ) : (
         <CoaReview attachmentId={id} name={file.name} isPdf={file.kind === "PDF"} proposal={scan.proposal} matches={await matchPackages(session, scan.proposal.identifiers, "", typeof wanted === "string" ? wanted : undefined)} />
       )}

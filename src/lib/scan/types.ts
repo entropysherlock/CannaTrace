@@ -37,6 +37,22 @@ export type CoaProposal = {
 /** A document that isn't one we can fill in yet. */
 export type OtherProposal = { kind: "OTHER"; summary: string };
 
-export type ScanProposal = CoaProposal | OtherProposal;
+/** Any other document Tally recognises: what it found, laid out for checking. Nothing here is saved to a record yet. */
+export type DocProposal = {
+  kind: "DOC";
+  docType: string;
+  label: string;
+  summary: string;
+  fields: { key: string; label: string; value: string; confidence: Confidence }[];
+  itemsLabel: string;
+  itemColumns: { key: string; label: string }[];
+  items: Record<string, string>[];
+  /** Rows beyond what is shown. */
+  moreItems: number;
+  warnings: string[];
+  next: string;
+};
+
+export type ScanProposal = CoaProposal | OtherProposal | DocProposal;
 
 export type PackageMatch = { id: string; tag: string; itemName: string; quantity: string; unit: string; status: string; reasons: string[]; score: number };
