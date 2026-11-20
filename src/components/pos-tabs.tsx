@@ -1,8 +1,9 @@
 import Link from "next/link";
 
-export function PosTabs({ current, canManage }: { current: string; canManage: boolean }) {
+export function PosTabs({ current, canManage, pickups = 0 }: { current: string; canManage: boolean; pickups?: number }) {
   const tabs = [
     { href: "/pos", label: "Register" },
+    { href: "/pos/pickups", label: pickups > 0 ? `Pickups (${pickups})` : "Pickups" },
     { href: "/pos/drawer", label: "Cash drawer" },
     ...(canManage ? [{ href: "/pos/menu", label: "Menu and store rules" }] : []),
   ];

@@ -14,9 +14,10 @@ import { shellInfo } from "../../shell-info";
 
 const num = (value: Decimal.Value) => new Decimal(value).toDecimalPlaces(3).toString();
 
-export default async function CartPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CartPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notAdded?: string }> }) {
   const session = await requirePagePermission("pos.use");
   const { id } = await params;
+  const { notAdded } = await searchParams;
   const [sale] = await db
     .select()
     .from(sales)
@@ -118,6 +119,7 @@ export default async function CartPage({ params }: { params: Promise<{ id: strin
       };
     }),
     quickCash: quickCashAmounts(totals.total),
+    notAdded: notAdded ? notAdded.split(" | ").slice(0, 10) : undefined,
   };
 
   return (

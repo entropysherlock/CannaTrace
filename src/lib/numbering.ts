@@ -3,7 +3,7 @@ import { counters } from "@/db/schema";
 import type { Tx } from "./db";
 
 /** Next running number for a facility, safe when two people ask at once. */
-export async function nextNumber(tx: Tx, facilityId: string, kind: "SO" | "MAN" | "INV" | "S" | "R"): Promise<string> {
+export async function nextNumber(tx: Tx, facilityId: string, kind: "SO" | "MAN" | "INV" | "S" | "R" | "PU"): Promise<string> {
   const [row] = await tx
     .insert(counters)
     .values({ facilityId, kind, value: 1 })

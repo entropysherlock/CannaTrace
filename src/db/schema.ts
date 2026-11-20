@@ -1600,3 +1600,64 @@ export const signInFailures = pgTable(
   },
   (t) => [index("sign_in_failures_key_idx").on(t.key, t.createdAt)],
 );
+
+/**
+ * A store's public menu page (/menu/<slug>). Off until a manager turns it on. The page shows only what the
+ * register could sell right now, at shelf prices, and never exact stock counts.
+ */
+export const onlineMenus = pgTable(
+  "online_menus",
+  {
+    facilityId: text("facility_id")
+      .primaryKey()
+      .references(() => facilities.id),
+    orgId: text("org_id").notNull(),
+    slug: text("slug").notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+    /** Let visitors reserve items for pickup. Off means a look-only menu. */
+    takeReservations: boolean("take_reservations").notNull().default(true),
+    welcome: text("welcome"),
+    pickupNote: text("pickup_note"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("online_menus_slug_key").on(t.slug)],
+);
+
+/** Pickup reservations made on a store's public menu. Nothing is taken out of stock until the sale is rung up. */
+export const reservations = pgTable(
+  "reservations",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    number: text("number").notNull(),
+    /** NEW (waiting), READY (bagged), IN_SALE (opened at the register), CANCELLED. */
+    status: text("status").notNull().default("NEW"),
+    customerName: text("customer_name").notNull(),
+    phone: text("phone").notNull(),
+    note: text("note"),
+    saleId: text("sale_id"),
+    handledBy: text("handled_by"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("reservations_facility_number_key").on(t.facilityId, t.number), index("reservations_queue_idx").on(t.facilityId, t.status, t.createdAt)],
+);
+
+export const reservationLines = pgTable(
+  "reservation_lines",
+  {
+    reservationId: text("reservation_id")
+      .notNull()
+      .references(() => reservations.id),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id),
+    quantity: qty("quantity").notNull(),
+    /** The shelf price the visitor saw. The register still charges today's price. */
+    unitPrice: qty("unit_price").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.reservationId, t.itemId] })],
+);

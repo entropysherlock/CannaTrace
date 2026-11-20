@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { usd } from "@/components/distribution-ui";
 import { PosTabs } from "@/components/pos-tabs";
+import { waitingCount } from "@/lib/online-menu";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { drawerSessions } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -37,7 +38,7 @@ export default async function DrawerPage() {
   return (
     <>
       <PageHeader title="Cash drawer" subtitle="Each person counts their own drawer at the end of their shift." />
-      <PosTabs current="/pos/drawer" canManage={canManage} />
+      <PosTabs current="/pos/drawer" canManage={canManage} pickups={await waitingCount(session.facilityId)} />
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5">
           {open && summary ? (

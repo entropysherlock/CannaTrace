@@ -381,42 +381,49 @@ export async function checkInCustomer(
   actor: Actor,
   input: { birthDate: string; idExpires: string; customerType: string; idNumber?: string },
 ): Promise<Sale> {
+  return db.transaction((tx) => checkInInTx(tx, actor, input));
+}
+
+/** The check-in itself, for callers (like a pickup reservation) that must do more in the same transaction. */
+export async function checkInInTx(
+  tx: Tx,
+  actor: Actor,
+  input: { birthDate: string; idExpires: string; customerType: string; idNumber?: string },
+): Promise<Sale> {
   if (input.customerType !== "ADULT_USE" && input.customerType !== "MEDICAL") throw new InventoryError("Choose adult-use or medical.");
   const customerType: CustomerType = input.customerType;
   const birthDate = parseDate(input.birthDate, "Date of birth");
   const idExpires = parseDate(input.idExpires, "ID expiry date");
-  return db.transaction(async (tx) => {
-    const settings = await getRetailSettings(tx, actor.facilityId);
-    if (!settings.saved) {
-      throw new InventoryError("This store's purchase limits and tax rates have not been entered yet. A manager must save them under Menu and store rules before anyone can sell.");
-    }
-    const pack = await storePack(tx, actor.facilityId);
-    const ages = { adultMinAge: minimumAge(settings.adultMinAge, pack, "ADULT_USE"), medicalMinAge: minimumAge(settings.medicalMinAge, pack, "MEDICAL") };
-    const problem = checkInProblem({ birthDate, idExpires, customerType }, ages, await facilityToday(actor.facilityId, tx));
-    if (problem) throw new InventoryError(problem);
-    const idNumber = (input.idNumber ?? "").trim();
-    if (settings.dailyLimits && !idNumber)
-      throw new InventoryError("This store counts purchase limits per customer per day. Enter the number from the customer's ID.");
-    const customerKey = idNumber ? customerKeyFor(actor.orgId, idNumber) : null;
-    const session = await lockOpenDrawer(tx, actor);
-    if (!session) throw new InventoryError("Open the cash drawer before serving customers.");
-    const number = await nextNumber(tx, actor.facilityId, "S");
-    const [sale] = await tx
-      .insert(sales)
-      .values({
-        orgId: actor.orgId,
-        facilityId: actor.facilityId,
-        drawerSessionId: session.id,
-        number,
-        customerType,
-        customerKey,
-        userId: actor.userId,
-        userName: actor.userName,
-      })
-      .returning();
-    await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "CHECK_IN", after: { number, customerType, idChecked: true, dailyLimits: Boolean(customerKey) } });
-    return sale;
-  });
+  const settings = await getRetailSettings(tx, actor.facilityId);
+  if (!settings.saved) {
+    throw new InventoryError("This store's purchase limits and tax rates have not been entered yet. A manager must save them under Menu and store rules before anyone can sell.");
+  }
+  const pack = await storePack(tx, actor.facilityId);
+  const ages = { adultMinAge: minimumAge(settings.adultMinAge, pack, "ADULT_USE"), medicalMinAge: minimumAge(settings.medicalMinAge, pack, "MEDICAL") };
+  const problem = checkInProblem({ birthDate, idExpires, customerType }, ages, await facilityToday(actor.facilityId, tx));
+  if (problem) throw new InventoryError(problem);
+  const idNumber = (input.idNumber ?? "").trim();
+  if (settings.dailyLimits && !idNumber)
+    throw new InventoryError("This store counts purchase limits per customer per day. Enter the number from the customer's ID.");
+  const customerKey = idNumber ? customerKeyFor(actor.orgId, idNumber) : null;
+  const session = await lockOpenDrawer(tx, actor);
+  if (!session) throw new InventoryError("Open the cash drawer before serving customers.");
+  const number = await nextNumber(tx, actor.facilityId, "S");
+  const [sale] = await tx
+    .insert(sales)
+    .values({
+      orgId: actor.orgId,
+      facilityId: actor.facilityId,
+      drawerSessionId: session.id,
+      number,
+      customerType,
+      customerKey,
+      userId: actor.userId,
+      userName: actor.userName,
+    })
+    .returning();
+  await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "CHECK_IN", after: { number, customerType, idChecked: true, dailyLimits: Boolean(customerKey) } });
+  return sale;
 }
 
 async function lockSale(tx: Tx, actor: Actor, saleId: string, allowed: Sale["status"][], verb: string): Promise<Sale> {
@@ -612,7 +619,7 @@ function limitCheck(
 }
 
 /** Put a menu item in the cart at an exact quantity (zero takes it out), checking stock and purchase limits. */
-async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, itemId: string, newQuantity: Decimal): Promise<string> {
+export async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, itemId: string, newQuantity: Decimal): Promise<string> {
   const [item] = await tx
     .select({ id: items.id, name: items.name, price: retailPrices.price, unit: items.unit })
     .from(items)
