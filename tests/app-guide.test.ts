@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { APP_GUIDE } from "@/lib/assistant/app-guide";
 
@@ -11,6 +12,33 @@ describe("Tally's app guide", () => {
     const missing = [...new Set(labels)].filter((l) => !APP_GUIDE.includes(l) && l !== "Support Console");
     expect(missing).toEqual([]);
   });
+  it("explains the newer screens and rules, using names that are really on screen", () => {
+    // Every source file's text, to check each name the guide cites still exists in the app.
+    const files = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? files(join(dir, d.name)) : /\.tsx?$/.test(d.name) ? [join(dir, d.name)] : []));
+    const source = files("src").filter((f) => !f.endsWith("app-guide.ts")).map((f) => readFileSync(f, "utf8")).join("\n");
+    const onScreen = [
+      "Reopen harvest",
+      "Take over",
+      "Show what to fix",
+      "I fixed it, check again",
+      "Fix it in the template",
+      "Receive it against the manifest",
+      "Match against the state system",
+      "Upload and compare",
+      "What changed",
+      "Kind of record",
+      "Forgot your password?",
+    ];
+    for (const name of onScreen) {
+      expect(APP_GUIDE, `guide should mention "${name}"`).toContain(name);
+      expect(source, `"${name}" should still be in the app`).toContain(name);
+    }
+    // Rules Tally must not get wrong
+    for (const rule of ["does not release it", "can't be finished until its dry weight", "can't be voided", "\"Keep\"", "only appears at facilities that sell"]) {
+      expect(APP_GUIDE).toContain(rule);
+    }
+  });
+
   it("names the buttons people ask about most", () => {
     for (const b of ["Add a room", "Start a batch", "Tag plants", "Record dry weight", "Finish harvest", "Add lab result", "Label details", "Start an order", "Invite someone", "Check and preview"]) {
       expect(APP_GUIDE).toContain(b);
