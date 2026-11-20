@@ -56,7 +56,9 @@ export function explainProviderError(error: unknown): ProviderError {
   if (e?.status === 529 || type === "overloaded_error") return new ProviderError("ERROR", "Claude is busy right now. Try again in a minute.");
   if (e?.status && e.status >= 500) return new ProviderError("ERROR", "Anthropic had a problem answering. Try again in a minute.");
   if (/connection|fetch failed|ENOTFOUND|ETIMEDOUT|timed out/i.test(text)) return new ProviderError("ERROR", "CannaTrace couldn't reach Anthropic. Try again in a minute.");
-  return new ProviderError("ERROR", "Something went wrong talking to Claude. Try again.");
+  console.error("[tally] unclassified provider error", e?.status, type, text.trim().slice(0, 400));
+  const detail = text.trim().replace(/\s+/g, " ").slice(0, 160);
+  return new ProviderError("ERROR", `Something went wrong talking to Claude${detail ? ` (${e?.status ? `${e.status}: ` : ""}${detail})` : ""}. Try again.`);
 }
 
 export type ModelOption = { id: string; name: string };
