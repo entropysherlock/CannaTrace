@@ -15,7 +15,7 @@ export const MAX_PER_ADDRESS = 40;
 
 const key = (kind: "email" | "ip", value: string) => createHash("sha256").update(`${kind}:${value.trim().toLowerCase()}`).digest("hex");
 
-export const LOCKED_MESSAGE = `Too many wrong passwords. Wait ${WINDOW_MINUTES} minutes and try again, or use "Forgot password".`;
+export const LOCKED_MESSAGE = `Too many wrong passwords. Wait ${WINDOW_MINUTES} minutes and try again, or use "Forgot your password?" below.`;
 
 export async function signInLocked(email: string, address: string | null): Promise<boolean> {
   const since = sql`now() - make_interval(mins => ${WINDOW_MINUTES})`;
