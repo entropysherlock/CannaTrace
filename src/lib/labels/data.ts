@@ -278,6 +278,7 @@ async function packageRecords(scope: Scope, ids: string[], fac: Record<string, s
             ])
           : null,
         "_package.status": pkg.status,
+        "_item.id": item.id,
         "_package.quantity": pkg.quantity,
         "_lab.status": lab?.status ?? null,
       },
