@@ -118,8 +118,9 @@ export async function readAttachment(session: Session, attachmentId: string): Pr
           max_tokens: 1500,
           system: SYSTEM,
           tools: [TOOL],
-          tool_choice: { type: "tool", name: TOOL.name },
-          messages: [{ role: "user", content: [...blocksFor(file), { type: "text", text: "Read this document and record it." }] }],
+          // "auto", not a forced tool: some models refuse a forced tool choice. The instructions below ask for the tool.
+          tool_choice: { type: "auto" },
+          messages: [{ role: "user", content: [...blocksFor(file), { type: "text", text: "Read this document and record it by calling the record_document tool. Do not reply in text." }] }],
         },
         { timeout: 90_000 },
       );
