@@ -203,6 +203,7 @@ test("product labels pull in net weight in g and oz, the full cannabinoid profil
   await expect(page.getByRole("heading", { name: `${run}-J` })).toBeVisible();
   const id = page.url().split("/").pop()!;
   await page.locator("summary", { hasText: "Add lab result" }).click();
+  await page.getByTestId("enter-manually").click();
   await page.locator('input[name="labName"]').fill("Scepter Labs");
   await page.locator('form:has(input[name="labName"]) select[name="status"]').selectOption("PASS");
   await page.locator('input[name="thcPercent"]').fill("20");

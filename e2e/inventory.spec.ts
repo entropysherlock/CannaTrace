@@ -78,6 +78,7 @@ test("receive, move, adjust, split, hold, lab result, label, and count", async (
 
   // Lab result with a COA; a fail quarantines the package
   await page.locator("summary", { hasText: "Add lab result" }).click();
+  await page.getByTestId("enter-manually").click();
   await page.locator('input[name="labName"]').fill("Mesa Analytical");
   await page.locator('form:has(input[name="labName"]) select[name="status"]').selectOption("FAIL");
   await page.locator('input[name="thcPercent"]').fill("21.4");
@@ -102,6 +103,7 @@ test("receive, move, adjust, split, hold, lab result, label, and count", async (
   await page.locator('input[name="reason"]').fill("Looks fine");
   await page.getByRole("button", { name: "Update status" }).click();
   await expect(page.getByText("failed its most recent lab test, so it cannot be released")).toBeVisible();
+  if (!(await page.locator('input[name="labName"]').isVisible())) await page.getByTestId("enter-manually").click();
   await page.locator('input[name="labName"]').fill("Mesa Analytical");
   await page.locator('form:has(input[name="labName"]) select[name="status"]').selectOption("PASS");
   await page.locator('input[name="thcPercent"]').fill("21.4");
