@@ -126,7 +126,6 @@ export function GrowGuide({ data }: { data: GrowData }) {
     return () => window.removeEventListener("ct:form-saved", onSaved);
   }, [step]);
 
-  const badge = [0, data.counts.untagged, data.counts.plants, data.counts.flowering, data.counts.toDry, data.counts.toPackage];
   const go = (i: number) => {
     setStep(i);
     setSaved(null);
@@ -145,8 +144,6 @@ export function GrowGuide({ data }: { data: GrowData }) {
             className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold ${i === step ? "border-brand-800 bg-brand-800 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-brand-50"}`}
           >
             {i + 1}. {x.short}
-            {i === 4 && badge[i] === 0 && data.counts.waiting > 0 ? <span className="rounded-full bg-slate-200 px-2 text-xs font-bold text-slate-700" title="Drying, nothing to do yet">waiting</span> : null}
-            {badge[i] > 0 ? <span className={`rounded-full px-2 text-xs font-bold ${i === step ? "bg-white/25" : "bg-amber-100 text-amber-900"}`}>{badge[i]}</span> : null}
           </button>
         ))}
       </nav>
