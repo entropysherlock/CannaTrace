@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LeafMark } from "@/components/logo";
 
-type Shot = { key: string; name: string; state: "sending" | "done" | "failed"; error?: string; file: File };
+type Shot = { key: string; name: string; state: "sending" | "reading" | "done" | "failed"; error?: string; file: File; summary?: string; attachmentId?: string };
 
 const MAX_SIDE = 2400;
 
@@ -33,7 +33,7 @@ async function jsonOrThrow<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-async function send(original: File): Promise<void> {
+async function send(original: File): Promise<string> {
   const file = await shrink(original);
   const name = file.name && file.name !== "image.jpg" ? file.name : `photo-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.jpg`;
   const { id, chunkBytes } = await jsonOrThrow<{ id: string; chunkBytes: number }>(
@@ -43,6 +43,18 @@ async function send(original: File): Promise<void> {
     await jsonOrThrow(await fetch(`/api/assistant/attachments/${id}?offset=${offset}`, { method: "PUT", body: file.slice(offset, Math.min(offset + chunkBytes, file.size)) }));
   }
   await jsonOrThrow(await fetch(`/api/assistant/attachments/${id}`, { method: "POST" }));
+  return id;
+}
+
+/** After a photo lands, Tally reads it straight away so the answer is waiting on the computer. */
+async function read(id: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/scan/${id}`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    return res.ok ? String(data.summary ?? "") : null;
+  } catch {
+    return null;
+  }
 }
 
 export function CaptureScreen({ person, store, justLinked }: { person: string; store: string; justLinked: boolean }) {
@@ -57,8 +69,10 @@ export function CaptureScreen({ person, store, justLinked }: { person: string; s
   const run = useCallback(async (shot: Shot) => {
     setShots((all) => all.map((s) => (s.key === shot.key ? { ...s, state: "sending", error: undefined } : s)));
     try {
-      await send(shot.file);
-      setShots((all) => all.map((s) => (s.key === shot.key ? { ...s, state: "done" } : s)));
+      const id = await send(shot.file);
+      setShots((all) => all.map((s) => (s.key === shot.key ? { ...s, state: "reading", attachmentId: id } : s)));
+      const summary = await read(id);
+      setShots((all) => all.map((s) => (s.key === shot.key ? { ...s, state: "done", summary: summary ?? undefined } : s)));
     } catch (e) {
       const offline = typeof navigator !== "undefined" && !navigator.onLine;
       setShots((all) => all.map((s) => (s.key === shot.key ? { ...s, state: "failed", error: offline || e instanceof TypeError ? "No signal. It will send when you're back online." : (e as Error).message } : s)));
@@ -124,7 +138,7 @@ export function CaptureScreen({ person, store, justLinked }: { person: string; s
               {s.state === "done" ? <CheckCircle2 className="h-5 w-5 shrink-0 text-brand-600" aria-hidden="true" /> : s.state === "failed" ? <TriangleAlert className="h-5 w-5 shrink-0 text-red-600" aria-hidden="true" /> : <RefreshCw className="h-5 w-5 shrink-0 animate-spin text-slate-500" aria-hidden="true" />}
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">{s.name}</span>
-                <span className="block text-xs text-slate-600">{s.state === "done" ? "Sent. It is in your inbox on the computer." : s.state === "failed" ? s.error : "Sending…"}</span>
+                <span className="block text-xs text-slate-600">{s.state === "done" ? (s.summary ? `${s.summary}. Ready to review.` : "Sent. It is in your inbox.") : s.state === "failed" ? s.error : s.state === "reading" ? "Sent. Reading it…" : "Sending…"}</span>
               </span>
               {s.state === "failed" ? (
                 <button type="button" className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold" onClick={() => void run(s)}>

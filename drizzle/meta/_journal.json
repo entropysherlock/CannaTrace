@@ -253,6 +253,13 @@
       "when": 1795174505130,
       "tag": "0035_phone_capture",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795177792686,
+      "tag": "0036_scan_reads",
+      "breakpoints": true
     }
   ]
 }

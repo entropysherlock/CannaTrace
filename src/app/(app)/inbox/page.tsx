@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import { facilityZone } from "@/lib/time";
 import { InboxDelete } from "@/components/inbox-delete";
+import Link from "next/link";
+import { scansFor } from "@/lib/scan/read";
 
 export const metadata = { title: "Phone inbox" };
 
@@ -28,10 +30,11 @@ export default async function InboxPage() {
     )
     .orderBy(desc(tallyAttachments.createdAt))
     .limit(100);
+  const scans = await scansFor(session, rows.map((r) => r.id));
   const time = (d: Date) => d.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: zone });
   return (
     <>
-      <PageHeader title="Phone inbox" subtitle="Photos and PDFs you sent from your phone to this store. They are kept for a week." />
+      <PageHeader title="Phone inbox" subtitle="Photos and PDFs you sent from your phone to this store. Open one and Tally fills in the form for you. They are kept for a week." />
       {rows.length === 0 ? (
         <Card>
           <p className="text-sm text-slate-600" data-testid="inbox-empty">
@@ -42,20 +45,40 @@ export default async function InboxPage() {
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="inbox">
           {rows.map((r) => (
             <li key={r.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              {r.kind === "IMAGE" ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={`/api/assistant/attachments/${r.id}`} alt={r.name} className="h-48 w-full bg-slate-100 object-cover" />
-              ) : (
-                <div className="flex h-48 items-center justify-center bg-slate-100 text-slate-500">
-                  <FileText className="h-12 w-12" aria-hidden="true" />
+              <Link href={`/inbox/${r.id}`} className="block" aria-label={`Review ${r.name}`}>
+                {r.kind === "IMAGE" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={`/api/assistant/attachments/${r.id}`} alt={r.name} className="h-48 w-full bg-slate-100 object-cover" />
+                ) : (
+                  <div className="flex h-48 items-center justify-center bg-slate-100 text-slate-500">
+                    <FileText className="h-12 w-12" aria-hidden="true" />
+                  </div>
+                )}
+              </Link>
+              <div className="space-y-2 p-3 text-sm">
+                <p className="text-xs font-semibold" data-testid="scan-status">
+                  {scans.get(r.id)?.status === "APPLIED" ? (
+                    <span className="text-brand-700">Saved to a package</span>
+                  ) : scans.get(r.id)?.status === "DISMISSED" ? (
+                    <span className="text-slate-500">Skipped</span>
+                  ) : scans.get(r.id) ? (
+                    <span className="text-amber-700">{scans.get(r.id)!.proposal.kind === "COA" ? "Read: lab certificate, needs your check" : "Not a lab certificate"}</span>
+                  ) : (
+                    <span className="text-slate-500">Not read yet</span>
+                  )}
+                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold">{r.name}</span>
+                    <span className="block text-xs text-slate-500">Sent {time(r.createdAt)}</span>
+                  </span>
+                  <span className="flex shrink-0 gap-2">
+                    <Link href={`/inbox/${r.id}`} className="rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-800">
+                      {scans.get(r.id)?.status === "READ" ? "Review" : "Open"}
+                    </Link>
+                    <InboxDelete id={r.id} />
+                  </span>
                 </div>
-              )}
-              <div className="flex items-center justify-between gap-2 p-3 text-sm">
-                <span className="min-w-0">
-                  <span className="block truncate font-semibold">{r.name}</span>
-                  <span className="block text-xs text-slate-500">Sent {time(r.createdAt)}</span>
-                </span>
-                <InboxDelete id={r.id} />
               </div>
             </li>
           ))}

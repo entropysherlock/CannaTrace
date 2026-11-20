@@ -1707,3 +1707,26 @@ export const devicePairings = pgTable(
   },
   (t) => [uniqueIndex("device_pairings_code_key").on(t.codeHash)],
 );
+
+/** What Claude read from a photo or scan, waiting for a person to look it over and confirm. One per file. */
+export const scanReads = pgTable(
+  "scan_reads",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id").notNull(),
+    userId: text("user_id").notNull(),
+    attachmentId: text("attachment_id").notNull(),
+    /** COA for a lab certificate, OTHER for a document we can't fill in yet. */
+    kind: text("kind").notNull(),
+    /** READ (waiting for review), APPLIED (saved), DISMISSED. */
+    status: text("status").notNull().default("READ"),
+    proposal: jsonb("proposal").$type<Record<string, unknown>>().notNull(),
+    /** What the confirmed save created, for example the lab result's id. */
+    resultRef: text("result_ref"),
+    createdAt: createdAt(),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("scan_reads_attachment_key").on(t.attachmentId), index("scan_reads_owner_idx").on(t.orgId, t.userId, t.createdAt)],
+);
+export type ScanRead = typeof scanReads.$inferSelect;
