@@ -5,15 +5,15 @@ import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { ManufacturingTabs } from "@/components/manufacturing-tabs";
-import { ScanInput } from "@/components/scan-input";
-import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { RunGuide } from "@/components/run-guide";
+import { Card, PageHeader } from "@/components/ui";
 import { bomLines, boms, items, locations, packages, productionInputs, productionRuns } from "@/db/schema";
 import { db } from "@/lib/db";
 import { inputCost, weightLoss, yieldPercent } from "@/lib/manufacturing-math";
 import { can } from "@/lib/rbac";
 import { requireAnyPagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
-import { addInputAction, cancelRunAction, completeRunAction, removeInputAction } from "../../actions";
+import { removeInputAction } from "../../actions";
 import { facilityZone } from "@/lib/time";
 
 const money = (value: Decimal.Value) => `$${new Decimal(value).toFixed(2)}`;
@@ -68,7 +68,6 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
 
   const open = run.status === "IN_PROGRESS";
   const canWrite = open && can(session, "manufacturing.write");
-  const hidden = <input type="hidden" name="runId" value={run.id} />;
   const used = (itemId: string) => inputs.filter((i) => i.itemId === itemId).reduce((sum, i) => sum.add(i.quantity), new Decimal(0));
   const costSoFar = inputCost(inputs);
   const yieldPct = run.actualOutput ? yieldPercent(run.actualOutput, run.plannedOutput) : null;
@@ -193,54 +192,15 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
         </div>
 
         {canWrite ? (
-          <div className="space-y-5">
-            <Card title="Add an input">
-              <ActionForm action={addInputAction} submitLabel="Add to run">
-                {hidden}
-                <Field label="Package tag">
-                  <ScanInput name="tag" required />
-                </Field>
-                <Field label="Quantity used" hint="In the package's unit. It leaves the package right away.">
-                  <input name="quantity" inputMode="decimal" required className={inputClass} />
-                </Field>
-              </ActionForm>
-            </Card>
-            <Card title="Complete the run">
-              <ActionForm action={completeRunAction} submitLabel="Complete run">
-                {hidden}
-                <Field label="Tag for the finished package (blank to generate)" hint="Leave blank and CannaTrace makes a new unique ID (PKG-000123). Or scan or type a state tag.">
-                  <ScanInput name="outputTag" placeholder="Blank = new PKG- ID" />
-                </Field>
-                <Field label={`How much was made (${unitLabel(row.unit)})`} hint={`The plan was ${num(run.plannedOutput)}.`}>
-                  <input name="actualQuantity" inputMode="decimal" required className={inputClass} />
-                </Field>
-                <Field label="Put away to">
-                  <select name="locationId" required defaultValue="" className={inputClass}>
-                    <option value="" disabled>
-                      Choose a location
-                    </option>
-                    {rooms.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Labor and other cost, in dollars (optional)" hint="Added to the input cost before working out cost per unit.">
-                  <input name="extraCost" inputMode="decimal" className={inputClass} />
-                </Field>
-                <Field label="Note on loss or problems (optional)">
-                  <input name="lossNote" maxLength={500} className={inputClass} />
-                </Field>
-              </ActionForm>
-            </Card>
-            <Card title="Cancel the run">
-              <ActionForm action={cancelRunAction} submitLabel="Cancel run" quiet>
-                {hidden}
-                <p className="text-sm text-slate-600">Only an empty run can be cancelled. Remove its inputs first so the product goes back.</p>
-              </ActionForm>
-            </Card>
-          </div>
+          <RunGuide
+            runId={run.id}
+            unit={unitLabel(row.unit)}
+            planned={num(run.plannedOutput)}
+            rooms={rooms}
+            toGo={lines.filter((l) => new Decimal(l.quantity).mul(run.batches).toDecimalPlaces(4).sub(used(l.itemId)).gt(0)).length}
+            inputCount={inputs.length}
+            canCancel
+          />
         ) : null}
       </div>
     </>
