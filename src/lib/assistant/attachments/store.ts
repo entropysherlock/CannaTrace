@@ -40,7 +40,8 @@ export async function deleteExpiredAttachments(): Promise<number> {
   return gone.length;
 }
 
-export async function startUpload(session: Session, input: { name: string; size: number }): Promise<{ id: string; chunkBytes: number }> {
+export async function startUpload(session: Session, input: { name: string; size: number; source?: "chat" | "phone" }): Promise<{ id: string; chunkBytes: number }> {
+  const source = input.source === "phone" ? "phone" : "chat";
   if (!encryptionReady()) throw new AttachmentError("File attachments aren't set up on this server yet (secure storage is missing). CannaTrace support needs to finish setup.");
   const name = cleanName(String(input.name ?? ""));
   const size = Math.trunc(Number(input.size));
@@ -59,7 +60,9 @@ export async function startUpload(session: Session, input: { name: string; size:
       kind: "PENDING",
       size,
       staging: Buffer.alloc(0),
-      expiresAt: new Date(Date.now() + retentionHours() * 3_600_000),
+      source,
+      // Photos from a phone wait in the inbox for a week; a file attached to a Tally question goes after a day.
+      expiresAt: new Date(Date.now() + (source === "phone" ? Math.max(retentionHours(), 168) : retentionHours()) * 3_600_000),
     })
     .returning({ id: tallyAttachments.id });
   return { id: row.id, chunkBytes: CHUNK_BYTES };
