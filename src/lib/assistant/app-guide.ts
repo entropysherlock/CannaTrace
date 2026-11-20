@@ -12,7 +12,7 @@ Cultivation (tabs: Overview, Plants, Harvests, Strains)
 - Start a batch of clones or seeds: Cultivation → Overview → "Start a batch" (name, strain, clones or seeds, how many, room).
 - Tag plants: open the batch from "Plant batches" on Overview → "Tag plants" (scan or type tags, or a first tag and a count). "Record lost plants" is on the same page.
 - Change phase, move, harvest, or destroy plants: Cultivation → Plants → tick plants ("Tick or untick all" for everything shown) → "Choose what to do" → "Apply to ticked plants". Filter by phase, room, or strain first.
-- A harvest: Cultivation → Harvests → open it → "Record dry weight", "Log waste", "Package from this harvest", then "Finish harvest" once every gram is packaged or logged. A harvest can't be finished until its dry weight is recorded. Package it as an item of the same strain (or an item with no strain set, such as mixed trim); another strain's item is refused.
+- A harvest: Cultivation → Harvests → open it → "Record dry weight", "Log waste", "Package from this harvest" (set "How many packages" to make several same-size packages in one save, e.g. ten 1 lb bags; leave the tag blank or give one tag per package), then "Finish harvest" once every gram is packaged or logged. A harvest can't be finished until its dry weight is recorded. Package it as an item of the same strain (or an item with no strain set, such as mixed trim); another strain's item is refused.
 - Finished a harvest by mistake: open it → "Reopen harvest" (say why; it's saved in the audit trail), then finish it again when it's done.
 - Tasks: Cultivation → Overview → "Add a task"; press Done on "Open tasks" when finished.
 
@@ -21,6 +21,8 @@ Inventory (tabs: Packages, Receive, Counts, Items, Locations)
 - Lab results: a failed test stands until a later test passes. A newer "pending" result does not release it. A failed package can't be split, merged, sold, shipped, or used in production, and packages already made from it are put in quarantine too. To release it: record the passing retest, then "Hold, quarantine, or destroy" → back to active.
 - Destroying waste: put the package on hold or in quarantine first; it can be destroyed once the state's waiting period has passed (the package page says when).
 - On a package page: "Move", "Adjust quantity", "Split into new packages", "Merge with other packages", "Hold, quarantine, or destroy", "Add lab result" (with a section for the full cannabinoid profile and terpenes), "Print package label", "Print product label".
+- Many packages at once: on Inventory → Packages, tick the packages (or "Tick or untick all"), then in "With the ticked packages" choose move to another location, put on hold, put in quarantine, release, or print labels, and press "Apply to ticked packages". It's all or nothing: if one ticked package can't change (say it failed its lab test), nothing changes and the message names that package's tag.
+- One lab result for a whole lot: on any package page, "Add lab result" lists the rest of its lot under "Same test, rest of lot", all ticked. Save once and the result and COA are recorded on every ticked package; a fail quarantines each of them.
 - Receive new packages: Inventory → Receive. A whole shipment: Inventory → Receive → "Receive it against the manifest" (upload the seller's manifest, count what arrived, explain anything short or missing). A shipment from another of this business's own facilities is received the same way with that order's manifest number: the same packages move over, keeping their tags, lots, and lab results. Leave the tag blank and CannaTrace makes a new unique ID (PKG-000123); the same goes for splits, merges, harvest packages, and production runs. Leave the SKU blank on "Add an item" to get one like FLO-0007; change it under "Name and SKU" on the item.
 - Count a room or shelf: Inventory → Counts → "Count a location". Items counted "each" take whole numbers only.
 - Products: Inventory → Items → "Add an item" or "Add a category". "Label details" on each item holds unit weight, servings and mg per serving, shelf life, refrigeration, directions, ingredients, allergens, pesticides, and solvents for product labels.
@@ -34,7 +36,7 @@ Manufacturing (tabs: Production runs, Recipes; for people who run production or 
 Distribution (tabs: Orders, Invoices, Vendors, Price lists, Drivers and vehicles)
 - Vendors → "Add a vendor" (license number and expiry; verify the license before shipping). A vendor can have several destinations.
 - Price lists → "New price list", "Set a price".
-- Orders → "Start an order" → "Add a line" → "Confirm the order" → "Pick a package" for each line → "Mark packed" → "Ship" (driver, vehicle, times; makes the manifest) → "Mark delivered".
+- Orders → "Start an order" → "Add a line" → "Confirm the order" → "Pick a package" for each line (or "Pick everything, oldest first" to fill every line from the oldest active packages, splitting off just what's needed and skipping held or failed stock; it says which items are short) → "Mark packed" → "Ship" (driver, vehicle, times; makes the manifest) → "Mark delivered".
 - Invoices → "Record a payment" or "Issue a credit memo".
 - Drivers and vehicles → "Add a driver", "Add a vehicle".
 

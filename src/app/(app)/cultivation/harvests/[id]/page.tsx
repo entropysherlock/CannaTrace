@@ -131,10 +131,10 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
         <div className="space-y-5">
           {canWrite ? (
             <Card title="Package from this harvest">
-              <ActionForm action={packageHarvestAction} submitLabel="Create package">
+              <ActionForm action={packageHarvestAction} submitLabel="Create packages">
                 {hidden}
-                <Field label="New package tag (blank to generate)" hint="Leave blank and CannaTrace makes a new unique ID (PKG-000123). Or scan or type a state tag.">
-                  <ScanInput name="tag" placeholder="Blank = new PKG- ID" />
+                <Field label="New package tag (blank to generate)" hint="Leave blank and CannaTrace makes a new unique ID (PKG-000123) for each package. Or scan or type state tags, one per package, separated by spaces or commas.">
+                  <ScanInput name="tag" placeholder="Blank = new PKG- IDs" />
                 </Field>
                 <CreatableSelect
                   name="itemId"
@@ -157,9 +157,14 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
                   }
                   deniedHint="Item missing? Someone who manages the catalog can add it on the Items page."
                 />
-                <Field label="Quantity" hint="In the item's unit of measure.">
-                  <input name="quantity" inputMode="decimal" required className={inputClass} />
-                </Field>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Quantity in each package" hint="In the item's unit of measure.">
+                    <input name="quantity" inputMode="decimal" required className={inputClass} />
+                  </Field>
+                  <Field label="How many packages" hint="Same size each. Checked against what's left before any is made.">
+                    <input name="count" type="number" min={1} max={100} step={1} defaultValue={1} required className={inputClass} />
+                  </Field>
+                </div>
                 <CreatableSelect
                   name="locationId"
                   label="Put away to"

@@ -19,7 +19,7 @@ import { db, type Tx } from "./db";
 import { generateTags } from "./ids";
 import { InventoryError, assertLocation, audit, createPackageInTx, type Actor } from "./inventory";
 import { normalizeTag, parsePositiveQty } from "./inventory-math";
-import { convert, dimensionOf } from "./units";
+import { convert, dimensionOf, unitLabel } from "./units";
 
 const store = (value: Decimal) => value.toFixed(4);
 const scoped = <T extends { orgId: unknown; facilityId: unknown }>(table: T, actor: Actor) =>
@@ -454,6 +454,28 @@ export async function packageFromHarvest(
   actor: Actor,
   input: { harvestId: string; tag: string; itemId: string; quantity: unknown; locationId: string },
 ): Promise<Package> {
+  return (await packageHarvestMany(actor, { ...input, count: 1 }))[0];
+}
+
+/** Most packages one "Create packages" makes, so a typo can't make thousands. */
+export const MAX_HARVEST_PACKAGES = 100;
+
+/**
+ * Package a harvest into several packages of the same size in one go: one save, one check that enough is
+ * on hand for all of them, and each package recorded and audited on its own. Tags: leave blank to generate
+ * one per package, or give exactly one tag per package (separated by spaces, commas, or new lines).
+ */
+export async function packageHarvestMany(
+  actor: Actor,
+  input: { harvestId: string; tag: string; itemId: string; quantity: unknown; locationId: string; count: unknown },
+): Promise<Package[]> {
+  const count = Number(String(input.count ?? "1").trim() || "1");
+  if (!Number.isInteger(count) || count < 1) throw new InventoryError("Number of packages must be a whole number, 1 or more.");
+  if (count > MAX_HARVEST_PACKAGES) throw new InventoryError(`Make at most ${MAX_HARVEST_PACKAGES} packages at a time.`);
+  const tags = String(input.tag ?? "").split(/[\s,]+/).map((t) => t.trim()).filter(Boolean);
+  if (tags.length && tags.length !== count) {
+    throw new InventoryError(`You gave ${tags.length} tag${tags.length === 1 ? "" : "s"} for ${count} package${count === 1 ? "" : "s"}. Give one tag per package, or leave the tag blank to generate them.`);
+  }
   return db.transaction(async (tx) => {
     const harvest = await lockHarvest(tx, actor, input.harvestId);
     const [item] = await tx
@@ -473,31 +495,36 @@ export async function packageFromHarvest(
     }
     const quantity = parsePositiveQty(input.quantity);
     const grams = convert(quantity, item.unit, "G").toDecimalPlaces(4);
-    takeFromHarvest(harvestOnHand(harvest), grams, "The package");
+    // Enough on hand for all of them, checked once before any is made.
+    takeFromHarvest(harvestOnHand(harvest), grams.mul(count), count === 1 ? "The package" : `${count} packages of ${quantity.toString()} ${unitLabel(item.unit)}`);
 
-    const pkg = await createPackageInTx(tx, actor, {
-      tag: input.tag,
-      itemId: input.itemId,
-      quantity,
-      locationId: input.locationId,
-      lotNumber: harvest.name,
-      note: `Packaged from harvest ${harvest.name}`,
-      type: "CONVERT_IN",
-      auditAction: "CREATED_FROM_HARVEST",
-      auditExtra: { harvest: harvest.name },
-    });
+    const made: Package[] = [];
+    for (let i = 0; i < count; i++) {
+      const pkg = await createPackageInTx(tx, actor, {
+        tag: tags[i] ?? "",
+        itemId: input.itemId,
+        quantity,
+        locationId: input.locationId,
+        lotNumber: harvest.name,
+        note: `Packaged from harvest ${harvest.name}`,
+        type: "CONVERT_IN",
+        auditAction: "CREATED_FROM_HARVEST",
+        auditExtra: { harvest: harvest.name },
+      });
+      await tx.insert(harvestPackages).values({ harvestId: harvest.id, packageId: pkg.id, weightGrams: store(grams) });
+      await audit(tx, actor, {
+        entityType: "Harvest",
+        entityId: harvest.id,
+        action: "PACKAGE",
+        after: { packageTag: pkg.tag, grams: grams.toString() },
+      });
+      made.push(pkg);
+    }
     await tx
       .update(harvests)
-      .set({ packagedWeight: store(new Decimal(harvest.packagedWeight).add(grams)) })
+      .set({ packagedWeight: store(new Decimal(harvest.packagedWeight).add(grams.mul(count))) })
       .where(eq(harvests.id, harvest.id));
-    await tx.insert(harvestPackages).values({ harvestId: harvest.id, packageId: pkg.id, weightGrams: store(grams) });
-    await audit(tx, actor, {
-      entityType: "Harvest",
-      entityId: harvest.id,
-      action: "PACKAGE",
-      after: { packageTag: pkg.tag, grams: grams.toString() },
-    });
-    return pkg;
+    return made;
   });
 }
 

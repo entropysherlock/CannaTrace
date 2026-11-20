@@ -630,6 +630,8 @@ export const labResults = pgTable(
     coaMimeType: text("coa_mime_type"),
     coaSize: integer("coa_size"),
     coaData: bytea("coa_data"),
+    /** When one COA was recorded for a whole lot, the other packages' results point at the one that holds the file. */
+    coaFromResultId: text("coa_from_result_id"),
     userId: text("user_id").notNull(),
     createdAt: createdAt(),
   },

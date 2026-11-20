@@ -1,0 +1,1 @@
+ALTER TABLE "lab_results" ADD COLUMN "coa_from_result_id" text;

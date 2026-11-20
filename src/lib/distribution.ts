@@ -38,6 +38,7 @@ import {
   shipPackageInTx,
   splitPackageInTx,
   type Actor,
+  latestLabStatus,
 } from "./inventory";
 import { assertWholeForUnit, normalizeTag, parsePositiveQty, statusWords } from "./inventory-math";
 import { nextNumber } from "./numbering";
@@ -398,11 +399,7 @@ export async function allocateToOrder(
     if (quantity.gt(source.quantity)) {
       throw new InventoryError(`Package ${tag} only holds ${new Decimal(source.quantity).toString()}.`);
     }
-    const already = await tx
-      .select({ total: sql<string>`coalesce(sum(${orderAllocations.quantity}), 0)` })
-      .from(orderAllocations)
-      .where(eq(orderAllocations.orderLineId, line.id));
-    const open = new Decimal(line.quantity).sub(already[0].total);
+    const open = await openOnLine(tx, line);
     if (quantity.gt(open)) {
       throw new InventoryError(
         open.lte(0)
@@ -410,12 +407,65 @@ export async function allocateToOrder(
           : `This line only needs ${open.toString()} more. Enter a quantity to pick part of package ${tag}.`,
       );
     }
+    return pickInTx(tx, actor, order, line, source, quantity, input.newTag);
+  });
+}
 
+async function openOnLine(tx: Tx, line: { id: string; quantity: string }): Promise<Decimal> {
+  const already = await tx
+    .select({ total: sql<string>`coalesce(sum(${orderAllocations.quantity}), 0)` })
+    .from(orderAllocations)
+    .where(eq(orderAllocations.orderLineId, line.id));
+  return new Decimal(line.quantity).sub(already[0].total);
+}
+
+/**
+ * Pick every open line of a confirmed order in one go, oldest stock first: each line takes whole packages
+ * of its item while they fit, and splits off just what's needed from the next one. Only active packages
+ * at this facility without a standing failed test are used, the same as picking by hand. Lines there isn't
+ * enough stock for are filled as far as possible and reported.
+ */
+export async function autoPickOrder(actor: Actor, input: { orderId: string }): Promise<{ picked: Package[]; short: { item: string; missing: string }[] }> {
+  return db.transaction(async (tx) => {
+    const order = await lockOrder(tx, actor, input.orderId, ["CONFIRMED"], "picked. Confirm it first, or reopen it if it is packed");
+    const lines = await tx
+      .select({ id: orderLines.id, quantity: orderLines.quantity, itemId: orderLines.itemId, itemName: items.name })
+      .from(orderLines)
+      .innerJoin(items, eq(items.id, orderLines.itemId))
+      .where(eq(orderLines.orderId, order.id))
+      .orderBy(orderLines.id);
+    const picked: Package[] = [];
+    const short: { item: string; missing: string }[] = [];
+    for (const line of lines) {
+      let open = await openOnLine(tx, line);
+      if (open.lte(0)) continue;
+      const candidates = await tx
+        .select({ id: packages.id })
+        .from(packages)
+        .where(and(eq(packages.orgId, actor.orgId), eq(packages.facilityId, actor.facilityId), eq(packages.itemId, line.itemId), eq(packages.status, "ACTIVE")))
+        .orderBy(packages.createdAt, packages.tag);
+      for (const c of candidates) {
+        if (open.lte(0)) break;
+        if ((await latestLabStatus(tx, c.id)) === "FAIL") continue;
+        const source = await lockPackage(tx, actor, c.id);
+        if (source.status !== "ACTIVE" || new Decimal(source.quantity).lte(0)) continue;
+        const take = Decimal.min(open, source.quantity);
+        picked.push(await pickInTx(tx, actor, order, line, source, take));
+        open = open.sub(take);
+      }
+      if (open.gt(0)) short.push({ item: line.itemName, missing: open.toString() });
+    }
+    return { picked, short };
+  });
+}
+
+async function pickInTx(tx: Tx, actor: Actor, order: Order, line: { id: string }, source: Package, quantity: Decimal, newTag?: string): Promise<Package> {
+  {
     const note = `Picked for order ${order.number}`;
     let picked = source;
     if (quantity.lt(source.quantity)) {
       // The picked part becomes its own package: the tag scanned for it, or a generated one.
-      const split = await splitPackageInTx(tx, actor, { packageId: source.id, parts: [{ tag: input.newTag, quantity }], note });
+      const split = await splitPackageInTx(tx, actor, { packageId: source.id, parts: [{ tag: newTag, quantity }], note });
       picked = split.children[0];
     }
     const allocated = await setAllocatedInTx(tx, actor, picked, true, note);
@@ -428,7 +478,7 @@ export async function allocateToOrder(
     });
     await audit(tx, actor, { entityType: "Order", entityId: order.id, action: "PICK", after: { tag: allocated.tag, quantity: quantity.toString() } });
     return allocated;
-  });
+  }
 }
 
 async function releaseAllocation(tx: Tx, actor: Actor, order: Order, allocation: { id: string; packageId: string }) {

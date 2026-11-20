@@ -16,7 +16,7 @@ import {
   harvestPlants,
   logHarvestWaste,
   movePlants,
-  packageFromHarvest,
+  packageHarvestMany,
   recordDryWeight,
   tagPlants,
 } from "@/lib/cultivation";
@@ -194,16 +194,18 @@ export async function wasteAction(_state: FormState, formData: FormData): Promis
 
 export async function packageHarvestAction(_state: FormState, formData: FormData): Promise<FormState> {
   try {
-    const pkg = await packageFromHarvest(await cultivationActor(), {
+    const made = await packageHarvestMany(await cultivationActor(), {
       harvestId: field(formData, "harvestId"),
       tag: field(formData, "tag"),
       itemId: field(formData, "itemId"),
       quantity: field(formData, "quantity"),
       locationId: field(formData, "locationId"),
+      count: field(formData, "count") || "1",
     });
     revalidatePath("/cultivation", "layout");
     revalidatePath("/inventory");
-    return { ok: `Created package ${pkg.tag}.` };
+    if (made.length === 1) return { ok: `Created package ${made[0].tag}.` };
+    return { ok: `Created ${made.length} packages: ${made[0].tag} to ${made[made.length - 1].tag}.` };
   } catch (error) {
     return toFormError(error);
   }
