@@ -32,6 +32,13 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/api/health") return NextResponse.next();
   // The offline register's service worker must load whatever the sign-in state.
   if (pathname === "/sw.js") return NextResponse.next();
+  // A phone linking itself, or signing back in, has no sign-in yet. The capture page decides what to show.
+  if (pathname.startsWith("/link/") || pathname === "/api/device/resume") return NextResponse.next();
+  if (pathname === "/capture") {
+    if (await isSignedIn(request)) return NextResponse.next();
+    // Decided here, before any page is sent: a redirect from inside a streaming page would not reach the browser as one.
+    return NextResponse.redirect(new URL(request.cookies.get("ct_device") ? "/api/device/resume" : "/login", request.url));
+  }
   // A store's public menu and pickup reservations are for anyone, signed in or not.
   if (pathname.startsWith("/menu/")) return NextResponse.next();
   // The REST API authenticates with API keys, not a sign-in cookie.

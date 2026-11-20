@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { attachmentRoute } from "@/lib/assistant/attachments/http";
 import { finishUpload } from "@/lib/assistant/attachments/finish";
 import { AttachmentError } from "@/lib/assistant/attachments/limits";
+import { loadAttachment } from "@/lib/assistant/attachments/store";
 import { appendChunk, CHUNK_BYTES, deleteAttachment } from "@/lib/assistant/attachments/store";
 
 export const maxDuration = 60;
@@ -32,5 +33,16 @@ export async function DELETE(_request: Request, { params }: Ctx) {
   return attachmentRoute(async (session) => {
     await deleteAttachment(session, id);
     return NextResponse.json({ ok: true });
+  });
+}
+
+/** A photo's picture, for the phone inbox. Only the person who sent it can see it. */
+export async function GET(_request: Request, { params }: Ctx) {
+  const { id } = await params;
+  return attachmentRoute(async (session) => {
+    const file = await loadAttachment(session, id);
+    if (file.kind !== "IMAGE") throw new AttachmentError("Only photos have a picture to show.");
+    const type = typeof file.meta.mediaType === "string" ? file.meta.mediaType : "image/jpeg";
+    return new Response(new Uint8Array(file.payload), { headers: { "Content-Type": type, "Cache-Control": "private, max-age=300" } });
   });
 }

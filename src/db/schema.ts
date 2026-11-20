@@ -349,6 +349,10 @@ export const tallyAttachments = pgTable(
     payload: bytea("payload"),
     meta: jsonb("meta").$type<Record<string, unknown>>(),
     sha256: text("sha256"),
+    /** "chat" for a file attached to a Tally question, "phone" for a photo sent from a linked phone. */
+    source: text("source").notNull().default("chat"),
+    /** The linked phone that sent it, when source is "phone". */
+    deviceId: text("device_id"),
     createdAt: createdAt(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
@@ -1669,4 +1673,37 @@ export const reservationLines = pgTable(
     unitPrice: qty("unit_price").notNull(),
   },
   (t) => [primaryKey({ columns: [t.reservationId, t.itemId] })],
+);
+
+/** A phone an employee linked to their account by scanning a QR code. It can sign itself in until revoked. */
+export const linkedDevices = pgTable(
+  "linked_devices",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    userId: text("user_id").notNull(),
+    /** "iPhone", "Android phone", ... worked out from the browser when it was linked. */
+    name: text("name").notNull(),
+    /** SHA-256 of the long random token kept in the phone's cookie. The token itself is never stored. */
+    tokenHash: text("token_hash").notNull(),
+    createdAt: createdAt(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("linked_devices_token_key").on(t.tokenHash), index("linked_devices_user_idx").on(t.orgId, t.userId)],
+);
+
+/** A one-time, short-lived code shown as a QR code. Scanning it on a phone links that phone. */
+export const devicePairings = pgTable(
+  "device_pairings",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    userId: text("user_id").notNull(),
+    codeHash: text("code_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("device_pairings_code_key").on(t.codeHash)],
 );
