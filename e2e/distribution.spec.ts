@@ -67,6 +67,7 @@ test("sell wholesale: customer, order, pick, ship, manifest, invoice, payment", 
   await expect(page.getByText("Choose a driver and vehicle, then ship.")).toBeVisible();
 
   // Ship. The date goes in first; adding a new driver and van on the spot must not lose it.
+  await page.locator('textarea[name="routeNotes"]').fill(`I-25 south, then Central ${run}`);
   await page.locator('input[name="departAt"]').fill("2026-11-17T09:30");
   await page.getByRole("button", { name: "Add driver" }).click();
   const dialog = page.getByRole("dialog");
@@ -98,6 +99,7 @@ test("sell wholesale: customer, order, pick, ship, manifest, invoice, payment", 
   await expect(page.getByTestId("manifest-travel")).toContainText("Actual arrival");
   await expect(page.getByTestId("manifest-travel")).toContainText("Destination (driver fills in)");
   await expect(page.getByTestId("manifest-travel")).toContainText("Planned route");
+  await expect(page.getByTestId("manifest-route")).toHaveText(`I-25 south, then Central ${run}`);
   await expect(page.getByRole("columnheader", { name: "Rejected" })).toBeVisible();
   await expect(page.getByTestId("manifest-rejections")).toContainText("Rejected product");
 

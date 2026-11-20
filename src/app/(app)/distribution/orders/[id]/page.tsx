@@ -364,8 +364,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                   <Field label="Departure date and time">
                     <input name="departAt" type="datetime-local" required className={inputClass} />
                   </Field>
-                  <Field label="Route notes (optional)">
-                    <input name="routeNotes" maxLength={500} className={inputClass} />
+                  <Field label="Planned route" hint="Type the stops and roads in order. It prints on the manifest, so nobody has to write it by hand.">
+                    <textarea name="routeNotes" rows={3} maxLength={500} placeholder="e.g. I-25 south to Albuquerque, then Central Ave to the store" className={inputClass} />
                   </Field>
                   <p className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium leading-relaxed text-amber-900"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Shipping removes the packages from inventory and creates the invoice. It cannot be undone.</span></p>
                 </ActionForm>
