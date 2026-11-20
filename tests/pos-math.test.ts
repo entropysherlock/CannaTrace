@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
 import { InventoryError } from "../src/lib/inventory-math";
-import { ageOn, cartTotals, changeDue, checkInProblem, expectedCash, limitProblem, limitUsage, parsePercent } from "../src/lib/pos-math";
+import { ageOn, cartTotals, changeDue, checkInProblem, cleanCardDetails, expectedCash, limitProblem, limitUsage, parsePercent } from "../src/lib/pos-math";
 
 const rules = { adultMinAge: 21, medicalMinAge: 18 };
 const today = "2026-11-16";
@@ -127,5 +127,21 @@ describe("payments, quick cash, and ID barcodes", () => {
     });
     expect(parseIdBarcode("CT-000101")).toBeNull();
     expect(parseIdBarcode("@ANSI DLDAQ1\nDBB99999999\n")).toBeNull();
+  });
+});
+
+describe("card payment details", () => {
+  it("keeps only the last 4 digits and an approval number, both optional", () => {
+    expect(cleanCardDetails({})).toEqual({ cardLast4: null, cardRef: null });
+    expect(cleanCardDetails({ cardLast4: " 1234 ", cardRef: " AB-12 cd " })).toEqual({ cardLast4: "1234", cardRef: "AB-12 cd" });
+    expect(cleanCardDetails({ cardLast4: "", cardRef: "" })).toEqual({ cardLast4: null, cardRef: null });
+  });
+
+  it("refuses anything that could be a full card number", () => {
+    expect(() => cleanCardDetails({ cardLast4: "4111111111111111" })).toThrow(/last 4 digits/);
+    expect(() => cleanCardDetails({ cardLast4: "12a4" })).toThrow(/last 4 digits/);
+    expect(() => cleanCardDetails({ cardLast4: "123" })).toThrow(/last 4 digits/);
+    expect(() => cleanCardDetails({ cardRef: "x".repeat(25) })).toThrow(/up to 24/);
+    expect(() => cleanCardDetails({ cardRef: "ok; drop table" })).toThrow(/letters, numbers and dashes/);
   });
 });

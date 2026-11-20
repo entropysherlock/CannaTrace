@@ -29,6 +29,11 @@ export default async function DrawerReportPage({ params }: { params: Promise<{ i
     drawerSummary(db, drawer),
     db.select().from(sales).where(eq(sales.drawerSessionId, drawer.id)).orderBy(asc(sales.createdAt)),
   ]);
+  // The card share of each completed sale (older sales saved no split: all-debit or all-cash).
+  const cardSales = rows
+    .filter((sale) => sale.status === "COMPLETED")
+    .map((sale) => ({ sale, onCard: new Decimal(sale.debitAmount ?? (sale.paymentMethod === "DEBIT" ? (sale.total ?? 0) : 0)) }))
+    .filter(({ onCard }) => onCard.gt(0));
   const counted = drawer.countedCash ? new Decimal(drawer.countedCash) : null;
   const variance = counted ? counted.sub(summary.expectedCash) : null;
   const line = (label: string, value: string, strong = false) => (
@@ -86,6 +91,33 @@ export default async function DrawerReportPage({ params }: { params: Promise<{ i
             </dl>
           </div>
         </div>
+
+        {cardSales.length > 0 ? (
+          <div data-testid="card-payments">
+            <h2 className="mb-1 mt-6 font-semibold">Card payments this shift</h2>
+            <p className="mb-2 text-slate-600">Recorded here, not charged by CannaTrace. Match them to your card terminal&apos;s batch report.</p>
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b-2 border-slate-400">
+                  <th className="py-2 pr-2">Sale</th>
+                  <th className="py-2 pr-2">Card</th>
+                  <th className="py-2 pr-2">Approval</th>
+                  <th className="py-2 text-right">On card</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cardSales.map(({ sale, onCard }) => (
+                  <tr key={sale.id} className="border-b border-slate-200">
+                    <td className="py-2 pr-2">{sale.number}</td>
+                    <td className="py-2 pr-2">{sale.cardLast4 ? `ending ${sale.cardLast4}` : "not entered"}</td>
+                    <td className="py-2 pr-2">{sale.cardRef ?? "not entered"}</td>
+                    <td className="py-2 text-right">{usd(onCard)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
         <h2 className="mb-2 mt-6 font-semibold">Every sale this shift</h2>
         <table className="w-full border-collapse text-left">

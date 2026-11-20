@@ -101,6 +101,7 @@ export default async function ReceiptPage({
       : sale.paymentMethod === "CASH"
         ? [["Cash", usd(sale.cashTendered ?? sale.total ?? 0)]]
         : [["Debit", usd(sale.total ?? 0)]];
+  const cardNote = sale.cardLast4 || sale.cardRef ? [sale.cardLast4 ? `Card ending ${sale.cardLast4}` : null, sale.cardRef ? `approval ${sale.cardRef}` : null].filter(Boolean).join(" · ") : null;
 
   return (
     <RegisterShell info={info}>
@@ -212,6 +213,11 @@ export default async function ReceiptPage({
                       </>
                     ) : null}
                   </dl>
+                  {cardNote ? (
+                    <p className="mt-1 text-xs text-slate-600" data-testid="card-note">
+                      {cardNote}
+                    </p>
+                  ) : null}
                   {sale.status === "VOIDED" ? (
                     <p className="mt-4 font-semibold text-red-700">
                       Voided: {sale.voidReason}

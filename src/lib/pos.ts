@@ -27,6 +27,7 @@ import { combinedCap, effectiveLimits, minimumAge, packFor, requiresLabBeforeRet
 import { facilityToday, facilityZone } from "./time";
 import {
   cartTotals,
+  cleanCardDetails,
   checkInProblem,
   expectedCash,
   limitProblem,
@@ -752,10 +753,11 @@ export async function cancelCart(actor: Actor, input: { saleId: string }): Promi
 /** Take payment. Stock comes out of the oldest packages first, and each package used is recorded. */
 export async function completeSale(
   actor: Actor,
-  input: { saleId: string; paymentMethod: string; cashTendered?: unknown; debitAmount?: unknown },
+  input: { saleId: string; paymentMethod: string; cashTendered?: unknown; debitAmount?: unknown; cardLast4?: unknown; cardRef?: unknown },
 ): Promise<{ number: string; total: string; changeDue: string }> {
   if (!(SALE_PAYMENT_METHODS as readonly string[]).includes(input.paymentMethod)) throw new InventoryError("Choose cash, debit, or split.");
   const method = input.paymentMethod as PaymentMethod;
+  const card = cleanCardDetails(input);
   return db.transaction(async (tx) => {
     const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "paid again");
     const [session] = await tx.select().from(drawerSessions).where(eq(drawerSessions.id, sale.drawerSessionId));
@@ -819,6 +821,9 @@ export async function completeSale(
         paymentMethod: method,
         cashTendered: settled.cashTendered?.toFixed(2) ?? null,
         debitAmount: settled.debit.toFixed(2),
+        // Card details only mean something when part of the sale went on a card.
+        cardLast4: settled.debit.gt(0) ? card.cardLast4 : null,
+        cardRef: settled.debit.gt(0) ? card.cardRef : null,
         changeDue: change.toFixed(2),
         completedAt: new Date(),
       })

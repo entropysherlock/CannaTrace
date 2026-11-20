@@ -199,3 +199,15 @@ export function parseIdBarcode(raw: string): IdScan | null {
   const idNumber = fields.get("DAQ")?.replace(/[^A-Za-z0-9]/g, "") || null;
   return { firstName: title(first), lastName: title(last), birthDate, idExpires, state, idNumber: idNumber && idNumber.length >= 4 ? idNumber : null };
 }
+
+/**
+ * Optional details of a card payment, typed from the store's own card terminal so the sale can be matched to
+ * the terminal's batch report: the last 4 digits and the approval number. Never a full card number.
+ */
+export function cleanCardDetails(input: { cardLast4?: unknown; cardRef?: unknown }): { cardLast4: string | null; cardRef: string | null } {
+  const last4 = String(input.cardLast4 ?? "").trim();
+  const ref = String(input.cardRef ?? "").trim();
+  if (last4 && !/^\d{4}$/.test(last4)) throw new InventoryError("Enter only the last 4 digits of the card, or leave it blank. Never type the whole card number.");
+  if (ref.length > 24 || !/^[A-Za-z0-9 -]*$/.test(ref)) throw new InventoryError("The approval number can use letters, numbers and dashes, up to 24 characters.");
+  return { cardLast4: last4 || null, cardRef: ref || null };
+}

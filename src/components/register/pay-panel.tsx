@@ -40,6 +40,8 @@ export function PayPanel({
   const [cash, setCash] = useState("");
   const [debit, setDebit] = useState("");
   const [field, setField] = useState<"cash" | "debit">("cash");
+  const [last4, setLast4] = useState("");
+  const [approval, setApproval] = useState("");
   const [pending, start] = useTransition();
   const cashRef = useRef<HTMLInputElement>(null);
   const debitRef = useRef<HTMLInputElement>(null);
@@ -79,7 +81,7 @@ export function PayPanel({
   const complete = () => {
     if (!ready) return;
     start(async () => {
-      const result = await terminalPay({ saleId, method, cashTendered: method === "DEBIT" ? "" : cash, debitAmount: method === "SPLIT" ? debit : "" });
+      const result = await terminalPay({ saleId, method, cashTendered: method === "DEBIT" ? "" : cash, debitAmount: method === "SPLIT" ? debit : "", cardLast4: method === "CASH" ? "" : last4, cardRef: method === "CASH" ? "" : approval });
       if (result.error) {
         beep("error");
         onError(result.error);
@@ -163,10 +165,41 @@ export function PayPanel({
 
             {method === "DEBIT" ? (
               <div className="rounded-2xl border-2 border-dashed border-brand-200 bg-white p-5 text-lg text-slate-700">
-                Run <strong className="text-slate-950">{money(due)}</strong> on the card terminal. When it is approved, press Complete sale.
+                Run <strong className="text-slate-950">{money(due)}</strong> on your card terminal. When it is approved, press Complete sale.
               </div>
             ) : null}
             {method === "SPLIT" ? amountInput("debit", "On the debit card") : null}
+            {method !== "CASH" ? (
+              <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200" data-testid="card-details">
+                <p className="text-sm text-slate-600">
+                  CannaTrace records the card payment; it does not charge the card. Optional: add what the terminal shows, so this sale matches its batch report.
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Last 4 digits
+                    <input
+                      value={last4}
+                      onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={4}
+                      placeholder="1234"
+                      className="mt-1 block h-12 w-full rounded-lg border border-slate-300 px-3 text-lg font-normal tabular-nums"
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Approval number
+                    <input
+                      value={approval}
+                      onChange={(e) => setApproval(e.target.value.replace(/[^A-Za-z0-9 -]/g, "").slice(0, 24))}
+                      autoComplete="off"
+                      maxLength={24}
+                      className="mt-1 block h-12 w-full rounded-lg border border-slate-300 px-3 text-lg font-normal"
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
             {method !== "DEBIT" ? (
               <>
                 {amountInput("cash", method === "SPLIT" ? `Cash received (${money(cashDue)} due in cash)` : "Cash received")}
