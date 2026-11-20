@@ -1269,6 +1269,11 @@ export const sales = pgTable(
     /** Optional, for matching a card payment to the store's own terminal: the last 4 digits and the approval number. CannaTrace never charges cards. */
     cardLast4: text("card_last4"),
     cardRef: text("card_ref"),
+    /** A sale rung up on a register with no internet: its own id (so syncing twice never doubles it), and what a manager should check. */
+    offlineId: text("offline_id"),
+    reviewNote: text("review_note"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewedBy: text("reviewed_by"),
     changeDue: money("change_due"),
     voidReason: text("void_reason"),
     /**
@@ -1283,6 +1288,7 @@ export const sales = pgTable(
   },
   (t) => [
     uniqueIndex("sales_facility_number_key").on(t.facilityId, t.number),
+    uniqueIndex("sales_facility_offline_key").on(t.facilityId, t.offlineId),
     index("sales_session_idx").on(t.drawerSessionId, t.status),
     index("sales_customer_day_idx").on(t.orgId, t.customerKey, t.completedAt),
   ],

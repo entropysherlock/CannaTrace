@@ -5,6 +5,7 @@ import { CreatableSelect } from "@/components/contextual-create";
 import { ItemFields } from "@/components/item-fields";
 import { unitPrice } from "@/components/distribution-ui";
 import { PosTabs } from "@/components/pos-tabs";
+import { reviewCount } from "@/lib/offline-sales";
 import { waitingCount } from "@/lib/online-menu";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { discountPresets, facilities, items, retailPrices } from "@/db/schema";
@@ -73,7 +74,7 @@ export default async function MenuPage() {
   return (
     <>
       <PageHeader title="Menu and store rules" subtitle="What this store sells, at what price, and the limits and taxes that apply here." />
-      <PosTabs current="/pos/menu" canManage pickups={await waitingCount(session.facilityId)} />
+      <PosTabs current="/pos/menu" canManage pickups={await waitingCount(session.facilityId)} review={await reviewCount(session.facilityId)} />
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card title={`On the menu (${menu.length})`}>

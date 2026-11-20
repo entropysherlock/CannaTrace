@@ -37,6 +37,7 @@ describe("Tally's app guide", () => {
       "Kind of record",
       "Forgot your password?",
       "Online menu and pickups",
+      "To review",
       "Customer is here: check ID and start the sale",
       "Mark ready",
       "Approval number",

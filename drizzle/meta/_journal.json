@@ -239,6 +239,13 @@
       "when": 1795165848782,
       "tag": "0033_card_reference",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795166933195,
+      "tag": "0034_offline_sales",
+      "breakpoints": true
     }
   ]
 }
