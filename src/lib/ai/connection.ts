@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { InventoryError } from "@/lib/inventory-math";
 import { can } from "@/lib/rbac";
 import type { Session } from "@/lib/session";
+import { costUsd } from "./pricing";
 import { encryptionReady, keyHint, needsReseal, openSecret, sealSecret } from "./secret-box";
 
 /**
@@ -438,7 +439,16 @@ export type UsageSummary = {
   inputTokens: number;
   outputTokens: number;
   failures: number;
-  people: { name: string; questions: number }[];
+  /** Estimated dollars at Anthropic's list prices, for questions on the business's own key. */
+  cost: {
+    thisMonth: number;
+    lastMonth: number;
+    /** Average for a question that got an answer this month, or null before the first one. */
+    perQuestion: number | null;
+    /** Models used this month whose price isn't known, so their tokens aren't in the estimate. */
+    unpricedModels: string[];
+  };
+  people: { name: string; questions: number; cost: number }[];
   recentProblems: { at: Date; outcome: string; name: string }[];
 };
 
@@ -461,6 +471,34 @@ export async function usageSummary(orgId: string, now = new Date()): Promise<Usa
       where org_id = ${orgId} and created_at >= ${since} and ${countsToward(now)}
       group by user_name order by questions desc limit 8`)
   ).rows;
+  // Tokens by month, person, and model on the business's own key; turned into dollars per model below.
+  const lastMonthStart = monthStart(new Date(since.getTime() - 1));
+  const spend = (
+    await db.execute<{ month: string; name: string; model: string; input: number; output: number; answered: number }>(sql`
+      select case when created_at >= ${since} then 'this' else 'last' end as month, user_name as name, model,
+        coalesce(sum(input_tokens), 0)::bigint as input, coalesce(sum(output_tokens), 0)::bigint as output,
+        count(*) filter (where outcome = 'OK')::int as answered
+      from ai_usage
+      where org_id = ${orgId} and billed_to = 'CUSTOMER' and created_at >= ${lastMonthStart}
+      group by 1, 2, 3`)
+  ).rows;
+  const cost = { thisMonth: 0, lastMonth: 0, perQuestion: null as number | null, unpricedModels: [] as string[] };
+  const personCost = new Map<string, number>();
+  let answered = 0;
+  for (const row of spend) {
+    const dollars = costUsd(row.model, Number(row.input), Number(row.output));
+    if (dollars === null) {
+      if (row.month === "this" && !cost.unpricedModels.includes(row.model)) cost.unpricedModels.push(row.model);
+      continue;
+    }
+    if (row.month === "last") cost.lastMonth += dollars;
+    else {
+      cost.thisMonth += dollars;
+      answered += Number(row.answered);
+      personCost.set(row.name, (personCost.get(row.name) ?? 0) + dollars);
+    }
+  }
+  cost.perQuestion = answered ? cost.thisMonth / answered : null;
   const recentProblems = await db
     .select({ at: aiUsage.createdAt, outcome: aiUsage.outcome, name: aiUsage.userName })
     .from(aiUsage)
@@ -473,7 +511,8 @@ export async function usageSummary(orgId: string, now = new Date()): Promise<Usa
     inputTokens: totals.input,
     outputTokens: totals.output,
     failures: totals.failures,
-    people,
+    cost,
+    people: people.map((p) => ({ ...p, cost: personCost.get(p.name) ?? 0 })),
     recentProblems,
   };
 }
