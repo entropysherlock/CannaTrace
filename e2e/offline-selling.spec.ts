@@ -16,6 +16,8 @@ test("the register keeps selling for cash with no internet, then sends the sale 
     await page.getByLabel("Starting cash").fill("100");
     await page.getByRole("button", { name: "Open drawer" }).click();
   }
+  // The way in is always visible on the register, not only when the internet is down
+  await expect(page.getByTestId("offline-link")).toBeVisible();
   // Online, the page prepares this device: the offline register is saved and so is a copy of the menu
   await page.waitForFunction(() => Boolean(localStorage.getItem("ct-offline-snapshot")), undefined, { timeout: 30_000 });
   await page.waitForFunction(async () => (await caches.keys()).length > 0 && Boolean(await caches.match("/pos/offline")), undefined, { timeout: 30_000 });

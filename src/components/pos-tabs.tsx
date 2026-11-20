@@ -5,13 +5,16 @@ export function PosTabs({ current, canManage, pickups = 0, review = 0 }: { curre
     { href: "/pos", label: "Register" },
     { href: "/pos/pickups", label: pickups > 0 ? `Pickups (${pickups})` : "Pickups" },
     { href: "/pos/drawer", label: "Cash drawer" },
+    { href: "/pos/offline", label: "Offline register" },
     ...(canManage ? [{ href: "/pos/review", label: review > 0 ? `To review (${review})` : "To review" }] : []),
     ...(canManage ? [{ href: "/pos/menu", label: "Menu and store rules" }] : []),
   ];
   return (
     <nav className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-brand-100 bg-white p-1.5 shadow-sm [scrollbar-width:none] print:hidden">
-      {tabs.map((tab) => (
-        <Link
+      {tabs.map((tab) => {
+        const Tag = tab.href === "/pos/offline" ? "a" : Link; // a full page load, so it opens from the saved copy with no internet
+        return (
+        <Tag
           key={tab.href}
           href={tab.href}
           aria-current={tab.href === current ? "page" : undefined}
@@ -20,8 +23,9 @@ export function PosTabs({ current, canManage, pickups = 0, review = 0 }: { curre
           }`}
         >
           {tab.label}
-        </Link>
-      ))}
+        </Tag>
+        );
+      })}
     </nav>
   );
 }
