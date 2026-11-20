@@ -339,10 +339,82 @@ export async function movePackage(
 ): Promise<Package> {
   return db.transaction(async (tx) => {
     const pkg = await lockPackage(tx, actor, input.packageId);
-    assertEditable(pkg.status);
     if (!input.toLocationId) throw new InventoryError("Choose a location to move to.");
-    if (pkg.locationId === input.toLocationId) throw new InventoryError("The package is already in that location.");
     const destination = await assertLocation(tx, actor, input.toLocationId);
+    return movePackageInTx(tx, actor, pkg, destination, input.note);
+  });
+}
+
+/** Most packages a bulk action handles at once (one screen of ticks). */
+export const BULK_LIMIT = 200;
+
+function bulkIds(ids: string[]): string[] {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) throw new InventoryError("Tick at least one package first.");
+  if (unique.length > BULK_LIMIT) throw new InventoryError(`Tick at most ${BULK_LIMIT} packages at a time.`);
+  // A fixed lock order, so two people working on overlapping packages can't deadlock each other.
+  return unique.sort();
+}
+
+/** Name the package in an error from a bulk action, so the person knows which one stopped it. */
+async function forEachPackage<T>(tx: Tx, actor: Actor, ids: string[], run: (pkg: Package) => Promise<T>): Promise<T[]> {
+  const out: T[] = [];
+  for (const id of ids) {
+    const pkg = await lockPackage(tx, actor, id);
+    try {
+      out.push(await run(pkg));
+    } catch (e) {
+      if (e instanceof InventoryError && !e.message.includes(pkg.tag)) throw new InventoryError(`${pkg.tag}: ${e.message} Nothing was changed.`);
+      if (e instanceof InventoryError) throw new InventoryError(`${e.message} Nothing was changed.`);
+      throw e;
+    }
+  }
+  return out;
+}
+
+/**
+ * Move many packages to one location in one go. All or nothing: if any can't move, none do.
+ * Packages already there are left alone. Each move is logged and audited like a single move.
+ */
+export async function movePackages(actor: Actor, input: { packageIds: string[]; toLocationId: string; note?: string | null }): Promise<{ moved: number; alreadyThere: number }> {
+  const ids = bulkIds(input.packageIds);
+  if (!input.toLocationId) throw new InventoryError("Choose a location to move to.");
+  return db.transaction(async (tx) => {
+    const destination = await assertLocation(tx, actor, input.toLocationId);
+    const done = await forEachPackage(tx, actor, ids, async (pkg) => {
+      if (pkg.locationId === input.toLocationId) return false;
+      await movePackageInTx(tx, actor, pkg, destination, input.note);
+      return true;
+    });
+    return { moved: done.filter(Boolean).length, alreadyThere: done.filter((d) => !d).length };
+  });
+}
+
+/**
+ * Put many packages on hold or in quarantine, or release them, in one go. All or nothing. Packages
+ * already in that status are left alone. Releasing still refuses any package with a standing failed test.
+ */
+export async function setPackagesStatus(actor: Actor, input: { packageIds: string[]; status: string; reason: string }): Promise<{ changed: number; already: number }> {
+  const ids = bulkIds(input.packageIds);
+  const status = input.status as HoldStatus;
+  if (!HOLD_STATUSES.includes(status)) throw new InventoryError("Choose a status.");
+  const reason = input.reason.trim();
+  if (!reason) throw new InventoryError("Say why the status is changing. It goes in the audit trail.");
+  return db.transaction(async (tx) => {
+    const done = await forEachPackage(tx, actor, ids, async (pkg) => {
+      if (pkg.status === status) return false;
+      await setPackageStatusInTx(tx, actor, pkg, status, reason);
+      return true;
+    });
+    return { changed: done.filter(Boolean).length, already: done.filter((d) => !d).length };
+  });
+}
+
+async function movePackageInTx(tx: Tx, actor: Actor, pkg: Package, destination: { id: string; name: string }, note?: string | null): Promise<Package> {
+  {
+    assertEditable(pkg.status);
+    if (pkg.locationId === destination.id) throw new InventoryError("The package is already in that location.");
+    const input = { toLocationId: destination.id, note };
 
     const [updated] = await tx
       .update(packages)
@@ -372,7 +444,7 @@ export async function movePackage(
       reason: input.note,
     });
     return updated;
-  });
+  }
 }
 
 /** Set a package to a newly counted quantity. A reason code is required. */
@@ -749,12 +821,16 @@ export async function setPackageStatus(
   if (!reason) throw new InventoryError("Say why the status is changing. It goes in the audit trail.");
   return db.transaction(async (tx) => {
     const pkg = await lockPackage(tx, actor, input.packageId);
-    assertEditable(pkg.status);
-    assertNotAllocated(pkg);
     if (pkg.status === status) throw new InventoryError("The package already has that status.");
-    if (status === "ACTIVE") await assertNotFailedLab(tx, pkg, "released");
-    return changeStatus(tx, actor, pkg, status, reason);
+    return setPackageStatusInTx(tx, actor, pkg, status, reason);
   });
+}
+
+async function setPackageStatusInTx(tx: Tx, actor: Actor, pkg: Package, status: HoldStatus, reason: string): Promise<Package> {
+  assertEditable(pkg.status);
+  assertNotAllocated(pkg);
+  if (status === "ACTIVE") await assertNotFailedLab(tx, pkg, "released");
+  return changeStatus(tx, actor, pkg, status, reason);
 }
 
 /** Record destruction of everything left in a package. Cannot be undone. */
@@ -952,8 +1028,13 @@ export async function addLabResult(
     terpenes?: string | null;
     notes?: string | null;
     coa?: { name: string; type: string; data: Buffer } | null;
+    /**
+     * Other packages the same test covers (for example the rest of a lot from one harvest). Each gets its own
+     * result, audit entry, and, on a fail, quarantine, all in the same save. The COA file is stored once.
+     */
+    alsoPackageIds?: string[];
   },
-): Promise<{ id: string; quarantined: boolean }> {
+): Promise<{ id: string; quarantined: boolean; recorded: number; quarantinedCount: number }> {
   const labName = input.labName.trim();
   if (!labName) throw new InventoryError("Enter the name of the testing lab.");
   if (!["PENDING", "PASS", "FAIL"].includes(input.status)) throw new InventoryError("Choose a result: pending, pass, or fail.");
@@ -973,10 +1054,45 @@ export async function addLabResult(
     if (coa.data.length > COA_MAX_BYTES) throw new InventoryError("The COA file is larger than 4 MB. Compress it and try again.");
   }
 
+  const others = [...new Set((input.alsoPackageIds ?? []).filter((id) => id && id !== input.packageId))].sort();
+  if (others.length > BULK_LIMIT) throw new InventoryError(`Record one result for at most ${BULK_LIMIT} packages at a time.`);
   return db.transaction(async (tx) => {
-    const pkg = await lockPackage(tx, actor, input.packageId);
     if (sampleDate && sampleDate > (await facilityToday(actor.facilityId, tx)))
       throw new InventoryError(`The sample date ${sampleDate} is in the future. Enter the date the lab took the sample.`);
+    const values = { labName, status, sampleDate, thcPercent, cbdPercent, profile, terpenes, notes: input.notes?.trim() || null };
+    const first = await recordLabResultInTx(tx, actor, await lockPackage(tx, actor, input.packageId), values, coa, null);
+    let quarantinedCount = first.quarantined ? 1 : 0;
+    for (const id of others) {
+      const pkg = await lockPackage(tx, actor, id);
+      if (pkg.status === "FINISHED" || pkg.status === "DESTROYED") throw new InventoryError(`${pkg.tag} is ${pkg.status.toLowerCase()}; untick it. Nothing was saved.`);
+      const r = await recordLabResultInTx(tx, actor, pkg, values, coa ? { name: coa.name, type: coa.type, data: null } : null, coa ? first.id : null);
+      if (r.quarantined) quarantinedCount++;
+    }
+    return { id: first.id, quarantined: first.quarantined, recorded: others.length + 1, quarantinedCount };
+  });
+}
+
+type LabValues = {
+  labName: string;
+  status: "PENDING" | "PASS" | "FAIL";
+  sampleDate: string | null;
+  thcPercent: string | null;
+  cbdPercent: string | null;
+  profile: Record<LabProfileKey, string | null>;
+  terpenes: string | null;
+  notes: string | null;
+};
+
+async function recordLabResultInTx(
+  tx: Tx,
+  actor: Actor,
+  pkg: Package,
+  v: LabValues,
+  coa: { name: string; type: string; data: Buffer | null } | null,
+  coaFromResultId: string | null,
+): Promise<{ id: string; quarantined: boolean }> {
+  const { labName, status, sampleDate, thcPercent, cbdPercent, profile, terpenes } = v;
+  {
     const [result] = await tx
       .insert(labResults)
       .values({
@@ -990,11 +1106,12 @@ export async function addLabResult(
         cbdPercent,
         ...profile,
         terpenes,
-        notes: input.notes?.trim() || null,
+        notes: v.notes,
         coaFileName: coa?.name.slice(0, 200) ?? null,
         coaMimeType: coa?.type ?? null,
-        coaSize: coa?.data.length ?? null,
+        coaSize: coa?.data?.length ?? null,
         coaData: coa?.data ?? null,
+        coaFromResultId,
         userId: actor.userId,
       })
       .returning({ id: labResults.id });
@@ -1027,5 +1144,5 @@ export async function addLabResult(
       }
     }
     return { id: result.id, quarantined };
-  });
+  }
 }

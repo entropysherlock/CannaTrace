@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
   addOrderLine,
   allocateToOrder,
+  autoPickOrder,
   cancelOrder,
   confirmOrder,
   createCustomer,
@@ -212,6 +213,21 @@ export async function allocateAction(_state: FormState, formData: FormData): Pro
     refresh();
     revalidatePath("/inventory");
     return { ok: `Picked ${pkg.tag}.` };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function autoPickAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { picked, short } = await autoPickOrder(await fulfiller(), { orderId: field(formData, "orderId") });
+    refresh();
+    revalidatePath("/inventory");
+    if (!picked.length && !short.length) return { ok: "Everything on this order is already picked." };
+    const shortText = short.map((s) => `${s.item} is short ${s.missing}`).join("; ");
+    if (!picked.length) return { error: `Nothing could be picked: ${shortText}. Receive or release stock, then try again.` };
+    const pickedText = `Picked ${picked.length} package${picked.length === 1 ? "" : "s"}, oldest first: ${picked.map((p) => p.tag).join(", ")}.`;
+    return short.length ? { ok: `${pickedText} Not enough in stock for the rest: ${shortText}.` } : { ok: pickedText };
   } catch (error) {
     return toFormError(error);
   }

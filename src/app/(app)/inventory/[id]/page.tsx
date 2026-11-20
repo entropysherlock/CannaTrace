@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { and, asc, desc, eq, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, or } from "drizzle-orm";
 import Link from "next/link";
 import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
@@ -93,6 +93,23 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
     .where(and(eq(packages.id, id), eq(packages.orgId, session.orgId), eq(packages.facilityId, session.facilityId)));
   if (!pkg) notFound();
 
+  // Other packages from the same lot: one lab test usually covers the whole lot, so its result can be recorded for all of them at once.
+  const sameLot = pkg.lotNumber
+    ? await db
+        .select({ id: packages.id, tag: packages.tag, quantity: packages.quantity, unit: packages.unit, status: packages.status })
+        .from(packages)
+        .where(
+          and(
+            eq(packages.orgId, session.orgId),
+            eq(packages.facilityId, session.facilityId),
+            eq(packages.lotNumber, pkg.lotNumber),
+            ne(packages.id, pkg.id),
+            inArray(packages.status, ["ACTIVE", "ON_HOLD", "QUARANTINE", "ALLOCATED"]),
+          ),
+        )
+        .orderBy(packages.tag)
+        .limit(100)
+    : [];
   const [locations, transactions, auditEntries, users, lineage, labs] = await Promise.all([
     db
       .select({ id: locationsTable.id, name: locationsTable.name })
@@ -401,6 +418,30 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                 <Field label="Notes (optional)">
                   <input name="notes" className={inputClass} />
                 </Field>
+                {sameLot.length ? (
+                  <fieldset className="rounded-lg border border-brand-200 bg-brand-50/60 px-3 py-2" data-testid="same-lot">
+                    <legend className="px-1 text-sm font-semibold text-slate-900">
+                      Same test, rest of lot {pkg.lotNumber} ({sameLot.length} more)
+                    </legend>
+                    <p className="mb-2 text-xs text-slate-600">
+                      Ticked packages get this same result too, each with its own record. A fail quarantines each of them. Untick any the test didn&apos;t cover.
+                    </p>
+                    <ul className="max-h-40 space-y-1 overflow-y-auto text-sm">
+                      {sameLot.map((p) => (
+                        <li key={p.id}>
+                          <label className="flex items-center gap-2">
+                            <input type="checkbox" name="alsoPackageId" value={p.id} defaultChecked className="h-4 w-4 accent-brand-700" />
+                            <span className="font-mono">{p.tag}</span>
+                            <span className="text-slate-500">
+                              {formatQty(p.quantity, p.unit)}
+                              {p.status !== "ACTIVE" ? ` · ${p.status.replace("_", " ").toLowerCase()}` : ""}
+                            </span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </fieldset>
+                ) : null}
               </ActionForm>
             </Fold>
           ) : null}

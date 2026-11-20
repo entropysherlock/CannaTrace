@@ -22,6 +22,7 @@ import { facilityToday } from "@/lib/time";
 import { facilityZone } from "@/lib/time";
 import {
   allocateAction,
+  autoPickAction,
   deliverAction,
   lineAction,
   orderStepAction,
@@ -258,6 +259,16 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
           {order.status === "CONFIRMED" && canFulfil ? (
             <>
+              <Card title="Pick everything">
+                <ActionForm action={autoPickAction} submitLabel="Pick everything, oldest first">
+                  {hidden}
+                  <p className="text-sm text-slate-600">
+                    {shortLines.length
+                      ? "Fills every open line from the oldest active packages of each item, splitting off just what's needed. Packages on hold or with a failed test are skipped. You can still unpick any of them above."
+                      : "Every line is picked. Mark the order packed when it's ready."}
+                  </p>
+                </ActionForm>
+              </Card>
               <Card title="Pick a package">
                 <ActionForm action={allocateAction} submitLabel="Pick">
                   {hidden}

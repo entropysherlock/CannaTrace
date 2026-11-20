@@ -14,6 +14,8 @@ import {
   destroyPackage,
   mergePackages,
   movePackage,
+  movePackages,
+  setPackagesStatus,
   receivePackage,
   recordCycleCount,
   setPackageStatus,
@@ -185,8 +187,14 @@ export async function labResultAction(_state: FormState, formData: FormData): Pr
       terpenes: field(formData, "terpenes"),
       notes: field(formData, "notes"),
       coa,
+      alsoPackageIds: formData.getAll("alsoPackageId").map(String),
     });
-    revalidatePath(`/inventory/${packageId}`);
+    revalidatePath("/inventory", "layout");
+    if (result.recorded > 1) {
+      return {
+        ok: `Result saved for ${result.recorded} packages.${result.quarantinedCount ? ` ${result.quarantinedCount} failed and ${result.quarantinedCount === 1 ? "is" : "are"} now quarantined.` : ""}`,
+      };
+    }
     return { ok: result.quarantined ? "Result saved. The package failed and is now quarantined." : "Result saved." };
   } catch (error) {
     return toFormError(error);
@@ -262,5 +270,37 @@ export async function receiveShipmentAction(formData: FormData): Promise<Shipmen
     return { result };
   } catch (error) {
     return { error: error instanceof InventoryError ? error.message : "The shipment couldn't be received. Nothing was saved." };
+  }
+}
+
+/** The tick-and-apply bar on Inventory → Packages: move, hold, quarantine, release, or print labels for many at once. */
+export async function packageBulkAction(_state: FormState, formData: FormData): Promise<FormState> {
+  const ids = formData.getAll("packageId").map(String).filter(Boolean);
+  const action = field(formData, "bulkAction");
+  if (action === "LABELS") {
+    // Printing only needs the labels permission; the label page checks it again.
+    await requirePermission("labels.print");
+    if (!ids.length) return { error: "Tick at least one package first." };
+    redirect(`/labels?kind=PACKAGE&ids=${ids.slice(0, 100).join(",")}`);
+  }
+  const plural = (n: number) => `${n} package${n === 1 ? "" : "s"}`;
+  try {
+    const session = await requirePermission("inventory.write");
+    const actor = actorOf(session);
+    let message: string;
+    if (action === "MOVE") {
+      const r = await movePackages(actor, { packageIds: ids, toLocationId: field(formData, "toLocationId"), note: field(formData, "note") });
+      message = `${plural(r.moved)} moved.${r.alreadyThere ? ` ${plural(r.alreadyThere)} ${r.alreadyThere === 1 ? "was" : "were"} already there.` : ""}`;
+    } else if (action === "ON_HOLD" || action === "QUARANTINE" || action === "ACTIVE") {
+      const r = await setPackagesStatus(actor, { packageIds: ids, status: action, reason: field(formData, "reason") });
+      const words = action === "ACTIVE" ? "released" : action === "ON_HOLD" ? "put on hold" : "put in quarantine";
+      message = `${plural(r.changed)} ${words}.${r.already ? ` ${plural(r.already)} ${r.already === 1 ? "was" : "were"} already ${action === "ACTIVE" ? "active" : action === "ON_HOLD" ? "on hold" : "in quarantine"}.` : ""}`;
+    } else {
+      return { error: "Choose what to do with the ticked packages." };
+    }
+    revalidatePath("/inventory", "layout");
+    return { ok: message };
+  } catch (error) {
+    return toFormError(error);
   }
 }

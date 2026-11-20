@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { LabelLink } from "@/components/labels/label-link";
-import { and, count, desc, eq, ilike, or } from "drizzle-orm";
+import { ActionForm } from "@/components/action-form";
+import { PackageBulkFields } from "@/components/package-bulk-fields";
+import { packageBulkAction } from "./actions";
+import { and, asc, count, desc, eq, ilike, or } from "drizzle-orm";
 import { ScanInput } from "@/components/scan-input";
 import { buttonLinkClass, inputBase, PageHeader, ScrollBox, StatusBadge } from "@/components/ui";
 import { items, locations, packages, type PackageStatus } from "@/db/schema";
@@ -60,6 +63,16 @@ export default async function InventoryPage({
     .orderBy(desc(packages.createdAt), desc(packages.id))
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE);
+  const canWrite = can(session, "inventory.write");
+  const canPrint = can(session, "labels.print");
+  const bulk = canWrite || canPrint;
+  const rooms = bulk
+    ? await db
+        .select({ id: locations.id, name: locations.name })
+        .from(locations)
+        .where(and(eq(locations.orgId, session.orgId), eq(locations.facilityId, session.facilityId)))
+        .orderBy(asc(locations.name))
+    : [];
   const first = total ? (page - 1) * PAGE_SIZE + 1 : 0;
   const last = (page - 1) * PAGE_SIZE + rows.length;
   const pageHref = (n: number) => {
@@ -118,12 +131,16 @@ export default async function InventoryPage({
         </p>
       ) : (
         // The list scrolls inside its own box, so a big inventory doesn't stretch the page.
+        <Wrap bulk={bulk} side={<PackageBulkFields locations={rooms} canWrite={canWrite} canPrint={canPrint} />}>
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <ScrollBox label="Packages" size="lg">
         <ul className="divide-y divide-slate-100">
           {rows.map((pkg) => (
-            <li key={pkg.id}>
-              <Link href={`/inventory/${pkg.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
+            <li key={pkg.id} className="flex items-center">
+              {bulk ? (
+                <input type="checkbox" name="packageId" value={pkg.id} aria-label={`Tick ${pkg.tag}`} className="ml-4 h-5 w-5 shrink-0 accent-brand-700" />
+              ) : null}
+              <Link href={`/inventory/${pkg.id}`} className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
                 <div className="min-w-0">
                   <p className="font-mono text-sm font-semibold text-slate-900">{pkg.tag}</p>
                   <p className="truncate text-sm text-slate-600">
@@ -161,7 +178,19 @@ export default async function InventoryPage({
           </nav>
         ) : null}
         </div>
+        </Wrap>
       )}
     </>
+  );
+}
+
+/** With permission to act, the list sits in a form beside the "With the ticked packages" panel. */
+function Wrap({ bulk, side, children }: { bulk: boolean; side: React.ReactNode; children: React.ReactNode }) {
+  if (!bulk) return <>{children}</>;
+  return (
+    <ActionForm action={packageBulkAction} submitLabel="Apply to ticked packages" className="grid gap-5 lg:grid-cols-3">
+      <div className="lg:col-span-2">{children}</div>
+      <div className="lg:sticky lg:top-4 lg:self-start">{side}</div>
+    </ActionForm>
   );
 }

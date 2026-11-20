@@ -95,7 +95,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         path: HARVEST,
         target: [{ card: "Package from this harvest" }],
         title: "Make packages",
-        body: "Pick the item and how much goes in each package. Leave the tag blank and CannaTrace makes a unique ID. Strain and harvest come along automatically.",
+        body: "Pick the item, how much goes in each package, and how many packages to make: ten jars of the same size is one save. Leave the tag blank and CannaTrace makes a unique ID for each. Strain and harvest come along automatically.",
       },
       {
         path: HARVEST,
