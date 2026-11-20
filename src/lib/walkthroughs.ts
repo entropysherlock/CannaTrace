@@ -246,9 +246,9 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: ORDER,
-        target: [{ card: "Pick a package" }],
+        target: [{ card: "Pick packages" }],
         title: "Pick packages",
-        body: "Scan the package for each line. CannaTrace checks it's the right item, has enough, and passed its lab test.",
+        body: "Press \"Pick everything, oldest first\" to fill every line at once, or open \"Or scan one package\" to scan them yourself. CannaTrace checks each is the right item, has enough, and passed its lab test.",
         advance: "next",
       },
       {

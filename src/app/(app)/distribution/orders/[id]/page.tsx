@@ -8,7 +8,7 @@ import { ActionForm } from "@/components/action-form";
 import { CreatableSelect } from "@/components/contextual-create";
 import { ItemFields } from "@/components/item-fields";
 import { DriverFields, VehicleFields } from "@/components/quick-fields";
-import { DistributionTabs, Pill, unitPrice, usd } from "@/components/distribution-ui";
+import { DistributionTabs, OrderProgress, PickBar, unitPrice, usd } from "@/components/distribution-ui";
 import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { customers, destinations, drivers, invoices, items, orderAllocations, orderLines, orders, packages, vehicles } from "@/db/schema";
@@ -110,12 +110,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 Print transfer labels
               </LabelLink>
             ) : null}
-            <Pill status={order.status} />
           </div>
         }
       />
       <DistributionTabs current="/distribution" />
-      <p className="mb-5 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800">{NEXT_STEP[order.status]}</p>
+      <OrderProgress status={order.status} next={NEXT_STEP[order.status]} />
       {problem && !["SHIPPED", "DELIVERED", "CANCELLED"].includes(order.status) ? (
         <p className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800">
           {problem}{" "}
@@ -158,8 +157,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                             <input type="hidden" name="lineId" value={line.id} />
                           </ActionForm>
                         ) : order.status !== "DRAFT" ? (
-                          <span className={`font-semibold ${done ? "text-brand-700" : "text-amber-700"}`}>
-                            picked {num(picked)} of {num(line.quantity)}
+                          <span className="w-32 text-right">
+                            <span className={`font-semibold ${done ? "text-brand-700" : "text-amber-700"}`}>
+                              picked {num(picked)} of {num(line.quantity)}
+                            </span>
+                            <PickBar picked={picked.toNumber()} of={new Decimal(line.quantity).toNumber()} />
                           </span>
                         ) : null}
                       </div>
@@ -259,38 +261,46 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
           {order.status === "CONFIRMED" && canFulfil ? (
             <>
-              <Card title="Pick everything">
-                <ActionForm action={autoPickAction} submitLabel="Pick everything, oldest first">
+              <Card title={shortLines.length ? "Pick packages" : "All picked"}>
+                <ActionForm action={autoPickAction} submitLabel="Pick everything, oldest first" quiet={!shortLines.length}>
                   {hidden}
                   <p className="text-sm text-slate-600">
                     {shortLines.length
-                      ? "Fills every open line from the oldest active packages of each item, splitting off just what's needed. Packages on hold or with a failed test are skipped. You can still unpick any of them above."
+                      ? "Fills every open line from the oldest active packages, splitting off just what's needed. Held or failed stock is skipped."
                       : "Every line is picked. Mark the order packed when it's ready."}
                   </p>
                 </ActionForm>
-              </Card>
-              <Card title="Pick a package">
-                <ActionForm action={allocateAction} submitLabel="Pick">
-                  {hidden}
-                  <Field label="For line">
-                    <select name="lineId" required defaultValue={shortLines[0]?.id ?? ""} className={inputClass}>
-                      {lines.map((line) => (
-                        <option key={line.id} value={line.id}>
-                          {line.itemName} (needs {num(Decimal.max(0, new Decimal(line.quantity).sub(pickedFor(line.id))))} more)
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Package tag">
-                    <ScanInput name="tag" required />
-                  </Field>
-                  <Field label="Quantity (optional)" hint="Leave empty to take the whole package.">
-                    <input name="quantity" inputMode="decimal" className={inputClass} />
-                  </Field>
-                  <Field label="New tag (only when taking part of a package)" hint="The picked part becomes its own package with this tag. Leave blank to get a new unique ID (PKG-000123).">
-                    <input name="newTag" autoCapitalize="characters" className={`${inputClass} font-mono`} />
-                  </Field>
-                </ActionForm>
+                {shortLines.length ? (
+                <details className="group mt-4 border-t border-slate-100 pt-3">
+                  <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between text-sm font-semibold text-brand-800">
+                    Or scan one package
+                    <span className="text-slate-400 transition group-open:rotate-90" aria-hidden="true">›</span>
+                  </summary>
+                  <div className="pt-3">
+                    <ActionForm action={allocateAction} submitLabel="Pick">
+                      {hidden}
+                      <Field label="For line">
+                        <select name="lineId" required defaultValue={shortLines[0]?.id ?? ""} className={inputClass}>
+                          {lines.map((line) => (
+                            <option key={line.id} value={line.id}>
+                              {line.itemName} (needs {num(Decimal.max(0, new Decimal(line.quantity).sub(pickedFor(line.id))))} more)
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Package tag">
+                        <ScanInput name="tag" required />
+                      </Field>
+                      <Field label="Quantity (optional)" hint="Leave empty to take the whole package.">
+                        <input name="quantity" inputMode="decimal" className={inputClass} />
+                      </Field>
+                      <Field label="New tag (only when taking part of a package)" hint="The picked part becomes its own package with this tag. Leave blank to get a new unique ID (PKG-000123).">
+                        <input name="newTag" autoCapitalize="characters" className={`${inputClass} font-mono`} />
+                      </Field>
+                    </ActionForm>
+                  </div>
+                </details>
+                ) : null}
               </Card>
               <Card title="Mark packed">
                 {shortLines.length && allocations.length ? (
@@ -374,10 +384,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           ) : null}
 
           {["DRAFT", "CONFIRMED", "PACKED"].includes(order.status) && canSell ? (
-            <Card title="Cancel the order">
-              <p className="mb-3 text-sm text-slate-600">Any picked packages go back to active stock.</p>
+            <section className="rounded-xl border border-dashed border-slate-300 px-4 py-4 sm:px-5">
+              <h2 className="text-sm font-bold text-slate-700">Cancel the order</h2>
+              <p className="mb-3 mt-1 text-sm text-slate-600">Any picked packages go back to active stock.</p>
               {step("cancel", "Cancel order")}
-            </Card>
+            </section>
           ) : null}
         </div>
       </div>

@@ -5,7 +5,7 @@
  */
 export const APP_GUIDE = `CannaTrace app guide (the sidebar on the left, tabs across the top of each page; names below are exactly what's on screen):
 
-Dashboard: today's numbers, Tally Watch findings, sales by day, what needs attention. Quick buttons: New sale, Receive, Count, Orders, Plants.
+Dashboard: "Needs attention today" at the top lists what to do now, most urgent first (urgent alerts, failed state reports, expired vendor licenses, quarantined packages, orders to pick, ship, or mark delivered, harvests waiting for a dry weight, packages on hold, licenses expiring within 30 days), each linking to where it's done. Below it: today's numbers, Tally Watch findings, sales by day. Quick buttons: New sale, Receive, Count, Orders, Plants.
 
 Cultivation (tabs: Overview, Plants, Harvests, Strains)
 - Add a strain: Cultivation → Strains → "Add a strain".
@@ -36,7 +36,8 @@ Manufacturing (tabs: Production runs, Recipes; for people who run production or 
 Distribution (tabs: Orders, Invoices, Vendors, Price lists, Drivers and vehicles)
 - Vendors → "Add a vendor" (license number and expiry; verify the license before shipping). A vendor can have several destinations.
 - Price lists → "New price list", "Set a price".
-- Orders → "Start an order" → "Add a line" → "Confirm the order" → "Pick a package" for each line (or "Pick everything, oldest first" to fill every line from the oldest active packages, splitting off just what's needed and skipping held or failed stock; it says which items are short) → "Mark packed" → "Ship" (driver, vehicle, times; makes the manifest) → "Mark delivered".
+- An order page shows its progress across the top (Draft, Confirmed, Packed, Shipped, Delivered) with the next step underneath.
+- Orders → "Start an order" → "Add a line" → "Confirm the order" → "Pick packages" ("Pick everything, oldest first" fills every line from the oldest active packages, splitting off just what's needed, skipping held or failed stock, and saying which items are short; "Or scan one package" picks them one at a time) → "Mark packed" → "Ship" (driver, vehicle, times; makes the manifest) → "Mark delivered".
 - Invoices → "Record a payment" or "Issue a credit memo".
 - Drivers and vehicles → "Add a driver", "Add a vehicle".
 

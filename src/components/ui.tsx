@@ -22,7 +22,8 @@ export function Tip({ text, label = "More info" }: { text: ReactNode; label?: st
       </span>
       <span
         role="tooltip"
-        className="pointer-events-none invisible absolute left-1/2 top-full z-30 mt-2 w-[min(18rem,calc(100vw-2rem))] max-sm:hidden max-sm:group-hover/tip:block max-sm:group-focus-within/tip:block -translate-x-1/2 rounded-lg bg-brand-950 px-3 py-2 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-white opacity-0 shadow-lg transition group-focus-within/tip:visible group-focus-within/tip:opacity-100 group-hover/tip:visible group-hover/tip:opacity-100"
+        // Not drawn at all until hovered or focused: a hidden tip near the right edge must not widen the page.
+        className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg bg-brand-950 px-3 py-2 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-white shadow-lg group-focus-within/tip:block group-hover/tip:block"
       >
         {text}
       </span>

@@ -51,7 +51,9 @@ test("sell wholesale: customer, order, pick, ship, manifest, invoice, payment", 
   await page.getByRole("button", { name: "Confirm order" }).click();
   await expect(page.getByText("Pick packages for each line")).toBeVisible();
 
+  await expect(page.getByTestId("order-progress")).toContainText("Confirmed");
   // Pick 100 of the 120: the picked part becomes a new package (a tag left blank would be generated)
+  await page.getByText("Or scan one package").click();
   const pick = page.locator('form:has(input[name="tag"])');
   await pick.locator('input[name="tag"]').fill(`${run}-JARS`);
   await page.getByRole("button", { name: "Pick", exact: true }).click();
