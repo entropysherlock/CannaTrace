@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { CultivationTabs } from "@/components/cultivation-ui";
 import { GrowGuide, type GrowData } from "@/components/grow-guide";
 import { PageHeader } from "@/components/ui";
@@ -7,6 +7,7 @@ import { harvestOnHand } from "@/lib/cultivation-math";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
+import { itemCategoryNames } from "@/lib/quick-create-data";
 import { unitLabel } from "@/lib/units";
 
 export const metadata = { title: "Grow" };
@@ -45,7 +46,7 @@ export default async function GrowPage() {
       .where(and(here(harvests), ne(harvests.status, "FINISHED")))
       .orderBy(desc(harvests.harvestedAt))
       .limit(100),
-    db.select({ id: items.id, name: items.name, unit: items.unit }).from(items).where(and(eq(items.orgId, session.orgId), eq(items.active, true))).orderBy(asc(items.name)).limit(2000),
+    db.select({ id: items.id, name: items.name, unit: items.unit }).from(items).where(and(eq(items.orgId, session.orgId), eq(items.active, true), inArray(items.unit, ["MG", "G", "KG", "OZ", "LB"]))).orderBy(asc(items.name)).limit(2000),
   ]);
 
   const groups = new Map<string, GrowData["plantGroups"][number]>();
@@ -78,6 +79,8 @@ export default async function GrowPage() {
 
   const data: GrowData = {
     canAddRoom: can(session, "settings.manage"),
+    canAddItem: can(session, "catalog.manage"),
+    categories: can(session, "catalog.manage") ? await itemCategoryNames(session.orgId) : [],
     strains: strainRows,
     rooms,
     items: itemRows.map((i) => ({ id: i.id, label: `${i.name} (${unitLabel(i.unit)})` })),
