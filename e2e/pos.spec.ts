@@ -262,3 +262,19 @@ test("with daily limits on, the register needs the ID number: a scanned license 
     await expect(page.getByText("Store rules saved.")).toBeVisible();
   }
 });
+
+test("the register can scan an ID with the device camera, and the camera closes without saving anything", async ({ page }) => {
+  await signInAtShop(page, "budtender@demo.test");
+  await page.goto("/pos");
+  if (await page.getByRole("button", { name: "Open drawer" }).isVisible()) {
+    await page.getByLabel("Starting cash").fill("100");
+    await page.getByRole("button", { name: "Open drawer" }).click();
+  }
+  await page.getByTestId("scan-id-camera").click();
+  const camera = page.getByTestId("id-camera");
+  await expect(camera).toBeVisible();
+  await expect(camera.getByText("Scan the back of the ID")).toBeVisible();
+  await page.getByRole("button", { name: "Close camera" }).click();
+  await expect(camera).toHaveCount(0);
+  await expect(page.getByTestId("scan-id-camera")).toBeVisible();
+});

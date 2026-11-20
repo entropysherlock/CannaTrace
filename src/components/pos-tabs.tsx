@@ -10,7 +10,7 @@ export function PosTabs({ current, canManage, pickups = 0, review = 0 }: { curre
     ...(canManage ? [{ href: "/pos/menu", label: "Menu and store rules" }] : []),
   ];
   return (
-    <nav className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-brand-100 bg-white p-1.5 shadow-sm [scrollbar-width:none] print:hidden">
+    <nav className="mb-6 flex flex-wrap gap-1 rounded-xl border border-brand-100 bg-white p-1.5 shadow-sm print:hidden">
       {tabs.map((tab) => {
         const Tag = tab.href === "/pos/offline" ? "a" : Link; // a full page load, so it opens from the saved copy with no internet
         return (
@@ -18,7 +18,7 @@ export function PosTabs({ current, canManage, pickups = 0, review = 0 }: { curre
           key={tab.href}
           href={tab.href}
           aria-current={tab.href === current ? "page" : undefined}
-          className={`inline-flex min-h-10 shrink-0 items-center rounded-lg px-4 text-sm font-bold transition-colors ${
+          className={`inline-flex min-h-10 items-center rounded-lg px-3 sm:px-4 text-sm font-bold transition-colors ${
             tab.href === current ? "bg-brand-600 text-white shadow-sm" : "text-brand-800 hover:bg-brand-50"
           }`}
         >

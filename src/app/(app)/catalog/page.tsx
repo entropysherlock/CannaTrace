@@ -2,7 +2,7 @@ import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
 import { CreatableSelect } from "@/components/contextual-create";
-import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { Card, Field, PageHeader, ScrollBox, inputClass } from "@/components/ui";
 import { itemCategories, items, unitEnum } from "@/db/schema";
 import { db } from "@/lib/db";
 import { requirePagePermission } from "@/lib/session";
@@ -36,6 +36,7 @@ export default async function CatalogPage() {
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Card title={`${rows.length} item${rows.length === 1 ? "" : "s"}`}>
+            <ScrollBox label="Items" size="lg">
             <ul className="divide-y divide-slate-100 text-sm">
               {rows.map((item) => (
                 <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
@@ -67,6 +68,7 @@ export default async function CatalogPage() {
                 </li>
               ))}
             </ul>
+            </ScrollBox>
           </Card>
         </div>
         <div className="space-y-5">
