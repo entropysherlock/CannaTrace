@@ -12,7 +12,7 @@ export default async function NewRolePage() {
     <>
       <PageHeader
         title="Build a role"
-        subtitle="Tick exactly what people with this role can do. Changes apply to everyone with the role right away."
+        subtitle="Check exactly what people with this role can do. Changes apply to everyone with the role right away."
         action={
           <Link href="/team#roles" className="text-sm font-semibold text-brand-700 hover:underline">
             Back to team

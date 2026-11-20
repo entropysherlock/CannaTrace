@@ -465,7 +465,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                       Same test, rest of lot {pkg.lotNumber} ({sameLot.length} more)
                     </legend>
                     <p className="mb-2 text-xs text-slate-600">
-                      Ticked packages get this same result too, each with its own record. A fail quarantines each of them. Untick any the test didn&apos;t cover.
+                      Checked packages get this same result too, each with its own record. A fail quarantines each of them. Uncheck any the test didn&apos;t cover.
                     </p>
                     <ul className="max-h-40 space-y-1 overflow-y-auto text-sm">
                       {sameLot.map((p) => (

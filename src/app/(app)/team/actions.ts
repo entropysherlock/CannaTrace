@@ -66,7 +66,7 @@ export async function setFacilitiesAction(_state: FormState, formData: FormData)
   try {
     const all = formData.get("all") === "on";
     const chosen = all ? [] : formData.getAll("facilityIds").map(String).filter(Boolean);
-    if (!all && chosen.length === 0) return { error: "Tick at least one facility, or All facilities." };
+    if (!all && chosen.length === 0) return { error: "Check at least one facility, or All facilities." };
     await setUserFacilities(await requirePermission("users.manage"), field(formData, "userId"), chosen);
     revalidatePath("/team");
     return { ok: all ? "They can work at every facility." : "Facilities saved. It applies on their next click." };

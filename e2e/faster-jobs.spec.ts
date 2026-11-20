@@ -22,7 +22,7 @@ async function receive(page: Page, tag: string, item: string, quantity: string, 
   return page.url();
 }
 
-test("tick many packages, one lab result for a lot, and pick a whole order at once", async ({ page }) => {
+test("check many packages, one lab result for a lot, and pick a whole order at once", async ({ page }) => {
   await signIn(page, "manager@demo.test");
   const lot = `LOT-${run}`;
   const first = await receive(page, `${run}-1`, "Blue Mesa Flower (bulk) (g)", "50", lot);
@@ -32,18 +32,18 @@ test("tick many packages, one lab result for a lot, and pick a whole order at on
   // Move all three in one go
   await page.goto(`/inventory?q=${run}`);
   const bulk = page.getByTestId("package-bulk");
-  await bulk.getByRole("button", { name: "Tick or untick all" }).click();
+  await bulk.getByRole("button", { name: "Check or uncheck all" }).click();
   await page.locator('select[name="bulkAction"]').selectOption("MOVE");
   await page.locator('select[name="toLocationId"]').selectOption({ index: 2 });
-  await page.getByRole("button", { name: "Apply to ticked packages" }).click();
+  await page.getByRole("button", { name: "Apply to checked packages" }).click();
   await expect(page.getByText("3 packages moved.")).toBeVisible();
 
   // Hold two of them; a reason is required
-  await page.getByLabel(`Tick ${run}-1`).check();
-  await page.getByLabel(`Tick ${run}-2`).check();
+  await page.getByLabel(`Check ${run}-1`).check();
+  await page.getByLabel(`Check ${run}-2`).check();
   await page.locator('select[name="bulkAction"]').selectOption("ON_HOLD");
   await page.locator('input[name="reason"]').fill("Recount");
-  await page.getByRole("button", { name: "Apply to ticked packages" }).click();
+  await page.getByRole("button", { name: "Apply to checked packages" }).click();
   await expect(page.getByText("2 packages put on hold.")).toBeVisible();
 
   // One lab result, recorded on the whole lot

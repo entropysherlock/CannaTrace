@@ -246,7 +246,7 @@ test("cultivation: a room added while tagging plants out of a batch is picked fo
   await expect(page.getByText(/^Tagged 2 plants/)).toBeVisible();
 });
 
-test("cultivation: moving ticked plants into a room added on the spot keeps the ticks", async ({ page }) => {
+test("cultivation: moving checked plants into a room added on the spot keeps the checks", async ({ page }) => {
   const id = run();
   await signIn(page, "manager@demo.test", "/cultivation/plants");
   const first = page.locator('input[name="plantId"]').first();
@@ -260,7 +260,7 @@ test("cultivation: moving ticked plants into a room added on the spot keeps the 
   await expect(page.locator('select[name="locationId"] option:checked')).toHaveText(`Flower ${id}`);
   await expect(first).toBeChecked();
   await expect(page.locator('select[name="bulkAction"]')).toHaveValue("MOVE");
-  await page.getByRole("button", { name: "Apply to ticked plants" }).click();
+  await page.getByRole("button", { name: "Apply to checked plants" }).click();
   await expect(page.getByText("1 plant moved.")).toBeVisible();
 });
 
@@ -472,7 +472,7 @@ test("distribution: a new order can ship to a brand-new vendor or a new location
   await signIn(page, "sales@demo.test", "/distribution");
   await page.locator('input[name="notes"]').fill(`notes ${id}`);
 
-  // A brand-new vendor; ticking the license check verifies it the same way the vendor page does.
+  // A brand-new vendor; checking the license check verifies it the same way the vendor page does.
   await page.getByRole("button", { name: "Add destination" }).click();
   const drawer = dialog(page);
   await drawer.locator('input[name="name"]').fill(`Shop ${id}`);
@@ -501,7 +501,7 @@ test("distribution: a new order can ship to a brand-new vendor or a new location
   await expect(drawer).toBeHidden();
   await expect(page.locator('select[name="destinationId"] option:checked')).toHaveText(`Turquoise Trail Dispensary – Uptown ${id} (U-${id.toUpperCase()})`);
 
-  // An expired license can't be ticked as verified.
+  // An expired license can't be checked as verified.
   await page.getByRole("button", { name: "Add destination" }).click();
   await drawer.locator('input[name="name"]').fill(`Old ${id}`);
   await drawer.locator('input[name="licenseNumber"]').fill(`X-${id}`);
@@ -517,7 +517,7 @@ test("distribution: a new order can ship to a brand-new vendor or a new location
 
   await page.getByRole("button", { name: "Start order" }).click();
   await expect(page.getByRole("heading", { level: 1, name: /^SO-\d{5}/ })).toBeVisible();
-  // It ships to the new location, which wasn't ticked as checked, so the order says so.
+  // It ships to the new location, which wasn't marked as checked, so the order says so.
   await expect(page.getByText(`Turquoise Trail Dispensary (Uptown ${id})'s license has not been verified yet`)).toBeVisible();
 });
 

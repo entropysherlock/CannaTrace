@@ -175,12 +175,12 @@ const shipLabel = (d: { name: string; licenseNumber: string }, vendor: string) =
   group: vendor,
 });
 
-/** Refuses a "verified" tick on a license whose expiry date has already passed, before anything is saved. */
+/** Refuses a "verified" check on a license whose expiry date has already passed, before anything is saved. */
 async function checkVerifyTick(formData: FormData, facilityId: string): Promise<string | null> {
   if (formData.get("verifyNow") !== "on") return null;
   const expires = field(formData, "licenseExpires");
   if (expires && expires < (await facilityToday(facilityId))) {
-    return `This license expired on ${expires}, so it can't be marked verified. Untick the box, or enter the new expiry date from the state's lookup.`;
+    return `This license expired on ${expires}, so it can't be marked verified. Uncheck the box, or enter the new expiry date from the state's lookup.`;
   }
   return null;
 }

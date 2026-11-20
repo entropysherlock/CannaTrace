@@ -55,14 +55,14 @@ export async function manifestContext(session: Session, proposal: DocProposal): 
 
 export type ManifestLine = { tag: string; itemId: string; quantity: string; lot: string };
 
-/** Receive every ticked line as its own package, together or not at all, then mark the manifest done. */
+/** Receive every checked line as its own package, together or not at all, then mark the manifest done. */
 export async function receiveManifest(session: Session, input: { attachmentId: string; locationId: string; vendorId: string; lines: ManifestLine[] }): Promise<{ count: number }> {
   if (!can(session, "inventory.write")) throw new InventoryError("Your role can't receive inventory.");
   const scan = await getScan(session, input.attachmentId);
   if (!scan || scan.proposal.kind !== "DOC" || scan.proposal.docType !== "MANIFEST") throw new InventoryError("That manifest hasn't been read yet.");
   if (scan.status === "APPLIED") throw new InventoryError("This manifest was already received.");
   const lines = input.lines;
-  if (!lines.length) throw new InventoryError("Tick at least one package to receive.");
+  if (!lines.length) throw new InventoryError("Check at least one package to receive.");
   if (lines.length > MANIFEST_LINE_LIMIT) throw new InventoryError(`Receive at most ${MANIFEST_LINE_LIMIT} packages at a time.`);
   if (!input.locationId) throw new InventoryError("Choose where the packages are put away.");
   const seen = new Set<string>();

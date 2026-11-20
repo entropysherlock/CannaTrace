@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { TickedLabelLink } from "@/components/labels/ticked-label-link";
+import { CheckedLabelLink } from "@/components/labels/checked-label-link";
 import { ActionForm } from "@/components/action-form";
 import { PackageBulkFields } from "@/components/package-bulk-fields";
 import { packageBulkAction } from "./actions";
@@ -103,7 +103,7 @@ export default async function InventoryPage({
         action={
           <div className="flex flex-wrap items-center gap-2">
             {can(session, "labels.print") ? (
-              <TickedLabelLink shownIds={rows.length <= 100 ? rows.map((r) => r.id) : []} />
+              <CheckedLabelLink shownIds={rows.length <= 100 ? rows.map((r) => r.id) : []} />
             ) : null}
             {can(session, "inventory.write") ? (
               <Link href="/inventory/receive" className={buttonLinkClass}>
@@ -143,7 +143,7 @@ export default async function InventoryPage({
           {rows.map((pkg) => (
             <li key={pkg.id} className="flex items-center">
               {bulk ? (
-                <input type="checkbox" name="packageId" value={pkg.id} aria-label={`Tick ${pkg.tag}`} className="ml-4 h-5 w-5 shrink-0 accent-brand-700" />
+                <input type="checkbox" name="packageId" value={pkg.id} aria-label={`Check ${pkg.tag}`} className="ml-4 h-5 w-5 shrink-0 accent-brand-700" />
               ) : null}
               <Link href={`/inventory/${pkg.id}`} className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
                 <div className="min-w-0">
@@ -189,11 +189,11 @@ export default async function InventoryPage({
   );
 }
 
-/** With permission to act, the list sits in a form beside the "With the ticked packages" panel. */
+/** With permission to act, the list sits in a form beside the "With the checked packages" panel. */
 function Wrap({ bulk, side, children }: { bulk: boolean; side: React.ReactNode; children: React.ReactNode }) {
   if (!bulk) return <>{children}</>;
   return (
-    <ActionForm action={packageBulkAction} submitLabel="Apply to ticked packages" className="grid gap-5 lg:grid-cols-3">
+    <ActionForm action={packageBulkAction} submitLabel="Apply to checked packages" className="grid gap-5 lg:grid-cols-3">
       <div className="lg:col-span-2">{children}</div>
       <div className="lg:sticky lg:top-4 lg:self-start">{side}</div>
     </ActionForm>

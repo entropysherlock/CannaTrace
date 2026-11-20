@@ -24,7 +24,7 @@ export default async function HarvestsPage() {
       <CultivationTabs current="/cultivation/harvests" />
       {rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
-          No harvests yet. On the Plants tab, tick flowering plants and choose Harvest.
+          No harvests yet. On the Plants tab, check flowering plants and choose Harvest.
         </p>
       ) : (
         <ScrollBox label="Harvests" size="lg" className="rounded-lg border border-slate-200 bg-white shadow-sm">

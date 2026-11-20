@@ -121,7 +121,7 @@ export const WEBHOOK_EVENTS = [
 export async function createWebhook(actor: Actor, input: { url: string; events: string[] }): Promise<{ secret: string }> {
   const url = checkWebhookUrl(input.url);
   const events = input.events.filter((e) => (WEBHOOK_EVENTS as readonly string[]).includes(e));
-  if (events.length === 0) throw new InventoryError("Tick at least one event to send.");
+  if (events.length === 0) throw new InventoryError("Check at least one event to send.");
   const secret = `whsec_${randomBytes(24).toString("base64url")}`;
   await db.transaction(async (tx) => {
     const [made] = await tx

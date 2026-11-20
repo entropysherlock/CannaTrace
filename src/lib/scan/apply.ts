@@ -85,7 +85,7 @@ export async function invoiceContext(session: Session, proposal: DocProposal): P
 
 export async function applyInvoice(session: Session, input: { attachmentId: string; lines: { packageId: string; costPerUnit: string }[] }): Promise<{ count: number }> {
   const { scan, proposal } = await claim(session, input.attachmentId, "INVOICE", "inventory.write", "record costs");
-  if (!input.lines.length) throw new InventoryError("Tick at least one line to record its cost.");
+  if (!input.lines.length) throw new InventoryError("Check at least one line to record its cost.");
   if (input.lines.length > LINE_LIMIT) throw new InventoryError(`Record at most ${LINE_LIMIT} lines at a time.`);
   const actor = actorOf(session);
   const number = val(proposal, "invoiceNumber");
@@ -148,7 +148,7 @@ export async function harvestContext(session: Session, proposal: DocProposal): P
 
 export async function applyHarvestSheet(session: Session, input: { attachmentId: string; name: string; unit: string; locationId: string; rows: { plantId: string; weight: string }[] }): Promise<{ harvestId: string; plants: number }> {
   const { scan } = await claim(session, input.attachmentId, "HARVEST_SHEET", "cultivation.write", "record a harvest");
-  if (!input.rows.length) throw new InventoryError("Tick at least one plant that was harvested.");
+  if (!input.rows.length) throw new InventoryError("Check at least one plant that was harvested.");
   let total = new Decimal(0);
   for (const [i, r] of input.rows.entries()) {
     const w = cleanNumber(r.weight);
@@ -258,7 +258,7 @@ export async function applyPriceList(
   input: { attachmentId: string; listId: string; newListName: string; rows: { itemId: string; sku: string; product: string; category: string; unit: string; price: string }[] },
 ): Promise<{ prices: number; created: number; listName: string }> {
   const { scan } = await claim(session, input.attachmentId, "PRICE_LIST", "sales.write", "set prices");
-  if (!input.rows.length) throw new InventoryError("Tick at least one product.");
+  if (!input.rows.length) throw new InventoryError("Check at least one product.");
   if (input.rows.length > LINE_LIMIT) throw new InventoryError(`Save at most ${LINE_LIMIT} products at a time.`);
   const actor = actorOf(session);
   input.rows.forEach((r, i) => {
@@ -330,7 +330,7 @@ export async function applyWholesaleOrder(
 ): Promise<{ orderId: string; number: string; added: number; problems: string[] }> {
   const { scan, proposal } = await claim(session, input.attachmentId, "WHOLESALE_ORDER", "sales.write", "create orders");
   if (!input.customerId) throw new InventoryError("Pick the customer this order is for.");
-  if (!input.lines.length) throw new InventoryError("Tick at least one line.");
+  if (!input.lines.length) throw new InventoryError("Check at least one line.");
   if (input.lines.length > LINE_LIMIT) throw new InventoryError(`Add at most ${LINE_LIMIT} lines at a time.`);
   const seen = new Set<string>();
   input.lines.forEach((l, i) => {

@@ -149,7 +149,7 @@ export function ManifestReview({ attachmentId, name, isPdf, proposal, ctx }: { a
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 backdrop-blur print:hidden">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3">
           <p className="min-w-0 flex-1 text-sm text-slate-700" role="status">
-            {error ? <span className="font-semibold text-red-700" role="alert">{error}</span> : !locationId ? "Choose where the packages go." : unmatched ? `${unmatched} line${unmatched === 1 ? " needs" : "s need"} an item.` : chosen.length ? `Ready to receive ${chosen.length} package${chosen.length === 1 ? "" : "s"}.` : "Tick the packages to receive."}
+            {error ? <span className="font-semibold text-red-700" role="alert">{error}</span> : !locationId ? "Choose where the packages go." : unmatched ? `${unmatched} line${unmatched === 1 ? " needs" : "s need"} an item.` : chosen.length ? `Ready to receive ${chosen.length} package${chosen.length === 1 ? "" : "s"}.` : "Check the packages to receive."}
           </p>
           <Link href="/inbox" className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold hover:bg-slate-50">Not now</Link>
           <button type="button" disabled={!ready || pending} onClick={submit} className="inline-flex items-center gap-2 rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50" data-testid="manifest-receive">

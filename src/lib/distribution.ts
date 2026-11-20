@@ -76,7 +76,7 @@ export async function createCustomer(
   const name = required(input.name, "Enter the vendor's business name.");
   const weSellTo = input.weSellTo ?? true;
   const weBuyFrom = input.weBuyFrom ?? false;
-  if (!weSellTo && !weBuyFrom) throw new InventoryError("Tick at least one: you sell to them, you buy from them, or both.");
+  if (!weSellTo && !weBuyFrom) throw new InventoryError("Check at least one: you sell to them, you buy from them, or both.");
   const licenseNumber = required(input.licenseNumber, "Enter the customer's license number.", 60).toUpperCase();
   const licenseType = required(input.licenseType, "Enter the license type, for example Retailer.", 60);
   const licenseExpires = parseDate(input.licenseExpires, "License expiry date");

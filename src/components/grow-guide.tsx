@@ -31,8 +31,8 @@ export type GrowData = {
 const STEPS = [
   { short: "Start", title: "Start a batch", info: "Pick the strain and how many plants. The batch name fills itself in." },
   { short: "Tag", title: "Tag your plants", info: "Leave the first tag blank to use the next tags in order, or scan or type your own." },
-  { short: "Move", title: "Move or change stage", info: "Tick the plants, then say where they go or what stage they are in. Do both in one go if you like." },
-  { short: "Harvest", title: "Harvest", info: "Tick the flowering plants you cut, enter the wet weight, and pick the room where they will dry." },
+  { short: "Move", title: "Move or change stage", info: "Check the plants, then say where they go or what stage they are in. Do both in one go if you like." },
+  { short: "Harvest", title: "Harvest", info: "Check the flowering plants you cut, enter the wet weight, and pick the room where they will dry." },
   { short: "Dry", title: "Dry weight", info: "When the harvest is dry, weigh it and enter the weight here. Log any waste below." },
   { short: "Package", title: "Package", info: "Choose the item and weight. Packages are created and ready to label." },
 ] as const;
@@ -62,7 +62,7 @@ function RoomSelect({ data, name, label, defaultValue, required = true, onChange
   );
 }
 
-/** Groups of plants to tick (a batch in one room at one stage), so a whole room is one tap. */
+/** Groups of plants to check (a batch in one room at one stage), so a whole room is one tap. */
 function PlantGroups({ groups, empty }: { groups: GrowData["plantGroups"]; empty: string }) {
   const [on, setOn] = useState<Set<string>>(new Set());
   if (!groups.length) return <p className="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">{empty}</p>;
@@ -73,7 +73,7 @@ function PlantGroups({ groups, empty }: { groups: GrowData["plantGroups"]; empty
       <legend className="mb-1 flex w-full items-center justify-between text-sm font-semibold text-slate-800">
         Which plants
         <button type="button" className="text-xs font-bold text-brand-700 hover:underline" onClick={() => setOn(on.size === groups.length ? new Set() : new Set(groups.map((g) => g.key)))}>
-          {on.size === groups.length ? "Clear" : "Tick all"}
+          {on.size === groups.length ? "Clear" : "Check all"}
         </button>
       </legend>
       {groups.map((g) => (

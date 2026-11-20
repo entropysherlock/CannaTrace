@@ -273,14 +273,14 @@ export async function receiveShipmentAction(formData: FormData): Promise<Shipmen
   }
 }
 
-/** The tick-and-apply bar on Inventory → Packages: move, hold, quarantine, release, or print labels for many at once. */
+/** The check-and-apply bar on Inventory → Packages: move, hold, quarantine, release, or print labels for many at once. */
 export async function packageBulkAction(_state: FormState, formData: FormData): Promise<FormState> {
   const ids = formData.getAll("packageId").map(String).filter(Boolean);
   const action = field(formData, "bulkAction");
   if (action === "LABELS") {
     // Printing only needs the labels permission; the label page checks it again.
     await requirePermission("labels.print");
-    if (!ids.length) return { error: "Tick at least one package first." };
+    if (!ids.length) return { error: "Check at least one package first." };
     redirect(`/labels?kind=PACKAGE&ids=${ids.slice(0, 1000).join(",")}`);
   }
   const plural = (n: number) => `${n} package${n === 1 ? "" : "s"}`;
@@ -296,7 +296,7 @@ export async function packageBulkAction(_state: FormState, formData: FormData): 
       const words = action === "ACTIVE" ? "released" : action === "ON_HOLD" ? "put on hold" : "put in quarantine";
       message = `${plural(r.changed)} ${words}.${r.already ? ` ${plural(r.already)} ${r.already === 1 ? "was" : "were"} already ${action === "ACTIVE" ? "active" : action === "ON_HOLD" ? "on hold" : "in quarantine"}.` : ""}`;
     } else {
-      return { error: "Choose what to do with the ticked packages." };
+      return { error: "Choose what to do with the checked packages." };
     }
     revalidatePath("/inventory", "layout");
     return { ok: message };

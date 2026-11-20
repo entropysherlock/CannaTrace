@@ -33,7 +33,7 @@ test("an invoice sets the cost on the package it was for, and asks before replac
   await upload(page, `invoice-costs-${Date.now().toString(36)}.png`, "Invoice");
   const lines = page.getByTestId("invoice-lines").locator("li");
   await expect(lines).toHaveCount(1);
-  // The seeded package already has a cost, so the line starts unticked with a warning
+  // The seeded package already has a cost, so the line starts unchecked with a warning
   await expect(lines.first()).toContainText("already has a cost");
   await expect(page.getByTestId("apply-button")).toBeDisabled();
   await page.getByLabel("Cost line 1").check();

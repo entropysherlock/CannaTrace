@@ -38,7 +38,7 @@ test("a manager turns on the menu, a visitor reserves, and staff turn it into a 
   await v.getByLabel("Your name").fill("Pat Visitor");
   await v.getByLabel("Phone").fill(phone);
   await v.getByRole("button", { name: "Reserve for pickup" }).click();
-  await expect(v.getByText("Please confirm you are 21 or older.")).toBeVisible(); // the box is not ticked yet
+  await expect(v.getByText("Please confirm you are 21 or older.")).toBeVisible(); // the box is not checked yet
   await v.getByLabel(/I am 21 or older/).check();
   await v.getByRole("button", { name: "Reserve for pickup" }).click();
   await expect(v.getByTestId("reservation-confirmation")).toBeVisible();
