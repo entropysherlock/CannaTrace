@@ -19,6 +19,7 @@ test("a photographed lab certificate is read, checked, and saved to a package in
   await page.getByTestId("camera-input").setInputFiles({ name: "coa-desert-haze.png", mimeType: "image/png", buffer: await png() });
   await expect(page.getByTestId("shots")).toContainText("Ready to review", { timeout: 40_000 });
   await expect(page.getByTestId("shots")).toContainText("Lab certificate");
+  await expect(page.getByTestId("review-shot").first()).toBeVisible();
 
   // A receipt is not a certificate
   await page.getByTestId("file-input").setInputFiles({ name: "receipt-unreadable.png", mimeType: "image/png", buffer: await png() });
