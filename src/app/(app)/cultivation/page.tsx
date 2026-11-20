@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ne, sql } from "drizzle-orm";
 import { GrowGuide, type GrowData } from "@/components/grow-guide";
 import { PageHeader } from "@/components/ui";
 import { harvests, items, locations, plantBatches, plants, strains } from "@/db/schema";
@@ -38,7 +38,7 @@ export default async function GrowPage() {
       .orderBy(asc(plantBatches.name))
       .limit(2000),
     db
-      .select({ h: harvests, strain: strains.name })
+      .select({ h: harvests, strain: strains.name, age: sql<number>`floor(extract(epoch from (now() - ${harvests.harvestedAt})) / 86400)::int` })
       .from(harvests)
       .innerJoin(strains, eq(strains.id, harvests.strainId))
       .where(and(here(harvests), ne(harvests.status, "FINISHED")))
@@ -56,7 +56,13 @@ export default async function GrowPage() {
   }
   const plantGroups = [...groups.values()];
 
-  const dryingHarvests = harvestRows.filter((r) => r.h.status === "DRYING" && r.h.dryWeight === null).map((r) => ({ id: r.h.id, label: `${r.h.name} · ${r.strain} · wet ${grams(r.h.wetWeight)}` }));
+  const dryingAll = harvestRows
+    .filter((r) => r.h.status === "DRYING" && r.h.dryWeight === null)
+    .map((r) => ({ id: r.h.id, day: Math.max(1, Number(r.age) + 1), label: `${r.h.name} · ${r.strain} · wet ${grams(r.h.wetWeight)}` }));
+  // Most flower dries in about a week or more; before day 7 it is still waiting, not undone.
+  const READY_DAY = 7;
+  const dryingHarvests = dryingAll.map((d) => ({ id: d.id, label: `${d.label} · drying day ${d.day}`, day: d.day, ready: d.day >= READY_DAY }));
+  const waitingToDry = dryingHarvests.filter((d) => !d.ready).length;
   const packable = harvestRows
     .map((r) => ({ id: r.h.id, label: `${r.h.name} · ${r.strain}`, left: harvestOnHand(r.h) }))
     .filter((r) => r.left.gt(0))
@@ -65,9 +71,9 @@ export default async function GrowPage() {
 
   const untagged = batchRows.reduce((n, b) => n + b.untagged, 0);
   const floweringCount = plantRows.filter((p) => p.phase === "FLOWERING").length;
-  const counts = { untagged, plants: plantRows.length, flowering: floweringCount, toDry: dryingHarvests.length, toPackage: packable.length };
+  const counts = { untagged, plants: plantRows.length, flowering: floweringCount, toDry: dryingHarvests.filter((d) => d.ready).length, waiting: waitingToDry, toPackage: packable.length };
   // Where the grow most likely is: the step with something waiting, working back from the end.
-  const suggested = counts.toPackage ? 5 : counts.toDry ? 4 : counts.untagged ? 1 : counts.plants ? 2 : 0;
+  const suggested = counts.toPackage ? 5 : counts.toDry ? 4 : counts.waiting && !counts.untagged && !counts.plants ? 4 : counts.untagged ? 1 : counts.plants ? 2 : 0;
 
   const data: GrowData = {
     canAddRoom: can(session, "settings.manage"),
