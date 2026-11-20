@@ -54,10 +54,11 @@ test("a walkthrough survives a reload, offers to take you back, and can be exite
   await page.reload();
   await expect(bubble).toContainText("step 1 of 6");
 
-  // Wandering off: the bubble says so and brings them back
+  // Wandering off on purpose: the walkthrough doesn't pull them back, but offers to
   await page.goto("/inventory");
-  await expect(bubble).toContainText("This step happens on another page");
-  await bubble.getByRole("button", { name: "Take me there" }).click();
+  await expect(bubble).toContainText("You've left this step's page");
+  await expect(page).toHaveURL(/\/inventory$/);
+  await bubble.getByRole("button", { name: "Take me back" }).click();
   await expect(page).toHaveURL(/\/manufacturing\/recipes$/);
 
   // Next opens the runs page by itself: no second click
@@ -134,4 +135,20 @@ test("Back returns to the step's own page and stays there; the button lives on t
   await bubble.getByTestId("walk-next").click();
   await expect(page).toHaveURL(harvestUrl);
   await expect(bubble).toContainText("step 2 of 7");
+});
+
+test("a step on a particular record opens one by itself: Next never strands you on the wrong page", async ({ page }) => {
+  await signIn(page, "manager@demo.test");
+  await page.goto("/dashboard?walk=find-and-move");
+  await expect(page).toHaveURL(/\/inventory$/);
+  const bubble = page.getByTestId("walk-bubble");
+  await expect(bubble).toContainText("Scan or search");
+  await bubble.getByTestId("walk-next").click();
+  await expect(bubble).toContainText("Open the package");
+  // Skipping the click: the next step happens on a package, so the walkthrough opens the newest one
+  await bubble.getByTestId("walk-next").click();
+  await expect(page).toHaveURL(/\/inventory\/(?!receive)[^/]+$/);
+  await expect(bubble).toContainText("Check what you have");
+  await expect(bubble).not.toContainText("left this step");
+  await expect(page.getByTestId("walk-spotlight")).toBeVisible();
 });

@@ -19,11 +19,35 @@ export type Target =
   /** A form field, by its name. */
   | { field: string };
 
+/** Kinds of record a step can happen on, so a walkthrough can open one when the person isn't on one. */
+export const FIND_KINDS = ["harvest", "harvest-packaged", "package", "package-label", "batch", "run", "order", "sale", "receipt", "drawer", "count"] as const;
+export type FindKind = (typeof FIND_KINDS)[number];
+
+/** What each kind is called when there isn't one to show yet. */
+export const FIND_NOUNS: Record<FindKind, string> = {
+  harvest: "a harvest",
+  "harvest-packaged": "a harvest with packages made from it",
+  package: "a package",
+  "package-label": "a package",
+  batch: "a plant batch",
+  run: "a production run",
+  order: "a wholesale order",
+  sale: "an open sale",
+  receipt: "a finished sale",
+  drawer: "a counted-out drawer",
+  count: "a location with stock to count",
+};
+
 export type Step = {
   /** The page this step happens on. */
   path: RegExp;
-  /** Where "Take me there" goes when the step's page is a fixed address. */
+  /** The step's page when it's a fixed address. The walkthrough opens it when the person isn't there. */
   go?: string;
+  /**
+   * For a step on one particular record (a harvest, an order): which kind, and the statuses it should be in,
+   * best first. When the person isn't on one, the walkthrough opens the newest one here.
+   */
+  find?: { kind: FindKind; status?: string[]; /** What's missing when there's none, e.g. "a draft order". */ none?: string };
   /** What to highlight: the first of these found on the page. None means a message in the middle. */
   target?: Target[];
   title: string;
@@ -87,18 +111,21 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: HARVEST,
+        find: { kind: "harvest", status: ["DRYING"], none: "a harvest that's still drying" },
         target: [{ card: "Record dry weight" }, { card: "Packages made" }],
         title: "Record the dry weight",
         body: "When it's done drying, weigh the whole harvest and save the dry weight here. Already done? Press Next.",
       },
       {
         path: HARVEST,
+        find: { kind: "harvest", status: ["DRYING"], none: "a harvest that's still drying" },
         target: [{ card: "Package from this harvest" }],
         title: "Make packages",
         body: "Pick the item, how much goes in each package, and how many packages to make: ten jars of the same size is one save. Leave the tag blank and CannaTrace makes a unique ID for each. Strain and harvest come along automatically.",
       },
       {
         path: HARVEST,
+        find: { kind: "harvest-packaged" },
         target: [{ link: "/inventory/", inCard: "Packages made" }],
         title: "Open a new package",
         body: "Here's what you made. Open a package to test and label it.",
@@ -106,12 +133,14 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: PACKAGE,
+        find: { kind: "package", status: ["ACTIVE"] },
         target: [{ fold: "Add lab result" }, { card: "Lab results" }],
         title: "Record the lab test",
         body: "When the certificate comes back, enter the THC, CBD, and pass or fail here. A package can't be sold until it passes.",
       },
       {
         path: PACKAGE,
+        find: { kind: "package", status: ["ACTIVE"] },
         target: [
           { text: "Print product label" },
           { text: "Print package label" },
@@ -122,6 +151,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: /^\/labels/,
+        find: { kind: "package-label" },
         title: "That's the whole job",
         body: "Check the preview and print. From harvest to a labelled package on the shelf, every step is in the audit trail.",
       },
@@ -151,6 +181,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: BATCH,
+        find: { kind: "batch", status: ["ACTIVE"], none: "an active plant batch" },
         target: [{ card: "Tag plants" }],
         title: "Tag the plants",
         body: "Give each plant its own ID. Leave tags blank and CannaTrace numbers them for you (PLT-000123).",
@@ -188,12 +219,14 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: /^\/manufacturing$/,
+        go: "/manufacturing",
         target: [{ card: "Start a new run" }],
         title: "Name it and start",
         body: "The run name is filled in for today. Choose the recipe and batches, then press Start run.",
       },
       {
         path: RUN,
+        find: { kind: "run", status: ["IN_PROGRESS"], none: "a production run in progress" },
         target: [{ card: "Add an input" }],
         title: "Add what you use",
         body: "Scan or type each input package's tag and how much you took. The list above shows what's still to go.",
@@ -201,12 +234,14 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: RUN,
+        find: { kind: "run", status: ["IN_PROGRESS"], none: "a production run in progress" },
         target: [{ card: "Complete the run" }],
         title: "Complete the run",
         body: "Enter how much you actually made and where it goes. CannaTrace works out yield and cost per unit and makes the output package.",
       },
       {
         path: RUN,
+        find: { kind: "run", status: ["COMPLETED", "IN_PROGRESS"], none: "a production run" },
         target: [
           { text: "Print product label" },
           { text: "Print package label" },
@@ -233,6 +268,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: ORDER,
+        find: { kind: "order", status: ["DRAFT"], none: "a draft order" },
         target: [{ card: "Add a line" }],
         title: "Add what they ordered",
         body: "One line per product: the item, how many, and the price. Their price list fills the price in.",
@@ -240,12 +276,14 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: ORDER,
+        find: { kind: "order", status: ["DRAFT"], none: "a draft order" },
         target: [{ card: "Confirm the order" }],
         title: "Confirm it",
         body: "Confirming locks the lines so the warehouse can pick.",
       },
       {
         path: ORDER,
+        find: { kind: "order", status: ["CONFIRMED"], none: "an order waiting to be picked" },
         target: [{ card: "Pick packages" }],
         title: "Pick packages",
         body: "Press \"Pick everything, oldest first\" to fill every line at once, or open \"Or scan one package\" to scan them yourself. CannaTrace checks each is the right item, has enough, and passed its lab test.",
@@ -253,18 +291,21 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: ORDER,
+        find: { kind: "order", status: ["CONFIRMED"], none: "an order waiting to be picked" },
         target: [{ card: "Mark packed" }],
         title: "Pack it",
         body: "When everything's picked and boxed, mark it packed.",
       },
       {
         path: ORDER,
+        find: { kind: "order", status: ["PACKED"], none: "a packed order waiting to ship" },
         target: [{ card: "Ship" }],
         title: "Ship it",
         body: "Choose the driver and vehicle. Shipping creates the manifest and the invoice together.",
       },
       {
         path: ORDER,
+        find: { kind: "order", status: ["SHIPPED", "DELIVERED"], none: "a shipped order" },
         target: [{ card: "Shipment" }],
         title: "Print and get paid",
         body: "Print the manifest for the driver, and open the invoice to record payment when it comes in.",
@@ -287,18 +328,21 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: /^\/inventory\/receive$/,
+        go: "/inventory/receive",
         target: [{ field: "itemId" }],
         title: "What is it?",
         body: "Choose the product. Not listed? Add it under Catalog first.",
       },
       {
         path: /^\/inventory\/receive$/,
+        go: "/inventory/receive",
         target: [{ field: "quantity" }],
         title: "How much arrived",
         body: "Enter the amount in the product's unit, then where you're putting it away.",
       },
       {
         path: /^\/inventory\/receive$/,
+        go: "/inventory/receive",
         target: [{ text: "Receive" }],
         title: "Receive it",
         body: "Press Receive. The package is in inventory and on the audit trail right away.",
@@ -306,6 +350,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: PACKAGE,
+        find: { kind: "package", status: ["ACTIVE"] },
         title: "Done",
         body: "This is the package's page: move it, test it, label it, or split it from here.",
       },
@@ -330,6 +375,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: /^\/pos$/,
+        go: "/pos",
         target: [{ text: "Start sale" }, { text: "No scanner?" }],
         title: "Check their ID",
         body: "Scan the barcode on the back of the customer's ID. CannaTrace checks their age and that the ID hasn't expired. No scanner? Type the dates from the ID. When it says OK to serve, press Start sale.",
@@ -338,6 +384,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: SALE,
+        find: { kind: "sale", status: ["OPEN"], none: "an open sale" },
         target: [{ text: "Pay" }],
         title: "Ring up and take payment",
         body: "Scan each product's barcode, or tap it on the menu. The bars under the cart show how close they are to today's limits, and CannaTrace stops you before they go over. Then press Pay (or F2), choose cash, debit, or split, and press Complete sale. For cash, type what they handed you and CannaTrace shows the change. For debit, run it on the card terminal first.",
@@ -345,6 +392,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: RECEIPT,
+        find: { kind: "receipt" },
         target: [{ text: "Print receipt" }, { text: "Next customer" }],
         title: "Hand over the receipt",
         body: "The receipt lists every package tag the product came from. Print it if they want it, then press Next customer for the next person in line.",
@@ -359,6 +407,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: /^\/pos\/drawer\/[^/]+$/,
+        find: { kind: "drawer", status: ["CLOSED"], none: "a counted-out drawer" },
         title: "Your end-of-shift report",
         body: "This is your shift: sales, cash, card, and whether the drawer was over or short. Tell your manager about any difference before you leave.",
       },
@@ -381,6 +430,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: /^\/inventory$/,
+        go: "/inventory",
         target: [PACKAGE_LINK],
         title: "Open the package",
         body: "Check the tag matches the one in your hand, then open it.",
@@ -388,6 +438,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: PACKAGE,
+        find: { kind: "package", status: ["ACTIVE"] },
         target: [{ card: "Details" }],
         title: "Check what you have",
         body: "The quantity, where it's stored, its lot, and its status. Only Active packages can be sold or shipped. Anything on hold or in quarantine stays where it is.",
@@ -395,12 +446,14 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: PACKAGE,
+        find: { kind: "package", status: ["ACTIVE"] },
         target: [{ fold: "Move" }],
         title: "Move it",
         body: "Choose the new room or shelf and press Move package.",
       },
       {
         path: PACKAGE,
+        find: { kind: "package", status: ["ACTIVE"] },
         target: [{ card: "Inventory history" }],
         title: "There's the record",
         body: "Every move, count, and adjustment shows here with who did it and when. Nobody edits a quantity directly, so every change leaves a trail.",
@@ -424,18 +477,21 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: COUNT,
+        find: { kind: "count" },
         title: "Count what's really there",
         body: "For each package, enter what you actually find, in the unit shown. Don't copy the system's number. Enter 0 for a package that's missing.",
         advance: "next",
       },
       {
         path: COUNT,
+        find: { kind: "count" },
         target: [{ text: "Save count" }],
         title: "Save the count",
         body: "Press Save count. Any difference becomes a logged correction with your name on it, and it's reported to the state like any other adjustment.",
       },
       {
         path: COUNT,
+        find: { kind: "count" },
         title: "Big difference?",
         body: "A big miss usually means a missed shelf or a move nobody recorded. Look again before anyone recounts, and tell your manager about anything you can't explain.",
       },
@@ -458,6 +514,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: /^\/inventory$/,
+        go: "/inventory",
         target: [PACKAGE_LINK],
         title: "Open it",
         body: "Make sure the tag matches the product in front of you, then open it.",
@@ -465,18 +522,21 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: PACKAGE,
+        find: { kind: "package", status: ["ACTIVE"] },
         target: [{ fold: "Hold, quarantine, or destroy" }],
         title: "Put it on hold",
         body: "Choose On hold (or Quarantine for a failed test) and say why, for example \"Broken seal, 3 jars\". Held product can't be sold, shipped, or used, and the state's hold clock starts now.",
       },
       {
         path: PACKAGE,
+        find: { kind: "package", status: ["ON_HOLD", "ACTIVE"] },
         title: "Wait out the hold period",
         body: "New Mexico requires waste to sit on hold for 72 hours before it's destroyed, and other states have their own rule. CannaTrace won't let you destroy it early and tells you the exact time it's allowed. Keep it in the quarantine area until then.",
         advance: "next",
       },
       {
         path: PACKAGE,
+        find: { kind: "package", status: ["ON_HOLD", "ACTIVE"] },
         target: [{ fold: "Hold, quarantine, or destroy" }],
         title: "Destroy it when the time comes",
         body: "Mix it with at least as much non-cannabis waste (soil, cat litter, food waste) so it's unusable. Then come back here, choose Destroyed, say how, and tick the mixing box. That's your destruction record for the state.",
@@ -508,12 +568,14 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: /^\/watch$/,
+        go: "/watch",
         title: "Fix it, or ask",
         body: "Where a fix is safe, the finding has a button such as Hold it or Prepare the labels. It shows exactly what will change before you approve, and every fix can be undone. Otherwise, Open takes you to the record and Ask Tally explains it.",
         advance: "next",
       },
       {
         path: /^\/watch$/,
+        go: "/watch",
         title: "Ask Tally anything",
         body: "Press the Tally button at the bottom right (or Ctrl+J) and ask in plain English: \"What's on hold?\", \"Where is package CT-000101?\", \"What sold yesterday?\" Tally only sees what your role can see, and never changes anything until you press Confirm.",
       },

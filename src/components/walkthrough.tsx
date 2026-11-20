@@ -23,9 +23,11 @@ import {
   X,
 } from "lucide-react";
 import {
+  FIND_NOUNS,
   stepAfterArriving,
   walkthroughById,
   WALKTHROUGHS,
+  type Step,
   type Target,
   type Walkthrough,
 } from "@/lib/walkthroughs";
@@ -157,6 +159,20 @@ export function findTarget(
   return null;
 }
 
+/** The page for a step: where it was last seen, its fixed address, or the newest matching record here. */
+async function pageFor(step: Step, seenAt?: string): Promise<string | null> {
+  if (seenAt) return seenAt;
+  if (step.go) return step.go;
+  if (!step.find) return null;
+  try {
+    const q = new URLSearchParams({ kind: step.find.kind, status: (step.find.status ?? []).join(",") });
+    const res = await fetch(`/api/walkthrough/find?${q}`, { cache: "no-store" });
+    return res.ok ? ((await res.json()) as { url: string | null }).url : null;
+  } catch {
+    return null;
+  }
+}
+
 type Ctx = { start: (id: string) => void; openPicker: () => void; available: boolean };
 const WalkCtx = createContext<Ctx>({ start: () => {}, openPicker: () => {}, available: false });
 export const useWalkthrough = () => useContext(WalkCtx);
@@ -237,6 +253,52 @@ export function WalkthroughProvider({
   }, [pathname, walk?.id, state?.i]);
 
   const onPage = Boolean(step && step.path.test(pathname));
+
+  /*
+   * A step that happens on another page opens that page by itself: its fixed address, the record it was last
+   * seen on, or the newest matching one here (the newest order waiting to be picked). It waits a moment first,
+   * because a click or a save may already be taking the person there. It does this once per step: someone who
+   * then wanders off on purpose isn't pulled back, and gets "Take me back" instead.
+   */
+  // What happened to the current step's page: being opened (from the path it was opened from), nothing here to
+  // show it on, or the person left it themselves.
+  const [auto, setAuto] = useState<{ key: string; phase: "opened" | "nothing" | "left"; from?: string; noun?: string } | null>(null);
+  const stepKey = state ? `${state.id}:${state.i}` : "";
+  useEffect(() => {
+    if (!state || !walk || !step) return;
+    const key = `${state.id}:${state.i}`;
+    if (onPage) return;
+    let cancelled = false;
+    // Already on its page once (it's remembered, even across a reload) and then left on purpose: offer
+    // "Take me back" instead of pulling them there.
+    const leftOnPurpose = Boolean(readState()?.urls?.[state.i]);
+    const t = window.setTimeout(
+      async () => {
+        if (cancelled || step.path.test(window.location.pathname)) return;
+        if (leftOnPurpose) {
+          setAuto({ key, phase: "left" });
+          return;
+        }
+        const from = window.location.pathname;
+        const url = await pageFor(step, readState()?.urls?.[state.i]);
+        const cur = readState();
+        if (cancelled || !cur || `${cur.id}:${cur.i}` !== key) return;
+        if (url) {
+          setAuto({ key, phase: "opened", from });
+          router.push(url);
+        } else setAuto({ key, phase: "nothing", noun: step.find ? (step.find.none ?? FIND_NOUNS[step.find.kind]) : "the page for this step" });
+      },
+      leftOnPurpose ? 0 : 700,
+    );
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.id, state?.i, onPage]);
+  const mine = auto?.key === stepKey ? auto : null;
+  const nothingToShow = !onPage && mine?.phase === "nothing" ? (mine.noun ?? null) : null;
+  const opening = !onPage && (!mine || (mine.phase === "opened" && mine.from === pathname));
 
   /**
    * Go to a step, opening its page when it lives somewhere else, so Next and Back never need a second
@@ -487,11 +549,14 @@ export function WalkthroughProvider({
               if (cur) next(true, cur.i);
             }}
             onExit={() => update(null)}
-            onGo={() => {
-              const target = state!.urls?.[state!.i] ?? step.go;
-              if (target) router.push(target);
+            onGo={async () => {
+              const url = await pageFor(step, readState()?.urls?.[state!.i]);
+              if (url) router.push(url);
+              else setAuto({ key: stepKey, phase: "nothing", noun: step.find ? (step.find.none ?? FIND_NOUNS[step.find.kind]) : "the page for this step" });
             }}
-            canGo={Boolean(state!.urls?.[state!.i] ?? step.go)}
+            canGo={Boolean(state!.urls?.[state!.i] ?? step.go ?? step.find) && !nothingToShow}
+            opening={opening}
+            nothingToShow={nothingToShow}
           />
         </>
       ) : null}
@@ -526,6 +591,8 @@ function Bubble({
   onExit,
   onGo,
   canGo,
+  opening,
+  nothingToShow,
 }: {
   walk: Walkthrough;
   i: number;
@@ -537,6 +604,10 @@ function Bubble({
   onExit: () => void;
   onGo: () => void;
   canGo: boolean;
+  /** The step's page is being opened. */
+  opening: boolean;
+  /** There's no record here to show this step on (no harvest yet): what's missing. */
+  nothingToShow: string | null;
 }) {
   const step = walk.steps[i];
   const last = i === walk.steps.length - 1;
@@ -664,9 +735,20 @@ function Bubble({
           ) : null}
         </>
       ) : (
-        <p className="mt-1 text-sm text-slate-700">
-          This step happens on another page.
-        </p>
+        <>
+          <p className="mt-1 text-sm leading-relaxed text-slate-700">{step.body}</p>
+          {nothingToShow ? (
+            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="walk-nothing">
+              There isn&apos;t {nothingToShow} here yet to show this on. Do the earlier steps first, or press Next to carry on.
+            </p>
+          ) : opening ? (
+            <p className="mt-2 text-xs font-semibold text-brand-700" data-testid="walk-opening">
+              Opening the page for this step…
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-slate-600">You&apos;ve left this step&apos;s page.</p>
+          )}
+        </>
       )}
       <div className="mt-4 flex items-center justify-between gap-2">
         <button
@@ -678,13 +760,13 @@ function Bubble({
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           Back
         </button>
-        {!onPage && canGo ? (
+        {!onPage && canGo && !opening ? (
           <button
             type="button"
             onClick={onGo}
             className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700"
           >
-            Take me there
+            Take me back
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </button>
         ) : (
