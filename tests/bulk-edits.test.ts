@@ -61,7 +61,7 @@ describe.skipIf(!hasDb)("vendors, destinations, and bulk edits (database)", () =
     expect((await createOrder(actor, { customerId: v.id })).destinationId).toBe(first.id); // default: first active
     await updateDestinations(actor, [second.id], { active: false });
     await expect(createOrder(actor, { customerId: v.id, destinationId: second.id })).rejects.toThrow(/inactive/);
-    await expect(createCustomer(actor, { name: "Nobody", licenseNumber: `${run}-V9`, licenseType: "R", licenseExpires: "2030-01-01", weSellTo: false, weBuyFrom: false })).rejects.toThrow(/Tick at least one/);
+    await expect(createCustomer(actor, { name: "Nobody", licenseNumber: `${run}-V9`, licenseType: "R", licenseExpires: "2030-01-01", weSellTo: false, weBuyFrom: false })).rejects.toThrow(/Check at least one/);
   });
 
   it("bulk-edits vendors and destinations, all or nothing, with an audit entry for each and no reach into other businesses", async () => {

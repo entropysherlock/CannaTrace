@@ -345,13 +345,13 @@ export async function movePackage(
   });
 }
 
-/** Most packages a bulk action handles at once (one screen of ticks). */
+/** Most packages a bulk action handles at once (one screen of checks). */
 export const BULK_LIMIT = 200;
 
 function bulkIds(ids: string[]): string[] {
   const unique = [...new Set(ids.filter(Boolean))];
-  if (!unique.length) throw new InventoryError("Tick at least one package first.");
-  if (unique.length > BULK_LIMIT) throw new InventoryError(`Tick at most ${BULK_LIMIT} packages at a time.`);
+  if (!unique.length) throw new InventoryError("Check at least one package first.");
+  if (unique.length > BULK_LIMIT) throw new InventoryError(`Check at most ${BULK_LIMIT} packages at a time.`);
   // A fixed lock order, so two people working on overlapping packages can't deadlock each other.
   return unique.sort();
 }
@@ -1064,7 +1064,7 @@ export async function addLabResult(
     let quarantinedCount = first.quarantined ? 1 : 0;
     for (const id of others) {
       const pkg = await lockPackage(tx, actor, id);
-      if (pkg.status === "FINISHED" || pkg.status === "DESTROYED") throw new InventoryError(`${pkg.tag} is ${pkg.status.toLowerCase()}; untick it. Nothing was saved.`);
+      if (pkg.status === "FINISHED" || pkg.status === "DESTROYED") throw new InventoryError(`${pkg.tag} is ${pkg.status.toLowerCase()}; uncheck it. Nothing was saved.`);
       const r = await recordLabResultInTx(tx, actor, pkg, values, coa ? { name: coa.name, type: coa.type, data: null } : null, coa ? first.id : null);
       if (r.quarantined) quarantinedCount++;
     }

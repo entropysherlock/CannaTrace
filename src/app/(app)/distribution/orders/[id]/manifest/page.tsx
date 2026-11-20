@@ -142,7 +142,7 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
 
         <div className="mt-6 rounded-md border border-slate-300 p-3 break-inside-avoid" data-testid="manifest-rejections">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rejected product</p>
-          <p className="mt-1 text-xs text-slate-600">Tick Rejected above, then describe which package, how much, and what was wrong.</p>
+          <p className="mt-1 text-xs text-slate-600">Check Rejected above, then describe which package, how much, and what was wrong.</p>
           <div className="mt-1 space-y-1">
             {[0, 1, 2, 3].map((n) => (
               <div key={n} className="h-8 border-b border-slate-600" />

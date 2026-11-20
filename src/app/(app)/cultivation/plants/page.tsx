@@ -148,7 +148,7 @@ export default async function PlantsPage({
           No active plants match. Tag plants from a batch on the Overview tab to see them here.
         </p>
       ) : canWrite ? (
-        <ActionForm action={plantBulkAction} submitLabel="Apply to ticked plants" className="grid gap-5 lg:grid-cols-3">
+        <ActionForm action={plantBulkAction} submitLabel="Apply to checked plants" className="grid gap-5 lg:grid-cols-3">
           <div className="lg:col-span-2">{list}</div>
           <div className="lg:sticky lg:top-4 lg:self-start">
             <PlantBulkFields

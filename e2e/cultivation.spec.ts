@@ -44,25 +44,25 @@ test("grow from a batch of clones to a packaged, finished harvest", async ({ pag
   // Plants: harvesting vegetative plants is refused, then flower and harvest
   await page.getByRole("link", { name: /tagged plants/ }).click();
   await expect(page.getByText("3 active tagged plants shown")).toBeVisible();
-  await page.getByRole("button", { name: "Tick or untick all" }).click();
+  await page.getByRole("button", { name: "Check or uncheck all" }).click();
   await page.locator('select[name="bulkAction"]').selectOption("HARVEST");
   await page.locator('input[name="harvestName"]').fill(`${run}-H`);
   await page.locator('input[name="wetWeight"]').fill("2");
   await page.locator('select[name="dryLocationId"]').selectOption({ label: "Dry Room" });
-  await page.getByRole("button", { name: "Apply to ticked plants" }).click();
+  await page.getByRole("button", { name: "Apply to checked plants" }).click();
   await expect(page.locator('p[role="alert"]')).toContainText("Only flowering plants can be harvested");
 
   await page.locator('select[name="bulkAction"]').selectOption("FLOWERING");
-  await page.getByRole("button", { name: "Apply to ticked plants" }).click();
+  await page.getByRole("button", { name: "Apply to checked plants" }).click();
   await expect(page.getByText("3 plants moved to flowering.")).toBeVisible();
   await expect(page.getByText("flowering", { exact: true })).toHaveCount(3);
 
-  await page.getByRole("button", { name: "Tick or untick all" }).click();
+  await page.getByRole("button", { name: "Check or uncheck all" }).click();
   await page.locator('select[name="bulkAction"]').selectOption("HARVEST");
   await page.locator('input[name="harvestName"]').fill(`${run}-H`);
   await page.locator('input[name="wetWeight"]').fill("2");
   await page.locator('select[name="dryLocationId"]').selectOption({ label: "Dry Room" });
-  await page.getByRole("button", { name: "Apply to ticked plants" }).click();
+  await page.getByRole("button", { name: "Apply to checked plants" }).click();
   await expect(page.getByRole("heading", { name: `${run}-H` })).toBeVisible();
   await expect(page.getByText("2 kg").first()).toBeVisible();
 

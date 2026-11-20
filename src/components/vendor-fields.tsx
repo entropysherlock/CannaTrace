@@ -67,8 +67,8 @@ export function VendorContactFields({ terms = true }: { terms?: boolean }) {
 }
 
 /**
- * Last step: the license check. Ticking the box is the same attestation as "Mark license verified" on
- * the vendor's page, by the same person, logged the same way. Left unticked, the record starts
+ * Last step: the license check. Checking the box is the same attestation as "Mark license verified" on
+ * the vendor's page, by the same person, logged the same way. Left unchecked, the record starts
  * unverified, and orders to it can't be confirmed or shipped until someone verifies it.
  */
 export function LicenseCheckFields() {
@@ -82,7 +82,7 @@ export function LicenseCheckFields() {
         <input type="checkbox" name="verifyNow" className="mt-0.5 h-5 w-5 shrink-0 accent-brand-700" />
         <span>I looked this license up on the state&apos;s license search today, and it is active with the expiry date I entered.</span>
       </label>
-      <p className="text-xs text-slate-600">Leave it unticked if you haven&apos;t checked. It will show as not verified until someone does.</p>
+      <p className="text-xs text-slate-600">Leave it unchecked if you haven&apos;t looked up the license yet. It will show as not verified until someone does.</p>
     </>
   );
 }

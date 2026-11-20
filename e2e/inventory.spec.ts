@@ -268,7 +268,7 @@ test("inventory search finds a package by any words of its name, in any order, o
   expect(one).toBeLessThan(total);
 });
 
-test("ticking packages and pressing Print labels carries exactly those packages to SmartLabel", async ({ page }) => {
+test("checking packages and pressing Print labels carries exactly those packages to SmartLabel", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill("manager@demo.test");
   await page.getByLabel("Password").fill("demo1234");
@@ -281,13 +281,13 @@ test("ticking packages and pressing Print labels carries exactly those packages 
   expect(await boxes.count()).toBeGreaterThan(2);
   await boxes.nth(1).check();
   await boxes.nth(2).check();
-  await expect(page.getByTestId("print-labels")).toContainText("the 2 ticked");
+  await expect(page.getByTestId("print-labels")).toContainText("the 2 checked");
   const want = [await boxes.nth(1).inputValue(), await boxes.nth(2).inputValue()].sort();
   await page.getByTestId("print-labels").click();
   await expect(page).toHaveURL(/\/labels\?kind=PACKAGE&ids=/);
   const ids = (new URL(page.url()).searchParams.get("ids") ?? "").split(",").sort();
   expect(ids).toEqual(want);
-  // They arrive ticked in SmartLabel
+  // They arrive checked in SmartLabel
   await expect(page.locator('input[type="checkbox"]:checked:visible')).toHaveCount(2);
   // Going back and choosing a different one must not show the old choice
   await page.goto("/inventory");

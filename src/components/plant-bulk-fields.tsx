@@ -7,7 +7,7 @@ import { WeightUnitSelect } from "./weight-unit-select";
 
 type Option = { id: string; name: string };
 
-/** Picks what to do with the ticked plants and shows only the boxes that action needs. */
+/** Picks what to do with the checked plants and shows only the boxes that action needs. */
 export function PlantBulkFields({
   locations,
   addMoveRoom,
@@ -24,7 +24,7 @@ export function PlantBulkFields({
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-base font-semibold text-slate-900">With the ticked plants</p>
+        <p className="text-base font-semibold text-slate-900">With the checked plants</p>
         <button
           type="button"
           className="text-sm font-semibold text-brand-700 hover:underline"
@@ -34,7 +34,7 @@ export function PlantBulkFields({
             boxes.forEach((box) => (box.checked = !allTicked));
           }}
         >
-          Tick or untick all
+          Check or uncheck all
         </button>
       </div>
       <select name="bulkAction" required value={action} onChange={(e) => setAction(e.target.value)} aria-label="Action" className={inputClass}>
@@ -57,7 +57,7 @@ export function PlantBulkFields({
           <Field label="Harvest name" hint="For example the strain initials and today's date. It becomes the lot number on every package made from this harvest.">
             <input name="harvestName" required className={inputClass} />
           </Field>
-          <Field label="Total wet weight of the ticked plants">
+          <Field label="Total wet weight of the checked plants">
             <span className="flex gap-2">
               <input name="wetWeight" inputMode="decimal" required className={inputClass} />
               <WeightUnitSelect name="wetUnit" remember="wet" defaultUnit="KG" />

@@ -6,7 +6,7 @@ import { Field, inputClass } from "@/components/ui";
 import type { FormState } from "@/lib/form";
 import { PERMISSION_GROUPS, type Permission } from "@/lib/rbac";
 
-/** Pick a name and tick what the role can do. "Start from" copies a built-in role's ticks as a shortcut. */
+/** Pick a name and check what the role can do. "Start from" copies a built-in role's checks as a shortcut. */
 export function RoleBuilder({
   action,
   role,
@@ -36,7 +36,7 @@ export function RoleBuilder({
         <Field label="Role name" hint="For example: Shift lead, Trimmer, Delivery driver.">
           <input name="name" required maxLength={60} defaultValue={role?.name} className={inputClass} />
         </Field>
-        <Field label="Start from (optional)" hint="Copies the ticks from a built-in role. You can change them after.">
+        <Field label="Start from (optional)" hint="Copies the checks from a built-in role. You can change them after.">
           <select
             defaultValue=""
             className={inputClass}
@@ -45,7 +45,7 @@ export function RoleBuilder({
               if (t) setPicked(new Set(t.permissions.filter((p) => canGrantOwnerOnly || !ownerOnly.includes(p))));
             }}
           >
-            <option value="">Keep my ticks</option>
+            <option value="">Keep my checks</option>
             {templates.map((t) => (
               <option key={t.label} value={t.label}>
                 {t.label}
@@ -87,7 +87,7 @@ export function RoleBuilder({
           </fieldset>
         ))}
       </div>
-      <p className="text-sm text-slate-600">{picked.size} permissions ticked.</p>
+      <p className="text-sm text-slate-600">{picked.size} permissions checked.</p>
     </ActionForm>
   );
 }

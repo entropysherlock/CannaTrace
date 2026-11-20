@@ -8,15 +8,15 @@ const MAX = 1000;
 const boxes = () => Array.from(document.querySelectorAll<HTMLInputElement>('input[name="packageId"]'));
 
 /**
- * "Print labels" for the Inventory list. Whatever is ticked in the list goes to SmartLabel already chosen; with
- * nothing ticked, it sends the packages shown (or opens SmartLabel empty when there are too many to send).
+ * "Print labels" for the Inventory list. Whatever is checked in the list goes to SmartLabel already chosen; with
+ * nothing checked, it sends the packages shown (or opens SmartLabel empty when there are too many to send).
  */
-export function TickedLabelLink({ shownIds }: { shownIds: string[] }) {
+export function CheckedLabelLink({ shownIds }: { shownIds: string[] }) {
   const router = useRouter();
-  const [ticked, setTicked] = useState(0);
+  const [checked, setChecked] = useState(0);
 
   useEffect(() => {
-    const update = () => setTicked(boxes().filter((b) => b.checked).length);
+    const update = () => setChecked(boxes().filter((b) => b.checked).length);
     document.addEventListener("change", update);
     const id = setTimeout(update, 0);
     return () => {
@@ -33,7 +33,7 @@ export function TickedLabelLink({ shownIds }: { shownIds: string[] }) {
     router.push(`/labels?${q}`);
   };
 
-  const label = ticked > 0 ? `Print labels for ${ticked === 1 ? "the ticked package" : `the ${ticked} ticked`}` : shownIds.length && shownIds.length <= 100 ? `Print labels for ${shownIds.length === 1 ? "this package" : `these ${shownIds.length}`}` : "Print labels";
+  const label = checked > 0 ? `Print labels for ${checked === 1 ? "the checked package" : `the ${checked} checked`}` : shownIds.length && shownIds.length <= 100 ? `Print labels for ${shownIds.length === 1 ? "this package" : `these ${shownIds.length}`}` : "Print labels";
   return (
     <button
       type="button"

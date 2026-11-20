@@ -88,12 +88,12 @@ describe.skipIf(!hasDb)("faster jobs (database)", () => {
       const released = await setPackagesStatus(actor, { packageIds: [a.id, b.id], status: "ACTIVE", reason: "recounted" });
       expect(released.changed).toBe(2);
       await expect(setPackagesStatus(actor, { packageIds: [a.id], status: "ACTIVE", reason: " " })).rejects.toThrow(/Say why/);
-      await expect(setPackagesStatus(actor, { packageIds: [], status: "ON_HOLD", reason: "x" })).rejects.toThrow(/Tick at least one/);
+      await expect(setPackagesStatus(actor, { packageIds: [], status: "ON_HOLD", reason: "x" })).rejects.toThrow(/Check at least one/);
     });
   });
 
   describe("one lab result for a whole lot", () => {
-    it("records the result on every ticked package, stores the COA once, and quarantines each on a fail", async () => {
+    it("records the result on every checked package, stores the COA once, and quarantines each on a fail", async () => {
       const lot = `${run}-LOT`;
       const ps = [await receive("50", bulk, lot), await receive("40", bulk, lot), await receive("30", bulk, lot)];
       const coa = { name: "coa.pdf", type: "application/pdf", data: Buffer.from("%PDF-1.4 test") };
@@ -111,7 +111,7 @@ describe.skipIf(!hasDb)("faster jobs (database)", () => {
     it("refuses finished packages in the list and saves nothing", async () => {
       const a = await receive(), b = await receive();
       await db.update(packages).set({ status: "FINISHED", quantity: "0" }).where(eq(packages.id, b.id));
-      await expect(addLabResult(actor, { packageId: a.id, labName: "Lab", status: "PASS", alsoPackageIds: [b.id] })).rejects.toThrow(/untick it/);
+      await expect(addLabResult(actor, { packageId: a.id, labName: "Lab", status: "PASS", alsoPackageIds: [b.id] })).rejects.toThrow(/uncheck it/);
       expect(await db.select().from(labResults).where(eq(labResults.packageId, a.id))).toHaveLength(0);
     });
   });

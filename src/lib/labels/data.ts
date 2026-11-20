@@ -406,8 +406,8 @@ export async function labelCandidates(scope: Scope, chosen: string[] = []): Prom
   const pkgSelect = {
     id: packages.id, tag: packages.tag, status: packages.status, qty: packages.quantity, unit: packages.unit, item: items.name,
   };
-  // Records sent here already chosen (ticked in Inventory) are always in the list, even when they are older than the
-  // newest 500 or no longer on the shelf, so a ticked box can never silently go missing.
+  // Records sent here already chosen (checked in Inventory) are always in the list, even when they are older than the
+  // newest 500 or no longer on the shelf, so a checked box can never silently go missing.
   const chosenRows = chosen.length
     ? await db
         .select(pkgSelect)

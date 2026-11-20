@@ -5,14 +5,14 @@ import { Field, inputClass } from "./ui";
 
 type Option = { id: string; name: string };
 
-/** Picks what to do with the ticked packages and shows only the boxes that action needs. */
+/** Picks what to do with the checked packages and shows only the boxes that action needs. */
 export function PackageBulkFields({ locations, canWrite, canPrint }: { locations: Option[]; canWrite: boolean; canPrint: boolean }) {
   const [action, setAction] = useState("");
   const status = action === "ON_HOLD" || action === "QUARANTINE" || action === "ACTIVE";
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm" data-testid="package-bulk">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-base font-semibold text-slate-900">With the ticked packages</p>
+        <p className="text-base font-semibold text-slate-900">With the checked packages</p>
         <button
           type="button"
           className="text-sm font-semibold text-brand-700 hover:underline"
@@ -24,7 +24,7 @@ export function PackageBulkFields({ locations, canWrite, canPrint }: { locations
             event.currentTarget.form?.dispatchEvent(new Event("change", { bubbles: true }));
           }}
         >
-          Tick or untick all
+          Check or uncheck all
         </button>
       </div>
       <select name="bulkAction" required value={action} onChange={(e) => setAction(e.target.value)} aria-label="Action" className={inputClass}>
@@ -68,9 +68,9 @@ export function PackageBulkFields({ locations, canWrite, canPrint }: { locations
         </Field>
       ) : null}
 
-      {action === "LABELS" ? <p className="text-sm text-slate-600">Opens SmartLabel with the ticked packages chosen, up to 1,000 at a time.</p> : null}
+      {action === "LABELS" ? <p className="text-sm text-slate-600">Opens SmartLabel with the checked packages chosen, up to 1,000 at a time.</p> : null}
       {action && action !== "LABELS" ? (
-        <p className="text-xs text-slate-500">All or nothing: if any ticked package can&apos;t be changed, none are, and the message says which one.</p>
+        <p className="text-xs text-slate-500">All or nothing: if any checked package can&apos;t be changed, none are, and the message says which one.</p>
       ) : null}
     </div>
   );

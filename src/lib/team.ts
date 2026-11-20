@@ -230,7 +230,7 @@ export async function saveCustomRole(
   if (Object.values(ROLE_LABELS).some((label) => label.toLowerCase() === name.toLowerCase()))
     throw new InventoryError(`"${name}" is a built-in role name. Choose a different name.`);
   const permissions = cleanPermissions(input.permissions);
-  if (permissions.length === 0) throw new InventoryError("Tick at least one thing this role can do.");
+  if (permissions.length === 0) throw new InventoryError("Check at least one thing this role can do.");
   if (hasOwnerOnly(permissions) && !isOwner(session)) throw new InventoryError("Only an owner can build a role that manages the team or API keys.");
   const description = input.description.trim().slice(0, 300);
 

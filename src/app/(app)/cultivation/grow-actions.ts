@@ -46,7 +46,7 @@ export async function growMoveAction(_state: FormState, formData: FormData): Pro
   try {
     const { actor: a } = await actor();
     const plantIds = formData.getAll("plantId").map(String);
-    if (!plantIds.length) throw new InventoryError("Tick the plants first.");
+    if (!plantIds.length) throw new InventoryError("Check the plants first.");
     const stage = field(formData, "stage");
     const locationId = field(formData, "locationId");
     if (!stage && !locationId) throw new InventoryError("Choose a new stage, a new room, or both.");
@@ -64,7 +64,7 @@ export async function growHarvestAction(_state: FormState, formData: FormData): 
   try {
     const { actor: a, facilityId } = await actor();
     const plantIds = formData.getAll("plantId").map(String);
-    if (!plantIds.length) throw new InventoryError("Tick the plants you are harvesting.");
+    if (!plantIds.length) throw new InventoryError("Check the plants you are harvesting.");
     const name = field(formData, "harvestName") || `Harvest ${await facilityToday(facilityId)}`;
     const harvest = await harvestPlants(a, { plantIds, name, wetWeight: field(formData, "wetWeight"), unit: field(formData, "wetUnit") || "G", locationId: field(formData, "dryLocationId") });
     refresh();

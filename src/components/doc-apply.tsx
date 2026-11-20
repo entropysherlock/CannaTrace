@@ -106,7 +106,7 @@ export function InvoiceApply({ base, ctx }: { base: Base; ctx: InvoiceContext })
       kicker="Invoice"
       title={`${field(p, "vendor") || ctx.vendorName || "Vendor not found"}${field(p, "invoiceNumber") ? ` · ${field(p, "invoiceNumber")}` : ""}`}
       subtitle={[field(p, "invoiceDate") && `Dated ${field(p, "invoiceDate")}`, field(p, "total") && `Total ${money(field(p, "total"))}`].filter(Boolean).join(" · ")}
-      status={err(error) ?? (missing ? `${missing} ticked line${missing === 1 ? " needs" : "s need"} a package and a cost.` : chosen.length ? `Ready to record ${chosen.length} cost${chosen.length === 1 ? "" : "s"}.` : "Tick the lines to cost.")}
+      status={err(error) ?? (missing ? `${missing} checked line${missing === 1 ? " needs" : "s need"} a package and a cost.` : chosen.length ? `Ready to record ${chosen.length} cost${chosen.length === 1 ? "" : "s"}.` : "Check the lines to cost.")}
       action={`Record ${chosen.length} cost${chosen.length === 1 ? "" : "s"}`}
       disabled={!chosen.length || missing > 0}
       pending={pending}
@@ -150,7 +150,7 @@ export function InvoiceApply({ base, ctx }: { base: Base; ctx: InvoiceContext })
                       Cost per unit
                       <input value={r.cost} inputMode="decimal" onChange={(e) => set(i, { cost: e.target.value.replace(/[$,]/g, "") })} className={inputClass} aria-label={`Cost for line ${i + 1}`} />
                     </label>
-                    {current ? <p className="text-sm font-semibold text-amber-900 sm:col-span-2">This package already has a cost of {money(current)}. Tick the line to replace it.</p> : null}
+                    {current ? <p className="text-sm font-semibold text-amber-900 sm:col-span-2">This package already has a cost of {money(current)}. Check the line to replace it.</p> : null}
                   </div>
                 )}
               </li>
@@ -183,7 +183,7 @@ export function HarvestApply({ base, ctx }: { base: Base; ctx: HarvestContext })
       kicker="Harvest sheet"
       title={ctx.strain ? `${ctx.strain} harvest` : "Harvest sheet"}
       subtitle={[field(base.proposal, "harvestDate") && `Harvested ${field(base.proposal, "harvestDate")}`, field(base.proposal, "room") && `Room ${field(base.proposal, "room")}`].filter(Boolean).join(" · ")}
-      status={err(error) ?? (!room ? "Choose the room where it will dry." : !name.trim() ? "Give the harvest a name." : bad ? "Every ticked plant needs a weight." : chosen.length ? `Ready: ${chosen.length} plants, ${total.toLocaleString("en-US", { maximumFractionDigits: 2 })} total.` : "Tick the plants that were harvested.")}
+      status={err(error) ?? (!room ? "Choose the room where it will dry." : !name.trim() ? "Give the harvest a name." : bad ? "Every checked plant needs a weight." : chosen.length ? `Ready: ${chosen.length} plants, ${total.toLocaleString("en-US", { maximumFractionDigits: 2 })} total.` : "Check the plants that were harvested.")}
       action={`Record harvest (${chosen.length})`}
       disabled={!chosen.length || !room || !name.trim() || bad > 0}
       pending={pending}
@@ -310,7 +310,7 @@ export function PriceListApply({ base, ctx }: { base: Base; ctx: PriceContext })
       kicker="Price list"
       title={field(base.proposal, "vendor") || "Price list"}
       subtitle={field(base.proposal, "effectiveDate") ? `Effective ${field(base.proposal, "effectiveDate")}` : ""}
-      status={err(error) ?? (!listId && !newName.trim() ? "Name the new price list." : bad ? "Every ticked product needs a name and a price." : chosen.length ? `Ready: ${chosen.length} price${chosen.length === 1 ? "" : "s"}${fresh ? `, ${fresh} new item${fresh === 1 ? "" : "s"}` : ""}.` : "Tick the products to save.")}
+      status={err(error) ?? (!listId && !newName.trim() ? "Name the new price list." : bad ? "Every checked product needs a name and a price." : chosen.length ? `Ready: ${chosen.length} price${chosen.length === 1 ? "" : "s"}${fresh ? `, ${fresh} new item${fresh === 1 ? "" : "s"}` : ""}.` : "Check the products to save.")}
       action={`Save ${chosen.length} price${chosen.length === 1 ? "" : "s"}`}
       disabled={!chosen.length || bad > 0 || (!listId && !newName.trim())}
       pending={pending}
@@ -406,7 +406,7 @@ export function OrderApply({ base, ctx }: { base: Base; ctx: OrderContext }) {
       kicker="Wholesale order"
       title={`${field(base.proposal, "customer") || "Customer not found"}${ctx.orderNumber ? ` · ${ctx.orderNumber}` : ""}`}
       subtitle={[field(base.proposal, "orderDate") && `Ordered ${field(base.proposal, "orderDate")}`, field(base.proposal, "deliveryDate") && `Deliver by ${field(base.proposal, "deliveryDate")}`, field(base.proposal, "total") && `Total ${money(field(base.proposal, "total"))}`].filter(Boolean).join(" · ")}
-      status={err(error) ?? (!customerId ? "Choose the customer." : missing ? `${missing} line${missing === 1 ? " needs" : "s need"} an item and a quantity.` : chosen.length ? `Ready to make a draft order with ${chosen.length} line${chosen.length === 1 ? "" : "s"}.` : "Tick the lines to add.")}
+      status={err(error) ?? (!customerId ? "Choose the customer." : missing ? `${missing} line${missing === 1 ? " needs" : "s need"} an item and a quantity.` : chosen.length ? `Ready to make a draft order with ${chosen.length} line${chosen.length === 1 ? "" : "s"}.` : "Check the lines to add.")}
       action="Create draft order"
       disabled={!customerId || !chosen.length || missing > 0}
       pending={pending}

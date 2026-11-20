@@ -127,7 +127,7 @@ export async function plantBulkAction(_state: FormState, formData: FormData): Pr
   try {
     const actor = await cultivationActor();
     const plantIds = formData.getAll("plantId").map(String);
-    if (plantIds.length === 0) throw new InventoryError("Tick at least one plant first.");
+    if (plantIds.length === 0) throw new InventoryError("Check at least one plant first.");
     const action = field(formData, "bulkAction");
     if (action === "FLOWERING" || action === "VEGETATIVE") {
       const changed = await changePlantPhase(actor, { plantIds, phase: action });
