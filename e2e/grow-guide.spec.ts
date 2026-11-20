@@ -38,8 +38,8 @@ test("the Grow screen walks a grow from a new batch to tagged plants, one short 
   await expect(page.getByTestId("grow-next")).toContainText("move them to the flower room");
 
   // The old pages are still there as a fallback
-  await expect(page.getByRole("link", { name: "All plants" })).toBeVisible();
-  await page.getByRole("link", { name: "Everything on one page" }).click();
+  await expect(page.getByRole("link", { name: "Plants" })).toBeVisible();
+  await page.getByRole("link", { name: "Overview" }).click();
   await expect(page).toHaveURL(/\/cultivation\/overview$/);
   await expect(page.getByRole("link", { name: "Grow guide" })).toBeVisible();
 });

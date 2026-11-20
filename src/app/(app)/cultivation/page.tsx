@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gt, ne, sql } from "drizzle-orm";
+import { CultivationTabs } from "@/components/cultivation-ui";
 import { GrowGuide, type GrowData } from "@/components/grow-guide";
 import { PageHeader } from "@/components/ui";
 import { harvests, items, locations, plantBatches, plants, strains } from "@/db/schema";
@@ -92,6 +93,7 @@ export default async function GrowPage() {
   return (
     <>
       <PageHeader title="Grow" subtitle="From clone or seed to packaged harvest. Pick a step, fill in one short form, and it tells you what's next." />
+      <CultivationTabs current="/cultivation" />
       {canWrite ? (
         <GrowGuide data={data} />
       ) : (
