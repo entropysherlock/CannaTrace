@@ -77,6 +77,8 @@ Every page has an **Ask CannaTrace** button (or press Ctrl+J). People ask in pla
 
 Every deploy runs `npm run vercel-build`, which updates the database tables before building. A deploy fails with a plain message if `DATABASE_URL` or a strong `AUTH_SECRET` is missing.
 
+For real use, also set up backups and uptime monitoring: see [docs/hosting-and-backups.md](docs/hosting-and-backups.md). `GET /api/health` is the open check for uptime monitors.
+
 `vercel.json` sends state reports and webhooks once a day, the most the free Hobby plan allows. Use **Send now** on State reporting in between, or a paid plan or outside scheduler for more often.
 
 ## How inventory stays trustworthy
