@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LabelLink } from "@/components/labels/label-link";
+import { TickedLabelLink } from "@/components/labels/ticked-label-link";
 import { ActionForm } from "@/components/action-form";
 import { PackageBulkFields } from "@/components/package-bulk-fields";
 import { packageBulkAction } from "./actions";
@@ -103,9 +103,7 @@ export default async function InventoryPage({
         action={
           <div className="flex flex-wrap items-center gap-2">
             {can(session, "labels.print") ? (
-              <LabelLink kind="PACKAGE" ids={rows.length && rows.length <= 100 ? rows.map((r) => r.id) : undefined}>
-                {rows.length && rows.length <= 100 ? `Print labels for ${rows.length === 1 ? "this package" : `these ${rows.length}`}` : "Print labels"}
-              </LabelLink>
+              <TickedLabelLink shownIds={rows.length <= 100 ? rows.map((r) => r.id) : []} />
             ) : null}
             {can(session, "inventory.write") ? (
               <Link href="/inventory/receive" className={buttonLinkClass}>

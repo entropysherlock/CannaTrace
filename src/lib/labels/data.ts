@@ -401,7 +401,19 @@ export async function loadLabelRecords(scope: Scope, kind: LabelKind, ids: strin
 export type Candidate = { id: string; ref: string; detail: string; status?: string };
 
 /** Records that can be labeled at this facility, newest first, for the record picker. */
-export async function labelCandidates(scope: Scope): Promise<Record<LabelKind, Candidate[]>> {
+export async function labelCandidates(scope: Scope, chosen: string[] = []): Promise<Record<LabelKind, Candidate[]>> {
+  const pkgSelect = {
+    id: packages.id, tag: packages.tag, status: packages.status, qty: packages.quantity, unit: packages.unit, item: items.name,
+  };
+  // Records sent here already chosen (ticked in Inventory) are always in the list, even when they are older than the
+  // newest 500 or no longer on the shelf, so a ticked box can never silently go missing.
+  const chosenRows = chosen.length
+    ? await db
+        .select(pkgSelect)
+        .from(packages)
+        .innerJoin(items, eq(items.id, packages.itemId))
+        .where(and(eq(packages.orgId, scope.orgId), eq(packages.facilityId, scope.facilityId), inArray(packages.id, chosen.slice(0, 1000))))
+    : [];
   const pkgRows = await db
     .select({ id: packages.id, tag: packages.tag, status: packages.status, qty: packages.quantity, unit: packages.unit, item: items.name })
     .from(packages)
@@ -409,7 +421,8 @@ export async function labelCandidates(scope: Scope): Promise<Record<LabelKind, C
     .where(and(eq(packages.orgId, scope.orgId), eq(packages.facilityId, scope.facilityId), inArray(packages.status, ["ACTIVE", "ALLOCATED", "ON_HOLD", "QUARANTINE"])))
     .orderBy(desc(packages.createdAt))
     .limit(500);
-  const pkgs = pkgRows.map((p) => ({ id: p.id, ref: p.tag, detail: `${p.item} · ${trimNum(p.qty)} ${UNIT[p.unit] ?? p.unit}`, status: p.status }));
+  const seen = new Set(chosenRows.map((p) => p.id));
+  const pkgs = [...chosenRows, ...pkgRows.filter((p) => !seen.has(p.id))].map((p) => ({ id: p.id, ref: p.tag, detail: `${p.item} · ${trimNum(p.qty)} ${UNIT[p.unit] ?? p.unit}`, status: p.status }));
   const plantRows = await db
     .select({ id: plants.id, tag: plants.tag, strain: strains.name, phase: plants.phase })
     .from(plants)

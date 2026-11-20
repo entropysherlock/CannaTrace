@@ -281,7 +281,7 @@ export async function packageBulkAction(_state: FormState, formData: FormData): 
     // Printing only needs the labels permission; the label page checks it again.
     await requirePermission("labels.print");
     if (!ids.length) return { error: "Tick at least one package first." };
-    redirect(`/labels?kind=PACKAGE&ids=${ids.slice(0, 100).join(",")}`);
+    redirect(`/labels?kind=PACKAGE&ids=${ids.slice(0, 1000).join(",")}`);
   }
   const plural = (n: number) => `${n} package${n === 1 ? "" : "s"}`;
   try {

@@ -20,6 +20,8 @@ export function PackageBulkFields({ locations, canWrite, canPrint }: { locations
             const boxes = event.currentTarget.form?.querySelectorAll<HTMLInputElement>('input[name="packageId"]') ?? [];
             const allTicked = Array.from(boxes).every((box) => box.checked);
             boxes.forEach((box) => (box.checked = !allTicked));
+            // Let the Print labels button count the change.
+            event.currentTarget.form?.dispatchEvent(new Event("change", { bubbles: true }));
           }}
         >
           Tick or untick all
@@ -66,7 +68,7 @@ export function PackageBulkFields({ locations, canWrite, canPrint }: { locations
         </Field>
       ) : null}
 
-      {action === "LABELS" ? <p className="text-sm text-slate-600">Opens SmartLabel with the ticked packages chosen, up to 100 at a time.</p> : null}
+      {action === "LABELS" ? <p className="text-sm text-slate-600">Opens SmartLabel with the ticked packages chosen, up to 1,000 at a time.</p> : null}
       {action && action !== "LABELS" ? (
         <p className="text-xs text-slate-500">All or nothing: if any ticked package can&apos;t be changed, none are, and the message says which one.</p>
       ) : null}
