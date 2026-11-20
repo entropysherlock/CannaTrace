@@ -1,18 +1,20 @@
 "use client";
 
 import { FileUp, Sparkles, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { readOrThrow, send } from "@/lib/scan/upload-client";
 
 const readable = (f: File) => f.type.startsWith("image/") || f.type === "application/pdf" || /\.(pdf|png|jpe?g|heic|webp)$/i.test(f.name);
+const isSheet = (f: File) => /\.(csv|xlsx|xls|tsv)$/i.test(f.name) || f.type === "text/csv";
 const skip = (t: EventTarget | null) => t instanceof Element && Boolean(t.closest("[data-no-global-drop]"));
 
 /** Drop a photo or PDF anywhere, or paste a screenshot, and Tally reads it and opens the review screen. */
 export function GlobalDrop() {
   const router = useRouter();
   const [dragging, setDragging] = useState(false);
-  const [job, setJob] = useState<{ name: string; error?: string } | null>(null);
+  const [job, setJob] = useState<{ name: string; error?: string; sheet?: boolean } | null>(null);
   const depth = useRef(0);
   const busy = useRef(false);
 
@@ -20,6 +22,7 @@ export function GlobalDrop() {
     const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
     const run = async (file: File) => {
       if (busy.current) return;
+      if (isSheet(file)) return setJob({ name: file.name, sheet: true, error: "That's a spreadsheet. This drop area reads photos and PDFs." });
       if (!readable(file)) return setJob({ name: file.name, error: "Tally can read photos and PDFs. This file isn't one." });
       busy.current = true;
       setJob({ name: file.name });
@@ -93,7 +96,17 @@ export function GlobalDrop() {
         <div role="status" className="fixed bottom-24 left-1/2 z-[60] flex w-[min(92vw,26rem)] -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-900 p-4 text-white shadow-2xl sm:bottom-6">
           {job.error ? (
             <>
-              <p role="alert" className="flex-1 text-sm font-semibold">{job.error}</p>
+              <div className="flex-1 text-sm">
+                <p role="alert" className="font-semibold">{job.error}</p>
+                {job.sheet ? (
+                  <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-semibold" data-testid="drop-sheet-help">
+                    <Link href="/data" onClick={() => setJob(null)} className="underline">Open Import and export</Link>
+                    <button type="button" className="underline" onClick={() => { setJob(null); window.dispatchEvent(new Event("open-assistant")); }}>
+                      Ask Tally in chat (attach it there)
+                    </button>
+                  </p>
+                ) : null}
+              </div>
               <button type="button" aria-label="Dismiss" onClick={() => setJob(null)} className="rounded-full bg-white/15 p-1.5">
                 <X className="h-4 w-4" />
               </button>
