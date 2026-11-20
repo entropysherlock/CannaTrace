@@ -116,6 +116,17 @@ describe("validation", () => {
     expect(missingTag?.category).toBe("MISSING_DATA");
     expect(issues.find((i) => i.code === "PACKAGE_GONE")?.category).toBe("INCONSISTENT_DATA");
   });
+  it("points item-level gaps (directions, pesticides, shelf life) at the item, not the package", () => {
+    const t = starter("NM product");
+    const issues = checkRecord(t.design, "PRODUCT", pkgRecord({ "_item.id": "item-123", "item.name": "Blue Mesa 3.5 g Jar", "item.directions": null, "item.pesticides": null, "package.expires": null }));
+    for (const label of ["Intended use and directions", "Pesticides used", "Expiration date"]) {
+      const hit = issues.find((i) => i.code === "MISSING" && i.message.includes(`"${label}" is empty`));
+      expect(hit, label).toBeTruthy();
+      expect(hit?.fixHref).toBe("/catalog/item-123");
+      expect(hit?.fix).toContain("Blue Mesa 3.5 g Jar");
+      expect(hit?.fix).not.toContain("on the record itself");
+    }
+  });
   it("never lets a product label print without a passed lab test", () => {
     const t = starter("NM product");
     const issues = checkRecord(t.design, "PRODUCT", pkgRecord({ "_lab.status": "PENDING", "lab.thc": null }));

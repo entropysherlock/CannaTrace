@@ -91,7 +91,12 @@ export function IssueList({
                     {issue.citation ? <span className="ml-1 text-xs text-slate-500">{issue.citation}</span> : null}
                   </p>
                   {issue.fix ? <p className="text-xs text-slate-600">{issue.fix}</p> : null}
-                  {issue.severity === "block" && linkFor && (n === 1 || !issue.recordRef)
+                  {issue.fixHref ? (
+                    <Link href={issue.fixHref} target="_blank" className="mt-0.5 inline-flex items-center gap-1 text-xs font-bold text-brand-700 underline hover:no-underline" data-testid="issue-item-link">
+                      Open the item to fix it <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                    </Link>
+                  ) : null}
+                  {!issue.fixHref && issue.severity === "block" && linkFor && (n === 1 || !issue.recordRef)
                     ? (() => {
                         const link = linkFor(issue);
                         if (!link) return null;

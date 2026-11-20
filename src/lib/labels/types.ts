@@ -67,6 +67,8 @@ export type LabelIssue = {
   elementId?: string;
   /** Which label (record ref) the issue is about, when it is about the data. */
   recordRef?: string;
+  /** A page where the problem can be fixed, when the fix is on another record (such as the item). */
+  fixHref?: string;
   /** The regulation this comes from, for jurisdiction issues. */
   citation?: string;
   url?: string;

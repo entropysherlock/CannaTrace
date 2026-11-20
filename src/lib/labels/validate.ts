@@ -79,6 +79,13 @@ export function checkRecord(design: LabelDesign, kind: LabelKind, record: LabelR
       // Optional fields are blank on purpose when they don't apply (no allergens, nothing to refrigerate).
       if (def?.optional) continue;
       const critical = CRITICAL_FIELDS.has(key);
+      // Product details and shelf life are set on the item, not on the package, so say so and link to it.
+      const itemId = v["_item.id"];
+      const onItem = itemId && (key.startsWith("item.") || key === "package.expires");
+      const itemName = v["item.name"] ? `"${v["item.name"]}"` : "the item";
+      const itemFix = key === "package.expires"
+        ? `The expiration date comes from the shelf life on ${itemName}. Open the item, enter its shelf life (days), save, then print again.`
+        : `"${def?.label ?? key}" is set on ${itemName}, not on the package. Open the item, fill it in, save, then print again.`;
       const labMsg = key.startsWith("lab.") && v["_lab.status"] !== "PASS" ? " There is no passed lab result for it, and CannaTrace never prints potency from an unpassed test." : "";
       issues.push({
         code: "MISSING",
@@ -87,7 +94,8 @@ export function checkRecord(design: LabelDesign, kind: LabelKind, record: LabelR
         recordRef: ref,
         elementId: el.id,
         message: `${ref}: "${def?.label ?? key}" is empty.${labMsg}`,
-        fix: key.startsWith("lab.") ? "Record a passed lab result on the package first." : "Fill it in on the record itself, then print again. Labels can't be typed over.",
+        fix: key.startsWith("lab.") ? "Record a passed lab result on the package first." : onItem ? itemFix : "Fill it in on the record itself, then print again. Labels can't be typed over.",
+        fixHref: onItem ? `/catalog/${itemId}` : undefined,
       });
     }
     if (el.type === "text") {
