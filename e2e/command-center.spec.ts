@@ -76,3 +76,22 @@ test("the young-plants tile opens the batch list, and the inventory list scrolls
   // Taller than the box: it scrolls inside, the page stays put
   expect(await box.evaluate((el) => el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY === "auto")).toBe(true);
 });
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+  test("the Menu panel sits above the top bar, so its first items are not hidden", async ({ page }) => {
+    await signIn(page);
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "Menu" }).click();
+    const menu = page.getByRole("dialog", { name: "Menu" });
+    const first = menu.getByRole("link").first();
+    await expect(first).toBeInViewport();
+    // Whatever is drawn at the middle of the first item is the menu itself, not the top bar over it
+    const covered = await first.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !top || !el.contains(top);
+    });
+    expect(covered).toBe(false);
+  });
+});
