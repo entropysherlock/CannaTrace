@@ -28,11 +28,10 @@ test("Tally recognises manifests, invoices and licenses, checks them, and keeps 
   // The invoice's arithmetic is checked
   await page.goto("/inbox");
   await page.locator('[data-testid="inbox"] li', { hasText: "supplier-invoice.png" }).first().getByRole("link", { name: "Review", exact: true }).click();
-  await expect(page.getByTestId("doc-label")).toHaveText("Invoice or packing slip");
-  await expect(page.getByTestId("doc-field-vendor")).toContainText("Mesa Packaging");
-  await expect(page.getByTestId("doc-field-total")).toContainText("129");
+  await expect(page.getByTestId("invoice-apply")).toContainText("Mesa Packaging");
+  await expect(page.getByTestId("invoice-apply")).toContainText("INV-77");
   await expect(page.getByTestId("doc-warnings")).toContainText("line 2");
-  await expect(page.getByTestId("doc-items").locator("tbody tr")).toHaveCount(2);
+  await expect(page.getByTestId("invoice-lines").locator("li")).toHaveCount(2);
 
   // The manifest's repeated tag is caught
   await page.goto("/inbox");

@@ -1,0 +1,1 @@
+ALTER TABLE "facilities" ADD COLUMN "license_expires" text;

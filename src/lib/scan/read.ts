@@ -12,6 +12,7 @@ import { InventoryError } from "@/lib/inventory-math";
 import { can } from "@/lib/rbac";
 import type { Session } from "@/lib/session";
 import { facilityToday } from "@/lib/time";
+import { canReadDocuments } from "./can-read";
 import { proposeCoa } from "./coa-math";
 import { proposeDocument } from "./doc-math";
 import { DOCS, DOC_TYPES, SENSITIVE_ID } from "./documents";
@@ -83,6 +84,46 @@ function fakeRead(name: string): Record<string, unknown> {
       ],
       uncertain_fields: ["driver"],
     };
+  if (/invoice-costs/i.test(name))
+    return {
+      document_type: "INVOICE",
+      summary: "Invoice INV-4471 from Bosque Wellness",
+      fields: { invoiceNumber: "INV-4471", invoiceDate: "2026-11-20", vendor: "Bosque Wellness", total: "$276.00" },
+      items: [{ description: "Prickly Pear Gummies 10-pack", sku: "", quantity: 60, unitPrice: "$4.60", lineTotal: "$276.00" }],
+    };
+  if (/harvest-sheet/i.test(name))
+    return {
+      document_type: "HARVEST_SHEET",
+      summary: "Harvest sheet for Blue Mesa",
+      fields: { strain: "Blue Mesa", harvestDate: "2026-11-20", room: "Flower Room 1", totalWetWeight: "1105" },
+      items: [
+        { plantTag: "PL-000115", wetWeight: 410, unit: "g" },
+        { plantTag: "PL-000116", wetWeight: 395, unit: "g" },
+        { plantTag: "PL-000999", wetWeight: 300, unit: "g" },
+      ],
+    };
+  if (/price-list/i.test(name)) {
+    const token = /price-list-([a-z0-9]+)/i.exec(name)?.[1] ?? "X";
+    return {
+      document_type: "PRICE_LIST",
+      summary: "Price list from Sandoval Packaging Supply",
+      fields: { vendor: "Sandoval Packaging Supply", effectiveDate: "2026-11-20" },
+      items: [
+        { sku: "PKG-CONE", product: "Pre-roll Cone", category: "Packaging", unit: "each", price: "$0.09" },
+        { sku: "", product: `Display Tray ${token}`, category: "Packaging", unit: "each", price: "$3.25" },
+      ],
+    };
+  }
+  if (/wholesale-order/i.test(name))
+    return {
+      document_type: "WHOLESALE_ORDER",
+      summary: "Order PO-8812 from Turquoise Trail Dispensary",
+      fields: { orderNumber: "PO-8812", orderDate: "2026-11-20", customer: "Turquoise Trail Dispensary", customerLicense: "DEMO-RET-0417", deliveryDate: "2026-11-25", total: "$396.00" },
+      items: [
+        { description: "Blue Mesa 3.5 g Jar", sku: "", quantity: 24, unitPrice: "$12.50", lineTotal: "$300.00" },
+        { description: "Prickly Pear Gummies 10-pack", sku: "", quantity: 12, unitPrice: "$8.00", lineTotal: "$96.00" },
+      ],
+    };
   if (/invoice/i.test(name))
     return {
       document_type: "INVOICE",
@@ -128,7 +169,7 @@ export async function scansFor(session: Session, attachmentIds: string[]): Promi
 
 /** Read one of the person's uploaded photos or PDFs. Reading again replaces an earlier read that wasn't saved. */
 export async function readAttachment(session: Session, attachmentId: string): Promise<ScanView> {
-  if (!can(session, "inventory.write")) throw new InventoryError("Your role can't record lab results, so there is nothing to fill in for you.");
+  if (!canReadDocuments(session)) throw new InventoryError("Your role can't save anything from a document, so there is nothing to fill in for you.");
   const existing = await getScan(session, attachmentId);
   if (existing?.status === "APPLIED") return existing;
   let file;
