@@ -12,7 +12,7 @@ export async function confirmCoaAction(input: { attachmentId: string; packageId:
   try {
     const session = await requireSession();
     const saved = await confirmCoa(session, input);
-    revalidatePath("/inbox");
+    // Not "/inbox": that would swap this review page for "already saved" before the person sees the success screen.
     revalidatePath("/inventory");
     return { ok: true, resultId: saved.resultId, packageId: input.packageId, quarantined: saved.quarantined };
   } catch (error) {

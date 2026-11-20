@@ -1,7 +1,6 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, CircleDashed, FileWarning, Loader2, Search } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { confirmCoaAction, dismissScanAction, type ConfirmResult } from "@/app/(app)/inbox/actions";
@@ -109,8 +108,10 @@ export function CoaReview({
           <p role="status" className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-800">A failed result puts the package in quarantine automatically. It can&apos;t be sold or moved until it is released.</p>
         ) : null}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Link href={`/inventory/${done.packageId}`} className="rounded-lg bg-brand-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-800">Open the package</Link>
-          <Link href="/inbox" className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold hover:bg-slate-50">Back to the inbox</Link>
+          <a href={`/inventory/${done.packageId}`} className="rounded-lg bg-brand-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-800">Open the package</a>
+          {/* A full load, so the inbox shows this one as saved. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a href="/inbox" className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold hover:bg-slate-50">Back to the inbox</a>
         </div>
       </div>
     );
