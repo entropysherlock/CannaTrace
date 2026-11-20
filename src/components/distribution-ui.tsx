@@ -114,3 +114,25 @@ export function PickBar({ picked, of }: { picked: number; of: number }) {
     </span>
   );
 }
+
+/** Five dots for an order's progress, for lists. */
+export function MiniProgress({ status }: { status: string }) {
+  const at = ORDER_STEPS.findIndex(([s]) => s === status);
+  return (
+    <span className="flex items-center gap-1" aria-hidden="true">
+      {ORDER_STEPS.map(([key], i) => (
+        <span key={key} className={`h-1.5 w-4 rounded-full ${status === "CANCELLED" ? "bg-slate-200" : i <= at ? "bg-brand-600" : "bg-slate-200"}`} />
+      ))}
+    </span>
+  );
+}
+
+/** What an order is waiting on, in a few words. */
+export const ORDER_NEXT: Record<string, string> = {
+  DRAFT: "Add lines and confirm",
+  CONFIRMED: "Ready to pick",
+  PACKED: "Ready to ship",
+  SHIPPED: "Out for delivery",
+  DELIVERED: "Delivered",
+  CANCELLED: "Cancelled",
+};

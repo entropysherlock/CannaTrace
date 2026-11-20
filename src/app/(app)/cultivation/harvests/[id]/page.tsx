@@ -7,7 +7,7 @@ import { ActionForm } from "@/components/action-form";
 import { CreatableSelect } from "@/components/contextual-create";
 import { ItemFields } from "@/components/item-fields";
 import { LocationFields } from "@/components/quick-fields";
-import { CultivationTabs, WeightInput, grams } from "@/components/cultivation-ui";
+import { CultivationTabs, HarvestSummary, WeightInput, grams } from "@/components/cultivation-ui";
 import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, inputClass, ScrollBox } from "@/components/ui";
 import { harvestPackages, harvests, items, locations, packages, strains, wasteLogs } from "@/db/schema";
@@ -62,7 +62,8 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
   ]);
   const onHand = harvestOnHand(harvest);
   const open = harvest.status === "DRYING";
-  const canWrite = open && can(session, "cultivation.write");
+  const mayWrite = can(session, "cultivation.write");
+  const canWrite = open && mayWrite;
   const canAddItem = can(session, "catalog.manage");
   const canAddLocation = can(session, "catalog.manage");
   const categories = canAddItem ? await itemCategoryNames(session.orgId) : [];
@@ -77,27 +78,18 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
         subtitle={`${row.strainName} · ${harvest.plantCount} plant${harvest.plantCount === 1 ? "" : "s"} · harvested ${harvest.harvestedAt.toLocaleDateString("en-US", { timeZone: zone })} · ${row.roomName}`}
       />
       <CultivationTabs current="/cultivation/harvests" />
+      <HarvestSummary
+        wet={harvest.wetWeight}
+        dry={harvest.dryWeight}
+        moisture={moisture}
+        packaged={harvest.packagedWeight}
+        waste={harvest.wasteWeight}
+        onHand={onHand.toString()}
+        finishedOn={open ? null : (harvest.finishedAt ?? harvest.harvestedAt).toLocaleDateString("en-US", { timeZone: zone })}
+      />
       <div className="grid gap-5 lg:grid-cols-3">
-        <div className="space-y-5">
-          <Card title="Weights">
-            <dl className="grid grid-cols-2 gap-y-2 text-sm">
-              <dt className="text-slate-600">Wet weight</dt>
-              <dd className="text-right font-semibold">{grams(harvest.wetWeight)}</dd>
-              <dt className="text-slate-600">Dry weight</dt>
-              <dd className="text-right font-semibold">{grams(harvest.dryWeight)}</dd>
-              <dt className="text-slate-600">Moisture loss</dt>
-              <dd className="text-right">{grams(moisture)}</dd>
-              <dt className="text-slate-600">Waste</dt>
-              <dd className="text-right">{grams(harvest.wasteWeight)}</dd>
-              <dt className="text-slate-600">Packaged</dt>
-              <dd className="text-right">{grams(harvest.packagedWeight)}</dd>
-              <dt className="border-t border-slate-100 pt-2 font-semibold text-slate-900">{open ? "On hand" : "Status"}</dt>
-              <dd className="border-t border-slate-100 pt-2 text-right text-lg font-bold text-slate-900">
-                {open ? grams(onHand.toString()) : "finished"}
-              </dd>
-            </dl>
-          </Card>
-          {canWrite && !open ? (
+        <div className="space-y-5 lg:order-2">
+          {mayWrite && !open ? (
             <Card title="Reopen harvest">
               <ActionForm action={reopenHarvestAction} submitLabel="Reopen harvest">
                 {hidden}
@@ -118,17 +110,53 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
                   </Field>
                 </ActionForm>
               </Card>
-              <Card title="Finish harvest">
-                <ActionForm action={finishHarvestAction} submitLabel="Finish harvest">
-                  {hidden}
-                  <p className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium leading-relaxed text-amber-900"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Closes the harvest. Needs a dry weight, with all dried product packaged or logged as waste; the rest of the wet weight is recorded as moisture loss.</span></p>
-                </ActionForm>
-              </Card>
             </>
+          ) : null}
+          {canWrite ? (
+            <Card title="Log waste">
+              <ActionForm action={wasteAction} submitLabel="Log waste">
+                {hidden}
+                <Field label="Waste weight">
+                  <WeightInput name="weight" unitName="unit" required remember="waste" />
+                </Field>
+                <Field label="What it was" hint="For example stems, fan leaves, or mold.">
+                  <input name="reason" required className={inputClass} />
+                </Field>
+              </ActionForm>
+            </Card>
+          ) : null}
+          <Card title="Waste log">
+            {waste.length === 0 ? (
+              <p className="text-sm text-slate-600">No waste logged.</p>
+            ) : (
+              <ScrollBox label="Waste log">
+              <ul className="divide-y divide-slate-100 text-sm">
+                {waste.map((entry) => (
+                  <li key={entry.id} className="py-2">
+                    <div className="flex justify-between gap-3">
+                      <span className="font-medium text-slate-900">{entry.reason}</span>
+                      <span className="font-semibold">{grams(entry.weightGrams)}</span>
+                    </div>
+                    <p className="text-slate-500">
+                      {entry.userName} · {entry.createdAt.toLocaleString("en-US", { timeZone: zone })}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              </ScrollBox>
+            )}
+          </Card>
+          {canWrite ? (
+            <Card title="Finish harvest">
+              <ActionForm action={finishHarvestAction} submitLabel="Finish harvest">
+                {hidden}
+                <p className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium leading-relaxed text-amber-900"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Closes the harvest. Needs a dry weight, with all dried product packaged or logged as waste; the rest of the wet weight is recorded as moisture loss.</span></p>
+              </ActionForm>
+            </Card>
           ) : null}
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-5 lg:col-span-2 lg:order-1">
           {canWrite ? (
             <Card title="Package from this harvest">
               <ActionForm action={packageHarvestAction} submitLabel="Create packages">
@@ -212,42 +240,6 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
           </Card>
         </div>
 
-        <div className="space-y-5">
-          {canWrite ? (
-            <Card title="Log waste">
-              <ActionForm action={wasteAction} submitLabel="Log waste">
-                {hidden}
-                <Field label="Waste weight">
-                  <WeightInput name="weight" unitName="unit" required remember="waste" />
-                </Field>
-                <Field label="What it was" hint="For example stems, fan leaves, or mold.">
-                  <input name="reason" required className={inputClass} />
-                </Field>
-              </ActionForm>
-            </Card>
-          ) : null}
-          <Card title="Waste log">
-            {waste.length === 0 ? (
-              <p className="text-sm text-slate-600">No waste logged.</p>
-            ) : (
-              <ScrollBox label="Waste log">
-              <ul className="divide-y divide-slate-100 text-sm">
-                {waste.map((entry) => (
-                  <li key={entry.id} className="py-2">
-                    <div className="flex justify-between gap-3">
-                      <span className="font-medium text-slate-900">{entry.reason}</span>
-                      <span className="font-semibold">{grams(entry.weightGrams)}</span>
-                    </div>
-                    <p className="text-slate-500">
-                      {entry.userName} · {entry.createdAt.toLocaleString("en-US", { timeZone: zone })}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-              </ScrollBox>
-            )}
-          </Card>
-        </div>
       </div>
     </>
   );

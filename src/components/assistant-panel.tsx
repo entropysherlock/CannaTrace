@@ -273,7 +273,7 @@ export function AssistantPanel({
         onClick={() => setOpen(true)}
         aria-label="Ask Tally"
         data-testid="tally-launcher"
-        className={`fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-900 text-white shadow-lg shadow-brand-900/30 transition hover:scale-105 md:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:right-[calc(1.5rem+env(safe-area-inset-right))] print:hidden ${docked ? "2xl:hidden" : ""} ${open ? "pointer-events-none scale-75 opacity-0" : ""}`}
+        className={`fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br md:h-14 md:w-14 from-brand-600 to-brand-900 text-white shadow-lg shadow-brand-900/30 transition hover:scale-105 md:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:right-[calc(1.5rem+env(safe-area-inset-right))] print:hidden ${docked ? "2xl:hidden" : ""} ${open ? "pointer-events-none scale-75 opacity-0" : ""}`}
       >
         <Sparkles className="h-6 w-6" aria-hidden="true" />
       </button>

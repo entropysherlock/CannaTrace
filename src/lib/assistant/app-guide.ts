@@ -12,7 +12,7 @@ Cultivation (tabs: Overview, Plants, Harvests, Strains)
 - Start a batch of clones or seeds: Cultivation → Overview → "Start a batch" (name, strain, clones or seeds, how many, room).
 - Tag plants: open the batch from "Plant batches" on Overview → "Tag plants" (scan or type tags, or a first tag and a count). "Record lost plants" is on the same page.
 - Change phase, move, harvest, or destroy plants: Cultivation → Plants → tick plants ("Tick or untick all" for everything shown) → "Choose what to do" → "Apply to ticked plants". Filter by phase, room, or strain first.
-- A harvest: Cultivation → Harvests → open it → "Record dry weight", "Log waste", "Package from this harvest" (set "How many packages" to make several same-size packages in one save, e.g. ten 1 lb bags; leave the tag blank or give one tag per package), then "Finish harvest" once every gram is packaged or logged. A harvest can't be finished until its dry weight is recorded. Package it as an item of the same strain (or an item with no strain set, such as mixed trim); another strain's item is refused.
+- A harvest: Cultivation → Harvests → open it. The top shows wet and dry weight, packaged, waste, and "Left to account for", with a bar and the next step. Then "Record dry weight", "Log waste", "Package from this harvest" (set "How many packages" to make several same-size packages in one save, e.g. ten 1 lb bags; leave the tag blank or give one tag per package), then "Finish harvest" once every gram is packaged or logged. A harvest can't be finished until its dry weight is recorded. Package it as an item of the same strain (or an item with no strain set, such as mixed trim); another strain's item is refused.
 - Finished a harvest by mistake: open it → "Reopen harvest" (say why; it's saved in the audit trail), then finish it again when it's done.
 - Tasks: Cultivation → Overview → "Add a task"; press Done on "Open tasks" when finished.
 
@@ -37,6 +37,7 @@ Distribution (tabs: Orders, Invoices, Vendors, Price lists, Drivers and vehicles
 - Vendors → "Add a vendor" (license number and expiry; verify the license before shipping). A vendor can have several destinations.
 - Price lists → "New price list", "Set a price".
 - An order page shows its progress across the top (Draft, Confirmed, Packed, Shipped, Delivered) with the next step underneath.
+- Distribution → Orders lists orders under "In progress", "On the road", and "Done", each with what it's waiting on (ready to pick, ready to ship, out for delivery).
 - Orders → "Start an order" → "Add a line" → "Confirm the order" → "Pick packages" ("Pick everything, oldest first" fills every line from the oldest active packages, splitting off just what's needed, skipping held or failed stock, and saying which items are short; "Or scan one package" picks them one at a time) → "Mark packed" → "Ship" (driver, vehicle, times; makes the manifest) → "Mark delivered".
 - Invoices → "Record a payment" or "Issue a credit memo".
 - Drivers and vehicles → "Add a driver", "Add a vehicle".

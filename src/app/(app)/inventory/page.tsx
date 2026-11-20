@@ -109,7 +109,7 @@ export default async function InventoryPage({
         }
       />
       <form className="mb-4 flex flex-wrap items-start gap-2">
-        <div className="max-w-md flex-1">
+        <div className="w-full sm:w-auto sm:max-w-md sm:flex-1">
           <ScanInput name="q" defaultValue={query} placeholder="Scan or search tag, item, SKU, lot" autoFocus submitOnScan />
         </div>
         <select name="status" defaultValue={status} className={`${inputBase} w-auto`}>

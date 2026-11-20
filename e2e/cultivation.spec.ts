@@ -104,9 +104,17 @@ test("grow from a batch of clones to a packaged, finished harvest", async ({ pag
   await page.getByRole("button", { name: "Log waste" }).click();
   await expect(page.getByText("Waste logged.")).toBeVisible();
   await page.getByRole("button", { name: "Finish harvest" }).click();
-  await expect(page.getByText("finished", { exact: true })).toBeVisible();
-  await expect(page.getByText("1.5 kg")).toBeVisible(); // moisture loss = 2000 - 150 - 350
+  await expect(page.getByTestId("harvest-summary")).toContainText("Finished");
+  await expect(page.getByText("1.5 kg moisture loss")).toBeVisible(); // moisture loss = 2000 - 150 - 350
   await expect(page.getByRole("button", { name: "Log waste" })).toHaveCount(0);
+
+  // Finished by mistake: reopen it (with a reason), then finish it again
+  const reopen = page.locator('form:has(button:text("Reopen harvest"))');
+  await reopen.locator('input[name="reason"]').fill("Forgot to weigh the trim bin");
+  await page.getByRole("button", { name: "Reopen harvest" }).click();
+  await expect(page.getByRole("button", { name: "Log waste" })).toBeVisible();
+  await page.getByRole("button", { name: "Finish harvest" }).click();
+  await expect(page.getByTestId("harvest-summary")).toContainText("Finished");
 
   // The package is in inventory with the harvest as its lot
   await page.getByRole("link", { name: `${run}-PKG` }).click();
