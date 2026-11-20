@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dryWeightAction, finishHarvestAction, packageHarvestAction, quickStrainAction, tagPlantsAction, wasteAction } from "@/app/(app)/cultivation/actions";
 import { growBatchAction, growHarvestAction, growMoveAction } from "@/app/(app)/cultivation/grow-actions";
-import { quickRoomAction } from "@/app/(app)/quick-create-actions";
+import { quickItemAction, quickRoomAction } from "@/app/(app)/quick-create-actions";
+import { ItemFields } from "./item-fields";
 import { ActionForm } from "./action-form";
 import { CreatableSelect } from "./contextual-create";
 import { StrainFields, WeightInput } from "./cultivation-ui";
@@ -13,6 +14,8 @@ import { Field, inputClass } from "./ui";
 type Opt = { id: string; name: string };
 export type GrowData = {
   canAddRoom: boolean;
+  canAddItem: boolean;
+  categories: string[];
   strains: Opt[];
   rooms: Opt[];
   items: { id: string; label: string }[];
@@ -280,14 +283,22 @@ export function GrowGuide({ data }: { data: GrowData }) {
                     ))}
                   </select>
                 </Field>
-                <Field label="Item">
-                  <select name="itemId" required className={inputClass} defaultValue="">
-                    <option value="" disabled>Choose an item</option>
-                    {data.items.map((i) => (
-                      <option key={i.id} value={i.id}>{i.label}</option>
-                    ))}
-                  </select>
-                </Field>
+                <p className="rounded-xl bg-slate-100 p-3 text-sm text-slate-800" data-testid="weight-note">
+                  Only items counted by weight (grams, ounces, pounds) can be packaged from a harvest, like bulk flower or trim. Jars and pre-rolls are made later in Manufacturing.
+                </p>
+                <CreatableSelect
+                  name="itemId"
+                  label="Item"
+                  required
+                  placeholder="Choose an item"
+                  options={data.items.map((i) => ({ id: i.id, label: i.label }))}
+                  create={
+                    data.canAddItem
+                      ? { buttonLabel: "Add bulk item", title: "Add an item counted by weight", intro: "It goes into your catalog too, and is picked for this package.", submitLabel: "Save item", action: quickItemAction, fields: <ItemFields categories={data.categories} units={["G", "KG", "OZ", "LB", "MG"]} /> }
+                      : undefined
+                  }
+                  deniedHint="No item counted by weight? Someone who manages the catalog can add one on the Items page."
+                />
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Weight of each package" hint="In the item's unit.">
                     <input name="quantity" inputMode="decimal" required className={inputClass} />

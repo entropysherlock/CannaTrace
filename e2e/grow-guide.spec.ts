@@ -54,3 +54,18 @@ test("a harvest that is still drying shows as waiting, not as something undone",
   await page.getByRole("button", { name: /^5\. Dry/ }).click();
   await expect(page.getByTestId("grow-title")).toHaveText("Dry weight");
 });
+
+test("the Package step only offers items counted by weight, and says why", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("manager@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  await page.goto("/cultivation");
+  await page.getByRole("button", { name: /^6\. Package/ }).click();
+  await expect(page.getByTestId("weight-note")).toBeVisible();
+  const options = await page.locator('select[name="itemId"] option').allTextContents();
+  expect(options.some((o) => /Blue Mesa Flower/.test(o))).toBe(true);
+  expect(options.some((o) => /Jar|Pre-roll|Gummies|Resin/.test(o))).toBe(false);
+  await expect(page.getByRole("button", { name: "Add bulk item" })).toBeVisible();
+});
