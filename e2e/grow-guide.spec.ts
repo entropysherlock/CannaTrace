@@ -43,3 +43,14 @@ test("the Grow screen walks a grow from a new batch to tagged plants, one short 
   await expect(page).toHaveURL(/\/cultivation\/overview$/);
   await expect(page.getByRole("link", { name: "Grow guide" })).toBeVisible();
 });
+
+test("a harvest that is still drying shows as waiting, not as something undone", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("cultivation@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  await page.goto("/cultivation");
+  await page.getByRole("button", { name: /^5\. Dry/ }).click();
+  await expect(page.getByTestId("grow-title")).toHaveText("Dry weight");
+});

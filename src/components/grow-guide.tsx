@@ -19,10 +19,10 @@ export type GrowData = {
   items: { id: string; label: string }[];
   untaggedBatches: { id: string; name: string; strain: string; untagged: number; roomId: string }[];
   plantGroups: { key: string; label: string; phase: string; ids: string[] }[];
-  dryingHarvests: { id: string; label: string }[];
+  dryingHarvests: { id: string; label: string; day: number; ready: boolean }[];
   packableHarvests: { id: string; label: string; left: string }[];
   finishable: { id: string; label: string }[];
-  counts: { untagged: number; plants: number; flowering: number; toDry: number; toPackage: number };
+  counts: { untagged: number; plants: number; flowering: number; toDry: number; waiting: number; toPackage: number };
   suggested: number;
 };
 
@@ -146,6 +146,7 @@ export function GrowGuide({ data }: { data: GrowData }) {
             className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold ${i === step ? "border-brand-800 bg-brand-800 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-brand-50"}`}
           >
             {i + 1}. {x.short}
+            {i === 4 && badge[i] === 0 && data.counts.waiting > 0 ? <span className="rounded-full bg-slate-200 px-2 text-xs font-bold text-slate-700" title="Drying, nothing to do yet">waiting</span> : null}
             {badge[i] > 0 ? <span className={`rounded-full px-2 text-xs font-bold ${i === step ? "bg-white/25" : "bg-amber-100 text-amber-900"}`}>{badge[i]}</span> : null}
           </button>
         ))}
@@ -224,6 +225,16 @@ export function GrowGuide({ data }: { data: GrowData }) {
         {step === 4 ? (
           data.dryingHarvests.length ? (
             <div className="space-y-6">
+              <div className="rounded-xl bg-slate-100 p-3 text-sm text-slate-800" data-testid="drying-status">
+                {data.dryingHarvests.some((h) => h.ready)
+                  ? "Some harvests have dried long enough to weigh. Pick one below."
+                  : "Everything is still drying, so there is nothing to do here yet. Come back in a few days. You can start or tag other batches in the meantime."}
+                <ul className="mt-1 list-disc pl-5">
+                  {data.dryingHarvests.map((h) => (
+                    <li key={h.id}>{h.label.split(" · drying")[0]}: day {h.day}{h.ready ? ", ready to weigh" : ", still drying"}</li>
+                  ))}
+                </ul>
+              </div>
               <ActionForm key="s4" action={dryWeightAction} submitLabel="Save dry weight">
                 <Field label="Harvest">
                   <select name="harvestId" required className={inputClass}>
