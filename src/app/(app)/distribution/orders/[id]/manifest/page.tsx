@@ -8,6 +8,16 @@ import { db } from "@/lib/db";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 
+/** A blank line to write on by hand. */
+function WriteIn({ label, className = "" }: { label: string; className?: string }) {
+  return (
+    <div className={className}>
+      <div className="h-8 border-b border-slate-600" />
+      <p className="mt-0.5 text-xs text-slate-600">{label}</p>
+    </div>
+  );
+}
+
 export default async function ManifestPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePagePermission("sales.view");
   const { id } = await params;
@@ -88,7 +98,23 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
             <p>Plate {vehicle.plate}</p>
           </div>
         </div>
-        {order.routeNotes ? <p className="mt-3">Route: {order.routeNotes}</p> : null}
+
+        <div className="mt-4 rounded-md border border-slate-300 p-3" data-testid="manifest-travel">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Trip details (filled in by hand)</p>
+          <div className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+            <WriteIn label="Planned arrival (date and time)" />
+            <WriteIn label="Actual arrival (date and time)" />
+            <WriteIn label="Destination (driver fills in)" className="sm:col-span-2" />
+          </div>
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Planned route</p>
+          {order.routeNotes ? <p className="mt-1" data-testid="manifest-route">{order.routeNotes}</p> : null}
+          <div className="mt-1 space-y-1">
+            <div className="h-7 border-b border-slate-600" />
+            <div className="h-7 border-b border-slate-600" />
+            {order.routeNotes ? null : <div className="h-7 border-b border-slate-600" />}
+          </div>
+          <p className="mt-0.5 text-xs text-slate-600">Stops and roads, in order</p>
+        </div>
 
         <table className="mt-4 w-full border-collapse text-left">
           <thead>
@@ -96,7 +122,9 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
               <th className="py-2 pr-2">Package tag</th>
               <th className="py-2 pr-2">Item</th>
               <th className="py-2 pr-2">Lot</th>
-              <th className="py-2 text-right">Quantity</th>
+              <th className="py-2 pr-2 text-right">Quantity</th>
+              <th className="w-16 py-2 pr-2 text-center">Accepted</th>
+              <th className="w-16 py-2 text-center">Rejected</th>
             </tr>
           </thead>
           <tbody>
@@ -105,9 +133,11 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
                 <td className="py-2 pr-2 font-mono font-semibold">{pkg.tag}</td>
                 <td className="py-2 pr-2">{pkg.itemName}</td>
                 <td className="py-2 pr-2">{pkg.lotNumber ?? ""}</td>
-                <td className="py-2 text-right">
+                <td className="py-2 pr-2 text-right">
                   {new Decimal(pkg.quantity).toString()} {unitLabel(pkg.unit)}
                 </td>
+                <td className="py-2 pr-2 text-center text-lg leading-none">☐</td>
+                <td className="py-2 text-center text-lg leading-none">☐</td>
               </tr>
             ))}
           </tbody>
@@ -116,7 +146,17 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
           {rows.length} package{rows.length === 1 ? "" : "s"}
         </p>
 
-        <div className="mt-10 grid gap-8 sm:grid-cols-2">
+        <div className="mt-6 rounded-md border border-slate-300 p-3 break-inside-avoid" data-testid="manifest-rejections">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rejected product</p>
+          <p className="mt-1 text-xs text-slate-600">Tick Rejected above, then describe which package, how much, and what was wrong.</p>
+          <div className="mt-1 space-y-1">
+            {[0, 1, 2, 3].map((n) => (
+              <div key={n} className="h-8 border-b border-slate-600" />
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-10 grid gap-8 sm:grid-cols-2 break-inside-avoid">
           <p className="border-t border-slate-500 pt-1">Released by (sign and date)</p>
           <p className="border-t border-slate-500 pt-1">Received by (sign and date)</p>
         </div>
