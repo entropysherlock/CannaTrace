@@ -100,20 +100,14 @@ export default async function ManifestPage({ params }: { params: Promise<{ id: s
         </div>
 
         <div className="mt-4 rounded-md border border-slate-300 p-3" data-testid="manifest-travel">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Trip details (filled in by hand)</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Trip details</p>
           <div className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
             <WriteIn label="Planned arrival (date and time)" />
             <WriteIn label="Actual arrival (date and time)" />
             <WriteIn label="Destination (driver fills in)" className="sm:col-span-2" />
           </div>
           <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Planned route</p>
-          {order.routeNotes ? <p className="mt-1" data-testid="manifest-route">{order.routeNotes}</p> : null}
-          <div className="mt-1 space-y-1">
-            <div className="h-7 border-b border-slate-600" />
-            <div className="h-7 border-b border-slate-600" />
-            {order.routeNotes ? null : <div className="h-7 border-b border-slate-600" />}
-          </div>
-          <p className="mt-0.5 text-xs text-slate-600">Stops and roads, in order</p>
+          <p className="mt-1 whitespace-pre-line" data-testid="manifest-route">{order.routeNotes || "No route entered."}</p>
         </div>
 
         <table className="mt-4 w-full border-collapse text-left">
