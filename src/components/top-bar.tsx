@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, ChevronDown, HelpCircle, Bell, Search } from "lucide-react";
+import { Building2, Camera, ChevronDown, HelpCircle, Bell, Search } from "lucide-react";
 import Link from "next/link";
 import { useRef } from "react";
 
@@ -73,6 +73,10 @@ export function TopBarRight({
           className="min-h-10 w-64 rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 hover:border-brand-400 xl:w-80"
         />
       </form>
+      {/* A plain link: the camera screen is its own page, and a full load is the fastest way there on a phone. */}
+      <a href="/capture" aria-label="Take a photo" title="Take a photo of paperwork" data-testid="camera-link" className="rounded-lg p-2 text-brand-700 hover:bg-brand-50">
+        <Camera className="h-5 w-5" aria-hidden="true" />
+      </a>
       <Link href="/search" aria-label="Search" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden">
         <Search className="h-5 w-5" aria-hidden="true" />
       </Link>
