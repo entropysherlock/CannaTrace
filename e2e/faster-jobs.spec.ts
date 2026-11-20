@@ -48,6 +48,7 @@ test("tick many packages, one lab result for a lot, and pick a whole order at on
 
   // One lab result, recorded on the whole lot
   await page.goto(first);
+  await expect(page.getByTestId("package-summary")).toContainText("Not tested yet");
   await page.locator("summary", { hasText: "Add lab result" }).click();
   const sameLot = page.getByTestId("same-lot");
   await expect(sameLot).toContainText("Same test, rest of lot");
@@ -60,6 +61,12 @@ test("tick many packages, one lab result for a lot, and pick a whole order at on
   await page.goto(`/inventory?q=${run}-3`);
   await page.getByRole("link", { name: `${run}-3` }).first().click();
   await expect(page.getByText("THC 22%")).toBeVisible();
+  await expect(page.getByTestId("package-summary")).toContainText("Passed");
+
+  // The dashboard lists the held packages as something to do today
+  await page.goto("/dashboard");
+  await expect(page.getByTestId("today")).toContainText("Needs attention today");
+  await expect(page.getByTestId("today").getByRole("link", { name: /on hold/ })).toBeVisible();
 
   // Pick a whole order automatically
   const jars = [`${run}-J1`, `${run}-J2`];

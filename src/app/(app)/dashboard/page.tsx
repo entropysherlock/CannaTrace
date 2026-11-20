@@ -4,6 +4,7 @@ import {
   ArrowRight,
   ArrowUp,
   Boxes,
+  Circle,
   CheckCircle2,
   ChevronRight,
   CircleDollarSign,
@@ -12,6 +13,7 @@ import {
   FileText,
   FlaskConical,
   Info,
+  ListChecks,
   Minus,
   ShieldCheck,
   Sparkles,
@@ -38,7 +40,8 @@ import { db } from "@/lib/db";
 import { visibleFacilities } from "@/lib/facility-access";
 import { can } from "@/lib/rbac";
 import { requireSession } from "@/lib/session";
-import { facilityZone } from "@/lib/time";
+import { facilityToday, facilityZone } from "@/lib/time";
+import { todayList, type TodayItem } from "@/lib/today";
 import { ADAPTERS } from "@/lib/sync";
 import { SYSTEM_LABELS, type SystemName } from "@/lib/sync-math";
 import { sweepIfStaleBriefly } from "@/lib/watch";
@@ -113,6 +116,44 @@ const SEVERITY = {
   info: { icon: Info, tone: "text-slate-400" },
 };
 
+const mayCompliance = (session: Parameters<typeof can>[0]) => can(session, "compliance.view");
+
+/** The short list of things to do today, most urgent first. */
+function TodayPanel({ items }: { items: TodayItem[] }) {
+  return (
+    <section className="mb-4 rounded-2xl border border-brand-100 bg-white p-4 shadow-sm sm:p-5" data-testid="today">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-base font-bold text-slate-950">
+          <ListChecks className="h-5 w-5 text-brand-600" aria-hidden="true" /> Needs attention today
+        </h2>
+        <span className="text-xs text-slate-500">{items.length ? `${items.length} thing${items.length === 1 ? "" : "s"} to do` : ""}</span>
+      </div>
+      {items.length ? (
+        <ul className="mt-3 grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+          {items.map((item) => (
+            <li key={item.key}>
+              <Link
+                href={item.href}
+                className={`flex min-h-12 items-center gap-3 rounded-xl border px-3 py-2 text-sm font-semibold transition hover:shadow-sm ${
+                  item.tone === "red" ? "border-red-200 bg-red-50 text-red-900 hover:bg-red-100" : "border-amber-200 bg-amber-50 text-amber-950 hover:bg-amber-100"
+                }`}
+              >
+                {item.tone === "red" ? <XCircle className="h-4 w-4 shrink-0 text-red-600" aria-hidden="true" /> : <Circle className="h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />}
+                <span className="flex-1">{item.text}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 flex items-center gap-2 text-sm font-medium text-brand-800">
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Nothing needs you right now.
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default async function CommandCenterPage({ searchParams }: { searchParams: Promise<{ scope?: string; days?: string }> }) {
   const session = await requireSession();
   const zone = await facilityZone(session.facilityId);
@@ -140,6 +181,17 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
     (permission) => !permission || can(session, permission as Parameters<typeof can>[1]),
     facilities.map((f) => f.id),
   );
+
+  const todo: TodayItem[] = [
+    ...(c.alerts.urgent ? [{ key: "urgent", text: `${c.alerts.urgent} urgent Tally Watch alert${c.alerts.urgent === 1 ? "" : "s"}`, href: "/watch", tone: "red" as const }] : []),
+    ...(c.reporting.failed && mayCompliance(session) ? [{ key: "reports", text: `${c.reporting.failed} state report${c.reporting.failed === 1 ? "" : "s"} failed to send`, href: "/compliance", tone: "red" as const }] : []),
+    ...(await todayList({
+      orgId: session.orgId,
+      facilityIds: ids,
+      today: await facilityToday(session.facilityId),
+      may: { sales: can(session, "sales.view"), inventory: can(session, "inventory.view"), cultivation: can(session, "cultivation.view") },
+    })),
+  ].sort((a, b) => (a.tone === b.tone ? 0 : a.tone === "red" ? -1 : 1));
 
   const fmtDay = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: zone });
   const end = new Date();
@@ -231,6 +283,8 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
       </div>
 
       {empty && scope === "one" && can(session, "inventory.write") && can(session, "catalog.manage") ? <SwitchBanner /> : null}
+
+      <TodayPanel items={todo} />
 
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6" data-testid="kpis">
         <Kpi icon={Sprout} value={num(c.plants.total)} label="Plants" href={links.cultivation} sub={<span className="text-xs text-slate-500">{num(c.plants.tagged)} tagged · {num(c.plants.young)} young</span>} />

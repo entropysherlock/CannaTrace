@@ -28,6 +28,7 @@ describe("Tally's app guide", () => {
       "Same test, rest of lot",
       "How many packages",
       "Pick everything, oldest first",
+      "Needs attention today",
       "Match against the state system",
       "Upload and compare",
       "What changed",

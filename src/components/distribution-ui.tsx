@@ -59,3 +59,58 @@ export function Pill({ status }: { status: string }) {
     </span>
   );
 }
+
+const ORDER_STEPS = [
+  ["DRAFT", "Draft"],
+  ["CONFIRMED", "Confirmed"],
+  ["PACKED", "Packed"],
+  ["SHIPPED", "Shipped"],
+  ["DELIVERED", "Delivered"],
+] as const;
+
+/** Where an order is in its life, with what to do next underneath. */
+export function OrderProgress({ status, next }: { status: string; next: string }) {
+  const at = ORDER_STEPS.findIndex(([s]) => s === status);
+  const cancelled = status === "CANCELLED";
+  return (
+    <div className="mb-5 rounded-xl border border-brand-100 bg-white px-4 py-4 shadow-sm sm:px-5" data-testid="order-progress">
+      <ol className="flex items-center gap-1 sm:gap-2" aria-label="Order progress">
+        {ORDER_STEPS.map(([key, label], i) => {
+          const done = !cancelled && i < at;
+          const current = !cancelled && i === at;
+          return (
+            <li key={key} className={`flex min-w-0 items-center gap-1 sm:gap-2 ${current ? "flex-[3] xl:flex-1" : "flex-1"}`} aria-current={current ? "step" : undefined}>
+              <span
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                  done ? "bg-brand-600 text-white" : current ? "bg-brand-950 text-white ring-4 ring-brand-100" : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {done ? "✓" : i + 1}
+              </span>
+              <span
+                className={`truncate text-xs font-semibold sm:text-sm ${current ? "shrink-0 text-brand-950" : `max-xl:sr-only ${done ? "text-brand-700" : "text-slate-500"}`}`}
+              >
+                {label}
+              </span>
+              {i < ORDER_STEPS.length - 1 ? <span className={`h-0.5 min-w-2 flex-1 rounded ${done ? "bg-brand-500" : "bg-slate-200"}`} aria-hidden="true" /> : null}
+            </li>
+          );
+        })}
+      </ol>
+      <p className={`mt-3 text-sm font-medium ${cancelled ? "text-red-800" : "text-slate-800"}`}>
+        {cancelled ? <span className="mr-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold uppercase text-red-800">Cancelled</span> : null}
+        {next}
+      </p>
+    </div>
+  );
+}
+
+/** A thin bar for picked-of-ordered. */
+export function PickBar({ picked, of }: { picked: number; of: number }) {
+  const pct = of > 0 ? Math.min(100, Math.round((picked / of) * 100)) : 0;
+  return (
+    <span className="mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+      <span className={`block h-full rounded-full ${pct >= 100 ? "bg-brand-600" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
+    </span>
+  );
+}

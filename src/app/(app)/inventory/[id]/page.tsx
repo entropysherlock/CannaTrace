@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, ne, or } from "drizzle-orm";
 import Link from "next/link";
 import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
+import { ArrowRightLeft, FlaskConical, MapPin, Merge, Scale, ShieldAlert, Split, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { ActionForm } from "@/components/action-form";
 import { ScanInput } from "@/components/scan-input";
@@ -29,11 +30,12 @@ import { formatQty, unitLabel } from "@/lib/units";
 import { adjustAction, labResultAction, mergeAction, moveAction, splitAction, statusAction } from "../actions";
 import { facilityZone } from "@/lib/time";
 
-function Fold({ title, children }: { title: string; children: ReactNode }) {
+function Fold({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: ReactNode }) {
   return (
-    <details className="group rounded-lg border border-slate-200 bg-white shadow-sm">
-      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-base font-semibold text-slate-900">
-        {title}
+    <details className="group rounded-lg border border-slate-200 bg-white shadow-sm open:ring-2 open:ring-brand-100">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 text-base font-semibold text-slate-900">
+        <Icon className="h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
+        <span className="flex-1">{title}</span>
         <span className="text-slate-400 group-open:rotate-90">›</span>
       </summary>
       <div className="border-t border-slate-100 p-4">{children}</div>
@@ -182,6 +184,17 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
   const parents = lineage.filter((l) => l.childId === pkg.id);
   const children = lineage.filter((l) => l.parentId === pkg.id);
   const hidden = <input type="hidden" name="packageId" value={pkg.id} />;
+  // A fail stands until a later pass; a newer pending result doesn't change that.
+  const decisive = labs.find((l) => l.status !== "PENDING");
+  const labState = decisive?.status ?? (labs.length ? "PENDING" : "NONE");
+  const retestPending = labs[0]?.status === "PENDING" && decisive;
+  const LAB_TILE: Record<string, { label: string; tone: string }> = {
+    PASS: { label: "Passed", tone: "border-brand-200 bg-brand-50 text-brand-800" },
+    FAIL: { label: "Failed", tone: "border-red-200 bg-red-50 text-red-800" },
+    PENDING: { label: "Pending", tone: "border-amber-200 bg-amber-50 text-amber-900" },
+    NONE: { label: "Not tested yet", tone: "border-slate-200 bg-white text-slate-700" },
+  };
+  const hasActions = editable && (canWrite || canAdjust);
 
   return (
     <>
@@ -206,18 +219,41 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
           </div>
         }
       />
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="package-summary">
+        <div className="rounded-xl border border-brand-100 bg-white px-4 py-3 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">On hand</p>
+          <p className="mt-1 text-2xl font-extrabold tracking-tight text-brand-950">{formatQty(pkg.quantity, unit)}</p>
+        </div>
+        <div className="rounded-xl border border-brand-100 bg-white px-4 py-3 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
+          <p className="mt-2">
+            <StatusBadge status={pkg.status} />
+          </p>
+          {pkg.status === "ON_HOLD" || pkg.status === "QUARANTINE" ? <p className="mt-1 text-xs text-slate-600">{heldNote}</p> : null}
+        </div>
+        <div className="rounded-xl border border-brand-100 bg-white px-4 py-3 shadow-sm">
+          <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> Location
+          </p>
+          <p className="mt-1 truncate text-base font-bold text-slate-900">{locationName.get(pkg.locationId ?? "") ?? "None"}</p>
+        </div>
+        <div className={`rounded-xl border px-4 py-3 shadow-sm ${LAB_TILE[labState].tone}`}>
+          <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide opacity-80">
+            <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" /> Lab test
+          </p>
+          <p className="mt-1 text-base font-bold">{LAB_TILE[labState].label}</p>
+          {decisive ? (
+            <p className="text-xs opacity-80">
+              {decisive.labName}
+              {retestPending ? " · retest pending" : ""}
+            </p>
+          ) : null}
+        </div>
+      </div>
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-3 lg:col-span-1">
           <Card title="Details">
             <dl className="grid grid-cols-2 gap-y-2 text-sm">
-              <dt className="text-slate-600">Quantity</dt>
-              <dd className="text-right text-lg font-bold text-slate-900">{formatQty(pkg.quantity, unit)}</dd>
-              <dt className="text-slate-600">Status</dt>
-              <dd className="text-right">
-                <StatusBadge status={pkg.status} />
-              </dd>
-              <dt className="text-slate-600">Location</dt>
-              <dd className="text-right text-slate-900">{locationName.get(pkg.locationId ?? "") ?? "None"}</dd>
               <dt className="text-slate-600">SKU</dt>
               <dd className="text-right text-slate-900">{pkg.sku}</dd>
               <dt className="text-slate-600">Lot</dt>
@@ -253,8 +289,9 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
             ) : null}
           </Card>
 
+          {hasActions ? <h2 className="px-1 pt-2 text-xs font-bold uppercase tracking-wide text-slate-500">What do you want to do?</h2> : null}
           {editable && canWrite ? (
-            <Fold title="Move">
+            <Fold title="Move" icon={ArrowRightLeft}>
               <ActionForm action={moveAction} submitLabel="Move package">
                 {hidden}
                 <Field label="New location">
@@ -276,7 +313,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
           ) : null}
 
           {editable && canAdjust ? (
-            <Fold title="Adjust quantity">
+            <Fold title="Adjust quantity" icon={Scale}>
               <ActionForm action={adjustAction} submitLabel="Save adjustment">
                 {hidden}
                 <Field label={`Counted quantity (${unitLabel(unit)})`} hint="Enter what is really there. The difference is logged for you.">
@@ -303,7 +340,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
 
           {pkg.status === "ACTIVE" && canWrite ? (
             <>
-              <Fold title="Split into new packages">
+              <Fold title="Split into new packages" icon={Split}>
                 <ActionForm action={splitAction} submitLabel="Split">
                   {hidden}
                   <p className="text-sm text-slate-600">
@@ -317,7 +354,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                   ))}
                 </ActionForm>
               </Fold>
-              <Fold title="Merge with other packages">
+              <Fold title="Merge with other packages" icon={Merge}>
                 <ActionForm action={mergeAction} submitLabel="Merge">
                   {hidden}
                   <Field label="Other package tags" hint="Scan or type each tag, separated by spaces or new lines. Same item and lot only.">
@@ -332,7 +369,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
           ) : null}
 
           {editable && canAdjust ? (
-            <Fold title="Hold, quarantine, or destroy">
+            <Fold title="Hold, quarantine, or destroy" icon={ShieldAlert}>
               <ActionForm action={statusAction} submitLabel="Update status">
                 {hidden}
                 <Field label="New status">
@@ -367,7 +404,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
           ) : null}
 
           {canWrite ? (
-            <Fold title="Add lab result">
+            <Fold title="Add lab result" icon={FlaskConical}>
               <ActionForm action={labResultAction} submitLabel="Save result">
                 {hidden}
                 <Field label="Testing lab">
