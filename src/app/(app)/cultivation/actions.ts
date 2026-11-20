@@ -240,7 +240,7 @@ export async function taskAction(_state: FormState, formData: FormData): Promise
       dueDate: field(formData, "dueDate"),
       locationId: field(formData, "locationId"),
     });
-    revalidatePath("/cultivation");
+    revalidatePath("/cultivation/overview");
     return { ok: "Task added." };
   } catch (error) {
     return toFormError(error);
@@ -249,5 +249,5 @@ export async function taskAction(_state: FormState, formData: FormData): Promise
 
 export async function completeTaskAction(formData: FormData): Promise<void> {
   await completeTask(await cultivationActor(), { taskId: field(formData, "taskId") });
-  revalidatePath("/cultivation");
+  revalidatePath("/cultivation/overview");
 }

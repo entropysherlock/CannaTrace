@@ -79,7 +79,7 @@ export default async function BatchPage({ params }: { params: Promise<{ id: stri
           </div>
         }
       />
-      <CultivationTabs current="/cultivation" />
+      <CultivationTabs current="/cultivation/overview" />
       <div className="grid gap-5 lg:grid-cols-3">
         <Card title="Where the plants are">
           <dl className="grid grid-cols-2 gap-y-2 text-sm">

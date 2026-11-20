@@ -65,9 +65,9 @@ test("the top bar searches the business, rings the Tally Watch bell, and opens w
 
 test("the young-plants tile opens the batch list, and the inventory list scrolls in its own box", async ({ page }) => {
   await signIn(page);
-  await page.goto("/cultivation");
+  await page.goto("/cultivation/overview");
   await page.getByRole("link", { name: /Untagged young plants/ }).click();
-  await expect(page).toHaveURL(/\/cultivation#batches$/);
+  await expect(page).toHaveURL(/\/cultivation\/overview#batches$/);
   await expect(page.locator("#batches").getByRole("heading", { name: "Plant batches" })).toBeInViewport();
 
   await page.goto("/inventory");

@@ -100,7 +100,7 @@ test("saving the highlighted form moves the walkthrough on, and the bubble can s
   const strain = page.locator("section", { has: page.getByRole("heading", { name: "Add a strain" }) });
   await strain.locator('input[name="name"]').fill(`Walk ${tag}`);
   await strain.getByRole("button", { name: "Add strain" }).click();
-  await expect(page).toHaveURL(/\/cultivation$/);
+  await expect(page).toHaveURL(/\/cultivation\/overview$/);
   await expect(bubble).toContainText("Start a batch");
   await expect(page.getByTestId("walk-spotlight")).toBeVisible();
 });
