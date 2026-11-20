@@ -99,6 +99,11 @@ export function CaptureScreen({ person, store, justLinked }: { person: string; s
                 <span className="block truncate font-semibold">{s.name}</span>
                 <span className="block text-xs text-slate-600">{s.state === "done" ? (s.summary ? `${s.summary}. Ready to review.` : "Sent. It is in your inbox.") : s.state === "failed" ? s.error : s.state === "reading" ? "Sent. Reading it…" : "Sending…"}</span>
               </span>
+              {s.state === "done" && s.attachmentId ? (
+                <Link href={`/inbox/${s.attachmentId}`} className="shrink-0 rounded-lg bg-brand-700 px-3 py-2 text-xs font-bold text-white" data-testid="review-shot">
+                  Review
+                </Link>
+              ) : null}
               {s.state === "failed" ? (
                 <button type="button" className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold" onClick={() => void run(s)}>
                   Try again
