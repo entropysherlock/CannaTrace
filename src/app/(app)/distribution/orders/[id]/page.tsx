@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-react";
 import Decimal from "decimal.js";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
@@ -9,7 +9,7 @@ import { CreatableSelect } from "@/components/contextual-create";
 import { ItemFields } from "@/components/item-fields";
 import { DriverFields, VehicleFields } from "@/components/quick-fields";
 import { DistributionTabs, OrderProgress, PickBar, unitPrice, usd } from "@/components/distribution-ui";
-import { ScanInput } from "@/components/scan-input";
+import { OrderPickFields } from "@/components/order-pick-fields";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { customers, destinations, drivers, invoices, items, orderAllocations, orderLines, orders, packages, vehicles } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -57,7 +57,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
   const [lines, allocations, itemRows, driverRows, vehicleRows, [invoice]] = await Promise.all([
     db
-      .select({ id: orderLines.id, quantity: orderLines.quantity, unitPrice: orderLines.unitPrice, itemName: items.name, unit: items.unit })
+      .select({ id: orderLines.id, itemId: orderLines.itemId, quantity: orderLines.quantity, unitPrice: orderLines.unitPrice, itemName: items.name, unit: items.unit })
       .from(orderLines)
       .innerJoin(items, eq(items.id, orderLines.itemId))
       .where(eq(orderLines.orderId, order.id))
@@ -85,6 +85,15 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   // The destination's license is the one checked when the order ships.
   const problem = row.destination ? licenseProblem({ ...row.destination, name: `${customer.name} (${row.destination.name})` }, today) : licenseProblem(customer, today);
   const hidden = <input type="hidden" name="orderId" value={order.id} />;
+  // The packages that could be picked for this order's lines, so nobody has to know a tag.
+  const pickable = order.status === "CONFIRMED" && lines.length
+    ? await db
+        .select({ tag: packages.tag, itemId: packages.itemId, quantity: packages.quantity, unit: packages.unit, lot: packages.lotNumber })
+        .from(packages)
+        .where(and(eq(packages.orgId, session.orgId), eq(packages.facilityId, session.facilityId), eq(packages.status, "ACTIVE"), inArray(packages.itemId, lines.map((l) => l.itemId)), gt(packages.quantity, "0")))
+        .orderBy(asc(packages.createdAt))
+        .limit(400)
+    : [];
   const pickedFor = (lineId: string) =>
     allocations.filter((a) => a.lineId === lineId).reduce((sum, a) => sum.add(a.quantity), new Decimal(0));
   const orderedTotal = lines.reduce((sum, l) => sum.add(lineTotal(l.quantity, l.unitPrice)), new Decimal(0));
@@ -279,18 +288,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                   <div className="pt-3">
                     <ActionForm action={allocateAction} submitLabel="Pick">
                       {hidden}
-                      <Field label="For line">
-                        <select name="lineId" required defaultValue={shortLines[0]?.id ?? ""} className={inputClass}>
-                          {lines.map((line) => (
-                            <option key={line.id} value={line.id}>
-                              {line.itemName} (needs {num(Decimal.max(0, new Decimal(line.quantity).sub(pickedFor(line.id))))} more)
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field label="Package tag">
-                        <ScanInput name="tag" required />
-                      </Field>
+                      <OrderPickFields
+                        firstId={shortLines[0]?.id ?? lines[0]?.id ?? ""}
+                        lines={lines.map((line) => ({ id: line.id, itemId: line.itemId, label: `${line.itemName} (needs ${num(Decimal.max(0, new Decimal(line.quantity).sub(pickedFor(line.id))))} more)` }))}
+                        packages={pickable.map((p) => ({ itemId: p.itemId, tag: p.tag, label: `${p.tag} · ${num(p.quantity)} ${unitLabel(p.unit)}${p.lot ? ` · lot ${p.lot}` : ""}` }))}
+                      />
                       <Field label="Quantity (optional)" hint="Leave empty to take the whole package.">
                         <input name="quantity" inputMode="decimal" className={inputClass} />
                       </Field>
