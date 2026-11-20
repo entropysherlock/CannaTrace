@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dryWeightAction, finishHarvestAction, packageHarvestAction, quickStrainAction, tagPlantsAction, wasteAction } from "@/app/(app)/cultivation/actions";
 import { growBatchAction, growHarvestAction, growMoveAction } from "@/app/(app)/cultivation/grow-actions";
@@ -334,13 +333,6 @@ export function GrowGuide({ data }: { data: GrowData }) {
         </div>
       ) : null}
 
-      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
-        <span>Need to look something up?</span>
-        <Link href="/cultivation/plants" className="font-semibold text-brand-800 underline">All plants</Link>
-        <Link href="/cultivation/harvests" className="font-semibold text-brand-800 underline">All harvests</Link>
-        <Link href="/cultivation/strains" className="font-semibold text-brand-800 underline">Strains</Link>
-        <Link href="/cultivation/overview" className="font-semibold text-brand-800 underline">Everything on one page</Link>
-      </p>
     </div>
   );
 }
