@@ -87,7 +87,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
       },
       {
         path: HARVEST,
-        target: [{ card: "Record dry weight" }, { card: "Weights" }],
+        target: [{ card: "Record dry weight" }, { card: "Packages made" }],
         title: "Record the dry weight",
         body: "When it's done drying, weigh the whole harvest and save the dry weight here. Already done? Press Next.",
       },

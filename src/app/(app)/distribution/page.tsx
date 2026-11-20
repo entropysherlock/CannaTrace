@@ -2,7 +2,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { ShipToPicker } from "@/components/ship-to-picker";
-import { DistributionTabs, Pill, usd } from "@/components/distribution-ui";
+import { DistributionTabs, MiniProgress, ORDER_NEXT, Pill, usd } from "@/components/distribution-ui";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { customers, destinations, orderLines, orders } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -54,23 +54,54 @@ export default async function OrdersPage() {
               No orders yet. Add a customer, then start an order.
             </p>
           ) : (
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-              {rows.map((order) => (
-                <li key={order.id}>
-                  <Link href={`/distribution/orders/${order.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-brand-50">
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        {order.number} <Pill status={order.status} />
-                      </p>
-                      <p className="text-sm text-slate-600">
-                        {order.customerName} · {order.createdAt.toLocaleDateString("en-US", { timeZone: zone })}
-                      </p>
-                    </div>
-                    <span className="text-sm font-semibold text-slate-900">{usd(order.total)}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-5">
+              {(
+                [
+                  ["In progress", ["DRAFT", "CONFIRMED", "PACKED"]],
+                  ["On the road", ["SHIPPED"]],
+                  ["Done", ["DELIVERED", "CANCELLED"]],
+                ] as const
+              ).map(([heading, statuses]) => {
+                const group = rows.filter((o) => (statuses as readonly string[]).includes(o.status));
+                if (!group.length) return null;
+                return (
+                  <section key={heading}>
+                    <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      {heading} · {group.length}
+                    </h2>
+                    <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-brand-100 bg-white shadow-sm">
+                      {group.map((order) => (
+                        <li key={order.id}>
+                          <Link href={`/distribution/orders/${order.id}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 hover:bg-brand-50">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-900">
+                                {order.number}
+                                {order.status === "CANCELLED" ? (
+                                  <>
+                                    {" "}
+                                    <Pill status={order.status} />
+                                  </>
+                                ) : null}
+                              </p>
+                              <p className="text-sm text-slate-600">
+                                {order.customerName} · {order.createdAt.toLocaleDateString("en-US", { timeZone: zone })}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <span className="flex flex-col items-end gap-1">
+                                <span className={`text-xs font-semibold ${["CONFIRMED", "PACKED"].includes(order.status) ? "text-amber-700" : "text-slate-600"}`}>{ORDER_NEXT[order.status]}</span>
+                                <MiniProgress status={order.status} />
+                              </span>
+                              <span className="w-24 text-right text-sm font-semibold text-slate-900">{usd(order.total)}</span>
+                            </div>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
           )}
         </div>
         {can(session, "sales.write") ? (

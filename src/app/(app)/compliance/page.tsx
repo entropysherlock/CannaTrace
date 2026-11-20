@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
-import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { Card, Field, PageHeader, ScrollBox, inputClass } from "@/components/ui";
 import { facilities, syncEvents } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
@@ -159,6 +159,7 @@ export default async function CompliancePage() {
             {recent.length === 0 ? (
               <p className="text-sm text-slate-600">Nothing has been recorded at this facility yet.</p>
             ) : (
+              <ScrollBox label="Recent records" size="lg">
               <ul className="divide-y divide-slate-100 text-sm">
                 {recent.map((event) => (
                   <li key={event.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -170,6 +171,7 @@ export default async function CompliancePage() {
                   </li>
                 ))}
               </ul>
+              </ScrollBox>
             )}
           </Card>
         </div>

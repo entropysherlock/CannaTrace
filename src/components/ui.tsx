@@ -48,7 +48,7 @@ export function Card({ title, children, action, className }: { title?: ReactNode
   return (
     <section className={`rounded-xl border border-brand-100 bg-white shadow-sm ${className ?? ""}`}>
       {title ? (
-        <div className="flex items-center justify-between gap-3 rounded-t-xl border-b border-brand-100 bg-brand-50 px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-t-xl border-b border-brand-100 bg-brand-50 px-4 py-3 sm:px-5">
           <h2 className="text-base font-bold text-brand-900">{title}</h2>
           {action}
         </div>
