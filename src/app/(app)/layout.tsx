@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { AssistantPanel } from "@/components/assistant-panel";
+import { GlobalDrop } from "@/components/global-drop";
+import { PhoneHandoff } from "@/components/phone-handoff";
 import { WalkthroughProvider } from "@/components/walkthrough";
 import { sellsRetail, walkthroughsFor } from "@/lib/walkthroughs";
 import { Logo } from "@/components/logo";
@@ -188,6 +190,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
 
       <BottomNav groups={groups} />
+      {can(session, "inventory.write") ? (
+        <>
+          <GlobalDrop />
+          <PhoneHandoff />
+        </>
+      ) : null}
       <AssistantPanel
         enabled={tally.ready}
         offReason={tally.reason}

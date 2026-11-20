@@ -6,6 +6,6 @@ import { startUpload } from "@/lib/assistant/attachments/store";
 export async function POST(request: Request) {
   return attachmentRoute(async (session) => {
     const body = (await request.json().catch(() => ({}))) as { name?: string; size?: number; source?: string };
-    return NextResponse.json(await startUpload(session, { name: String(body.name ?? ""), size: Number(body.size), source: body.source === "phone" ? "phone" : "chat" }));
+    return NextResponse.json(await startUpload(session, { name: String(body.name ?? ""), size: Number(body.size), source: body.source === "phone" ? "phone" : body.source === "desktop" ? "desktop" : "chat" }));
   });
 }

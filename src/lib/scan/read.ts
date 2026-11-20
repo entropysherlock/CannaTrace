@@ -159,7 +159,7 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const words = (s: string) => new Set(norm(s).split(" ").filter((w) => w.length > 2));
 
 /** Packages at this store the certificate could be about, best first, with the reasons. */
-export async function matchPackages(session: Pick<Session, "orgId" | "facilityId">, ids: CoaProposal["identifiers"], search = ""): Promise<PackageMatch[]> {
+export async function matchPackages(session: Pick<Session, "orgId" | "facilityId">, ids: CoaProposal["identifiers"], search = "", preferId?: string): Promise<PackageMatch[]> {
   const rows = await db
     .select({ id: packages.id, tag: packages.tag, lot: packages.lotNumber, quantity: packages.quantity, unit: packages.unit, status: packages.status, item: items.name, strain: items.strain })
     .from(packages)
@@ -189,6 +189,10 @@ export async function matchPackages(session: Pick<Session, "orgId" | "facilityId
     if (search && norm(r.tag).includes(norm(search))) {
       score += 30;
       reasons.push("Tag contains your search");
+    }
+    if (preferId && r.id === preferId) {
+      score += 1000;
+      reasons.unshift("You started from this package");
     }
     if (score) out.push({ id: r.id, tag: r.tag, itemName: r.item, quantity: r.quantity, unit: r.unit, status: r.status, reasons, score });
   }
