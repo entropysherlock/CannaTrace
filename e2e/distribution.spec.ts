@@ -93,6 +93,13 @@ test("sell wholesale: customer, order, pick, ship, manifest, invoice, payment", 
   await expect(page.getByRole("cell", { name: `${run}-OUT` })).toHaveCount(1);
   await expect(page.getByText(`Shop ${run}`).filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByText(`Driver ${run}`).filter({ visible: true }).first()).toBeVisible();
+  // Write-in spaces for the printed copy: arrival, destination, route, and rejected product
+  await expect(page.getByTestId("manifest-travel")).toContainText("Planned arrival");
+  await expect(page.getByTestId("manifest-travel")).toContainText("Actual arrival");
+  await expect(page.getByTestId("manifest-travel")).toContainText("Destination (driver fills in)");
+  await expect(page.getByTestId("manifest-travel")).toContainText("Planned route");
+  await expect(page.getByRole("columnheader", { name: "Rejected" })).toBeVisible();
+  await expect(page.getByTestId("manifest-rejections")).toContainText("Rejected product");
 
   // The shipped package left inventory; the rest stayed
   await page.goto(`/inventory?q=${run}`);
