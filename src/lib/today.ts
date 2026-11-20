@@ -1,5 +1,5 @@
 import { and, count, eq, inArray, isNull, lte, min } from "drizzle-orm";
-import { customers, harvests, orders, packages } from "@/db/schema";
+import { customers, facilities, harvests, orders, packages } from "@/db/schema";
 import { db } from "@/lib/db";
 import { addDays } from "@/lib/distribution-math";
 
@@ -22,7 +22,7 @@ export async function todayList(input: {
   if (!ids.length) return [];
   const items: TodayItem[] = [];
 
-  const [orderRows, packageRows, harvestRows, licenseRows] = await Promise.all([
+  const [orderRows, packageRows, harvestRows, licenseRows, ownLicenseRows] = await Promise.all([
     may.sales
       ? db
           .select({ status: orders.status, n: count(), one: min(orders.id) })
@@ -49,6 +49,11 @@ export async function todayList(input: {
           .from(customers)
           .where(and(eq(customers.orgId, orgId), eq(customers.active, true), lte(customers.licenseExpires, addDays(today, 30))))
       : [],
+    // The business's own licenses, from scanned license documents.
+    db
+      .select({ name: facilities.name, expires: facilities.licenseExpires })
+      .from(facilities)
+      .where(and(eq(facilities.orgId, orgId), inArray(facilities.id, ids), lte(facilities.licenseExpires, addDays(today, 60)))),
   ]);
 
   const byStatus = new Map(orderRows.map((r) => [r.status, r]));
@@ -58,6 +63,11 @@ export async function todayList(input: {
   const expired = licenseRows.filter((r) => r.expired < today).length;
   const expiring = licenseRows.length - expired;
   if (expired) items.push({ key: "licenses-expired", text: `${plural(expired, "vendor license")} expired — they can't receive shipments`, href: "/distribution/customers", tone: "red" });
+  for (const f of ownLicenseRows) {
+    if (!f.expires) continue;
+    const gone = f.expires < today;
+    items.unshift({ key: `own-license-${f.name}`, text: gone ? `${f.name}'s license expired on ${f.expires}` : `${f.name}'s license expires on ${f.expires}`, href: "/settings", tone: gone ? "red" : "amber" });
+  }
   const quarantined = pkgCount.get("QUARANTINE") ?? 0;
   if (quarantined) items.push({ key: "quarantine", text: `${plural(quarantined, "package")} in quarantine`, href: "/inventory?status=QUARANTINE", tone: "red" });
 

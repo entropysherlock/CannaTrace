@@ -39,7 +39,7 @@ export const DOCS: DocDef[] = [
     fields: [f("invoiceNumber", "Invoice number"), f("invoiceDate", "Invoice date", "date"), f("dueDate", "Due date", "date"), f("vendor", "Vendor"), f("billTo", "Bill to"), f("subtotal", "Subtotal", "money"), f("tax", "Tax", "money"), f("total", "Total", "money")],
     itemsLabel: "Line items",
     itemColumns: LINES,
-    next: "Kept in your inbox. Matching it to what you received is being added next.",
+    next: "Matches each line to the package you received and records its cost per unit, after you check it.",
   },
   {
     type: "PURCHASE_ORDER",
@@ -57,7 +57,7 @@ export const DOCS: DocDef[] = [
     fields: [f("vendor", "Vendor"), f("effectiveDate", "Effective date", "date")],
     itemsLabel: "Products",
     itemColumns: [f("sku", "SKU"), f("product", "Product"), f("category", "Category"), f("unit", "Unit"), f("price", "Price", "money")],
-    next: "Kept in your inbox. Adding these as items in one step is coming.",
+    next: "Adds the new products as items and saves every price to a price list, after you check it.",
   },
   {
     type: "LAB_TEST_REPORT",
@@ -96,7 +96,7 @@ export const DOCS: DocDef[] = [
     label: "License, permit or agent card",
     looks: "A business license, permit, certificate or employee agent card.",
     fields: [f("holder", "Holder"), f("licenseType", "Type"), f("licenseNumber", "Number"), f("issueDate", "Issued", "date"), f("expiryDate", "Expires", "date"), f("issuer", "Issued by")],
-    next: "Kept in your inbox. Tracking expiry dates automatically is coming.",
+    next: "Saves the expiry date on the right license and warns you on the Dashboard before it lapses.",
   },
   {
     type: "HARVEST_SHEET",
@@ -105,7 +105,7 @@ export const DOCS: DocDef[] = [
     fields: [f("harvestName", "Harvest name"), f("strain", "Strain"), f("harvestDate", "Harvest date", "date"), f("room", "Room"), f("totalWetWeight", "Total wet weight", "number")],
     itemsLabel: "Plants",
     itemColumns: [f("plantTag", "Plant tag"), f("wetWeight", "Wet weight", "number"), f("unit", "Unit")],
-    next: "Kept in your inbox. Creating a harvest from the sheet is coming.",
+    next: "Finds each plant by its tag and records the harvest, with the total wet weight, after you check it.",
   },
   {
     type: "PLANT_LOG",
@@ -141,7 +141,7 @@ export const DOCS: DocDef[] = [
     fields: [f("orderNumber", "Order number"), f("orderDate", "Order date", "date"), f("customer", "Customer"), f("customerLicense", "Customer license"), f("deliveryDate", "Deliver by", "date"), f("total", "Total", "money")],
     itemsLabel: "Line items",
     itemColumns: LINES,
-    next: "Kept in your inbox. Turning it into an order is being added.",
+    next: "Makes a draft order for the customer. Nothing ships until you confirm it.",
   },
   {
     type: "RECEIPT",

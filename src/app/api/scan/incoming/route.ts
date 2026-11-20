@@ -2,7 +2,7 @@ import { and, desc, eq, gt } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { scanReads, tallyAttachments } from "@/db/schema";
 import { db } from "@/lib/db";
-import { can } from "@/lib/rbac";
+import { canReadDocuments } from "@/lib/scan/can-read";
 import { currentSession } from "@/lib/session";
 
 /**
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const session = await currentSession();
   if (!session) return NextResponse.json({ error: "Sign in again." }, { status: 401 });
   const now = new Date();
-  if (!can(session, "inventory.write")) return NextResponse.json({ now: now.toISOString(), incoming: null });
+  if (!canReadDocuments(session)) return NextResponse.json({ now: now.toISOString(), incoming: null });
   const since = new Date(String(new URL(request.url).searchParams.get("since") ?? ""));
   if (Number.isNaN(since.getTime())) return NextResponse.json({ now: now.toISOString(), incoming: null });
   const [row] = await db
