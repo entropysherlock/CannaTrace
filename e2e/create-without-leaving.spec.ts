@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const run = () => `CWL${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`;
 
-async function signIn(page: Page, email: string, start = "/cultivation") {
+async function signIn(page: Page, email: string, start = "/cultivation/overview") {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("demo1234");
@@ -193,7 +193,7 @@ test("keyboard only: open, fill, save with Enter, and land back on the picker", 
   await expect(strainSelect).toBeFocused();
   await expect(strainSelect.locator("option:checked")).toHaveText(`Strain ${id}`);
   // Enter in the dialog saved only the strain; the batch itself was not started.
-  await expect(page).toHaveURL(/\/cultivation$/);
+  await expect(page).toHaveURL(/\/cultivation\/overview$/);
   await expectParentKept(page, `${id}-BATCH`);
 });
 

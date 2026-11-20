@@ -173,8 +173,8 @@ export const WALKTHROUGHS: Walkthrough[] = [
         body: "Is it new? Add the strain once with its type. Already listed? Press Next.",
       },
       {
-        path: /^\/cultivation$/,
-        go: "/cultivation",
+        path: /^\/cultivation\/overview$/,
+        go: "/cultivation/overview",
         target: [{ card: "Start a batch" }],
         title: "Start a batch",
         body: "A batch is a group of clones or seeds planted together. Choose the strain, how many, and the room, then press Start batch.",

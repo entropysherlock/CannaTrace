@@ -17,7 +17,7 @@ test("grow from a batch of clones to a packaged, finished harvest", async ({ pag
   await expect(page.getByText(`Added Strain ${run}.`)).toBeVisible();
 
   // Batch of 4 clones
-  await page.goto("/cultivation");
+  await page.goto("/cultivation/overview");
   const batchForm = page.locator('form:has(select[name="strainId"])');
   await batchForm.locator('input[name="name"]').fill(`${run}-BATCH`);
   await batchForm.locator('select[name="strainId"]').selectOption({ label: `Strain ${run}` });

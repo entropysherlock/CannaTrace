@@ -4,7 +4,8 @@ import { Field, inputClass } from "./ui";
 import { WeightUnitSelect } from "./weight-unit-select";
 
 const TABS = [
-  { href: "/cultivation", label: "Overview" },
+  { href: "/cultivation", label: "Grow guide" },
+  { href: "/cultivation/overview", label: "Overview" },
   { href: "/cultivation/plants", label: "Plants" },
   { href: "/cultivation/harvests", label: "Harvests" },
   { href: "/cultivation/strains", label: "Strains" },
