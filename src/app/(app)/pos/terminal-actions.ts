@@ -78,9 +78,9 @@ export async function terminalCancel(saleId: string): Promise<TerminalResult> {
   });
 }
 
-export async function terminalPay(input: { saleId: string; method: string; cashTendered: string; debitAmount: string }): Promise<TerminalResult> {
+export async function terminalPay(input: { saleId: string; method: string; cashTendered: string; debitAmount: string; cardLast4?: string; cardRef?: string }): Promise<TerminalResult> {
   return run(async (actor) => {
-    await completeSale(actor, { saleId: input.saleId, paymentMethod: input.method, cashTendered: input.cashTendered, debitAmount: input.debitAmount });
+    await completeSale(actor, { saleId: input.saleId, paymentMethod: input.method, cashTendered: input.cashTendered, debitAmount: input.debitAmount, cardLast4: input.cardLast4, cardRef: input.cardRef });
     revalidatePath("/inventory");
     return { saleId: input.saleId };
   });

@@ -39,6 +39,8 @@ describe("Tally's app guide", () => {
       "Online menu and pickups",
       "Customer is here: check ID and start the sale",
       "Mark ready",
+      "Approval number",
+      "Card payments this shift",
     ];
     for (const name of onScreen) {
       expect(APP_GUIDE, `guide should mention "${name}"`).toContain(name);

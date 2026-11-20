@@ -1266,6 +1266,9 @@ export const sales = pgTable(
     cashTendered: money("cash_tendered"),
     /** The amount charged to debit. Null on sales from before split payments existed. */
     debitAmount: money("debit_amount"),
+    /** Optional, for matching a card payment to the store's own terminal: the last 4 digits and the approval number. CannaTrace never charges cards. */
+    cardLast4: text("card_last4"),
+    cardRef: text("card_ref"),
     changeDue: money("change_due"),
     voidReason: text("void_reason"),
     /**

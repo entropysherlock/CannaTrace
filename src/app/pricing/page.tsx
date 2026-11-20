@@ -28,6 +28,10 @@ const QUESTIONS: [string, string][] = [
     "No. New Mexico requires every licensee to use NMS2S. CannaTrace runs your day-to-day work alongside it: labels, plants, inventory, sales, and Tally.",
   ],
   [
+    "Can my store take card payments?",
+    "Yes, in the way most cannabis stores already do. You run the card on your own card terminal or processor, then record it at the register as a debit or split payment, with the last 4 digits and approval number if you like. CannaTrace does not charge cards or connect to a processor, so there is no extra processing fee from us.",
+  ],
+  [
     "What does Tally cost?",
     "Tally runs on your business's own Claude account, so you pay Anthropic directly for what you use. Everything else is in the monthly price.",
   ],
