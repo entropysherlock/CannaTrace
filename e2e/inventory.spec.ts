@@ -265,3 +265,32 @@ test("inventory search finds a package by any words of its name, in any order, o
   expect(one).toBeGreaterThan(0);
   expect(one).toBeLessThan(total);
 });
+
+test("ticking packages and pressing Print labels carries exactly those packages to SmartLabel", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("manager@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  await page.locator('select[name="facilityId"]').selectOption({ label: "Rio Grande Grow & Lab · DEMO-CULT-0001" });
+  await page.getByRole("button", { name: "Switch" }).click();
+  await page.goto("/inventory");
+  const boxes = page.locator('input[name="packageId"]');
+  expect(await boxes.count()).toBeGreaterThan(2);
+  await boxes.nth(1).check();
+  await boxes.nth(2).check();
+  await expect(page.getByTestId("print-labels")).toContainText("the 2 ticked");
+  const want = [await boxes.nth(1).inputValue(), await boxes.nth(2).inputValue()].sort();
+  await page.getByTestId("print-labels").click();
+  await expect(page).toHaveURL(/\/labels\?kind=PACKAGE&ids=/);
+  const ids = (new URL(page.url()).searchParams.get("ids") ?? "").split(",").sort();
+  expect(ids).toEqual(want);
+  // They arrive ticked in SmartLabel
+  await expect(page.locator('input[type="checkbox"]:checked:visible')).toHaveCount(2);
+  // Going back and choosing a different one must not show the old choice
+  await page.goto("/inventory");
+  await page.locator('input[name="packageId"]').nth(3).check();
+  await page.getByTestId("print-labels").click();
+  await expect(page).toHaveURL(/\/labels\?kind=PACKAGE&ids=[^,]+$/);
+  await expect(page.locator('input[type="checkbox"]:checked:visible')).toHaveCount(1);
+});

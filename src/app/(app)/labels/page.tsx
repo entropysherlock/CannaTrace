@@ -41,7 +41,7 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
   const [allTemplates, printers, candidates, jobs] = await Promise.all([
     listTemplates(session, { includeArchived: true }),
     listPrinters(session),
-    labelCandidates(session),
+    labelCandidates(session, ids),
     listJobs(session, 40),
   ]);
   const templates = allTemplates.filter((t) => !t.archived);
@@ -55,6 +55,8 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
         subtitle="Labels fill in from your saved records, get checked for missing data, barcode problems, and verified state label rules, then print as an exact-size PDF."
       />
       <PrintStation
+        // A new set of chosen records starts the picker fresh; otherwise the page would keep showing the last visit's choices.
+        key={`${kind}:${ids.join(",")}`}
         templates={templates.map((t) => ({ id: t.id, name: t.name, kind: t.kind, isDefault: t.isDefault, jurisdiction: t.jurisdiction, size: sizeLabel(t.design.widthMm, t.design.heightMm) }))}
         archivedTemplates={archivedTemplates}
         printers={printers.map((p) => ({ id: p.id, name: p.name, isDefault: p.isDefault }))}
