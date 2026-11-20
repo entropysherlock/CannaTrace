@@ -41,6 +41,7 @@ describe("Tally's app guide", () => {
       "Link a phone",
       "Take a photo",
       "Phone inbox",
+      "Confirm and save",
       "Customer is here: check ID and start the sale",
       "Mark ready",
       "Approval number",

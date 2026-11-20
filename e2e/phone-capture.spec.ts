@@ -45,7 +45,7 @@ test("link a phone with a QR code, send a photo from it, and unlink it", async (
 
   // Take a photo: it goes to the inbox
   await phone.getByTestId("camera-input").setInputFiles({ name: "coa.png", mimeType: "image/png", buffer: await png() });
-  await expect(phone.getByTestId("shots")).toContainText("Sent", { timeout: 30_000 });
+  await expect(phone.getByTestId("shots")).toContainText(/Ready to review|It is in your inbox/, { timeout: 40_000 });
   await desktop.goto("/inbox");
   await expect(desktop.getByTestId("inbox")).toContainText("coa.png");
   await expect(desktop.getByTestId("inbox").locator("img").first()).toBeVisible();

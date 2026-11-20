@@ -41,8 +41,8 @@ export async function GET(_request: Request, { params }: Ctx) {
   const { id } = await params;
   return attachmentRoute(async (session) => {
     const file = await loadAttachment(session, id);
-    if (file.kind !== "IMAGE") throw new AttachmentError("Only photos have a picture to show.");
-    const type = typeof file.meta.mediaType === "string" ? file.meta.mediaType : "image/jpeg";
-    return new Response(new Uint8Array(file.payload), { headers: { "Content-Type": type, "Cache-Control": "private, max-age=300" } });
+    if (file.kind !== "IMAGE" && file.kind !== "PDF") throw new AttachmentError("Only photos and PDFs can be shown.");
+    const type = file.kind === "PDF" ? "application/pdf" : typeof file.meta.mediaType === "string" ? file.meta.mediaType : "image/jpeg";
+    return new Response(new Uint8Array(file.payload), { headers: { "Content-Type": type, "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff" } });
   });
 }
