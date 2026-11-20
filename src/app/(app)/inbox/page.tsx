@@ -1,4 +1,4 @@
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, inArray } from "drizzle-orm";
 import { FileText } from "lucide-react";
 import { Card, PageHeader } from "@/components/ui";
 import { tallyAttachments } from "@/db/schema";
@@ -23,7 +23,7 @@ export default async function InboxPage() {
         eq(tallyAttachments.orgId, session.orgId),
         eq(tallyAttachments.facilityId, session.facilityId),
         eq(tallyAttachments.userId, session.userId),
-        eq(tallyAttachments.source, "phone"),
+        inArray(tallyAttachments.source, ["phone", "desktop"]),
         eq(tallyAttachments.status, "READY"),
         gt(tallyAttachments.expiresAt, new Date()),
       ),

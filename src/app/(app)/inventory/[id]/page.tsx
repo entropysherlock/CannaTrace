@@ -29,6 +29,8 @@ import { requirePagePermission } from "@/lib/session";
 import { formatQty, unitLabel } from "@/lib/units";
 import { adjustAction, labResultAction, mergeAction, moveAction, splitAction, statusAction } from "../actions";
 import { facilityZone } from "@/lib/time";
+import { DocumentDrop } from "@/components/document-drop";
+import { listDevices } from "@/lib/devices";
 
 function Fold({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: ReactNode }) {
   return (
@@ -73,6 +75,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
   const session = await requirePagePermission("inventory.view");
   const zone = await facilityZone(session.facilityId);
   const { id } = await params;
+  const phoneLinked = (await listDevices(session)).some((d) => d.mine);
   const [pkg] = await db
     .select({
       id: packages.id,
@@ -405,6 +408,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
 
           {canWrite ? (
             <Fold title="Add lab result" icon={FlaskConical}>
+              <DocumentDrop packageId={id} phoneLinked={phoneLinked}>
               <ActionForm action={labResultAction} submitLabel="Save result">
                 {hidden}
                 <Field label="Testing lab">
@@ -480,6 +484,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                   </fieldset>
                 ) : null}
               </ActionForm>
+              </DocumentDrop>
             </Fold>
           ) : null}
         </div>

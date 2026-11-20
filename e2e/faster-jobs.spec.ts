@@ -50,6 +50,7 @@ test("tick many packages, one lab result for a lot, and pick a whole order at on
   await page.goto(first);
   await expect(page.getByTestId("package-summary")).toContainText("Not tested yet");
   await page.locator("summary", { hasText: "Add lab result" }).click();
+  await page.getByTestId("enter-manually").click();
   const sameLot = page.getByTestId("same-lot");
   await expect(sameLot).toContainText("Same test, rest of lot");
   await expect(sameLot.locator('input[name="alsoPackageId"]:checked')).toHaveCount(2);

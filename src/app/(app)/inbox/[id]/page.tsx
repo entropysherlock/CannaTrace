@@ -14,9 +14,10 @@ import { requireSession } from "@/lib/session";
 export const metadata = { title: "Review a document" };
 
 /** One photo or scan: Tally reads it, a person checks it, one tap saves it. */
-export default async function ReviewDocumentPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReviewDocumentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ package?: string }> }) {
   const session = await requireSession();
   const { id } = await params;
+  const { package: wanted } = await searchParams;
   const [file] = await db
     .select({ id: tallyAttachments.id, name: tallyAttachments.name, kind: tallyAttachments.kind })
     .from(tallyAttachments)
@@ -62,7 +63,7 @@ export default async function ReviewDocumentPage({ params }: { params: Promise<{
           <p className="mt-1 text-sm text-slate-600">{scan.proposal.summary} Tally can fill in lab certificates today. Delivery manifests and harvest sheets are coming next.</p>
         </div>
       ) : (
-        <CoaReview attachmentId={id} name={file.name} isPdf={file.kind === "PDF"} proposal={scan.proposal} matches={await matchPackages(session, scan.proposal.identifiers)} />
+        <CoaReview attachmentId={id} name={file.name} isPdf={file.kind === "PDF"} proposal={scan.proposal} matches={await matchPackages(session, scan.proposal.identifiers, "", typeof wanted === "string" ? wanted : undefined)} />
       )}
     </>
   );
