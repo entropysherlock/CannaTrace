@@ -23,6 +23,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 type Proposal = Awaited<ReturnType<typeof readAttachment>>["proposal"];
 function summarize(p: Proposal): string {
   if (p.kind === "OTHER") return p.summary;
+  if (p.kind === "DOC") return p.docType === "SENSITIVE_ID" ? p.label : `${p.label}: ${p.summary}`;
   const bits = [p.identifiers.product, p.values.thcPercent ? `THC ${p.values.thcPercent}%` : "", p.values.result ? p.values.result.toLowerCase() : ""].filter(Boolean);
   return `Lab certificate${bits.length ? `: ${bits.join(" · ")}` : ""}`;
 }

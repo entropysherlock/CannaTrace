@@ -62,7 +62,7 @@ export default async function InboxPage() {
                   ) : scans.get(r.id)?.status === "DISMISSED" ? (
                     <span className="text-slate-500">Skipped</span>
                   ) : scans.get(r.id) ? (
-                    <span className="text-amber-700">{scans.get(r.id)!.proposal.kind === "COA" ? "Read: lab certificate, needs your check" : "Not a lab certificate"}</span>
+                    <span className="text-amber-700">{(() => { const p = scans.get(r.id)!.proposal; return p.kind === "COA" ? "Read: lab certificate, needs your check" : p.kind === "DOC" ? `Read: ${p.label.toLowerCase()}` : "Not recognised"; })()}</span>
                   ) : (
                     <span className="text-slate-500">Not read yet</span>
                   )}

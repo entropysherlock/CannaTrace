@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   const since = new Date(String(new URL(request.url).searchParams.get("since") ?? ""));
   if (Number.isNaN(since.getTime())) return NextResponse.json({ now: now.toISOString(), incoming: null });
   const [row] = await db
-    .select({ attachmentId: scanReads.attachmentId, kind: scanReads.kind })
+    .select({ attachmentId: scanReads.attachmentId, kind: scanReads.kind, proposal: scanReads.proposal })
     .from(scanReads)
     .innerJoin(tallyAttachments, eq(tallyAttachments.id, scanReads.attachmentId))
     .where(
@@ -33,5 +33,5 @@ export async function GET(request: Request) {
     )
     .orderBy(desc(scanReads.createdAt))
     .limit(1);
-  return NextResponse.json({ now: now.toISOString(), incoming: row ? { id: row.attachmentId, kind: row.kind } : null });
+  return NextResponse.json({ now: now.toISOString(), incoming: row ? { id: row.attachmentId, kind: row.kind, label: row.kind === "COA" ? "lab certificate" : String((row.proposal as { label?: string }).label ?? "document").toLowerCase() } : null });
 }

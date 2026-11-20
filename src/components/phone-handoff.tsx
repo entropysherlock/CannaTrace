@@ -4,7 +4,7 @@ import { Smartphone } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-type Incoming = { id: string; kind: string };
+type Incoming = { id: string; kind: string; label: string };
 
 /**
  * When a photo from this person's phone has been read, open its review screen here. A short countdown with a way
@@ -44,7 +44,7 @@ export function PhoneHandoff() {
     };
   }, []);
 
-  const open = incoming && incoming.kind === "COA";
+  const open = incoming && incoming.kind !== "OTHER";
   const there = incoming ? path === `/inbox/${incoming.id}` : false;
   useEffect(() => {
     if (!incoming) return;
@@ -75,8 +75,8 @@ export function PhoneHandoff() {
       <div className="flex items-start gap-3">
         <Smartphone className="mt-0.5 h-6 w-6 shrink-0" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <p className="font-bold">{open ? "Your phone sent a lab certificate" : "Your phone sent a document"}</p>
-          <p className="text-sm text-brand-100">{open ? `Opening it in ${left}…` : "It isn't a lab certificate, but it is in your phone inbox."}</p>
+          <p className="font-bold">{open ? `Your phone sent a ${incoming.label}` : "Your phone sent a document"}</p>
+          <p className="text-sm text-brand-100">{open ? `Opening it in ${left}…` : "Tally didn't recognise it, but it is in your phone inbox."}</p>
         </div>
       </div>
       <div className="mt-3 flex gap-2">
