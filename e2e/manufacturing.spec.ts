@@ -66,15 +66,18 @@ test("save a recipe, run production, and get yield and cost", async ({ page }) =
   await expect(page.getByText("10 over")).toBeVisible();
 
   // Completing before the jars are recorded is refused
+  await page.getByRole("button", { name: /^2\. Finish/ }).click();
   const doneForm = page.locator('form:has(input[name="outputTag"])');
   await doneForm.locator('input[name="outputTag"]').fill(`${run}-OUT`);
   await doneForm.locator('input[name="actualQuantity"]').fill("96");
   await doneForm.locator('select[name="locationId"]').selectOption({ label: "Vault A" });
+  await doneForm.locator("summary").click();
   await doneForm.locator('input[name="extraCost"]').fill("14.4");
   await page.getByRole("button", { name: "Complete run" }).click();
   await expect(page.locator('p[role="alert"]')).toContainText("Nothing has been recorded for Empty 3.5 g Jar with Lid");
 
   // Take the flower back out, then put the right amount in
+  await page.getByRole("button", { name: /^1\. Add inputs/ }).click();
   await page.getByRole("button", { name: "Remove" }).click();
   await expect(page.getByText("Nothing added yet.")).toBeVisible();
   await addForm.locator('input[name="tag"]').fill(`${run}-FLOWER`);
@@ -87,6 +90,7 @@ test("save a recipe, run production, and get yield and cost", async ({ page }) =
   await expect(page.getByText("$455.00 so far")).toBeVisible();
 
   // Complete: 96 of 100 planned; (455 + 14.40) / 96 = 4.89
+  await page.getByRole("button", { name: /^2\. Finish/ }).click();
   await page.getByRole("button", { name: "Complete run" }).click();
   await expect(page.getByText("96%")).toBeVisible();
   await expect(page.getByText("$4.89")).toBeVisible();
