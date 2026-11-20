@@ -4,6 +4,7 @@ import { ActionForm } from "@/components/action-form";
 import { Disclosure } from "@/components/disclosure";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { CONSOLE_LINKS, getConnection, usageSummary } from "@/lib/ai/connection";
+import { PRICES_CHECKED, formatUsd } from "@/lib/ai/pricing";
 import { requirePagePermission } from "@/lib/session";
 import { checkKeyAction, connectKeyAction, disconnectAction, limitsAction, modelAction } from "./actions";
 import { facilityZone } from "@/lib/time";
@@ -230,19 +231,37 @@ export default async function TallyAiSettingsPage() {
                 <p className="text-xs text-slate-500">limit {n(conn.limits.monthlyLimit)}</p>
               </div>
             </div>
+            <div className="mt-3 rounded-xl border border-brand-100 bg-brand-50 p-3" data-testid="ai-cost">
+              <p className="text-sm text-brand-900">Estimated cost this month</p>
+              <p className="font-display text-3xl font-bold tabular-nums text-brand-950">{formatUsd(usage.cost.thisMonth)}</p>
+              <p className="text-xs text-brand-900">
+                {usage.cost.perQuestion !== null ? `About ${formatUsd(usage.cost.perQuestion)} per answered question · ` : ""}
+                last month {formatUsd(usage.cost.lastMonth)}
+              </p>
+              {usage.cost.unpricedModels.length ? (
+                <p className="mt-1 text-xs text-amber-800">
+                  Not included: {usage.cost.unpricedModels.join(", ")} (CannaTrace doesn&apos;t have a price for {usage.cost.unpricedModels.length === 1 ? "this model" : "these models"}).
+                </p>
+              ) : null}
+            </div>
             <p className="mt-3 text-sm text-slate-700">
               This month Tally sent about <strong>{n(usage.inputTokens)}</strong> tokens to Claude and got <strong>{n(usage.outputTokens)}</strong> back
               {usage.failures ? ` · ${n(usage.failures)} question${usage.failures === 1 ? "" : "s"} didn't get an answer` : ""}.
             </p>
             {usage.people.length ? (
-              <ul className="mt-3 divide-y divide-slate-100 text-sm">
+              <>
+              <p className="mt-4 text-xs font-bold uppercase tracking-wide text-slate-500">By person, this month</p>
+              <ul className="mt-1 divide-y divide-slate-100 text-sm">
                 {usage.people.map((p) => (
-                  <li key={p.name} className="flex justify-between py-1.5">
+                  <li key={p.name} className="flex justify-between gap-3 py-1.5">
                     <span>{p.name}</span>
-                    <span className="tabular-nums text-slate-600">{n(p.questions)}</span>
+                    <span className="tabular-nums text-slate-600">
+                      {n(p.questions)} question{p.questions === 1 ? "" : "s"} · {formatUsd(p.cost)}
+                    </span>
                   </li>
                 ))}
               </ul>
+              </>
             ) : null}
             {usage.recentProblems.length ? (
               <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">
@@ -257,7 +276,8 @@ export default async function TallyAiSettingsPage() {
               </div>
             ) : null}
             <p className="mt-3 text-xs text-slate-500">
-              Token counts are an estimate of use. CannaTrace can&apos;t see your Claude credit balance or exact charges; those are in the Claude Console under{" "}
+              Dollar amounts are estimates from Anthropic&apos;s list prices for each model (checked {PRICES_CHECKED}), counting only questions on your own key.
+              CannaTrace can&apos;t see your Claude credit balance or exact charges; those are in the Claude Console under{" "}
               <ConsoleLink href={CONSOLE_LINKS.usage}>Usage</ConsoleLink> and <ConsoleLink href={CONSOLE_LINKS.billing}>Billing</ConsoleLink>.
             </p>
           </Card>

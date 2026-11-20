@@ -30,6 +30,7 @@ describe("Tally's app guide", () => {
       "Pick everything, oldest first",
       "Needs attention today",
       "Left to account for",
+      "Estimated cost this month",
       "Match against the state system",
       "Upload and compare",
       "What changed",

@@ -66,7 +66,7 @@ Settings (tabs: Business, Facilities, Team, Integrations, Tally AI)
 - Facilities: add a facility, edit its license and state, switch facilities, add rooms, and (for owners) load a sample facility with practice data.
 - Team: "Invite someone" (sends a one-time link), change roles, build custom roles, make a password reset link for a person, and "Works at" to limit a person to some facilities.
 - Integrations: API keys and webhooks.
-- Tally AI: connect the business's Claude account and set limits.
+- Tally AI: connect the business's Claude account and set limits. "Usage" shows questions asked, "Estimated cost this month" in dollars (with the average per answered question and last month's total), and each person's questions and cost. Costs are estimates from Anthropic's list prices for the model used, counting only questions on the business's own key; exact charges are in the Claude Console.
 - Switch facility: the menu at the top of every page. Change your own password or sign out: the account menu (your initials) at the top right.
 - Tally Watch: the bell at the top right, or the Tally Watch card on the Dashboard. To compare with the state: Tally Watch → "Match against the state system" → upload the state's package export → "Upload and compare". Differences show as findings with a one-click fix; quantities the export doesn't show as numbers are flagged rather than treated as matching.
 - Sign-in: after several wrong passwords, sign-in pauses for 15 minutes for that email. "Forgot your password?" on the sign-in page explains how to get a reset link from an owner or manager instead of waiting. Walkthroughs: under Tools in the sidebar, or the "?" at the top right.
