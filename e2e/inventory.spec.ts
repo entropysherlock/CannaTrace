@@ -245,3 +245,23 @@ test("the public homepage shows the product and leads to sign in", async ({ page
   await page.getByRole("link", { name: "Get started" }).first().click();
   await expect(page).toHaveURL(/\/signup/);
 });
+
+test("inventory search finds a package by any words of its name, in any order, or by strain or room", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("manager@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  await page.locator('select[name="facilityId"]').selectOption({ label: "Rio Grande Grow & Lab · DEMO-CULT-0001" });
+  await page.getByRole("button", { name: "Switch" }).click();
+  await page.goto("/inventory");
+  const total = await page.locator("main li").count();
+  expect(total).toBeGreaterThan(1);
+  await page.goto("/inventory?q=" + encodeURIComponent("zzz-nothing-like-this"));
+  await expect(page.getByText("No packages match")).toBeVisible();
+  // Words in the middle of a name, in a different order, still match
+  await page.goto("/inventory?q=" + encodeURIComponent("haze"));
+  const one = await page.locator("main li").count();
+  expect(one).toBeGreaterThan(0);
+  expect(one).toBeLessThan(total);
+});

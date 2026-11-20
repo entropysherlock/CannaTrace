@@ -6,7 +6,7 @@ import { packageBulkAction } from "./actions";
 import { and, asc, count, desc, eq, ilike, or } from "drizzle-orm";
 import { ScanInput } from "@/components/scan-input";
 import { buttonLinkClass, inputBase, PageHeader, ScrollBox, StatusBadge } from "@/components/ui";
-import { items, locations, packages, type PackageStatus } from "@/db/schema";
+import { itemCategories, items, locations, packages, type PackageStatus } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
@@ -23,26 +23,32 @@ export default async function InventoryPage({
   const session = await requirePagePermission("inventory.view");
   const { q = "", status = "", page: pageParam = "1" } = await searchParams;
   const query = q.trim();
-  // Escape LIKE wildcards so a scanned tag containing % or _ is matched literally.
-  const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
-  const filter =
-    and(
-      eq(packages.orgId, session.orgId),
-      eq(packages.facilityId, session.facilityId),
-      STATUSES.includes(status as PackageStatus) ? eq(packages.status, status as PackageStatus) : undefined,
-      query
-        ? or(
-            ilike(packages.tag, pattern),
-            ilike(packages.lotNumber, pattern),
-            ilike(items.name, pattern),
-            ilike(items.sku, pattern),
-          )
-        : undefined,
-    );
+  // Every word typed must match something about the package (tag, lot, item name, SKU, strain, category or room), in any
+  // order, so "blue mesa jar" finds "Blue Mesa 3.5 g Jar". LIKE wildcards are escaped so a scanned tag with % or _ matches literally.
+  const words = query.split(/\s+/).filter(Boolean).slice(0, 8);
+  const filter = and(
+    eq(packages.orgId, session.orgId),
+    eq(packages.facilityId, session.facilityId),
+    STATUSES.includes(status as PackageStatus) ? eq(packages.status, status as PackageStatus) : undefined,
+    ...words.map((word) => {
+      const pattern = `%${word.replace(/[\\%_]/g, "\\$&")}%`;
+      return or(
+        ilike(packages.tag, pattern),
+        ilike(packages.lotNumber, pattern),
+        ilike(items.name, pattern),
+        ilike(items.sku, pattern),
+        ilike(items.strain, pattern),
+        ilike(itemCategories.name, pattern),
+        ilike(locations.name, pattern),
+      );
+    }),
+  );
   const [{ total }] = await db
     .select({ total: count() })
     .from(packages)
     .innerJoin(items, eq(items.id, packages.itemId))
+    .leftJoin(itemCategories, eq(itemCategories.id, items.categoryId))
+    .leftJoin(locations, eq(locations.id, packages.locationId))
     .where(filter);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(pages, Math.max(1, Number.parseInt(pageParam, 10) || 1));
@@ -58,6 +64,7 @@ export default async function InventoryPage({
     })
     .from(packages)
     .innerJoin(items, eq(items.id, packages.itemId))
+    .leftJoin(itemCategories, eq(itemCategories.id, items.categoryId))
     .leftJoin(locations, eq(locations.id, packages.locationId))
     .where(filter)
     .orderBy(desc(packages.createdAt), desc(packages.id))
@@ -110,7 +117,7 @@ export default async function InventoryPage({
       />
       <form className="mb-4 flex flex-wrap items-start gap-2">
         <div className="w-full sm:w-auto sm:max-w-md sm:flex-1">
-          <ScanInput name="q" defaultValue={query} placeholder="Scan or search tag, item, SKU, lot" autoFocus submitOnScan />
+          <ScanInput name="q" defaultValue={query} placeholder="Scan or search tag, item, strain, room, lot" autoFocus submitOnScan />
         </div>
         <select name="status" defaultValue={status} className={`${inputBase} w-auto`}>
           <option value="">Any status</option>

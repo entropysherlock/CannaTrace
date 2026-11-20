@@ -1,6 +1,6 @@
 "use client";
 
-import { Banknote, LogOut, Maximize2, Minimize2, MonitorSmartphone, Settings2, Volume2, VolumeX, WifiOff } from "lucide-react";
+import { Banknote, CloudOff, LogOut, Maximize2, Minimize2, MonitorSmartphone, Settings2, Volume2, VolumeX, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { LeafMark } from "@/components/logo";
@@ -125,6 +125,11 @@ export function RegisterShell({ info, children }: { info: ShellInfo; children: R
           <a href="/pos/display" target="ct-customer-display" className={`${barButton} max-sm:hidden`} title="Open the customer-facing screen in a new window">
             <MonitorSmartphone className="h-5 w-5" aria-hidden="true" />
             <span className="hidden xl:inline">Customer screen</span>
+          </a>
+          {/* A plain link, not a client-side one: with no internet the page has to load from the saved copy. */}
+          <a href="/pos/offline" className={barButton} title="Sell for cash when the internet is down" data-testid="offline-link">
+            <CloudOff className="h-5 w-5" aria-hidden="true" />
+            <span className="hidden xl:inline">Offline</span>
           </a>
           <Link href="/pos/drawer" className={barButton} title="Cash drawer">
             <Banknote className="h-5 w-5" aria-hidden="true" />
