@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { addInputAction, cancelRunAction, completeRunAction } from "@/app/(app)/manufacturing/actions";
 import { ActionForm } from "./action-form";
+import { PackageChoice } from "./package-choice";
 import { ScanInput } from "./scan-input";
 import { Field, inputClass } from "./ui";
 
@@ -14,9 +15,11 @@ const STEPS = [
 ] as const;
 
 /** The run, one short form at a time: add inputs until every line is done, then finish. */
-export function RunGuide({ runId, unit, planned, rooms, toGo, inputCount, canCancel }: { runId: string; unit: string; planned: string; rooms: Room[]; toGo: number; inputCount: number; canCancel: boolean }) {
+export function RunGuide({ runId, unit, planned, rooms, toGo, inputCount, packages, canCancel }: { runId: string; unit: string; planned: string; rooms: Room[]; toGo: number; inputCount: number; packages: { tag: string; label: string; suggest: string }[]; canCancel: boolean }) {
   const [step, setStep] = useState(inputCount > 0 && toGo === 0 ? 1 : 0);
   const [saved, setSaved] = useState(false);
+  const [qty, setQty] = useState("");
+  const [pickKey, setPickKey] = useState(0);
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,8 +27,16 @@ export function RunGuide({ runId, unit, planned, rooms, toGo, inputCount, canCan
       const form = (e as CustomEvent<HTMLElement | null>).detail;
       if (form && panel.current?.contains(form)) setSaved(true);
     };
+    const reset = () => {
+      setQty("");
+      setPickKey((k) => k + 1);
+    };
+    window.addEventListener("ct:form-saved", reset);
     window.addEventListener("ct:form-saved", onSaved);
-    return () => window.removeEventListener("ct:form-saved", onSaved);
+    return () => {
+      window.removeEventListener("ct:form-saved", onSaved);
+      window.removeEventListener("ct:form-saved", reset);
+    };
   }, []);
 
   const go = (i: number) => {
@@ -62,11 +73,11 @@ export function RunGuide({ runId, unit, planned, rooms, toGo, inputCount, canCan
         <div hidden={step !== 0}>
           <ActionForm action={addInputAction} submitLabel="Add to run">
             {hidden}
-            <Field label="Package tag">
-              <ScanInput name="tag" required />
+            <Field label="Package" hint="The packages that fit this recipe. Pick one, or type or scan a tag.">
+              <PackageChoice key={pickKey} name="tag" options={packages} onPick={(tag) => setQty(packages.find((p) => p.tag === tag)?.suggest ?? "")} empty="Nothing in stock fits this recipe yet. Type or scan a tag." />
             </Field>
-            <Field label="Quantity used" hint="In the package's unit. It leaves the package right away.">
-              <input name="quantity" inputMode="decimal" required className={inputClass} />
+            <Field label="Quantity used" hint="Filled in with what the recipe still needs. It leaves the package right away.">
+              <input name="quantity" inputMode="decimal" required value={qty} onChange={(e) => setQty(e.target.value)} className={inputClass} />
             </Field>
           </ActionForm>
         </div>

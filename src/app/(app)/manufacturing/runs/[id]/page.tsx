@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
@@ -67,6 +67,17 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
   ]);
 
   const open = run.status === "IN_PROGRESS";
+  // Packages that can go into this run, so nobody has to know a tag: the recipe's items, active, with stock.
+  const recipeItemIds = lines.map((l) => l.itemId);
+  const stock = open && recipeItemIds.length
+    ? await db
+        .select({ tag: packages.tag, itemId: packages.itemId, quantity: packages.quantity, unit: packages.unit, lot: packages.lotNumber, itemName: items.name })
+        .from(packages)
+        .innerJoin(items, eq(items.id, packages.itemId))
+        .where(and(eq(packages.orgId, session.orgId), eq(packages.facilityId, session.facilityId), eq(packages.status, "ACTIVE"), inArray(packages.itemId, recipeItemIds), gt(packages.quantity, "0")))
+        .orderBy(asc(items.name), asc(packages.createdAt))
+        .limit(300)
+    : [];
   const canWrite = open && can(session, "manufacturing.write");
   const used = (itemId: string) => inputs.filter((i) => i.itemId === itemId).reduce((sum, i) => sum.add(i.quantity), new Decimal(0));
   const costSoFar = inputCost(inputs);
@@ -199,6 +210,12 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
             rooms={rooms}
             toGo={lines.filter((l) => new Decimal(l.quantity).mul(run.batches).toDecimalPlaces(4).sub(used(l.itemId)).gt(0)).length}
             inputCount={inputs.length}
+            packages={stock.map((p) => {
+              const line = lines.find((l) => l.itemId === p.itemId);
+              const left = line ? new Decimal(line.quantity).mul(run.batches).sub(used(p.itemId)) : new Decimal(0);
+              const suggest = left.gt(0) ? Decimal.min(left, p.quantity) : new Decimal(0);
+              return { tag: p.tag, label: `${p.itemName} · ${p.tag} · ${num(p.quantity)} ${unitLabel(p.unit)}${p.lot ? ` · lot ${p.lot}` : ""}`, suggest: suggest.gt(0) ? num(suggest.toDecimalPlaces(4)) : "" };
+            })}
             canCancel
           />
         ) : null}

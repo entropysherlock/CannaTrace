@@ -53,7 +53,10 @@ test("save a recipe, run production, and get yield and cost", async ({ page }) =
   await expect(page.getByText("0 of 350 g")).toBeVisible();
 
   // Inputs: a package outside the recipe is refused; then add both inputs
-  const addForm = page.locator('form:has(input[name="tag"])');
+  const addForm = page.locator('form:has([name="tag"])');
+  // The list only offers packages that fit the recipe; one outside it is typed (or scanned) instead
+  await expect(addForm.locator('select[name="tag"] option', { hasText: "CT-000006" })).toHaveCount(0);
+  await addForm.getByRole("button", { name: "Type or scan a tag instead" }).click();
   await addForm.locator('input[name="tag"]').fill("CT-000006");
   await addForm.locator('input[name="quantity"]').fill("1");
   await page.getByRole("button", { name: "Add to run" }).click();
@@ -80,11 +83,12 @@ test("save a recipe, run production, and get yield and cost", async ({ page }) =
   await page.getByRole("button", { name: /^1\. Add inputs/ }).click();
   await page.getByRole("button", { name: "Remove" }).click();
   await expect(page.getByText("Nothing added yet.")).toBeVisible();
-  await addForm.locator('input[name="tag"]').fill(`${run}-FLOWER`);
+  await addForm.locator('select[name="tag"]').selectOption(`${run}-FLOWER`);
+  await expect(addForm.locator('input[name="quantity"]')).toHaveValue("350"); // what the recipe still needs
   await addForm.locator('input[name="quantity"]').fill("350");
   await page.getByRole("button", { name: "Add to run" }).click();
   await expect(page.getByText(`Added from ${run}-FLOWER. 50 left in that package.`)).toBeVisible();
-  await addForm.locator('input[name="tag"]').fill(`${run}-JARS`);
+  await addForm.locator('select[name="tag"]').selectOption(`${run}-JARS`);
   await addForm.locator('input[name="quantity"]').fill("100");
   await page.getByRole("button", { name: "Add to run" }).click();
   await expect(page.getByText("$455.00 so far")).toBeVisible();
