@@ -58,7 +58,9 @@ test("rewards: sign up at the counter, earn on a sale, spend a reward on the nex
   await openDrawer(page);
   await startSale(page, "1985-04-04");
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: /^Add Blue Mesa 3.5 g Jar/ }).click();
-  const rewards = page.getByRole("region", { name: "Rewards" });
+  const openRewards = () => page.getByRole("button", { name: "Open rewards" }).click();
+  const rewards = page.getByRole("dialog", { name: "Rewards" });
+  await openRewards();
   await rewards.getByLabel("Shopper's phone number").fill(phone);
   await rewards.getByRole("button", { name: "Find" }).click();
   await expect(rewards.getByText("No rewards account for that number. Sign them up?")).toBeVisible();
@@ -69,6 +71,7 @@ test("rewards: sign up at the counter, earn on a sale, spend a reward on the nex
   await expect(page.getByRole("status").filter({ hasText: "Riley joined rewards with 25 welcome points" })).toBeVisible();
   await expect(rewards.getByText("25 pts")).toBeVisible();
   await expect(rewards.getByText(/75 more points to a \$5 reward/)).toBeVisible();
+  await rewards.getByRole("button", { name: "Done" }).click();
   await payCash(page);
   await expect(page.getByTestId("receipt-rewards").filter({ visible: true })).toContainText(/Riley earned \d+ points/);
 
@@ -76,10 +79,12 @@ test("rewards: sign up at the counter, earn on a sale, spend a reward on the nex
   await page.getByRole("button", { name: "Next customer" }).click();
   await startSale(page, "1985-04-04");
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: /^Add Blue Mesa 3.5 g Jar/ }).click();
+  await openRewards();
   await rewards.getByLabel("Shopper's phone number").fill(phone);
   await rewards.getByRole("button", { name: "Find" }).click();
   await expect(page.getByRole("status").filter({ hasText: /Riley has \d+ points/ })).toBeVisible();
   await rewards.getByRole("radio", { name: "$5 off (100 pts)" }).click();
+  await rewards.getByRole("button", { name: "Done" }).click();
   await expect(page.getByRole("complementary", { name: "Cart" }).getByText("Rewards (100 pts)")).toBeVisible();
   await expect(page.getByRole("complementary", { name: "Cart" }).getByText("-$5.00")).toBeVisible();
   await payCash(page);
