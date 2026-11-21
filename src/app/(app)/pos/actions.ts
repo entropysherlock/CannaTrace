@@ -14,6 +14,8 @@ import {
   returnSale,
 } from "@/lib/pos";
 import { markReviewed } from "@/lib/offline-sales";
+import { adjustPoints, deleteMember, saveProgram, updateMember } from "@/lib/rewards";
+import { giveBackPercent } from "@/lib/rewards-math";
 import { saveMenuSettings, setReservationStatus, startSaleFromReservation } from "@/lib/online-menu";
 import type { Permission } from "@/lib/rbac";
 import { requirePermission } from "@/lib/session";
@@ -181,4 +183,56 @@ export async function reviewSaleAction(_state: FormState, formData: FormData): P
   } catch (error) {
     return toFormError(error);
   }
+}
+
+// ---------- Rewards program (managers) ----------
+
+export async function rewardsSettingsAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const program = await saveProgram(await manager(), Object.fromEntries(formData.entries()));
+    refresh();
+    return {
+      ok: program.enabled
+        ? `Rewards are on: ${program.pointsPerDollar} point${program.pointsPerDollar === 1 ? "" : "s"} per $1, ${program.redeemPoints} points = $${program.redeemDollars} off (${giveBackPercent(program)}% back).`
+        : "Saved. Rewards are off, so the register won't show them.",
+    };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function rewardsAdjustAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const member = await adjustPoints(await manager(), { memberId: field(formData, "memberId"), points: field(formData, "points"), reason: field(formData, "reason") });
+    refresh();
+    return { ok: `Saved. ${member.firstName} now has ${member.points} points.` };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function rewardsUpdateAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await updateMember(await manager(), {
+      memberId: field(formData, "memberId"),
+      phone: field(formData, "phone"),
+      firstName: field(formData, "firstName"),
+      birthday: field(formData, "birthday"),
+    });
+    refresh();
+    return { ok: "Saved." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function rewardsDeleteAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    if (field(formData, "confirm").trim().toUpperCase() !== "DELETE") return { error: "Type DELETE to confirm. This can't be undone." };
+    await deleteMember(await manager(), { memberId: field(formData, "memberId") });
+    refresh();
+  } catch (error) {
+    return toFormError(error);
+  }
+  redirect("/pos/rewards?deleted=1");
 }

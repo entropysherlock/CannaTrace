@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { terminalAdd, terminalCancel, terminalDiscount, terminalScan, terminalSetQuantity, type TerminalResult } from "@/app/(app)/pos/terminal-actions";
 import { beep } from "./feedback";
 import { PayPanel, money } from "./pay-panel";
+import { RewardsPanel, type RewardsView } from "./rewards-panel";
 import { Toasts, useToasts } from "./shell";
 import { useScanner } from "./use-scanner";
 
@@ -33,7 +34,9 @@ export type CartView = {
   categories: string[];
   discounts: { id: string; name: string; label: string }[];
   discountName: string | null;
-  totals: { subtotal: string; discount: string; exciseTax: string; salesTax: string; total: string };
+  totals: { subtotal: string; discount: string; reward: string; exciseTax: string; salesTax: string; total: string };
+  /** The rewards box, when the business's rewards program is on. */
+  rewards: RewardsView | null;
   taxLabels: { excise: string; sales: string };
   limits: { label: string; used: string; limit: string; unit: string; share: number }[];
   quickCash: string[];
@@ -339,6 +342,21 @@ export function CartScreen({ view }: { view: CartView }) {
             ))}
           </div>
 
+          {view.rewards ? (
+            <RewardsPanel
+              saleId={view.saleId}
+              view={view.rewards}
+              pending={pending}
+              act={(work, okText, after) =>
+                start(async () => {
+                  const result = await work();
+                  if (!result.notFound) report(result, okText);
+                  after?.(result);
+                })
+              }
+            />
+          ) : null}
+
           {view.discounts.length ? (
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Discount">
               {[
@@ -374,6 +392,12 @@ export function CartScreen({ view }: { view: CartView }) {
               <>
                 <dt>Discount ({view.discountName})</dt>
                 <dd className="text-right tabular-nums">-{dollars(view.totals.discount)}</dd>
+              </>
+            ) : null}
+            {Number(view.totals.reward) > 0 ? (
+              <>
+                <dt>Rewards ({view.rewards ? view.rewards.applied * view.rewards.redeemPoints : 0} pts)</dt>
+                <dd className="text-right tabular-nums">-{dollars(view.totals.reward)}</dd>
               </>
             ) : null}
             <dt>{view.taxLabels.excise}</dt>

@@ -7,17 +7,21 @@ import { InventoryError } from "@/lib/inventory-math";
 import {
   addScannedCode,
   addToCart,
+  attachRewardsMember,
   cancelCart,
   checkInCustomer,
   completeSale,
+  detachRewardsMember,
+  joinRewards,
   openDrawer,
   setCartDiscount,
   setLineQuantity,
+  setRewardsUsed,
 } from "@/lib/pos";
 import { requirePermission } from "@/lib/session";
 
 /** What every register button gets back: a message to show, and sometimes where to go next. */
-export type TerminalResult = { ok?: string; error?: string; saleId?: string };
+export type TerminalResult = { ok?: string; error?: string; saleId?: string; notFound?: boolean };
 
 async function clerk(): Promise<Actor> {
   const session = await requirePermission("pos.use");
@@ -83,5 +87,33 @@ export async function terminalPay(input: { saleId: string; method: string; cashT
     await completeSale(actor, { saleId: input.saleId, paymentMethod: input.method, cashTendered: input.cashTendered, debitAmount: input.debitAmount, cardLast4: input.cardLast4, cardRef: input.cardRef });
     revalidatePath("/inventory");
     return { saleId: input.saleId };
+  });
+}
+
+/** Rewards: find the shopper by phone and put them on the cart. notFound means offer to sign them up. */
+export async function terminalRewardsFind(saleId: string, phone: string): Promise<TerminalResult> {
+  return run(async (actor) => {
+    const found = await attachRewardsMember(actor, { saleId, phone });
+    if (!found) return { notFound: true };
+    return { ok: `${found.firstName} has ${found.points} points` };
+  });
+}
+
+export async function terminalRewardsJoin(input: { saleId: string; phone: string; firstName: string; birthday: string; agreed: boolean }): Promise<TerminalResult> {
+  return run(async (actor) => {
+    const joined = await joinRewards(actor, input);
+    return { ok: `${joined.firstName} joined rewards with ${joined.points} welcome points` };
+  });
+}
+
+export async function terminalRewardsRemove(saleId: string): Promise<TerminalResult> {
+  return run(async (actor) => {
+    await detachRewardsMember(actor, { saleId });
+  });
+}
+
+export async function terminalRewardsUse(saleId: string, count: number): Promise<TerminalResult> {
+  return run(async (actor) => {
+    await setRewardsUsed(actor, { saleId, count });
   });
 }

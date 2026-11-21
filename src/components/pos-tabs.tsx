@@ -8,6 +8,7 @@ export function PosTabs({ current, canManage, pickups = 0, review = 0 }: { curre
     { href: "/pos/offline", label: "Offline register" },
     ...(canManage ? [{ href: "/pos/review", label: review > 0 ? `To review (${review})` : "To review" }] : []),
     ...(canManage ? [{ href: "/pos/menu", label: "Menu and store rules" }] : []),
+    ...(canManage ? [{ href: "/pos/rewards", label: "Rewards" }] : []),
   ];
   return (
     <nav className="mb-6 flex flex-wrap gap-1 rounded-xl border border-brand-100 bg-white p-1.5 shadow-sm print:hidden">
