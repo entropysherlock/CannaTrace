@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { InventoryError } from "@/lib/inventory-math";
 import { headers } from "next/headers";
-import { addSupportAdmin, createCustomerBusiness, openSupportVisit, removeSupportAdmin } from "@/lib/platform-admin";
+import * as Sentry from "@sentry/nextjs";
+import { addSupportAdmin, createCustomerBusiness, isPlatformAdmin, openSupportVisit, removeSupportAdmin } from "@/lib/platform-admin";
+import { sentryDsn } from "@/lib/sentry-options";
 import { createSession, requireSession } from "@/lib/session";
 
 async function admin() {
@@ -60,6 +62,24 @@ export async function createBusinessAction(_state: FormState, formData: FormData
     return {
       ok: `Created ${made.businessName}. It is in the list below, and you can open it now.\nSend this link to ${made.ownerEmail} so they can set their password (works once, for 7 days):\n${origin}/invite/${made.inviteToken}`,
     };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+/**
+ * Prove crash alerts work: report a clearly-labelled test error to Sentry and wait until it is sent.
+ * Platform admins only; nothing in any customer's account is touched.
+ */
+export async function sendTestCrashAction(): Promise<FormState> {
+  try {
+    const me = await admin();
+    if (!(await isPlatformAdmin(me.userId))) throw new InventoryError("Only CannaTrace support can send a test crash.");
+    if (!sentryDsn) throw new InventoryError("Crash alerts are off: add NEXT_PUBLIC_SENTRY_DSN in Vercel and redeploy first.");
+    Sentry.captureException(new Error(`CannaTrace test crash from the Support Console (${new Date().toISOString()})`), { tags: { test: "yes" } });
+    const sent = await Sentry.flush(5000);
+    if (!sent) throw new InventoryError("Couldn't reach Sentry within 5 seconds. Check the DSN in Vercel.");
+    return { ok: "Test crash sent. It should show in Sentry, and in your email, within a minute." };
   } catch (error) {
     return toFormError(error);
   }
