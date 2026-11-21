@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { facilities, itemCategories, items, locations, orders, organizations, plantBatches, plants, priceLists, scanReads, strains, users } from "@/db/schema";
+import { facilities, harvests, itemCategories, items, locations, orders, organizations, plantBatches, plants, priceLists, scanReads, strains, users } from "@/db/schema";
 import { applyHarvestSheet, applyPriceList, applyWholesaleOrder } from "@/lib/scan/apply";
 import { confirmProposal, signProposal } from "@/lib/assistant/engine";
 import { TOOLS } from "@/lib/assistant/tools";
@@ -110,5 +110,24 @@ describe.skipIf(!hasDb)("recent-feature bug fixes (database)", () => {
     const results = await Promise.allSettled([applyWholesaleOrder(owner, input), applyWholesaleOrder(owner, input)]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(await db.$count(orders, eq(orders.customerId, cust.id))).toBe(1);
+  });
+
+  it("close-out with rest_item counts the package it makes", async () => {
+    const [cat] = await db.select().from(itemCategories).where(eq(itemCategories.orgId, actor.orgId));
+    await db.insert(items).values({ orgId: actor.orgId, name: `Bulk ${run}`, sku: `BLK-${run}`, categoryId: cat.id, unit: "G" });
+    await db.insert(harvests).values({ orgId: actor.orgId, facilityId: actor.facilityId, name: `RH-${run}`, strainId, locationId: flowerRm, plantCount: 4, wetWeight: "900", dryWeight: "200", userId: actor.userId });
+    const tool = TOOLS.find((x) => x.name === "close_out_harvest") as unknown as { propose: (s: Session, i: Record<string, unknown>) => Promise<{ details: { label: string; value: string }[] }> };
+    const card = await tool.propose(owner, { harvest: `RH-${run}`, rest_item: `BLK-${run}`, labels: false });
+    expect(card.details.find((d) => d.label === "Into packages")?.value).toBe("200 g in 1 package");
+  });
+});
+
+describe("Grow guide package draft", () => {
+  const bulk = [{ id: "i1", strain: "Blue Dream", unit: "G" }];
+  it("fills in the bulk item and what's left only once the harvest is weighed dry", async () => {
+    const { packageDraft } = await import("@/lib/grow-package");
+    expect(packageDraft({ strain: "blue dream", leftG: "812.5", weighed: true }, bulk)).toEqual({ itemId: "i1", quantity: "812.5" });
+    // Still drying: "left" is the wet weight, so nothing is filled in.
+    expect(packageDraft({ strain: "Blue Dream", leftG: "4000", weighed: false }, bulk)).toBeNull();
   });
 });

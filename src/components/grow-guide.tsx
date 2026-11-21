@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { dryWeightAction, finishHarvestAction, packageHarvestAction, quickStrainAction, tagPlantsAction, wasteAction } from "@/app/(app)/cultivation/actions";
 import { growBatchAction, growHarvestAction, growMoveAction } from "@/app/(app)/cultivation/grow-actions";
 import { quickItemAction, quickRoomAction } from "@/app/(app)/quick-create-actions";
+import { packageDraft } from "@/lib/grow-package";
 import { ItemFields } from "./item-fields";
 import { ActionForm } from "./action-form";
 import { CreatableSelect } from "./contextual-create";
@@ -24,7 +25,7 @@ export type GrowData = {
   untaggedBatches: { id: string; name: string; strain: string; untagged: number; roomId: string }[];
   plantGroups: { key: string; label: string; phase: string; ids: string[]; due: boolean }[];
   dryingHarvests: { id: string; label: string; day: number; ready: boolean }[];
-  packableHarvests: { id: string; label: string; left: string; leftG: string; strain: string; roomId: string }[];
+  packableHarvests: { id: string; label: string; left: string; leftG: string; strain: string; roomId: string; weighed: boolean }[];
   finishable: { id: string; label: string }[];
   counts: { untagged: number; plants: number; flowering: number; toDry: number; waiting: number; toPackage: number };
 };
@@ -96,8 +97,8 @@ function PlantGroups({ groups, empty }: { groups: GrowData["plantGroups"]; empty
 function PackageFields({ data }: { data: GrowData }) {
   const [harvestId, setHarvestId] = useState(data.packableHarvests[0]?.id ?? "");
   const h = data.packableHarvests.find((x) => x.id === harvestId) ?? data.packableHarvests[0];
-  const mine = data.items.filter((i) => i.unit === "G" && i.strain && i.strain.trim().toLowerCase() === h.strain.trim().toLowerCase());
-  const suggested = mine.length === 1 ? mine[0] : null;
+  const draft = packageDraft(h, data.items);
+  const suggested = draft ? { id: draft.itemId } : null;
   return (
     <>
       <Field label="Harvest">
@@ -127,7 +128,7 @@ function PackageFields({ data }: { data: GrowData }) {
       />
       <div className="grid grid-cols-2 gap-3">
         <Field label="Weight of each package" hint={suggested ? "Filled in with everything that's left. Change it to make several smaller packages." : "In the item's unit."}>
-          <input key={`q-${harvestId}-${suggested?.id ?? ""}`} name="quantity" inputMode="decimal" required defaultValue={suggested ? h.leftG : ""} className={inputClass} />
+          <input key={`q-${harvestId}-${suggested?.id ?? ""}`} name="quantity" inputMode="decimal" required defaultValue={draft?.quantity ?? ""} className={inputClass} />
         </Field>
         <Field label="How many packages">
           <input name="count" inputMode="numeric" defaultValue="1" className={inputClass} />

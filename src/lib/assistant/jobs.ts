@@ -542,6 +542,7 @@ export const JOB_TOOLS: Tool[] = [
       if (!dry) throw new InventoryError(`Harvest ${h.name} has no dry weight yet. Ask for the final dry weight.`);
       const location = str(input.location) ? await findLocation(s, str(input.location)) : { id: h.location_id, name: "the harvest's room" };
       let packagedG = new Decimal(0);
+      let restPackages = 0;
       const newTags: string[] = [];
       for (const line of Array.isArray(input.packages) ? (input.packages as Input[]) : []) {
         const item = await findItem(s, str(line.item));
@@ -572,6 +573,7 @@ export const JOB_TOOLS: Tool[] = [
         if (!convert(amount, item.unit as UnitCode, "G").toDecimalPlaces(4).eq(left)) throw new InventoryError(`${qty(left, "G")} can't be packaged exactly in ${item.name}'s unit. Pick an item counted in grams.`);
         steps.push({ k: "pkg_harvest", say: `Package the remaining ${qty(left, "G")} as ${item.name} (the tag is made for you)`, harvestId: h.id, tag: "", itemId: item.id, quantity: amount.toString(), locationId: location.id });
         packagedG = packagedG.add(left);
+        restPackages = 1;
         left = new Decimal(0);
         restNote = "Print its label from Inventory once this is done; the tag is made when you confirm";
       }
@@ -595,7 +597,7 @@ export const JOB_TOOLS: Tool[] = [
       }
       return propose(s, "close_out_harvest", `Close out harvest ${h.name}`, steps, [
         { label: "Dry weight", value: qty(dry, "G") },
-        { label: "Into packages", value: `${qty(packagedG, "G")} in ${plural(newTags.length, "package")}${new Decimal(h.packaged).gt(0) ? ` (+${qty(h.packaged, "G")} already)` : ""}` },
+        { label: "Into packages", value: `${qty(packagedG, "G")} in ${plural(newTags.length + restPackages, "package")}${new Decimal(h.packaged).gt(0) ? ` (+${qty(h.packaged, "G")} already)` : ""}` },
         { label: "Waste", value: qty(wasteG.add(h.waste).add(left.gt(0) && str(input.rest_is_waste) ? left : 0), "G") },
         { label: "Left over", value: left.gt(0) && !str(input.rest_is_waste) ? qty(left, "G") : "0 g" },
         ...(labelNote ?? restNote ? [{ label: "Labels", value: String(labelNote ?? restNote) }] : []),

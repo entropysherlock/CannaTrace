@@ -74,9 +74,9 @@ export default async function GrowPage() {
   const dryingHarvests = dryingAll.map((d) => ({ id: d.id, label: `${d.label} · drying day ${d.day}`, day: d.day, ready: d.day >= READY_DAY }));
   const waitingToDry = dryingHarvests.filter((d) => !d.ready).length;
   const packable = harvestRows
-    .map((r) => ({ id: r.h.id, label: `${r.h.name} · ${r.strain}`, left: harvestOnHand(r.h), strain: r.strain, roomId: r.h.locationId }))
+    .map((r) => ({ id: r.h.id, label: `${r.h.name} · ${r.strain}`, left: harvestOnHand(r.h), strain: r.strain, roomId: r.h.locationId, weighed: r.h.dryWeight !== null }))
     .filter((r) => r.left.gt(0))
-    .map((r) => ({ id: r.id, label: r.label, left: grams(r.left.toString()), leftG: r.left.toString(), strain: r.strain, roomId: r.roomId }));
+    .map((r) => ({ id: r.id, label: r.label, left: grams(r.left.toString()), leftG: r.left.toString(), strain: r.strain, roomId: r.roomId, weighed: r.weighed }));
   const finishable = harvestRows.filter((r) => harvestOnHand(r.h).lte(0) || Number(r.h.packagedWeight) > 0).map((r) => ({ id: r.h.id, label: `${r.h.name} · ${r.strain}` }));
 
   const untagged = batchRows.reduce((n, b) => n + b.untagged, 0);
