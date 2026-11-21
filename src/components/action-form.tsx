@@ -47,7 +47,7 @@ export function ActionForm({
         </p>
       ) : null}
       {state?.ok ? (
-        <p role="status" className="whitespace-pre-line break-all rounded-lg border-l-4 border-brand-600 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-900">
+        <p role="status" className="whitespace-pre-line break-words rounded-lg border-l-4 border-brand-600 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-900">
           {state.ok}
         </p>
       ) : null}

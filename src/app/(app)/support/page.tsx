@@ -10,7 +10,8 @@ import { jobStatus } from "@/lib/job-runs";
 import { isPlatformAdmin, listCustomerAccounts, listSupportAdmins, recentSupportVisits } from "@/lib/platform-admin";
 import { stateName } from "@/lib/states";
 import { requireSession } from "@/lib/session";
-import { addAdminAction, createBusinessAction, openAccountAction, removeAdminAction } from "./actions";
+import { sentryDsn } from "@/lib/sentry-options";
+import { addAdminAction, createBusinessAction, openAccountAction, removeAdminAction, sendTestCrashAction } from "./actions";
 
 export const metadata = { title: "Support Console · CannaTrace" };
 
@@ -173,6 +174,30 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
                 </li>
               ))}
             </ul>
+          </Card>
+
+          <Card title="Crash alerts">
+            {sentryDsn ? (
+              <div className="space-y-3 text-sm text-slate-700" data-testid="crash-alerts">
+                <p>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">On</span> Any crash on a page, a save or a
+                  customer&apos;s screen is sent to Sentry, which emails you. Reports carry the error and the page, never customer or store data.
+                </p>
+                <ActionForm action={sendTestCrashAction} submitLabel="Send a test crash" quiet>
+                  <p className="text-slate-600">Sends one labelled test error so you can see an alert arrive.</p>
+                </ActionForm>
+              </div>
+            ) : (
+              <div className="space-y-3 text-sm text-slate-700" data-testid="crash-alerts">
+                <p className="font-semibold text-amber-900">Off: nothing tells you when the app crashes for a customer.</p>
+                <ol className="list-decimal space-y-1 pl-5">
+                  <li>Make a free account at sentry.io and create a project (platform: Next.js).</li>
+                  <li>Copy the project&apos;s DSN (Settings → Client Keys). It looks like https://…@…ingest.sentry.io/….</li>
+                  <li>In Vercel: the CannaTrace project → Settings → Environment Variables → add NEXT_PUBLIC_SENTRY_DSN with that value (Production).</li>
+                  <li>Redeploy, come back here, and press Send a test crash.</li>
+                </ol>
+              </div>
+            )}
           </Card>
 
           <Card title="How support visits work">

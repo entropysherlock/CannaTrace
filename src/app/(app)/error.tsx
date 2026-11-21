@@ -1,5 +1,6 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import Link from "next/link";
 import { useEffect } from "react";
 
@@ -8,6 +9,7 @@ export default function PageError({ error, retry }: { error: unknown; retry: () 
   const digest = error instanceof Error ? (error as Error & { digest?: string }).digest : undefined;
   useEffect(() => {
     console.error(error);
+    Sentry.captureException(error);
   }, [error]);
   return (
     <section className="mx-auto max-w-xl py-12 text-center" role="alert">
