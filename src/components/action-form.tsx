@@ -9,6 +9,7 @@ export function ActionForm({
   submitLabel,
   className,
   quiet,
+  submitAriaLabel,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   children: ReactNode;
@@ -16,6 +17,8 @@ export function ActionForm({
   className?: string;
   /** A plain outlined button, for undoing or cancelling rather than moving forward. */
   quiet?: boolean;
+  /** A fuller name for the button when its text is short, e.g. "Remove" that says what it removes. */
+  submitAriaLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -54,6 +57,7 @@ export function ActionForm({
       <button
         type="submit"
         disabled={pending}
+        aria-label={submitAriaLabel}
         className={`inline-flex min-h-11 items-center justify-center rounded-lg px-5 text-sm font-bold shadow-sm transition disabled:opacity-60 ${
           quiet ? "border-2 border-brand-200 bg-white text-brand-800 hover:border-brand-500 hover:bg-brand-50" : "bg-brand-600 text-white hover:bg-brand-700"
         }`}
