@@ -7,11 +7,11 @@ import { encryptionStatus, secretLength } from "@/lib/ai/secret-box";
 import { licenseTypeEnum } from "@/db/schema";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { jobStatus } from "@/lib/job-runs";
-import { isPlatformAdmin, listCustomerAccounts, listSupportAdmins, recentSupportVisits } from "@/lib/platform-admin";
+import { isPlatformAdmin, listCustomerAccounts, listSupportAdmins, recentSupportVisits, type CustomerAccount } from "@/lib/platform-admin";
 import { stateName } from "@/lib/states";
 import { requireSession } from "@/lib/session";
 import { sentryDsn } from "@/lib/sentry-options";
-import { addAdminAction, createBusinessAction, openAccountAction, removeAdminAction, sendTestCrashAction } from "./actions";
+import { addAdminAction, businessAccessAction, createBusinessAction, openAccountAction, removeAdminAction, sendTestCrashAction } from "./actions";
 
 export const metadata = { title: "Support Console · CannaTrace" };
 
@@ -19,6 +19,13 @@ const when = (d: Date | null) =>
   d ? d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Denver" }) : "never";
 
 type Facility = { name: string; state: string; licenseNumber: string };
+const ACCESS: Record<CustomerAccount["access"], { label: string; tone: string; note: string }> = {
+  approved: { label: "Has access", tone: "bg-emerald-100 text-emerald-800", note: "Owner and staff can sign in." },
+  listed: { label: "Your business", tone: "bg-sky-100 text-sky-800", note: "In through the server's email list." },
+  suspended: { label: "Suspended", tone: "bg-red-100 text-red-800", note: "Nobody here can sign in. You can still open it." },
+  none: { label: "No access", tone: "bg-slate-200 text-slate-700", note: "Nobody here can sign in until you give access." },
+};
+
 const facilityMatches = (f: Facility, q: string) =>
   Boolean(q) &&
   (f.name.toLowerCase().includes(q) || f.licenseNumber.toLowerCase().includes(q) || f.state.toLowerCase() === q || stateName(f.state).toLowerCase().includes(q));
@@ -116,6 +123,35 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
                       Joined {when(a.createdAt)} · last activity {when(a.lastActivity)}
                     </p>
                   </div>
+                  {a.isDemo ? null : (
+                    <div className="space-y-2 text-sm sm:max-w-xs sm:text-right" data-testid={`access-${a.id}`}>
+                      <p>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${ACCESS[a.access].tone}`}>{ACCESS[a.access].label}</span>
+                        <span className="mt-1 block text-xs text-slate-500">{ACCESS[a.access].note}</span>
+                      </p>
+                      {a.access === "suspended" || a.access === "none" ? (
+                        <ActionForm action={businessAccessAction} submitLabel={a.access === "suspended" ? "Restore access" : "Give access"} quiet>
+                          <input type="hidden" name="orgId" value={a.id} />
+                          <input type="hidden" name="access" value="approve" />
+                        </ActionForm>
+                      ) : a.id !== session.orgId ? (
+                        <Disclosure title="Suspend access">
+                          <ActionForm action={businessAccessAction} submitLabel="Suspend" quiet className="space-y-2 pt-2">
+                            <input type="hidden" name="orgId" value={a.id} />
+                            <input type="hidden" name="access" value="suspend" />
+                            <input
+                              name="reason"
+                              required
+                              maxLength={300}
+                              placeholder="Why? e.g. Unpaid since Dec 1"
+                              aria-label={`Reason for suspending ${a.name}`}
+                              className={inputClass}
+                            />
+                          </ActionForm>
+                        </Disclosure>
+                      ) : null}
+                    </div>
+                  )}
 
                 </div>
                 {a.facilities.length === 0 ? (

@@ -6,7 +6,7 @@ import { field, toFormError, type FormState } from "@/lib/form";
 import { InventoryError } from "@/lib/inventory-math";
 import { headers } from "next/headers";
 import * as Sentry from "@sentry/nextjs";
-import { addSupportAdmin, createCustomerBusiness, isPlatformAdmin, openSupportVisit, removeSupportAdmin } from "@/lib/platform-admin";
+import { addSupportAdmin, createCustomerBusiness, isPlatformAdmin, openSupportVisit, removeSupportAdmin, setBusinessAccess } from "@/lib/platform-admin";
 import { sentryDsn } from "@/lib/sentry-options";
 import { createSession, requireSession } from "@/lib/session";
 
@@ -80,6 +80,18 @@ export async function sendTestCrashAction(): Promise<FormState> {
     const sent = await Sentry.flush(5000);
     if (!sent) throw new InventoryError("Couldn't reach Sentry within 5 seconds. Check the DSN in Vercel.");
     return { ok: "Test crash sent. It should show in Sentry, and in your email, within a minute." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+/** Suspend or restore a business's access (Support Console). */
+export async function businessAccessAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const action = field(formData, "access") === "suspend" ? "suspend" : "approve";
+    const message = await setBusinessAccess(await admin(), field(formData, "orgId"), action, field(formData, "reason"));
+    revalidatePath("/support");
+    return { ok: message };
   } catch (error) {
     return toFormError(error);
   }

@@ -95,6 +95,14 @@ export const organizations = pgTable("organizations", {
   demoReady: boolean("demo_ready").notNull().default(false),
   /** Tally questions asked in this demo day, so a public demo cannot run up the AI bill. */
   demoAssistantCalls: integer("demo_assistant_calls").notNull().default(0),
+  /**
+   * While CannaTrace is invite-only: set when CannaTrace support approves this business (setting it up in the
+   * Support Console does this), so its owner and the staff they invite can sign in without being on the
+   * server's email list.
+   */
+  accessApprovedAt: timestamp("access_approved_at", { withTimezone: true }),
+  /** Set when support suspends the business (for example, unpaid). Nobody in it can sign in until restored. */
+  accessSuspendedAt: timestamp("access_suspended_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
 

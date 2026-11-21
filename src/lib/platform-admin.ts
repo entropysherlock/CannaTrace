@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { auditLogs, facilities, invites, licenseTypeEnum, organizations, platformAdmins, users } from "@/db/schema";
+import { allowedEmails } from "./access";
 import { db } from "./db";
 import { signInStillValid } from "./sign-in-check";
 import { InventoryError } from "./inventory-math";
@@ -53,6 +54,12 @@ export type CustomerAccount = {
   owners: string[];
   packages: number;
   lastActivity: Date | null;
+  /**
+   * Who can sign in while CannaTrace is invite-only. approved: support approved it. listed: someone on the
+   * server's email list is a member (your own business). suspended: support turned it off. none: neither,
+   * so nobody in it can sign in.
+   */
+  access: "approved" | "listed" | "suspended" | "none";
 };
 
 /** Every business on CannaTrace, newest activity first. */
@@ -66,8 +73,12 @@ export async function listCustomerAccounts(): Promise<CustomerAccount[]> {
     owners: string[] | null;
     packages: number;
     last_activity: string | null;
+    access_approved_at: string | null;
+    access_suspended_at: string | null;
+    emails: string[] | null;
   }>(sql`
-    select o.id, o.name, o.is_demo, o.created_at,
+    select o.id, o.name, o.is_demo, o.created_at, o.access_approved_at, o.access_suspended_at,
+      (select array_agg(lower(u.email)) from users u where u.org_id = o.id and u.active) as emails,
       (select count(*)::int from users u where u.org_id = o.id and u.active) as users,
       (select array_agg(u.email order by u.created_at) from users u where u.org_id = o.id and u.role = 'OWNER' and u.active) as owners,
       (select count(*)::int from packages p where p.org_id = o.id) as packages,
@@ -79,6 +90,7 @@ export async function listCustomerAccounts(): Promise<CustomerAccount[]> {
     .select({ id: facilities.id, orgId: facilities.orgId, name: facilities.name, state: facilities.state, licenseType: facilities.licenseType, licenseNumber: facilities.licenseNumber })
     .from(facilities)
     .orderBy(asc(facilities.name));
+  const listed = allowedEmails();
   return rows.rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -89,7 +101,47 @@ export async function listCustomerAccounts(): Promise<CustomerAccount[]> {
     owners: r.owners ?? [],
     packages: r.packages,
     lastActivity: r.last_activity ? new Date(r.last_activity) : null,
+    access: r.access_suspended_at
+      ? "suspended"
+      : r.access_approved_at
+        ? "approved"
+        : (r.emails ?? []).some((e) => listed.includes(e))
+          ? "listed"
+          : "none",
   }));
+}
+
+/**
+ * Turn a business's access on or off while CannaTrace is invite-only. Suspending signs everyone in it out on
+ * their next click (support can still visit); restoring or approving lets the owner and their staff back in.
+ * Recorded in the business's own audit trail.
+ */
+export async function setBusinessAccess(admin: Admin, orgId: string, action: "approve" | "suspend", reason: string): Promise<string> {
+  if (!(await isPlatformAdmin(admin.userId))) throw new InventoryError("Only CannaTrace support admins can change a business's access.");
+  if (orgId === admin.orgId && action === "suspend") throw new InventoryError("You can't suspend your own business.");
+  const why = reason.trim().replace(/\s+/g, " ").slice(0, 300);
+  if (action === "suspend" && !why) throw new InventoryError("Say why you're suspending this business, for example \"unpaid since Dec 1\".");
+  return db.transaction(async (tx) => {
+    const [org] = await tx.select().from(organizations).where(eq(organizations.id, orgId)).for("update");
+    if (!org) throw new InventoryError("That business no longer exists.");
+    if (org.isDemo) throw new InventoryError("The live demo's access is set on the server, not here.");
+    const now = new Date();
+    const change = action === "suspend" ? { accessSuspendedAt: now } : { accessSuspendedAt: null, accessApprovedAt: org.accessApprovedAt ?? now };
+    await tx.update(organizations).set(change).where(eq(organizations.id, orgId));
+    await tx.insert(auditLogs).values({
+      orgId,
+      userId: admin.userId,
+      userName: `${admin.name} (CannaTrace support)`,
+      entityType: "Business",
+      entityId: orgId,
+      action: action === "suspend" ? "SUPPORT_SUSPENDED_ACCESS" : "SUPPORT_RESTORED_ACCESS",
+      before: { approved: Boolean(org.accessApprovedAt), suspended: Boolean(org.accessSuspendedAt) },
+      after: { approved: true, suspended: action === "suspend", ...(why ? { reason: why } : {}) },
+    });
+    return action === "suspend"
+      ? `${org.name} is suspended. Nobody there can sign in until you restore access.`
+      : `${org.name} has access. Its owner and staff can sign in.`;
+  });
 }
 
 type Admin = { userId: string; orgId: string; facilityId: string; name: string };
@@ -219,7 +271,8 @@ export async function createCustomerBusiness(
   return db.transaction(async (tx) => {
     if ((await tx.$count(users, sql`lower(${users.email}) = ${ownerEmail}`)) > 0)
       throw new InventoryError("Someone already has a CannaTrace account with that email. Use a different email for the new owner.");
-    const [org] = await tx.insert(organizations).values({ name: businessName }).returning({ id: organizations.id });
+    // Set up by support, so approved: its owner and the staff they invite can sign in while invite-only.
+    const [org] = await tx.insert(organizations).values({ name: businessName, accessApprovedAt: new Date() }).returning({ id: organizations.id });
     const [facility] = await tx
       .insert(facilities)
       .values({ orgId: org.id, name: facilityName, licenseNumber, licenseType: input.licenseType as "RETAIL", state })
