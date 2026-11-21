@@ -105,10 +105,10 @@ export default async function MenuPage() {
             ) : (
               <ul className="divide-y divide-slate-100 text-sm">
                 {discounts.map((d) => (
-                  <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
-                    <span className="font-medium text-slate-900">{d.name}</span>
-                    <span className="ml-auto font-semibold">{num(d.percent)}% off</span>
-                    <ActionForm action={removeDiscountAction} submitLabel={`Remove ${d.name}`} quiet className="flex items-start">
+                  <li key={d.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-2">
+                    <span className="min-w-0 break-words font-medium text-slate-900">{d.name}</span>
+                    <span className="w-20 text-right font-semibold tabular-nums">{num(d.percent)}% off</span>
+                    <ActionForm action={removeDiscountAction} submitLabel="Remove" submitAriaLabel={`Remove ${d.name}`} quiet className="flex items-start">
                       <input type="hidden" name="discountId" value={d.id} />
                     </ActionForm>
                   </li>
