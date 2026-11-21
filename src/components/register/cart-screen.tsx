@@ -323,9 +323,25 @@ export function CartScreen({ view }: { view: CartView }) {
               ))}
             </ul>
           )}
+          {view.rewards ? (
+            <div className="px-4 pb-3">
+            <RewardsPanel
+              saleId={view.saleId}
+              view={view.rewards}
+              pending={pending}
+              act={(work, okText, after) =>
+                start(async () => {
+                  const result = await work();
+                  if (!result.notFound) report(result, okText);
+                  after?.(result);
+                })
+              }
+            />
+            </div>
+          ) : null}
         </div>
 
-        <div className="space-y-3 border-t border-slate-200 bg-[#f6f9f7] px-4 py-3">
+        <div className="space-y-3 border-t border-slate-200 bg-[#f6f9f7] px-4 py-3 lg:max-h-[55%] lg:overflow-y-auto">
           <div className="grid grid-cols-3 gap-3" aria-label="Purchase limits">
             {view.limits.map((l) => (
               <div key={l.label}>
@@ -341,21 +357,6 @@ export function CartScreen({ view }: { view: CartView }) {
               </div>
             ))}
           </div>
-
-          {view.rewards ? (
-            <RewardsPanel
-              saleId={view.saleId}
-              view={view.rewards}
-              pending={pending}
-              act={(work, okText, after) =>
-                start(async () => {
-                  const result = await work();
-                  if (!result.notFound) report(result, okText);
-                  after?.(result);
-                })
-              }
-            />
-          ) : null}
 
           {view.discounts.length ? (
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Discount">
