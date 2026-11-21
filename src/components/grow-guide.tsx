@@ -18,11 +18,13 @@ export type GrowData = {
   categories: string[];
   strains: Opt[];
   rooms: Opt[];
-  items: { id: string; label: string }[];
+  items: { id: string; label: string; strain: string | null; unit: string }[];
+  /** The room flowering plants go to, when Tally can tell which it is. */
+  flowerRoomId: string | null;
   untaggedBatches: { id: string; name: string; strain: string; untagged: number; roomId: string }[];
-  plantGroups: { key: string; label: string; phase: string; ids: string[] }[];
+  plantGroups: { key: string; label: string; phase: string; ids: string[]; due: boolean }[];
   dryingHarvests: { id: string; label: string; day: number; ready: boolean }[];
-  packableHarvests: { id: string; label: string; left: string }[];
+  packableHarvests: { id: string; label: string; left: string; leftG: string; strain: string; roomId: string }[];
   finishable: { id: string; label: string }[];
   counts: { untagged: number; plants: number; flowering: number; toDry: number; waiting: number; toPackage: number };
   suggested: number;
@@ -64,7 +66,7 @@ function RoomSelect({ data, name, label, defaultValue, required = true, onChange
 
 /** Groups of plants to check (a batch in one room at one stage), so a whole room is one tap. */
 function PlantGroups({ groups, empty }: { groups: GrowData["plantGroups"]; empty: string }) {
-  const [on, setOn] = useState<Set<string>>(new Set());
+  const [on, setOn] = useState<Set<string>>(() => new Set(groups.filter((g) => g.due).map((g) => g.key)));
   if (!groups.length) return <p className="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">{empty}</p>;
   const toggle = (key: string) => setOn((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   const chosen = groups.filter((g) => on.has(g.key));
@@ -85,6 +87,58 @@ function PlantGroups({ groups, empty }: { groups: GrowData["plantGroups"]; empty
       ))}
       {chosen.flatMap((g) => g.ids).map((id) => <input key={id} type="hidden" name="plantId" value={id} />)}
     </fieldset>
+  );
+}
+
+/**
+ * The Package form, filled in as far as it can be: the harvest's own room, the one bulk item for its strain, and
+ * everything that's left as the weight. Change any of it; with the usual case it is one button.
+ */
+function PackageFields({ data }: { data: GrowData }) {
+  const [harvestId, setHarvestId] = useState(data.packableHarvests[0]?.id ?? "");
+  const h = data.packableHarvests.find((x) => x.id === harvestId) ?? data.packableHarvests[0];
+  const mine = data.items.filter((i) => i.unit === "G" && i.strain && i.strain.trim().toLowerCase() === h.strain.trim().toLowerCase());
+  const suggested = mine.length === 1 ? mine[0] : null;
+  return (
+    <>
+      <Field label="Harvest">
+        <select name="harvestId" required value={harvestId} onChange={(e) => setHarvestId(e.target.value)} className={inputClass}>
+          {data.packableHarvests.map((x) => (
+            <option key={x.id} value={x.id}>{x.label} · {x.left} left</option>
+          ))}
+        </select>
+      </Field>
+      <p className="rounded-xl bg-slate-100 p-3 text-sm text-slate-800" data-testid="weight-note">
+        Only items counted by weight (grams, ounces, pounds) can be packaged from a harvest, like bulk flower or trim. Jars and pre-rolls are made later in Manufacturing.
+      </p>
+      <CreatableSelect
+        key={`item-${harvestId}`}
+        name="itemId"
+        label="Item"
+        required
+        placeholder="Choose an item"
+        defaultValue={suggested?.id ?? ""}
+        options={data.items.map((i) => ({ id: i.id, label: i.label }))}
+        create={
+          data.canAddItem
+            ? { buttonLabel: "Add bulk item", title: "Add an item counted by weight", intro: "It goes into your catalog too, and is picked for this package.", submitLabel: "Save item", action: quickItemAction, fields: <ItemFields categories={data.categories} units={["G", "KG", "OZ", "LB", "MG"]} /> }
+            : undefined
+        }
+        deniedHint="No item counted by weight? Someone who manages the catalog can add one on the Items page."
+      />
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Weight of each package" hint={suggested ? "Filled in with everything that's left. Change it to make several smaller packages." : "In the item's unit."}>
+          <input key={`q-${harvestId}-${suggested?.id ?? ""}`} name="quantity" inputMode="decimal" required defaultValue={suggested ? h.leftG : ""} className={inputClass} />
+        </Field>
+        <Field label="How many packages">
+          <input name="count" inputMode="numeric" defaultValue="1" className={inputClass} />
+        </Field>
+      </div>
+      <RoomSelect key={`room-${harvestId}`} data={data} name="locationId" label="Put away to" defaultValue={h.roomId} />
+      <Field label="Tags (optional)" hint="Blank = new package IDs. Or one tag per package.">
+        <input name="tag" className={inputClass} placeholder="Blank = automatic" />
+      </Field>
+    </>
   );
 }
 
@@ -197,13 +251,13 @@ export function GrowGuide({ data }: { data: GrowData }) {
             <PlantGroups groups={data.plantGroups} empty="No tagged plants yet. Tag a batch first." />
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="New stage">
-                <select name="stage" defaultValue="" className={inputClass}>
+                <select name="stage" defaultValue={data.plantGroups.some((g) => g.due) ? "FLOWERING" : ""} className={inputClass}>
                   <option value="">No change</option>
                   <option value="FLOWERING">Flowering</option>
                   <option value="VEGETATIVE">Vegetative</option>
                 </select>
               </Field>
-              <RoomSelect data={data} name="locationId" label="Move to room" required={false} />
+              <RoomSelect data={data} name="locationId" label="Move to room" required={false} defaultValue={data.plantGroups.some((g) => g.due) ? (data.flowerRoomId ?? "") : ""} />
             </div>
           </ActionForm>
         ) : null}
@@ -276,41 +330,7 @@ export function GrowGuide({ data }: { data: GrowData }) {
           data.packableHarvests.length ? (
             <div className="space-y-6">
               <ActionForm key="s5" action={packageHarvestAction} submitLabel="Create packages">
-                <Field label="Harvest">
-                  <select name="harvestId" required className={inputClass}>
-                    {data.packableHarvests.map((h) => (
-                      <option key={h.id} value={h.id}>{h.label} · {h.left} left</option>
-                    ))}
-                  </select>
-                </Field>
-                <p className="rounded-xl bg-slate-100 p-3 text-sm text-slate-800" data-testid="weight-note">
-                  Only items counted by weight (grams, ounces, pounds) can be packaged from a harvest, like bulk flower or trim. Jars and pre-rolls are made later in Manufacturing.
-                </p>
-                <CreatableSelect
-                  name="itemId"
-                  label="Item"
-                  required
-                  placeholder="Choose an item"
-                  options={data.items.map((i) => ({ id: i.id, label: i.label }))}
-                  create={
-                    data.canAddItem
-                      ? { buttonLabel: "Add bulk item", title: "Add an item counted by weight", intro: "It goes into your catalog too, and is picked for this package.", submitLabel: "Save item", action: quickItemAction, fields: <ItemFields categories={data.categories} units={["G", "KG", "OZ", "LB", "MG"]} /> }
-                      : undefined
-                  }
-                  deniedHint="No item counted by weight? Someone who manages the catalog can add one on the Items page."
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Weight of each package" hint="In the item's unit.">
-                    <input name="quantity" inputMode="decimal" required className={inputClass} />
-                  </Field>
-                  <Field label="How many packages">
-                    <input name="count" inputMode="numeric" defaultValue="1" className={inputClass} />
-                  </Field>
-                </div>
-                <RoomSelect data={data} name="locationId" label="Put away to" />
-                <Field label="Tags (optional)" hint="Blank = new package IDs. Or one tag per package.">
-                  <input name="tag" className={inputClass} placeholder="Blank = automatic" />
-                </Field>
+                <PackageFields data={data} />
               </ActionForm>
               {data.finishable.length ? (
                 <ActionForm key="s5f" action={finishHarvestAction} submitLabel="Finish harvest" quiet>

@@ -2,7 +2,6 @@ import "server-only";
 import Decimal from "decimal.js";
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { batchesToTag, flowerRoom, plantsDueToFlower } from "@/lib/grow-drafts";
 import { scanFacility } from "@/lib/rules/scan";
 import { convert, type UnitCode } from "@/lib/units";
 import type { Permission } from "@/lib/rbac";
@@ -194,41 +193,6 @@ async function harvests(f: Scope): Promise<Finding[]> {
       ...(draft ? { fix: { tool: "close_out_harvest", input: { harvest: s(h.name), rest_item: s(draft.ref) }, label: "Review the drafted close-out" } } : {}),
     };
   });
-}
-
-/** Batches with plants that still have no tags: Tally drafts the tags. */
-async function untaggedBatches(f: Scope): Promise<Finding[]> {
-  return (await batchesToTag(f)).map((b) => ({
-    key: `tag:${b.id}`,
-    check: "batch_untagged",
-    severity: "info" as const,
-    title: `${plural(b.untagged, "plant")} in ${b.name} still need${b.untagged === 1 ? "s" : ""} tags`,
-    detail: `${b.strain} in ${b.room}. Tally drafted the tags: a new tag for each plant, made for you. Print them from SmartLabel and stick them on.`,
-    permission: "cultivation.view" as const,
-    href: "/cultivation",
-    ask: `Tag the plants in batch ${b.name}`,
-    fix: { tool: "tag_batch", input: { batch: b.name }, label: "Review the drafted tags" },
-  }));
-}
-
-/** Plants that have been in veg as long as their strain says: Tally drafts the move to the flower room. */
-async function readyToFlower(f: Scope): Promise<Finding[]> {
-  const due = await plantsDueToFlower(f);
-  if (!due.length) return [];
-  const room = await flowerRoom(f);
-  return due.map((d) => ({
-    key: `flower:${d.batchId}`,
-    check: "plants_ready_flower",
-    severity: "info" as const,
-    title: `${plural(d.plantIds.length, "plant")} in ${d.batch} ${d.plantIds.length === 1 ? "is" : "are"} ready for flower`,
-    detail: room
-      ? `${d.strain} stays in veg ${d.vegDays} days${d.defaultDays ? " (the default; set the strain's own under Strains)" : ""}, and these are on day ${d.days}. Tally drafted the stage change and the move to ${room.name}.`
-      : `${d.strain} stays in veg ${d.vegDays} days, and these are on day ${d.days}. Tally couldn't tell which room is the flower room, so move them from the Grow guide.`,
-    permission: "cultivation.view" as const,
-    href: "/cultivation",
-    ask: `Move batch ${d.batch} to flower`,
-    ...(room ? { fix: { tool: "advance_batch", input: { batch: d.batch, only_due: true }, label: "Review the drafted move" } } : {}),
-  }));
 }
 
 /** Production runs left open for days, which keeps their inputs in limbo. */
@@ -476,8 +440,6 @@ export const CHECKS: { name: string; kinds: string[]; run: (f: Scope) => Promise
   { name: "licenses on open orders", kinds: ["license"], run: licenses },
   { name: "labels", kinds: ["unlabeled"], run: unlabeled },
   { name: "harvests", kinds: ["harvest_open"], run: harvests },
-  { name: "batches to tag", kinds: ["batch_untagged"], run: untaggedBatches },
-  { name: "plants ready for flower", kinds: ["plants_ready_flower"], run: readyToFlower },
   { name: "production runs", kinds: ["run_open"], run: runs },
   { name: "overdue customers", kinds: ["overdue"], run: overdue },
 ];

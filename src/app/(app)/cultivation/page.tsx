@@ -4,6 +4,7 @@ import { GrowGuide, type GrowData } from "@/components/grow-guide";
 import { PageHeader } from "@/components/ui";
 import { harvests, items, locations, plantBatches, plants, strains } from "@/db/schema";
 import { harvestOnHand } from "@/lib/cultivation-math";
+import { flowerRoom, plantsDueToFlower } from "@/lib/grow-drafts";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
@@ -46,17 +47,24 @@ export default async function GrowPage() {
       .where(and(here(harvests), ne(harvests.status, "FINISHED")))
       .orderBy(desc(harvests.harvestedAt))
       .limit(100),
-    db.select({ id: items.id, name: items.name, unit: items.unit }).from(items).where(and(eq(items.orgId, session.orgId), eq(items.active, true), inArray(items.unit, ["MG", "G", "KG", "OZ", "LB"]))).orderBy(asc(items.name)).limit(2000),
+    db.select({ id: items.id, name: items.name, unit: items.unit, strain: items.strain }).from(items).where(and(eq(items.orgId, session.orgId), eq(items.active, true), inArray(items.unit, ["MG", "G", "KG", "OZ", "LB"]))).orderBy(asc(items.name)).limit(2000),
   ]);
 
+  // Plants that have been in veg as long as their strain says come up already checked, with the flower room ready.
+  const scope = { orgId: session.orgId, facilityId: session.facilityId };
+  const [dueRows, flowerRm] = await Promise.all([plantsDueToFlower(scope), flowerRoom(scope)]);
+  const dueIds = new Set(dueRows.flatMap((d) => d.plantIds));
   const groups = new Map<string, GrowData["plantGroups"][number]>();
   for (const p of plantRows) {
     const key = `${p.batch}|${p.room}|${p.phase}`;
-    const g = groups.get(key) ?? { key, label: `${p.batch} · ${p.strain} · ${p.room} · ${p.phase.toLowerCase()}`, phase: p.phase, ids: [] };
+    const g = groups.get(key) ?? { key, label: `${p.batch} · ${p.strain} · ${p.room} · ${p.phase.toLowerCase()}`, phase: p.phase, ids: [], due: false };
     g.ids.push(p.id);
     groups.set(key, g);
   }
-  const plantGroups = [...groups.values()];
+  const plantGroups = [...groups.values()].map((g) => {
+    const due = g.phase === "VEGETATIVE" && g.ids.every((id) => dueIds.has(id));
+    return { ...g, due, label: due ? `${g.label} · ready for flower` : g.label };
+  });
 
   const dryingAll = harvestRows
     .filter((r) => r.h.status === "DRYING" && r.h.dryWeight === null)
@@ -66,9 +74,9 @@ export default async function GrowPage() {
   const dryingHarvests = dryingAll.map((d) => ({ id: d.id, label: `${d.label} · drying day ${d.day}`, day: d.day, ready: d.day >= READY_DAY }));
   const waitingToDry = dryingHarvests.filter((d) => !d.ready).length;
   const packable = harvestRows
-    .map((r) => ({ id: r.h.id, label: `${r.h.name} · ${r.strain}`, left: harvestOnHand(r.h) }))
+    .map((r) => ({ id: r.h.id, label: `${r.h.name} · ${r.strain}`, left: harvestOnHand(r.h), strain: r.strain, roomId: r.h.locationId }))
     .filter((r) => r.left.gt(0))
-    .map((r) => ({ id: r.id, label: r.label, left: grams(r.left.toString()) }));
+    .map((r) => ({ id: r.id, label: r.label, left: grams(r.left.toString()), leftG: r.left.toString(), strain: r.strain, roomId: r.roomId }));
   const finishable = harvestRows.filter((r) => harvestOnHand(r.h).lte(0) || Number(r.h.packagedWeight) > 0).map((r) => ({ id: r.h.id, label: `${r.h.name} · ${r.strain}` }));
 
   const untagged = batchRows.reduce((n, b) => n + b.untagged, 0);
@@ -83,7 +91,8 @@ export default async function GrowPage() {
     categories: can(session, "catalog.manage") ? await itemCategoryNames(session.orgId) : [],
     strains: strainRows,
     rooms,
-    items: itemRows.map((i) => ({ id: i.id, label: `${i.name} (${unitLabel(i.unit)})` })),
+    items: itemRows.map((i) => ({ id: i.id, label: `${i.name} (${unitLabel(i.unit)})`, strain: i.strain, unit: i.unit })),
+    flowerRoomId: flowerRm?.id ?? null,
     untaggedBatches: batchRows,
     plantGroups,
     dryingHarvests,
