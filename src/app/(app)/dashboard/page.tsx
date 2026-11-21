@@ -224,7 +224,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   // Each stage links to its page only when this person may open it (a budtender sees no Cultivation link).
   const allowed = (permission: Parameters<typeof can>[1], href: string) => (can(session, permission) ? href : null);
   const links = {
-    cultivation: allowed("cultivation.view", "/cultivation"),
+    cultivation: allowed("cultivation.view", "/cultivation/overview"),
     inventory: allowed("inventory.view", "/inventory"),
     manufacturing: allowed("inventory.view", "/manufacturing"),
     distribution: allowed("sales.view", "/distribution"),

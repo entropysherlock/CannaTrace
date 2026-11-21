@@ -48,12 +48,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Related pages share one sidebar entry and show as tabs at the top of the page.
   const tabs = (list: [string, string, boolean][]) => list.filter(([, , show]) => show).map(([href, label]) => ({ href, label }));
   const entry = (key: string, label: string, list: Tab[]): NavItem | null => (list.length ? { key, label, href: list[0].href, tabs: list } : null);
+  // Clicking Cultivation opens the Overview; the Grow guide is one of its tabs. The link still lights up on every Cultivation page.
+  const cultivationEntry = entry("cultivation", "Cultivation", tabs([["/cultivation", "Cultivation", can(session, "cultivation.view")]]));
+  if (cultivationEntry) cultivationEntry.href = "/cultivation/overview";
   const groups: NavGroup[] = [
     { items: [{ key: "dashboard", label: "Dashboard", href: "/dashboard" }] },
     {
       heading: "Operations",
       items: [
-        entry("cultivation", "Cultivation", tabs([["/cultivation", "Cultivation", can(session, "cultivation.view")]])),
+        cultivationEntry,
         entry(
           "inventory",
           "Inventory",

@@ -27,7 +27,6 @@ export type GrowData = {
   packableHarvests: { id: string; label: string; left: string; leftG: string; strain: string; roomId: string }[];
   finishable: { id: string; label: string }[];
   counts: { untagged: number; plants: number; flowering: number; toDry: number; waiting: number; toPackage: number };
-  suggested: number;
 };
 
 const STEPS = [
@@ -169,7 +168,8 @@ function TagFields({ data }: { data: GrowData }) {
 }
 
 export function GrowGuide({ data }: { data: GrowData }) {
-  const [step, setStep] = useState(data.suggested);
+  // Always start at step 1; the other steps are one click away.
+  const [step, setStep] = useState(0);
   const [saved, setSaved] = useState<number | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const flowering = useMemo(() => data.plantGroups.filter((g) => g.phase === "FLOWERING"), [data.plantGroups]);
