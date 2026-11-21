@@ -156,27 +156,43 @@ async function licenses(f: Scope): Promise<Finding[]> {
   });
 }
 
-/** Harvests that have been drying a long time, or were weighed and still have product unaccounted for. */
+/**
+ * Harvests that were weighed and still have product unaccounted for, or have been drying a long time.
+ * A weighed harvest comes with a drafted close-out when there is exactly one bulk item for its strain:
+ * package everything that's left as that item, then finish. The person reviews and confirms it.
+ */
 async function harvests(f: Scope): Promise<Finding[]> {
   const found = await rows(sql`
-    select id, name, dry_weight is not null as weighed,
-      (coalesce(dry_weight, wet_weight) - waste_weight - packaged_weight)::text as left,
-      (extract(epoch from now() - created_at) / 86400)::int as days
-    from harvests where org_id = ${f.orgId} and facility_id = ${f.facilityId} and status = 'DRYING'
-      and ((dry_weight is not null and created_at < now() - interval '3 days') or created_at < now() - interval '21 days')
-    order by created_at limit ${PER_CHECK}`);
-  return found.map((h) => ({
-    key: `harvest:${s(h.id)}`,
-    check: "harvest_open",
-    severity: "warning",
-    title: `Harvest ${s(h.name)} has been open ${plural(Number(h.days), "day")}`,
-    detail: h.weighed
-      ? `It's been weighed, and ${qty(s(h.left), "G")} still isn't packaged or logged as waste.`
-      : "It still has no dry weight. Weigh it, package it, and log the waste to close it out.",
-    permission: "cultivation.view",
-    href: "/cultivation",
-    ask: `Close out harvest ${s(h.name)}`,
-  }));
+    select h.id, h.name, h.dry_weight is not null as weighed, st.name as strain,
+      (coalesce(h.dry_weight, h.wet_weight) - h.waste_weight - h.packaged_weight)::text as left,
+      (extract(epoch from now() - h.created_at) / 86400)::int as days
+    from harvests h left join strains st on st.id = h.strain_id
+    where h.org_id = ${f.orgId} and h.facility_id = ${f.facilityId} and h.status = 'DRYING'
+      and ((h.dry_weight is not null and h.created_at < now() - interval '1 day') or h.created_at < now() - interval '21 days')
+    order by h.created_at limit ${PER_CHECK}`);
+  const bulk = await rows(sql`
+    select name, coalesce(sku, name) as ref, lower(strain) as strain, unit from items
+    where org_id = ${f.orgId} and active and unit in ('G','KG','OZ','LB','MG') and strain is not null`);
+  return found.map((h) => {
+    const left = new Decimal(s(h.left) || 0);
+    const options = h.weighed && left.gt(0) && h.strain ? bulk.filter((i) => s(i.strain) === s(h.strain).toLowerCase() && s(i.unit) === "G") : [];
+    const draft = options.length === 1 ? options[0] : null;
+    return {
+      key: `harvest:${s(h.id)}`,
+      check: "harvest_open",
+      severity: "warning" as const,
+      title: `Harvest ${s(h.name)} has been open ${plural(Number(h.days), "day")}`,
+      detail: h.weighed
+        ? draft
+          ? `It's been weighed, and ${qty(s(h.left), "G")} still isn't packaged or logged as waste. Tally drafted the close-out: package all of it as ${s(draft.name)}, then finish. If some of it is waste, log that first.`
+          : `It's been weighed, and ${qty(s(h.left), "G")} still isn't packaged or logged as waste.${h.strain ? ` Add one bulk item for ${s(h.strain)} (counted in grams) and Tally can draft the close-out.` : ""}`
+        : "It still has no dry weight. Weigh it, package it, and log the waste to close it out.",
+      permission: "cultivation.view" as const,
+      href: "/cultivation",
+      ask: `Close out harvest ${s(h.name)}`,
+      ...(draft ? { fix: { tool: "close_out_harvest", input: { harvest: s(h.name), rest_item: s(draft.ref) }, label: "Review the drafted close-out" } } : {}),
+    };
+  });
 }
 
 /** Production runs left open for days, which keeps their inputs in limbo. */
