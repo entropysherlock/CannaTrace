@@ -17,7 +17,7 @@ export async function recipeAction(_state: FormState, formData: FormData): Promi
     const itemIds = formData.getAll("inputItemId").map(String);
     const quantities = formData.getAll("inputQuantity").map(String);
     const lines = itemIds
-      .map((itemId, i) => ({ itemId, quantity: (quantities[i] ?? "").trim() }))
+      .map((itemId, i) => ({ itemId, quantity: (quantities[i] ?? "").trim(), row: i + 1 }))
       .filter((line) => line.itemId || line.quantity);
     const name = field(formData, "name");
     await createRecipe(await maker(), {

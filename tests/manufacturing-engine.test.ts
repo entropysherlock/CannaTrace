@@ -78,6 +78,12 @@ describe.skipIf(!hasDb)("manufacturing engine (database)", () => {
     await expect(
       createRecipe(actor, { ...base, lines: [{ itemId: flower, quantity: "1" }, { itemId: flower, quantity: "2" }] }),
     ).rejects.toThrow(/only be listed once/);
+    await expect(createRecipe(actor, { ...base, lines: [{ itemId: flower, quantity: "", row: 2 }] })).rejects.toThrow(/Input row 2 has an item but no quantity/);
+    await expect(createRecipe(actor, { ...base, lines: [{ itemId: flower, quantity: "35g", row: 1 }] })).rejects.toThrow(/Input row 1: type just the number, for example 35, not "35g"/);
+    await expect(createRecipe(actor, { ...base, lines: [{ itemId: flower, quantity: "35 g", row: 3 }] })).rejects.toThrow(/Input row 3: type just the number/);
+    await expect(createRecipe(actor, { ...base, lines: [{ itemId: flower, quantity: "abc", row: 1 }] })).rejects.toThrow(/"abc" isn't a number/);
+    // Thousands separators are read, so this gets past quantity checks to the duplicate-name check.
+    await expect(createRecipe(actor, { ...base, name: "Jar 3.5", lines: [{ itemId: flower, quantity: "1,000" }] })).rejects.toThrow(/already a recipe/);
     await expect(createRecipe(actor, { ...base, name: "Jar 3.5", lines: [{ itemId: flower, quantity: "1" }] })).rejects.toThrow(/already a recipe/);
   });
 
