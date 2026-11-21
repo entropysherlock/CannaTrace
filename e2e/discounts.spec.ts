@@ -51,7 +51,7 @@ test("a manager removes a discount, and the register no longer offers it", async
   // Count out the drawer this test opened, so the next test starts the way it expects
   if (openedDrawer) {
     await page.goto("/pos/drawer");
-    await page.locator('input[name="countedCash"]').fill("100");
+    await page.getByRole("textbox", { name: "Cash counted in the drawer" }).fill("100");
     await page.getByRole("button", { name: "Close drawer" }).click();
     await expect(page).toHaveURL(/\/pos\/drawer\/[^/]+$/);
   }

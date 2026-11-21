@@ -112,7 +112,7 @@ function inverse(e: Entry, all: Entry[]): Step {
       return { what: `Take back the ${tags.length} new plant tag${tags.length === 1 ? "" : "s"}`, run: (actor) => untagPlants(actor, { batchId: e.entityId, tags }).then(() => undefined) };
     }
     case "Plant:PHASE_CHANGE":
-      return { what: `Set plant ${tag} back to ${str(b.phase).toLowerCase()}`, run: (actor) => changePlantPhase(actor, { plantIds: [e.entityId], phase: str(b.phase) }).then(() => undefined) };
+      return { what: `Set plant ${tag} back to ${str(b.phase).toLowerCase()}`, run: (actor) => changePlantPhase(actor, { plantIds: [e.entityId], phase: str(b.phase), restoreChangedAt: b.phaseChangedAt ? new Date(str(b.phaseChangedAt)) : null }).then(() => undefined) };
     case "Plant:MOVE":
       if (!b.locationId) throw new InventoryError(`Plant ${tag} had no room before it was moved, so the move can't be undone. Move it by hand.`);
       return { what: `Move plant ${tag} back`, run: (actor) => movePlants(actor, { plantIds: [e.entityId], locationId: str(b.locationId) }).then(() => undefined) };
