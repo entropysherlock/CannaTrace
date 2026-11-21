@@ -1,0 +1,1 @@
+ALTER TABLE "strains" ADD COLUMN "veg_days" integer;

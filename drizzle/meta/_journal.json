@@ -267,6 +267,13 @@
       "when": 1795199900095,
       "tag": "0037_facility_license_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795220486857,
+      "tag": "0038_strain_veg_days",
+      "breakpoints": true
     }
   ]
 }

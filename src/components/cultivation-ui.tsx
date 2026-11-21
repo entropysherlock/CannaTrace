@@ -67,6 +67,9 @@ export function StrainFields() {
           ))}
         </select>
       </Field>
+      <Field label="Veg days (optional)" hint="How many days plants stay in veg before they should flower. Tally uses it to draft the move to the flower room.">
+        <input name="vegDays" inputMode="numeric" className={inputClass} />
+      </Field>
       <Field label="Flowering days (optional)">
         <input name="floweringDays" inputMode="numeric" className={inputClass} />
       </Field>

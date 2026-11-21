@@ -19,6 +19,7 @@ import {
   packageHarvestMany,
   recordDryWeight,
   tagPlants,
+  updateStrainTiming,
 } from "@/lib/cultivation";
 import { toCreateError, type CreateResult } from "@/lib/contextual-create";
 import { expandTags, parseTagList } from "@/lib/cultivation-math";
@@ -33,6 +34,17 @@ async function cultivationActor(): Promise<Actor> {
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
+/** Set how many days a strain stays in veg and in flower, so Tally knows when to draft the move and the harvest. */
+export async function strainTimingAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await updateStrainTiming(await cultivationActor(), { strainId: field(formData, "strainId"), vegDays: field(formData, "timingVeg"), floweringDays: field(formData, "timingFlower") });
+    revalidatePath("/cultivation", "layout");
+    return { ok: "Timing saved." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
 export async function strainAction(_state: FormState, formData: FormData): Promise<FormState> {
   try {
     const name = field(formData, "name");
@@ -40,6 +52,7 @@ export async function strainAction(_state: FormState, formData: FormData): Promi
       name,
       type: field(formData, "type"),
       floweringDays: field(formData, "floweringDays"),
+      vegDays: field(formData, "vegDays"),
     });
     revalidatePath("/cultivation", "layout");
     return { ok: `Added ${name}.` };
@@ -58,7 +71,7 @@ export async function quickStrainAction(formData: FormData): Promise<CreateResul
     const twin = await findStrainByName(actor.orgId, name);
     if (twin?.active) return { existing: { id: twin.id, label: twin.name } };
     if (twin) return { error: `A strain called ${twin.name} is already on file but turned off, so it can't be picked. Use a different name.` };
-    const strain = await createStrain(actor, { name, type: field(formData, "type"), floweringDays: field(formData, "floweringDays") });
+    const strain = await createStrain(actor, { name, type: field(formData, "type"), floweringDays: field(formData, "floweringDays"), vegDays: field(formData, "vegDays") });
     revalidatePath("/cultivation", "layout");
     return { created: { id: strain.id, label: name.replace(/\s+/g, " ") } };
   } catch (error) {

@@ -4,7 +4,7 @@ import { and, desc, eq, gt, inArray, notInArray, sql } from "drizzle-orm";
 import { auditLogs, orderLines, orders, packages, printJobs, productionInputs, tallyChanges, type TallyChange } from "@/db/schema";
 import { recordingAudits } from "@/lib/audit-recorder";
 import { restoreItem } from "@/lib/bulk-items";
-import { reopenHarvest, restoreDryWeight, reverseHarvestPackage, reverseHarvestWaste } from "@/lib/cultivation";
+import { changePlantPhase, movePlants, reopenHarvest, restoreDryWeight, reverseHarvestPackage, reverseHarvestWaste, untagPlants } from "@/lib/cultivation";
 import { atomically, db, dryRun } from "@/lib/db";
 import { cancelOrder, removeOrderLine, updateDestinations, updateVendors } from "@/lib/distribution";
 import { adjustPackage, movePackage, setPackageStatus, type Actor } from "@/lib/inventory";
@@ -106,6 +106,16 @@ function inverse(e: Entry, all: Entry[]): Step {
           },
         };
       break;
+    case "PlantBatch:TAG_PLANTS": {
+      const tags = Array.isArray(a.tags) ? (a.tags as unknown[]).map(str) : [];
+      if (!tags.length) throw new InventoryError("This tagging was recorded before Undo could take it back. Remove the tags by hand.");
+      return { what: `Take back the ${tags.length} new plant tag${tags.length === 1 ? "" : "s"}`, run: (actor) => untagPlants(actor, { batchId: e.entityId, tags }).then(() => undefined) };
+    }
+    case "Plant:PHASE_CHANGE":
+      return { what: `Set plant ${tag} back to ${str(b.phase).toLowerCase()}`, run: (actor) => changePlantPhase(actor, { plantIds: [e.entityId], phase: str(b.phase) }).then(() => undefined) };
+    case "Plant:MOVE":
+      if (!b.locationId) throw new InventoryError(`Plant ${tag} had no room before it was moved, so the move can't be undone. Move it by hand.`);
+      return { what: `Move plant ${tag} back`, run: (actor) => movePlants(actor, { plantIds: [e.entityId], locationId: str(b.locationId) }).then(() => undefined) };
     case "Harvest:DRY_WEIGHT":
       return {
         what: b.dryWeightGrams === null || b.dryWeightGrams === undefined ? "Clear the harvest's dry weight" : `Set the dry weight back to ${new Decimal(str(b.dryWeightGrams)).toString()} g`,

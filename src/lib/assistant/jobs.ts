@@ -3,7 +3,8 @@ import Decimal from "decimal.js";
 import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { packages } from "@/db/schema";
 import { expandTags, toGrams } from "@/lib/cultivation-math";
-import { finishHarvest, logHarvestWaste, packageFromHarvest, recordDryWeight } from "@/lib/cultivation";
+import { changePlantPhase, finishHarvest, logHarvestWaste, movePlants, packageFromHarvest, recordDryWeight, tagPlants } from "@/lib/cultivation";
+import { flowerRoom, plantsDueToFlower } from "@/lib/grow-drafts";
 import { atomically, db, dryRun } from "@/lib/db";
 import { addOrderLine, confirmOrder, createOrder } from "@/lib/distribution";
 import { adjustPackage, movePackage, receivePackage, setPackageStatus, type Actor, ADJUST_REASONS } from "@/lib/inventory";
@@ -53,6 +54,9 @@ export type JobStep = { say: string } & (
   | { k: "waste"; harvestId: string; grams: string; reason: string }
   | { k: "rest_waste"; harvestId: string; reason: string }
   | { k: "finish"; harvestId: string }
+  | { k: "tag_plants"; batchId: string; count: number }
+  | { k: "plants_phase"; plantIds: string[]; phase: string }
+  | { k: "plants_move"; plantIds: string[]; locationId: string }
   | { k: "move"; packageId: string; locationId: string }
   | { k: "status"; packageId: string; status: string; reason: string }
   | { k: "adjust"; packageId: string; quantity: string; reasonCode: string; note: string | null }
@@ -71,6 +75,9 @@ const STEP_PERMISSION: Record<JobStep["k"], Permission> = {
   waste: "cultivation.write",
   rest_waste: "cultivation.write",
   finish: "cultivation.write",
+  tag_plants: "cultivation.write",
+  plants_phase: "cultivation.write",
+  plants_move: "cultivation.write",
   move: "inventory.write",
   status: "inventory.adjust",
   adjust: "inventory.adjust",
@@ -142,6 +149,15 @@ export async function runSteps(actor: Actor, steps: JobStep[], key: string): Pro
         }
         case "finish":
           await finishHarvest(actor, { harvestId: step.harvestId });
+          break;
+        case "tag_plants":
+          await tagPlants(actor, { batchId: step.batchId, generate: step.count });
+          break;
+        case "plants_phase":
+          await changePlantPhase(actor, { plantIds: step.plantIds, phase: step.phase });
+          break;
+        case "plants_move":
+          await movePlants(actor, { plantIds: step.plantIds, locationId: step.locationId });
           break;
         case "move":
           await movePackage(actor, { packageId: step.packageId, toLocationId: step.locationId });
@@ -586,6 +602,79 @@ export const JOB_TOOLS: Tool[] = [
       ]);
     },
     execute: (actor, args, ctx) => execute(actor, args, ctx?.key ?? "", () => "Harvest closed out."),
+  },
+  {
+    kind: "action",
+    name: "tag_batch",
+    label: "Planning the plant tags",
+    permission: "cultivation.write",
+    description:
+      "Give individual tags to the untagged plants in a batch: CannaTrace makes a new unique tag for every plant. Shows the plan; one Confirm runs it, and Undo takes the tags back.",
+    schema: obj({ batch: text("Plant batch name.") }, ["batch"]),
+    propose: async (s, input) => {
+      const want = str(input.batch);
+      if (!want) throw new InventoryError("Say which batch (its name).");
+      const found = await rows(sql`select b.id, b.name, b.untagged_count as untagged, st.name as strain, l.name as room
+        from plant_batches b join strains st on st.id = b.strain_id join locations l on l.id = b.location_id
+        where b.org_id = ${s.orgId} and b.facility_id = ${s.facilityId} and b.status = 'ACTIVE' and b.untagged_count > 0 and b.name ilike ${like(want)} order by b.created_at desc limit 10`);
+      const b = (await pick("batch with untagged plants", want, found)) as { id: string; name: string; untagged: number; strain: string; room: string };
+      const count = Number(b.untagged);
+      const steps: JobStep[] = [{ k: "tag_plants", say: `Tag ${plural(count, "plant")} in ${b.name} (the tags are made for you)`, batchId: b.id, count }];
+      return propose(s, "tag_batch", `Tag the plants in ${b.name}`, steps, [
+        { label: "Batch", value: `${b.name} · ${b.strain}` },
+        { label: "Plants to tag", value: String(count) },
+        { label: "Room", value: b.room },
+        { label: "Next", value: "Print the plant tags from SmartLabel, stick them on, then the move to flower comes up when they're ready." },
+      ]);
+    },
+    execute: (actor, args, ctx) => execute(actor, args, ctx?.key ?? "", () => "Plants tagged."),
+  },
+  {
+    kind: "action",
+    name: "advance_batch",
+    label: "Planning the move to flower",
+    permission: "cultivation.write",
+    description:
+      "Move a batch's vegetative plants into flower: change their stage to flowering and move them to the flower room. With only_due, only the plants that have been in veg as long as their strain says. Shows the plan; one Confirm runs it, and Undo puts them back.",
+    schema: obj(
+      {
+        batch: text("Plant batch name."),
+        room: text("The flower room. Default: the room that already holds the flowering plants."),
+        only_due: { type: "boolean", description: "Only plants that have reached their strain's veg days. Default false." },
+      },
+      ["batch"],
+    ),
+    propose: async (s, input) => {
+      const want = str(input.batch);
+      if (!want) throw new InventoryError("Say which batch (its name).");
+      const found = await rows(sql`select b.id, b.name from plant_batches b where b.org_id = ${s.orgId} and b.facility_id = ${s.facilityId} and b.name ilike ${like(want)} order by b.created_at desc limit 10`);
+      const b = (await pick("batch", want, found)) as { id: string; name: string };
+      const scope = { orgId: s.orgId, facilityId: s.facilityId };
+      let plantIds: string[];
+      let facts: { label: string; value: string }[] = [];
+      if (input.only_due === true) {
+        const due = (await plantsDueToFlower(scope, b.id))[0];
+        if (!due) throw new InventoryError(`No plants in ${b.name} have reached their veg days yet.`);
+        plantIds = due.plantIds;
+        facts = [{ label: "Why now", value: `${due.strain} stays in veg ${due.vegDays} days${due.defaultDays ? " (the default; set the strain's own under Strains)" : ""}. These are on day ${due.days}.` }];
+      } else {
+        plantIds = (await rows(sql`select id from plants where batch_id = ${b.id} and org_id = ${s.orgId} and facility_id = ${s.facilityId} and status = 'ACTIVE' and phase = 'VEGETATIVE' and harvest_id is null order by tag`)).map((r) => String(r.id));
+        if (!plantIds.length) throw new InventoryError(`${b.name} has no vegetative plants to move to flower. Tag its plants first if they don't have tags yet.`);
+      }
+      const room = str(input.room) ? await findLocation(s, str(input.room)) : await flowerRoom({ orgId: s.orgId, facilityId: s.facilityId });
+      if (!room) throw new InventoryError("Which room do these go to? Tally couldn't tell which one is the flower room. Name it.");
+      const steps: JobStep[] = [{ k: "plants_phase", say: `Change ${plural(plantIds.length, "plant")} in ${b.name} to flowering`, plantIds, phase: "FLOWERING" }];
+      const notThere = (await rows(sql`select id from plants where id in (${sql.join(plantIds.map((id) => sql`${id}`), sql`, `)}) and location_id <> ${room.id}`)).map((r) => String(r.id));
+      if (notThere.length) steps.push({ k: "plants_move", say: `Move ${plural(notThere.length, "plant")} to ${room.name}`, plantIds: notThere, locationId: room.id });
+      return propose(s, "advance_batch", `Move ${b.name} to flower`, steps, [
+        { label: "Batch", value: b.name },
+        { label: "Plants", value: String(plantIds.length) },
+        { label: "Going to", value: room.name },
+        ...facts,
+        { label: "Next", value: "Harvest when the flower days are up." },
+      ]);
+    },
+    execute: (actor, args, ctx) => execute(actor, args, ctx?.key ?? "", () => "Plants moved to flower."),
   },
   {
     kind: "action",

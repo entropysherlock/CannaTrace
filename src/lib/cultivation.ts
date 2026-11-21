@@ -40,12 +40,14 @@ function parseCount(value: unknown, what: string): number {
 
 export async function createStrain(
   actor: Actor,
-  input: { name: string; type: string; floweringDays?: unknown },
+  input: { name: string; type: string; floweringDays?: unknown; vegDays?: unknown },
 ): Promise<{ id: string }> {
   const name = requireText(input.name, "Enter a strain name.").replace(/\s+/g, " ").slice(0, 80);
   if (!["INDICA", "SATIVA", "HYBRID", "CBD"].includes(input.type)) throw new InventoryError("Choose a strain type.");
   const daysText = String(input.floweringDays ?? "").trim();
   const floweringDays = daysText === "" ? null : parseCount(daysText, "Flowering days");
+  const vegText = String(input.vegDays ?? "").trim();
+  const vegDays = vegText === "" ? null : parseCount(vegText, "Veg days");
   return db.transaction(async (tx) => {
     // "blue dream" next to "Blue Dream" is the same strain typed twice, not a new one.
     const [twin] = await tx
@@ -55,7 +57,7 @@ export async function createStrain(
     if (twin) throw new InventoryError(`There is already a strain called ${twin.name}.`);
     const [strain] = await tx
       .insert(strains)
-      .values({ orgId: actor.orgId, name, type: input.type as "INDICA", floweringDays })
+      .values({ orgId: actor.orgId, name, type: input.type as "INDICA", floweringDays, vegDays })
       .onConflictDoNothing({ target: [strains.orgId, strains.name] })
       .returning({ id: strains.id });
     if (!strain) throw new InventoryError(`There is already a strain called ${name}.`);
@@ -65,6 +67,19 @@ export async function createStrain(
 }
 
 /** A strain with this name, ignoring letter case, so a quick add can offer it instead of making a twin. */
+/** Change how many days a strain stays vegetative and how long it flowers. Blank clears it, and Tally uses its defaults. */
+export async function updateStrainTiming(actor: Actor, input: { strainId: string; vegDays?: unknown; floweringDays?: unknown }): Promise<void> {
+  const day = (v: unknown, label: string) => (String(v ?? "").trim() === "" ? null : parseCount(String(v), label));
+  const vegDays = day(input.vegDays, "Veg days");
+  const floweringDays = day(input.floweringDays, "Flowering days");
+  await db.transaction(async (tx) => {
+    const [before] = await tx.select().from(strains).where(and(eq(strains.id, input.strainId), eq(strains.orgId, actor.orgId)));
+    if (!before) throw new InventoryError("That strain was not found.");
+    await tx.update(strains).set({ vegDays, floweringDays }).where(eq(strains.id, before.id));
+    await audit(tx, actor, { entityType: "Strain", entityId: before.id, action: "UPDATE_TIMING", before: { vegDays: before.vegDays, floweringDays: before.floweringDays }, after: { vegDays, floweringDays } });
+  });
+}
+
 export async function findStrainByName(orgId: string, name: string): Promise<{ id: string; name: string; active: boolean } | null> {
   const clean = name.trim().replace(/\s+/g, " ");
   if (!clean) return null;
@@ -180,9 +195,29 @@ export async function tagPlants(
       entityId: batch.id,
       action: "TAG_PLANTS",
       before: { untaggedCount: batch.untaggedCount },
-      after: { untaggedCount: left, tagged: tags.length, firstTag: tags[0], lastTag: tags[tags.length - 1] },
+      after: { untaggedCount: left, tagged: tags.length, firstTag: tags[0], lastTag: tags[tags.length - 1], tags },
     });
     return created;
+  });
+}
+
+/**
+ * Take back tags just given to a batch (the undo of tagging): the plants go back to being untagged.
+ * Only plants that are still as they were tagged (vegetative, active, not harvested) can be taken back.
+ */
+export async function untagPlants(actor: Actor, input: { batchId: string; tags: string[] }): Promise<number> {
+  const tags = input.tags.map((t) => normalizeTag(t));
+  if (!tags.length) return 0;
+  return db.transaction(async (tx) => {
+    const batch = await lockBatch(tx, actor, input.batchId);
+    const rows = await tx.select().from(plants).where(and(eq(plants.batchId, batch.id), eq(plants.orgId, actor.orgId), inArray(plants.tag, tags)));
+    if (rows.length === 0) return 0;
+    if (rows.some((p) => p.status !== "ACTIVE" || p.harvestId)) throw new InventoryError("Some of these plants were harvested or destroyed since they were tagged, so the tags can't be taken back.");
+    await tx.delete(plants).where(inArray(plants.id, rows.map((p) => p.id)));
+    const left = batch.untaggedCount + rows.length;
+    await tx.update(plantBatches).set({ untaggedCount: left, status: "ACTIVE" }).where(eq(plantBatches.id, batch.id));
+    await audit(tx, actor, { entityType: "PlantBatch", entityId: batch.id, action: "UNTAG_PLANTS", before: { untaggedCount: batch.untaggedCount }, after: { untaggedCount: left, untagged: rows.length } });
+    return rows.length;
   });
 }
 

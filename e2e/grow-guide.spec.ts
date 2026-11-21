@@ -69,3 +69,18 @@ test("the Package step only offers items counted by weight, and says why", async
   expect(options.some((o) => /Jar|Pre-roll|Gummies|Resin/.test(o))).toBe(false);
   await expect(page.getByRole("button", { name: "Add bulk item" })).toBeVisible();
 });
+
+test("a strain's veg and flowering days can be set so Tally knows when plants are ready for flower", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("cultivation@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  await page.goto("/cultivation/strains");
+  const row = page.getByTestId("timing-Blue Mesa");
+  await row.getByText("Set timing").click();
+  await row.getByLabel("Veg days").fill("45");
+  await row.getByRole("button", { name: "Save timing" }).click();
+  await expect(page.getByText("Timing saved.")).toBeVisible();
+  await expect(page.getByText(/veg 45 days/)).toBeVisible();
+});
