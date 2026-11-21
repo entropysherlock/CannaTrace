@@ -194,6 +194,10 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
                   <li>Make a free account at sentry.io and create a project (platform: Next.js).</li>
                   <li>Copy the project&apos;s DSN (Settings → Client Keys). It looks like https://…@…ingest.sentry.io/….</li>
                   <li>In Vercel: the CannaTrace project → Settings → Environment Variables → add NEXT_PUBLIC_SENTRY_DSN with that value (Production).</li>
+                  <li>
+                    For readable stack traces, also add SENTRY_AUTH_TOKEN (Sentry → Settings → Auth Tokens), SENTRY_ORG and SENTRY_PROJECT (your
+                    organization and project names in Sentry).
+                  </li>
                   <li>Redeploy, come back here, and press Send a test crash.</li>
                 </ol>
               </div>

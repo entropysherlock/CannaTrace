@@ -30,7 +30,15 @@ It restores into a throwaway database on a scratch server, prints row counts for
 
 Daily jobs (state reports, Tally Watch) record each run; if they stop, the Dashboard's Tally Watch and the job log will show it.
 
-## 5. If something goes wrong
+## 5. Know when it crashes (Sentry)
+Tally Watch checks the business data once a day; Sentry tells you the moment the app itself crashes for someone.
+1. Free account at sentry.io → create a project (platform: Next.js) → copy its DSN.
+2. In Vercel add `NEXT_PUBLIC_SENTRY_DSN` (the DSN). For readable stack traces also add `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_PROJECT`; source maps are uploaded at build time and then deleted, never served.
+3. Redeploy, then Support Console → Crash alerts → **Send a test crash**.
+
+Reports carry the error, the stack and the page path only. Cookies, headers, request bodies, query strings, IP addresses, typed input, console output, local variable values and database query data are never sent (`src/lib/sentry-options.ts`).
+
+## 6. If something goes wrong
 | Problem | Do this |
 | --- | --- |
 | A bad change was made recently | Neon > Restore to a time just before it, onto a **new branch** first; look; then promote it |
