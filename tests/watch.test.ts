@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { facilities, harvests, itemCategories, items, labResults, locations, organizations, packages, strains, users, watchFindings } from "@/db/schema";
-import { confirmProposal } from "@/lib/assistant/engine";
+import { facilities, harvests, itemCategories, items, labResults, locations, organizations, packages, plantBatches, plants, strains, users, watchFindings } from "@/db/schema";
+import { confirmProposal, signProposal } from "@/lib/assistant/engine";
+import { TOOLS } from "@/lib/assistant/tools";
 import { db, pool } from "@/lib/db";
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { createCustomer, createOrder } from "@/lib/distribution";
@@ -119,6 +120,63 @@ describe.skipIf(!hasDb)("Tally Watch (database)", () => {
     expect(f).toBeTruthy();
     expect(f?.fix).toBeFalsy();
     expect(f?.detail).toContain(`Add one bulk item for No Bulk ${run}`);
+  });
+
+  const undoChange = async (changeId: string) => {
+    const tool = TOOLS.find((t) => t.name === "undo_tally_change") as unknown as { propose: (s: Session, i: Record<string, unknown>) => Promise<Parameters<typeof signProposal>[1]> };
+    return confirmProposal(owner, await signProposal(owner, await tool.propose(owner, { change: changeId })));
+  };
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000);
+
+  it("drafts the tags for a batch that has none, and Undo takes them back", async () => {
+    const [strain] = await db.insert(strains).values({ orgId: actor.orgId, name: `Tag Kush ${run}`, type: "INDICA" }).returning();
+    const [b] = await db
+      .insert(plantBatches)
+      .values({ orgId: actor.orgId, facilityId: actor.facilityId, name: `TB-${run}`, strainId: strain.id, source: "CLONE", locationId: vault, initialCount: 3, untaggedCount: 3, userId: actor.userId, createdAt: hoursAgo(3) })
+      .returning();
+    await sweepFacility(owner);
+    const f = (await openFindings(owner)).find((x) => x.check === "batch_untagged" && x.title.includes(`TB-${run}`));
+    expect(f?.fix?.label).toBe("Review the drafted tags");
+    const done = await fixAndConfirm(owner, f!.id);
+    expect(done.card.steps).toEqual([`Tag 3 plants in TB-${run} (the tags are made for you)`]);
+    expect(await db.$count(plants, eq(plants.batchId, b.id))).toBe(3);
+    expect((await db.select().from(plantBatches).where(eq(plantBatches.id, b.id)))[0]).toMatchObject({ untaggedCount: 0, status: "CLOSED" });
+    await undoChange(done.changeId!);
+    expect(await db.$count(plants, eq(plants.batchId, b.id))).toBe(0);
+    expect((await db.select().from(plantBatches).where(eq(plantBatches.id, b.id)))[0]).toMatchObject({ untaggedCount: 3, status: "ACTIVE" });
+  });
+
+  it("drafts the move to the flower room once plants have been in veg as long as their strain says, and Undo puts them back", async () => {
+    const [flowerRm] = await db.insert(locations).values({ orgId: actor.orgId, facilityId: actor.facilityId, name: `Flower Room ${run}`, type: "ROOM" }).returning();
+    const [vegRm] = await db.insert(locations).values({ orgId: actor.orgId, facilityId: actor.facilityId, name: `Veg Room ${run}`, type: "ROOM" }).returning();
+    const [strain] = await db.insert(strains).values({ orgId: actor.orgId, name: `Veg Haze ${run}`, type: "SATIVA", vegDays: 30 }).returning();
+    const [b] = await db
+      .insert(plantBatches)
+      .values({ orgId: actor.orgId, facilityId: actor.facilityId, name: `VB-${run}`, strainId: strain.id, source: "SEED", locationId: vegRm.id, initialCount: 3, untaggedCount: 0, status: "CLOSED", userId: actor.userId })
+      .returning();
+    const longAgo = new Date(Date.now() - 40 * 86400_000);
+    const base = { orgId: actor.orgId, facilityId: actor.facilityId, strainId: strain.id, batchId: b.id };
+    await db.insert(plants).values([
+      { ...base, tag: `${run}-V1`, locationId: vegRm.id, phaseChangedAt: longAgo },
+      { ...base, tag: `${run}-V2`, locationId: vegRm.id, phaseChangedAt: longAgo },
+      { ...base, tag: `${run}-F1`, locationId: flowerRm.id, phase: "FLOWERING" as const },
+    ]);
+    await sweepFacility(owner);
+    const f = (await openFindings(owner)).find((x) => x.check === "plants_ready_flower" && x.title.includes(`VB-${run}`));
+    expect(f?.title).toMatch(/^2 plants in VB-/);
+    expect(f?.detail).toContain(`Flower Room ${run}`);
+    const done = await fixAndConfirm(owner, f!.id);
+    expect(done.card.steps).toEqual([`Change 2 plants in VB-${run} to flowering`, `Move 2 plants to Flower Room ${run}`]);
+    const now = await db.select().from(plants).where(eq(plants.batchId, b.id));
+    expect(now.filter((p) => p.phase === "FLOWERING" && p.locationId === flowerRm.id)).toHaveLength(3);
+    await undoChange(done.changeId!);
+    const back = await db.select().from(plants).where(and(eq(plants.batchId, b.id), eq(plants.status, "ACTIVE")));
+    const v = back.filter((p) => p.tag.startsWith(`${run}-V`));
+    expect(v.every((p) => p.phase === "VEGETATIVE" && p.locationId === vegRm.id)).toBe(true);
+    // Not due yet: a strain with longer veg days isn't flagged
+    await db.update(strains).set({ vegDays: 90 }).where(eq(strains.id, strain.id));
+    await sweepFacility(owner);
+    expect((await openFindings(owner)).find((x) => x.check === "plants_ready_flower" && x.title.includes(`VB-${run}`))).toBeUndefined();
   });
 
   it("flags new packages with no label and prepares one print job for all of them", async () => {

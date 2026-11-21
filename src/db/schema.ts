@@ -693,6 +693,8 @@ export const strains = pgTable(
       .references(() => organizations.id),
     name: text("name").notNull(),
     type: strainTypeEnum("type").notNull(),
+    /** How long plants stay vegetative before they should flower. Tally uses it to draft the move to the flower room. */
+    vegDays: integer("veg_days"),
     floweringDays: integer("flowering_days"),
     active: boolean("active").notNull().default(true),
   },
