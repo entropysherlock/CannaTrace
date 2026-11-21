@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { terminalAdd, terminalCancel, terminalDiscount, terminalScan, terminalSetQuantity, type TerminalResult } from "@/app/(app)/pos/terminal-actions";
 import { beep } from "./feedback";
 import { PayPanel, money } from "./pay-panel";
-import { RewardsPanel, type RewardsView } from "./rewards-panel";
+import { RewardsLine, type RewardsView } from "./rewards-panel";
 import { Toasts, useToasts } from "./shell";
 import { useScanner } from "./use-scanner";
 
@@ -325,7 +325,8 @@ export function CartScreen({ view }: { view: CartView }) {
           )}
           {view.rewards ? (
             <div className="px-4 pb-3">
-            <RewardsPanel
+            <RewardsLine
+              rewardDollars={view.totals.reward}
               saleId={view.saleId}
               view={view.rewards}
               pending={pending}
