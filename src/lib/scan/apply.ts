@@ -2,7 +2,7 @@ import "server-only";
 import Decimal from "decimal.js";
 import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { customers, destinations, facilities, harvests, items, itemCategories, locations, orders, packages, plants, priceLists, scanReads, strains } from "@/db/schema";
-import { db } from "@/lib/db";
+import { atomically, db } from "@/lib/db";
 import { cleanNumber } from "./doc-math";
 import { audit, type Actor } from "@/lib/inventory";
 import { InventoryError } from "@/lib/inventory-math";
@@ -30,6 +30,11 @@ async function claim(session: Session, attachmentId: string, docType: string, pe
   if (scan.status === "APPLIED") throw new InventoryError("This document was already saved.");
   return { scan, proposal: scan.proposal };
 }
+/** Take the document before saving anything from it, inside the same transaction: a second save at the same moment waits, then finds it taken. */
+const take = async (scanId: string) => {
+  const taken = await db.update(scanReads).set({ status: "APPLIED", appliedAt: new Date() }).where(and(eq(scanReads.id, scanId), ne(scanReads.status, "APPLIED"))).returning({ id: scanReads.id });
+  if (!taken.length) throw new InventoryError("This document was already saved.");
+};
 const finish = (scanId: string, ref: string) => db.update(scanReads).set({ status: "APPLIED", resultRef: ref, appliedAt: new Date() }).where(eq(scanReads.id, scanId));
 
 const orgItems = (session: Session) =>
@@ -150,14 +155,18 @@ export async function applyHarvestSheet(session: Session, input: { attachmentId:
   const { scan } = await claim(session, input.attachmentId, "HARVEST_SHEET", "cultivation.write", "record a harvest");
   if (!input.rows.length) throw new InventoryError("Check at least one plant that was harvested.");
   let total = new Decimal(0);
+  if (new Set(input.rows.map((r) => r.plantId)).size !== input.rows.length) throw new InventoryError("A plant is on the sheet more than once. Check it once, so its weight isn't counted twice.");
   for (const [i, r] of input.rows.entries()) {
     const w = cleanNumber(r.weight);
     if (w === null || new Decimal(w).lte(0)) throw new InventoryError(`Row ${i + 1}: enter the wet weight.`);
     total = total.plus(w);
   }
-  const harvest = await harvestPlants(actorOf(session), { plantIds: input.rows.map((r) => r.plantId), name: input.name, wetWeight: total.toString(), unit: input.unit, locationId: input.locationId });
-  await finish(scan.id, `HARVEST:${harvest.id}`);
-  return { harvestId: harvest.id, plants: input.rows.length };
+  return atomically(async () => {
+    await take(scan.id);
+    const harvest = await harvestPlants(actorOf(session), { plantIds: input.rows.map((r) => r.plantId), name: input.name, wetWeight: total.toString(), unit: input.unit, locationId: input.locationId });
+    await finish(scan.id, `HARVEST:${harvest.id}`);
+    return { harvestId: harvest.id, plants: input.rows.length };
+  });
 }
 
 /* ------------------------------------------------------------------ License: track the expiry date */
@@ -266,32 +275,35 @@ export async function applyPriceList(
     if (!r.itemId && !r.product.trim()) throw new InventoryError(`Row ${i + 1}: needs a product name.`);
   });
   if (input.rows.some((r) => !r.itemId) && !can(session, "catalog.manage")) throw new InventoryError("Some products are new, and adding items needs the catalog permission. Ask someone who has it, or match them to existing items.");
-  let listId = input.listId;
-  let listName = "";
-  if (!listId) {
-    listId = (await createPriceList(actor, { name: input.newListName })).id;
-    listName = input.newListName.trim();
-  } else {
-    const [l] = await db.select({ name: priceLists.name }).from(priceLists).where(and(eq(priceLists.id, listId), eq(priceLists.orgId, actor.orgId)));
-    if (!l) throw new InventoryError("Pick a price list from the list.");
-    listName = l.name;
-  }
-  let created = 0;
-  for (const r of input.rows) {
-    let itemId = r.itemId;
-    if (!itemId) {
-      // Safe to run again: an item made on an earlier try is reused rather than refused.
-      const existing = await findItemByName(actor.orgId, r.product);
-      if (existing) itemId = existing.id;
-      else {
-        itemId = (await quickAddItem(actor, { name: r.product, unit: r.unit || "EACH", category: r.category || "General", sku: r.sku || undefined })).id;
-        created++;
-      }
+  return atomically(async () => {
+    await take(scan.id);
+    let listId = input.listId;
+    let listName = "";
+    if (!listId) {
+      listId = (await createPriceList(actor, { name: input.newListName })).id;
+      listName = input.newListName.trim();
+    } else {
+      const [l] = await db.select({ name: priceLists.name }).from(priceLists).where(and(eq(priceLists.id, listId), eq(priceLists.orgId, actor.orgId)));
+      if (!l) throw new InventoryError("Pick a price list from the list.");
+      listName = l.name;
     }
-    await setPrice(actor, { priceListId: listId, itemId, price: r.price });
-  }
-  await finish(scan.id, `PRICES:${input.rows.length}:${created}:${listName}`);
-  return { prices: input.rows.length, created, listName };
+    let created = 0;
+    for (const r of input.rows) {
+      let itemId = r.itemId;
+      if (!itemId) {
+        // Safe to run again: an item made on an earlier try is reused rather than refused.
+        const existing = await findItemByName(actor.orgId, r.product);
+        if (existing) itemId = existing.id;
+        else {
+          itemId = (await quickAddItem(actor, { name: r.product, unit: r.unit || "EACH", category: r.category || "General", sku: r.sku || undefined })).id;
+          created++;
+        }
+      }
+      await setPrice(actor, { priceListId: listId, itemId, price: r.price });
+    }
+    await finish(scan.id, `PRICES:${input.rows.length}:${created}:${listName}`);
+    return { prices: input.rows.length, created, listName };
+  });
 }
 
 /* ------------------------------------------------------------------ Wholesale order: a draft order to confirm */
@@ -341,22 +353,25 @@ export async function applyWholesaleOrder(
     if (q === null || new Decimal(q).lte(0)) throw new InventoryError(`Line ${i + 1}: enter the quantity.`);
   });
   const actor = actorOf(session);
-  const number = val(proposal, "orderNumber");
-  const delivery = val(proposal, "deliveryDate");
-  const order = await createOrder(actor, { customerId: input.customerId, notes: [number && `From customer order ${number}`, delivery && `Deliver by ${delivery}`].filter(Boolean).join(". ") || undefined });
-  const problems: string[] = [];
-  let added = 0;
-  for (const [i, l] of input.lines.entries()) {
-    try {
-      await addOrderLine(actor, { orderId: order.id, itemId: l.itemId, quantity: cleanNumber(l.quantity)!, unitPrice: l.unitPrice.trim() ? cleanNumber(l.unitPrice) ?? l.unitPrice : undefined });
-      added++;
-    } catch (e) {
-      if (e instanceof InventoryError) problems.push(`Line ${i + 1}: ${e.message}`);
-      else throw e;
+  return atomically(async () => {
+    await take(scan.id);
+    const number = val(proposal, "orderNumber");
+    const delivery = val(proposal, "deliveryDate");
+    const order = await createOrder(actor, { customerId: input.customerId, notes: [number && `From customer order ${number}`, delivery && `Deliver by ${delivery}`].filter(Boolean).join(". ") || undefined });
+    const problems: string[] = [];
+    let added = 0;
+    for (const [i, l] of input.lines.entries()) {
+      try {
+        await addOrderLine(actor, { orderId: order.id, itemId: l.itemId, quantity: cleanNumber(l.quantity)!, unitPrice: l.unitPrice.trim() ? cleanNumber(l.unitPrice) ?? l.unitPrice : undefined });
+        added++;
+      } catch (e) {
+        if (e instanceof InventoryError) problems.push(`Line ${i + 1}: ${e.message}`);
+        else throw e;
+      }
     }
-  }
-  await finish(scan.id, `ORDER:${order.id}`);
-  return { orderId: order.id, number: order.number, added, problems };
+    await finish(scan.id, `ORDER:${order.id}`);
+    return { orderId: order.id, number: order.number, added, problems };
+  });
 }
 
 
