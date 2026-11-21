@@ -212,7 +212,8 @@ export async function untagPlants(actor: Actor, input: { batchId: string; tags: 
     const batch = await lockBatch(tx, actor, input.batchId);
     const rows = await tx.select().from(plants).where(and(eq(plants.batchId, batch.id), eq(plants.orgId, actor.orgId), inArray(plants.tag, tags)));
     if (rows.length === 0) return 0;
-    if (rows.some((p) => p.status !== "ACTIVE" || p.harvestId)) throw new InventoryError("Some of these plants were harvested or destroyed since they were tagged, so the tags can't be taken back.");
+    if (rows.some((p) => p.status !== "ACTIVE" || p.harvestId || p.phase !== "VEGETATIVE"))
+      throw new InventoryError("Some of these plants were moved to flower, harvested or destroyed since they were tagged, so the tags can't be taken back.");
     await tx.delete(plants).where(inArray(plants.id, rows.map((p) => p.id)));
     const left = batch.untaggedCount + rows.length;
     await tx.update(plantBatches).set({ untaggedCount: left, status: "ACTIVE" }).where(eq(plantBatches.id, batch.id));
@@ -291,14 +292,14 @@ async function auditPlants(tx: Tx, actor: Actor, rows: Plant[], action: string, 
       entityType: "Plant",
       entityId: plant.id,
       action,
-      before: { tag: plant.tag, phase: plant.phase, status: plant.status, locationId: plant.locationId },
+      before: { tag: plant.tag, phase: plant.phase, status: plant.status, locationId: plant.locationId, phaseChangedAt: plant.phaseChangedAt?.toISOString() ?? null },
       after,
       reason,
     });
   }
 }
 
-export async function changePlantPhase(actor: Actor, input: { plantIds: string[]; phase: string }): Promise<number> {
+export async function changePlantPhase(actor: Actor, input: { plantIds: string[]; phase: string; restoreChangedAt?: Date | null }): Promise<number> {
   if (!["VEGETATIVE", "FLOWERING"].includes(input.phase)) throw new InventoryError("Choose a growth phase.");
   const phase = input.phase as "VEGETATIVE" | "FLOWERING";
   return db.transaction(async (tx) => {
@@ -306,7 +307,7 @@ export async function changePlantPhase(actor: Actor, input: { plantIds: string[]
     if (rows.length === 0) throw new InventoryError(`The selected plants are already ${phase.toLowerCase()}.`);
     await tx
       .update(plants)
-      .set({ phase, phaseChangedAt: new Date() })
+      .set({ phase, phaseChangedAt: input.restoreChangedAt ?? new Date() })
       .where(inArray(plants.id, rows.map((p) => p.id)));
     await auditPlants(tx, actor, rows, "PHASE_CHANGE", { phase });
     return rows.length;
