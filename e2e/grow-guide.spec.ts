@@ -84,3 +84,23 @@ test("a strain's veg and flowering days can be set so Tally knows when plants ar
   await expect(page.getByText("Timing saved.")).toBeVisible();
   await expect(page.getByText(/veg 45 days/)).toBeVisible();
 });
+
+test("the Package step comes filled in: the strain's bulk item, the leftover weight, and the harvest's room", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("manager@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  await page.goto("/cultivation");
+  await page.getByRole("button", { name: /^6\. Package/ }).click();
+  const harvest = page.locator('select[name="harvestId"]');
+  await expect(harvest).toBeVisible();
+  const label = await harvest.locator("option:checked").textContent();
+  const strain = /· (.+?) ·/.exec(label ?? "")?.[1] ?? "";
+  expect(strain).not.toBe("");
+  await expect(page.locator('select[name="itemId"] option:checked')).toContainText(`${strain} Flower (bulk)`);
+  const qty = await page.locator('input[name="quantity"]').inputValue();
+  expect(Number(qty)).toBeGreaterThan(0);
+  expect((await harvest.locator("option:checked").textContent()) ?? "").toContain(`${Number(qty).toLocaleString("en-US", { maximumFractionDigits: 1 })} g left`);
+  await expect(page.locator('select[name="locationId"] option:checked')).not.toHaveText(/Choose a room/);
+});

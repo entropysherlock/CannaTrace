@@ -4,26 +4,14 @@ import { db } from "@/lib/db";
 import { DEFAULT_VEG_DAYS } from "@/lib/grow-timing";
 
 /**
- * What Tally can prepare in the grow without being asked: tags for a batch that has none, and the move
- * to the flower room for plants that have been in veg long enough. These only find the work; the plan
- * itself is drafted by the Tally tools and always waits for a person's Confirm.
+ * Helpers for the grow: which plants have been in veg long enough to flower, and which room they go to. The Grow
+ * guide uses them to fill in its forms, and the Tally tools use them to plan the same move.
  */
 
 type Scope = { orgId: string; facilityId: string };
 type Row = Record<string, unknown>;
 const rows = async (q: ReturnType<typeof sql>) => (await db.execute<Row>(q)).rows;
 const s = (v: unknown) => (v === null || v === undefined ? "" : String(v));
-
-/** Batches whose plants still need tags (a little time is allowed after starting, for people tagging by hand). */
-export async function batchesToTag(f: Scope) {
-  const found = await rows(sql`
-    select b.id, b.name, b.untagged_count as untagged, st.name as strain, l.name as room
-    from plant_batches b join strains st on st.id = b.strain_id join locations l on l.id = b.location_id
-    where b.org_id = ${f.orgId} and b.facility_id = ${f.facilityId} and b.status = 'ACTIVE' and b.untagged_count > 0
-      and b.created_at < now() - interval '1 hour'
-    order by b.created_at limit 100`);
-  return found.map((b) => ({ id: s(b.id), name: s(b.name), untagged: Number(b.untagged), strain: s(b.strain), room: s(b.room) }));
-}
 
 /**
  * The room flowering plants go to: the one that already holds the most flowering plants, or else the only room
