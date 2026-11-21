@@ -68,6 +68,8 @@ export function limitProblem(usage: Limits, limits: Limits): string | null {
 export type Totals = {
   subtotal: Decimal;
   discount: Decimal;
+  /** Dollars off from rewards points, after the percent discount and before tax. */
+  reward: Decimal;
   taxable: Decimal;
   exciseTax: Decimal;
   salesTax: Decimal;
@@ -75,19 +77,22 @@ export type Totals = {
 };
 
 /**
- * Cart totals. The discount comes off the subtotal first; each tax is then worked out
- * on the discounted amount and rounded to the cent on its own.
+ * Cart totals. The percent discount comes off the subtotal first, then any rewards dollars (already capped by
+ * the rewards rules, and never more than what's left); each tax is then worked out on what remains and rounded
+ * to the cent on its own.
  */
 export function cartTotals(
   lines: Pick<CartLine, "quantity" | "unitPrice">[],
-  options: { discountPercent: Decimal.Value; exciseTaxPercent: Decimal.Value; salesTaxPercent: Decimal.Value; taxExempt: boolean },
+  options: { discountPercent: Decimal.Value; exciseTaxPercent: Decimal.Value; salesTaxPercent: Decimal.Value; taxExempt: boolean; rewardDiscount?: Decimal.Value },
 ): Totals {
   const subtotal = lines.reduce((sum, line) => sum.add(round2(new Decimal(line.quantity).mul(line.unitPrice))), new Decimal(0));
   const discount = round2(subtotal.mul(options.discountPercent).div(100));
-  const taxable = subtotal.sub(discount);
+  const afterDiscount = subtotal.sub(discount);
+  const reward = Decimal.max(0, Decimal.min(round2(new Decimal(options.rewardDiscount ?? 0)), afterDiscount));
+  const taxable = afterDiscount.sub(reward);
   const exciseTax = options.taxExempt ? new Decimal(0) : round2(taxable.mul(options.exciseTaxPercent).div(100));
   const salesTax = options.taxExempt ? new Decimal(0) : round2(taxable.mul(options.salesTaxPercent).div(100));
-  return { subtotal, discount, taxable, exciseTax, salesTax, total: taxable.add(exciseTax).add(salesTax) };
+  return { subtotal, discount, reward, taxable, exciseTax, salesTax, total: taxable.add(exciseTax).add(salesTax) };
 }
 
 export function parsePercent(input: unknown, what: string, max = 100): Decimal {

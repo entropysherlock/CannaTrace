@@ -4,6 +4,7 @@ import { CustomerDisplay, type DisplayView } from "@/components/register/custome
 import { facilities, sales } from "@/db/schema";
 import { db } from "@/lib/db";
 import { cartLines, getRetailSettings, msAgo, myOpenDrawer, saleTotals } from "@/lib/pos";
+import { getProgram } from "@/lib/rewards";
 import { requirePagePermission } from "@/lib/session";
 
 /** The screen that faces the customer: what is in their cart and what they owe. Refreshes itself. */
@@ -31,8 +32,10 @@ export default async function CustomerDisplayPage() {
     if (paid && (!open || (paid.completedAt ?? paid.createdAt) > open.createdAt)) {
       view = { store: view.store, state: "thanks", total: new Decimal(paid.total ?? 0).toFixed(2), change: new Decimal(paid.changeDue ?? 0).toFixed(2) };
     } else if (open) {
-      const [lines, settings] = await Promise.all([cartLines(db, open.id), getRetailSettings(db, session.facilityId)]);
-      const totals = saleTotals(lines, open, settings);
+      const [lines, settings, program] = await Promise.all([cartLines(db, open.id), getRetailSettings(db, session.facilityId), getProgram(db, session.orgId)]);
+      const totals = saleTotals(lines, open, settings, program);
+      // The customer sees one "savings" line: the percent discount and any rewards together.
+      const off = totals.discount.add(totals.reward);
       view = {
         store: view.store,
         state: "cart",
@@ -42,7 +45,7 @@ export default async function CustomerDisplayPage() {
           quantity: new Decimal(l.quantity).toString(),
           total: new Decimal(l.quantity).mul(l.unitPrice).toDecimalPlaces(2).toFixed(2),
         })),
-        discount: totals.discount.gt(0) ? totals.discount.toFixed(2) : null,
+        discount: off.gt(0) ? off.toFixed(2) : null,
         taxes: totals.exciseTax.add(totals.salesTax).toFixed(2),
         total: totals.total.toFixed(2),
       };

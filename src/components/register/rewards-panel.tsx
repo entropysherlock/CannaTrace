@@ -1,0 +1,191 @@
+"use client";
+
+import { Gift, X } from "lucide-react";
+import { useState } from "react";
+import { terminalRewardsFind, terminalRewardsJoin, terminalRewardsRemove, terminalRewardsUse, type TerminalResult } from "@/app/(app)/pos/terminal-actions";
+
+export type RewardsView = {
+  member: { firstName: string; phone: string; points: number } | null;
+  redeemPoints: number;
+  redeemDollars: string;
+  maxSharePercent: number;
+  /** Rewards the shopper picked, and how many fit this cart right now. */
+  used: number;
+  applied: number;
+  /** The most this shopper could use on this cart now (their points and the cap). */
+  available: number;
+  earnPreview: number;
+};
+
+const money = (n: number) => `$${n % 1 === 0 ? n.toFixed(0) : n.toFixed(2)}`;
+
+/**
+ * The cart's rewards box: find the shopper by phone (or sign them up, with their agreement), see their points,
+ * and pick how many rewards to use. Every change goes through the server, which enforces the points and the
+ * New Mexico cap; this only shows the choices.
+ */
+export function RewardsPanel({
+  saleId,
+  view,
+  pending,
+  act,
+}: {
+  saleId: string;
+  view: RewardsView;
+  pending: boolean;
+  act: (work: () => Promise<TerminalResult>, okText?: string, after?: (r: TerminalResult) => void) => void;
+}) {
+  const [phone, setPhone] = useState("");
+  const [joining, setJoining] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [birthday, setBirthday] = useState("");
+  const [agreed, setAgreed] = useState(false);
+  const each = Number(view.redeemDollars);
+
+  const find = () => {
+    if (!phone.trim()) return;
+    act(
+      () => terminalRewardsFind(saleId, phone),
+      undefined,
+      (r) => {
+        if (r.notFound) setJoining(true);
+        else if (!r.error) setPhone("");
+      },
+    );
+  };
+
+  if (view.member) {
+    const m = view.member;
+    const toNext = view.redeemPoints - (m.points % view.redeemPoints);
+    const choices = Array.from({ length: Math.min(view.available, 6) }, (_, i) => i + 1);
+    return (
+      <section className="rounded-xl bg-white p-3 ring-1 ring-slate-200" aria-label="Rewards">
+        <div className="flex items-center justify-between gap-2">
+          <p className="min-w-0 text-sm">
+            <Gift className="mr-1 inline h-4 w-4 text-brand-700" aria-hidden="true" />
+            <span className="font-semibold text-slate-900">{m.firstName}</span>
+            <span className="text-slate-500"> · {m.phone} · </span>
+            <span className="font-semibold tabular-nums text-slate-900">{m.points} pts</span>
+          </p>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => act(() => terminalRewardsRemove(saleId))}
+            className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+            aria-label={`Take ${m.firstName}'s rewards off this cart`}
+          >
+            <X className="h-4 w-4" aria-hidden="true" /> Remove
+          </button>
+        </div>
+        {choices.length || view.used ? (
+          <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Rewards to use">
+            {[0, ...choices].map((count) => {
+              const on = view.used === count;
+              return (
+                <button
+                  key={count}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  disabled={pending}
+                  onClick={() => act(() => terminalRewardsUse(saleId, count))}
+                  className={`h-9 rounded-full px-3 text-sm font-semibold ${on ? "bg-brand-700 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:ring-brand-600"}`}
+                >
+                  {count === 0 ? "Don't use" : `${money(each * count)} off (${view.redeemPoints * count} pts)`}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        <p className="mt-2 text-xs text-slate-600">
+          {view.used > view.applied
+            ? `The cart got smaller, so ${view.applied} of the ${view.used} rewards chosen fit now. `
+            : ""}
+          {m.points < view.redeemPoints
+            ? `${toNext} more points to a ${money(each)} reward. `
+            : view.available === 0
+              ? `Rewards can pay for up to ${view.maxSharePercent}% of a cart (no free cannabis in New Mexico). `
+              : ""}
+          {view.earnPreview > 0 ? `Earns ${view.earnPreview} points on this sale.` : ""}
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-xl bg-white p-3 ring-1 ring-slate-200" aria-label="Rewards">
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          find();
+        }}
+      >
+        <label htmlFor="rewards-phone" className="flex shrink-0 items-center gap-1 text-sm font-semibold text-slate-800">
+          <Gift className="h-4 w-4 text-brand-700" aria-hidden="true" /> Rewards
+        </label>
+        <input
+          id="rewards-phone"
+          value={phone}
+          onChange={(e) => {
+            setPhone(e.target.value);
+            setJoining(false);
+          }}
+          inputMode="tel"
+          autoComplete="off"
+          placeholder="Shopper's phone"
+          aria-label="Shopper's phone number"
+          className="h-9 min-w-0 flex-1 rounded-lg border border-slate-300 px-2 text-sm"
+        />
+        <button type="submit" disabled={pending || !phone.trim()} className="h-9 rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white disabled:bg-slate-300">
+          Find
+        </button>
+      </form>
+      {joining ? (
+        <form
+          className="mt-3 space-y-2 border-t border-slate-100 pt-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            act(
+              () => terminalRewardsJoin({ saleId, phone, firstName, birthday, agreed }),
+              undefined,
+              (r) => {
+                if (!r.error) {
+                  setJoining(false);
+                  setPhone("");
+                  setFirstName("");
+                  setBirthday("");
+                  setAgreed(false);
+                }
+              },
+            );
+          }}
+        >
+          <p className="text-sm font-semibold text-slate-900">No rewards account for that number. Sign them up?</p>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-semibold text-slate-700">
+              First name
+              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} required maxLength={40} className="mt-1 h-9 w-full rounded-lg border border-slate-300 px-2 text-sm font-normal" />
+            </label>
+            <label className="text-xs font-semibold text-slate-700">
+              Birthday (optional)
+              <input value={birthday} onChange={(e) => setBirthday(e.target.value)} placeholder="e.g. 3/14" className="mt-1 h-9 w-full rounded-lg border border-slate-300 px-2 text-sm font-normal" />
+            </label>
+          </div>
+          <label className="flex items-start gap-2 text-sm text-slate-800">
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-5 w-5 accent-brand-700" />
+            The shopper agreed to join rewards (their phone number and first name are saved to earn points).
+          </label>
+          <div className="flex gap-2">
+            <button type="submit" disabled={pending || !agreed || !firstName.trim()} className="h-9 rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white disabled:bg-slate-300">
+              Sign up
+            </button>
+            <button type="button" onClick={() => setJoining(false)} className="h-9 rounded-lg px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+              Not now
+            </button>
+          </div>
+        </form>
+      ) : null}
+    </section>
+  );
+}

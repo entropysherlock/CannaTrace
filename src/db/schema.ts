@@ -1233,6 +1233,71 @@ export const discountPresets = pgTable(
   (t) => [uniqueIndex("discount_presets_org_name_key").on(t.orgId, t.name)],
 );
 
+/**
+ * The business's rewards (loyalty) program: one per business, shared by all its stores.
+ * Points are earned per dollar paid (after discounts, before tax) and spent as dollars off. New Mexico
+ * forbids giving cannabis away, so a reward can never cover more than maxSharePercent of a cart.
+ */
+export const rewardSettings = pgTable("reward_settings", {
+  orgId: text("org_id")
+    .primaryKey()
+    .references(() => organizations.id),
+  enabled: boolean("enabled").notNull().default(false),
+  pointsPerDollar: integer("points_per_dollar").notNull().default(1),
+  /** One reward costs this many points and takes this many dollars off. */
+  redeemPoints: integer("redeem_points").notNull().default(100),
+  redeemDollars: money("redeem_dollars").notNull().default("5.00"),
+  signupBonus: integer("signup_bonus").notNull().default(25),
+  birthdayBonus: integer("birthday_bonus").notNull().default(50),
+  /** Points run out after this many months with no purchase; 0 means never. */
+  expireMonths: integer("expire_months").notNull().default(12),
+  /** The most of a cart (after other discounts) that rewards may pay for. */
+  maxSharePercent: integer("max_share_percent").notNull().default(50),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** A shopper in the rewards program. Only what the program needs: a phone number, a first name, and an optional birthday. */
+export const rewardMembers = pgTable(
+  "reward_members",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    /** Digits only, 10 long (US). */
+    phone: text("phone").notNull(),
+    firstName: text("first_name").notNull(),
+    /** Month and day only, "MM-DD", for the birthday bonus. Never the year. */
+    birthday: text("birthday"),
+    points: integer("points").notNull().default(0),
+    /** When the shopper agreed to join, and the budtender who asked. */
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+    joinedBy: text("joined_by").notNull(),
+    lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("reward_members_org_phone_key").on(t.orgId, t.phone)],
+);
+
+/** Every change to a shopper's points, so balances can always be explained. */
+export const rewardLedger = pgTable(
+  "reward_ledger",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => rewardMembers.id, { onDelete: "cascade" }),
+    /** SIGNUP, EARN, REDEEM, BIRTHDAY, ADJUST, EXPIRE, VOID, RETURN */
+    kind: text("kind").notNull(),
+    points: integer("points").notNull(),
+    saleId: text("sale_id"),
+    note: text("note"),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("reward_ledger_member_idx").on(t.memberId, t.createdAt), index("reward_ledger_sale_idx").on(t.saleId)],
+);
+
 /** One till shift: opened with a float, closed with a count. */
 export const drawerSessions = pgTable(
   "drawer_sessions",
@@ -1297,6 +1362,11 @@ export const sales = pgTable(
      * same for the same ID at this business. The ID number itself is never stored.
      */
     customerKey: text("customer_key"),
+    /** Rewards: the shopper on this sale, how many rewards they used (each worth the program's redeem points and dollars), the dollars that took off, and the points the sale earned. */
+    rewardMemberId: text("reward_member_id").references(() => rewardMembers.id, { onDelete: "set null" }),
+    rewardsUsed: integer("rewards_used").notNull().default(0),
+    rewardDiscount: money("reward_discount").notNull().default("0"),
+    pointsEarned: integer("points_earned").notNull().default(0),
     userId: text("user_id").notNull(),
     userName: text("user_name").notNull(),
     createdAt: createdAt(),

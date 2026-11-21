@@ -3,10 +3,12 @@ import { and, asc, eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { CartScreen, type CartView } from "@/components/register/cart-screen";
 import { RegisterShell } from "@/components/register/shell";
-import { discountPresets, itemCategories, items, retailPrices, sales } from "@/db/schema";
+import { discountPresets, itemCategories, items, retailPrices, rewardMembers, sales } from "@/db/schema";
 import { db } from "@/lib/db";
 import { cartLines, getRetailSettings, saleTotals, sellableByItem, storePack } from "@/lib/pos";
 import { LIMIT_LABELS, limitUsage, quickCashAmounts } from "@/lib/pos-math";
+import { getProgram } from "@/lib/rewards";
+import { maskPhone, pointsFor, rewardsAvailable } from "@/lib/rewards-math";
 import { effectiveLimits } from "@/lib/rules";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
@@ -54,7 +56,11 @@ export default async function CartPage({ params, searchParams }: { params: Promi
   ]);
 
   const sellable = await sellableByItem(db, session, pack);
-  const totals = saleTotals(lines, sale, settings);
+  const program = await getProgram(db, session.orgId);
+  const totals = saleTotals(lines, sale, settings, program);
+  const [member] =
+    program.enabled && sale.rewardMemberId ? await db.select().from(rewardMembers).where(and(eq(rewardMembers.id, sale.rewardMemberId), eq(rewardMembers.orgId, session.orgId))) : [];
+  const afterDiscount = totals.subtotal.sub(totals.discount);
   const usage = limitUsage(lines);
   const { limits } = effectiveLimits(
     { FLOWER: new Decimal(settings.flowerLimitGrams), CONCENTRATE: new Decimal(settings.concentrateLimitGrams), EDIBLE: new Decimal(settings.edibleLimitMg) },
@@ -99,6 +105,7 @@ export default async function CartPage({ params, searchParams }: { params: Promi
     totals: {
       subtotal: totals.subtotal.toFixed(2),
       discount: totals.discount.toFixed(2),
+      reward: totals.reward.toFixed(2),
       exciseTax: totals.exciseTax.toFixed(2),
       salesTax: totals.salesTax.toFixed(2),
       total: totals.total.toFixed(2),
@@ -118,6 +125,18 @@ export default async function CartPage({ params, searchParams }: { params: Promi
         share: limit.gt(0) ? Decimal.min(100, used.div(limit).mul(100)).toNumber() : 0,
       };
     }),
+    rewards: program.enabled
+      ? {
+          member: member ? { firstName: member.firstName, phone: maskPhone(member.phone), points: member.points } : null,
+          redeemPoints: program.redeemPoints,
+          redeemDollars: program.redeemDollars,
+          maxSharePercent: program.maxSharePercent,
+          used: member ? sale.rewardsUsed : 0,
+          applied: member ? totals.rewardsApplied : 0,
+          available: member ? rewardsAvailable(member.points, afterDiscount, program) : 0,
+          earnPreview: member ? pointsFor(totals.taxable, program.pointsPerDollar) : 0,
+        }
+      : null,
     quickCash: quickCashAmounts(totals.total),
     notAdded: notAdded ? notAdded.split(" | ").slice(0, 10) : undefined,
   };

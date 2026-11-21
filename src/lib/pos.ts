@@ -25,6 +25,8 @@ import { assertWholeForUnit, parsePositiveQty } from "./inventory-math";
 import { nextNumber } from "./numbering";
 import { combinedCap, effectiveLimits, minimumAge, packFor, requiresLabBeforeRetail, type StatePack } from "./rules";
 import { facilityToday, facilityZone } from "./time";
+import { createMember, expireIfIdle, findMemberByPhone, getProgram, lockMember, reverseSaleRewards, settleSaleRewards, takeBackForReturn } from "./rewards";
+import { normalizePhone, rewardsThatFit, type RewardProgram } from "./rewards-math";
 import {
   cartTotals,
   cleanCardDetails,
@@ -491,13 +493,24 @@ export async function cartLines(tx: Tx | typeof db, saleId: string): Promise<Car
     .orderBy(asc(items.name));
 }
 
-export function saleTotals(lines: CartRow[], sale: Pick<Sale, "discountPercent" | "customerType">, settings: Awaited<ReturnType<typeof getRetailSettings>>): Totals {
-  return cartTotals(lines, {
+export function saleTotals(
+  lines: CartRow[],
+  sale: Pick<Sale, "discountPercent" | "customerType"> & Partial<Pick<Sale, "rewardMemberId" | "rewardsUsed">>,
+  settings: Awaited<ReturnType<typeof getRetailSettings>>,
+  program?: RewardProgram | null,
+): Totals & { rewardsApplied: number } {
+  const options = {
     discountPercent: sale.discountPercent,
     exciseTaxPercent: settings.exciseTaxPercent,
     salesTaxPercent: settings.salesTaxPercent,
     taxExempt: sale.customerType === "MEDICAL" && settings.medicalTaxExempt,
-  });
+  };
+  const before = cartTotals(lines, options);
+  // Rewards the shopper chose, cut down to what fits this cart right now (a cart that shrank uses fewer).
+  const rewardsApplied =
+    program?.enabled && sale.rewardMemberId && (sale.rewardsUsed ?? 0) > 0 ? rewardsThatFit(sale.rewardsUsed ?? 0, before.subtotal.sub(before.discount), program) : 0;
+  if (!rewardsApplied) return { ...before, rewardsApplied: 0 };
+  return { ...cartTotals(lines, { ...options, rewardDiscount: new Decimal(program!.redeemDollars).mul(rewardsApplied) }), rewardsApplied };
 }
 
 function limitsOf(settings: Awaited<ReturnType<typeof getRetailSettings>>) {
@@ -742,6 +755,73 @@ export async function setCartDiscount(actor: Actor, input: { saleId: string; dis
   });
 }
 
+/** Look a shopper up by phone and put them on this cart. Returns null when nobody has that number yet. */
+export async function attachRewardsMember(actor: Actor, input: { saleId: string; phone: string }): Promise<{ firstName: string; points: number } | null> {
+  const phone = normalizePhone(input.phone);
+  if (!phone) throw new InventoryError("Type a 10-digit phone number, for example 505 555 0142.");
+  return db.transaction(async (tx) => {
+    const program = await getProgram(tx, actor.orgId);
+    if (!program.enabled) throw new InventoryError("The rewards program is off. A manager can turn it on in Menu and store rules.");
+    const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
+    const found = await findMemberByPhone(tx, actor.orgId, phone);
+    if (!found) return null;
+    const member = await expireIfIdle(tx, actor, await lockMember(tx, actor.orgId, found.id), program);
+    await tx.update(sales).set({ rewardMemberId: member.id, rewardsUsed: 0 }).where(eq(sales.id, sale.id));
+    return { firstName: member.firstName, points: member.points };
+  });
+}
+
+/** Sign a shopper up at the counter (with their agreement) and put them on this cart. */
+export async function joinRewards(
+  actor: Actor,
+  input: { saleId: string; phone: string; firstName: string; birthday?: string; agreed: unknown },
+): Promise<{ firstName: string; points: number }> {
+  return db.transaction(async (tx) => {
+    const program = await getProgram(tx, actor.orgId);
+    if (!program.enabled) throw new InventoryError("The rewards program is off. A manager can turn it on in Menu and store rules.");
+    const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
+    const member = await createMember(tx, actor, program, input);
+    await tx.update(sales).set({ rewardMemberId: member.id, rewardsUsed: 0 }).where(eq(sales.id, sale.id));
+    return { firstName: member.firstName, points: member.points };
+  });
+}
+
+export async function detachRewardsMember(actor: Actor, input: { saleId: string }): Promise<void> {
+  await db.transaction(async (tx) => {
+    const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
+    await tx.update(sales).set({ rewardMemberId: null, rewardsUsed: 0 }).where(eq(sales.id, sale.id));
+  });
+}
+
+/** Choose how many rewards the shopper uses on this cart (0 for none). Must fit their points and the cart's cap. */
+export async function setRewardsUsed(actor: Actor, input: { saleId: string; count: number }): Promise<void> {
+  const count = Math.floor(Number(input.count));
+  if (!Number.isFinite(count) || count < 0 || count > 1000) throw new InventoryError("Choose how many rewards to use.");
+  await db.transaction(async (tx) => {
+    const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
+    if (!sale.rewardMemberId) throw new InventoryError("Add the shopper's rewards account to the cart first.");
+    const program = await getProgram(tx, actor.orgId);
+    if (!program.enabled) throw new InventoryError("The rewards program is off.");
+    const member = await lockMember(tx, actor.orgId, sale.rewardMemberId);
+    if (count * program.redeemPoints > member.points)
+      throw new InventoryError(`${member.firstName} has ${member.points} points: enough for ${Math.floor(member.points / program.redeemPoints)} reward${Math.floor(member.points / program.redeemPoints) === 1 ? "" : "s"}.`);
+    if (count > 0) {
+      const lines = await cartLines(tx, sale.id);
+      const settings = await getRetailSettings(tx, actor.facilityId);
+      const before = saleTotals(lines, sale, settings);
+      const fit = rewardsThatFit(count, before.subtotal.sub(before.discount), program);
+      if (fit < count)
+        throw new InventoryError(
+          fit === 0
+            ? `Rewards can pay for at most ${program.maxSharePercent}% of a cart, and New Mexico doesn't allow free cannabis. Add more to the cart to use a reward.`
+            : `Only ${fit} reward${fit === 1 ? "" : "s"} fit this cart: rewards can pay for at most ${program.maxSharePercent}% of it.`,
+        );
+    }
+    await tx.update(sales).set({ rewardsUsed: count }).where(eq(sales.id, sale.id));
+    await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "REWARDS", after: { number: sale.number, rewardsUsed: count } });
+  });
+}
+
 export async function cancelCart(actor: Actor, input: { saleId: string }): Promise<void> {
   await db.transaction(async (tx) => {
     const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "cancelled");
@@ -814,7 +894,8 @@ export async function completeSale(
     if (problem) throw new InventoryError(problem);
     const labGate = requiresLabBeforeRetail(pack);
 
-    const totals = saleTotals(lines, sale, settings);
+    const program = sale.rewardMemberId ? await getProgram(tx, actor.orgId) : null;
+    const totals = saleTotals(lines, sale, settings, program);
     const blank = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
     const settled = settlePayment(totals.total, method, {
       cashTendered: method === "DEBIT" || (blank(input.cashTendered) && totals.total.isZero()) ? null : parseMoney(input.cashTendered, "Cash handed over", { allowZero: true }),
@@ -827,12 +908,23 @@ export async function completeSale(
       throw new InventoryError(`${shortages[0].itemName} sold out while this cart was open. Only ${shortages[0].found.toString()} is left. Change the cart and try again.`);
     }
 
+    const points = await settleSaleRewards(tx, actor, sale, {
+      applied: totals.rewardsApplied,
+      rewardDollars: totals.reward,
+      paidBeforeTax: totals.taxable,
+      today: await facilityToday(actor.facilityId, tx),
+    });
+
     await tx
       .update(sales)
       .set({
         status: "COMPLETED",
         subtotal: totals.subtotal.toFixed(2),
-        discountTotal: totals.discount.toFixed(2),
+        // Every dollar off, so subtotal - discount = what was taxed. The rewards part is also kept on its own.
+        discountTotal: totals.discount.add(totals.reward).toFixed(2),
+        rewardsUsed: points ? totals.rewardsApplied : 0,
+        rewardDiscount: points ? totals.reward.toFixed(2) : "0",
+        pointsEarned: points?.earned ?? 0,
         exciseTax: totals.exciseTax.toFixed(2),
         salesTax: totals.salesTax.toFixed(2),
         total: totals.total.toFixed(2),
@@ -850,7 +942,14 @@ export async function completeSale(
       entityType: "Sale",
       entityId: sale.id,
       action: "COMPLETE",
-      after: { number: sale.number, total: totals.total.toFixed(2), paymentMethod: method, debit: settled.debit.toFixed(2), lines: lines.length },
+      after: {
+        number: sale.number,
+        total: totals.total.toFixed(2),
+        paymentMethod: method,
+        debit: settled.debit.toFixed(2),
+        lines: lines.length,
+        ...(points ? { rewardsUsed: totals.rewardsApplied, rewardDiscount: totals.reward.toFixed(2), pointsEarned: points.earned, birthdayBonus: points.birthday } : {}),
+      },
     });
     return { number: sale.number, total: totals.total.toFixed(2), changeDue: change.toFixed(2) };
   });
@@ -887,6 +986,7 @@ export async function voidSale(actor: Actor, input: { saleId: string; reason: st
         type: "RETURN",
       });
     }
+    await reverseSaleRewards(tx, actor, sale);
     await tx.update(sales).set({ status: "VOIDED", voidReason: reason }).where(eq(sales.id, sale.id));
     await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "VOID", after: { number: sale.number, total: sale.total }, reason });
   });
@@ -1051,6 +1151,8 @@ export async function returnSale(
         }
         if (need.gt(0)) throw new InventoryError(`The packages ${line.itemName} was sold from can't take back ${need.toString()} more.`);
       }
+
+      await takeBackForReturn(tx, actor, sale, amount, everything, number);
 
       await audit(tx, actor, {
         entityType: "Sale",

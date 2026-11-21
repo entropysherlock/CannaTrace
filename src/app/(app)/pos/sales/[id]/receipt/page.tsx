@@ -14,6 +14,7 @@ import {
   items,
   packages,
   saleLinePackages,
+  rewardMembers,
   saleLines,
   sales,
 } from "@/db/schema";
@@ -54,6 +55,11 @@ export default async function ReceiptPage({
   if (!row) notFound();
   const { sale, facility } = row;
   if (sale.status === "OPEN") redirect(`/pos/sales/${sale.id}`);
+  const [member] = sale.rewardMemberId
+    ? await db.select({ firstName: rewardMembers.firstName, points: rewardMembers.points }).from(rewardMembers).where(eq(rewardMembers.id, sale.rewardMemberId))
+    : [];
+  const rewardOff = new Decimal(sale.rewardDiscount ?? 0);
+  const percentOff = new Decimal(sale.discountTotal ?? 0).sub(rewardOff);
 
   const [info, lines, tags, settings, returns, returnable] = await Promise.all([
     shellInfo(session),
@@ -180,12 +186,16 @@ export default async function ReceiptPage({
                   <dl className="mt-3 grid grid-cols-2 gap-y-1">
                     <dt>Subtotal</dt>
                     <dd className="text-right">{usd(sale.subtotal ?? 0)}</dd>
-                    {new Decimal(sale.discountTotal ?? 0).gt(0) ? (
+                    {percentOff.gt(0) ? (
                       <>
                         <dt>Discount ({sale.discountName})</dt>
-                        <dd className="text-right">
-                          -{usd(sale.discountTotal ?? 0)}
-                        </dd>
+                        <dd className="text-right">-{usd(percentOff.toFixed(2))}</dd>
+                      </>
+                    ) : null}
+                    {rewardOff.gt(0) ? (
+                      <>
+                        <dt>Rewards</dt>
+                        <dd className="text-right">-{usd(rewardOff.toFixed(2))}</dd>
                       </>
                     ) : null}
                     <dt>Cannabis excise tax</dt>
@@ -213,6 +223,12 @@ export default async function ReceiptPage({
                       </>
                     ) : null}
                   </dl>
+                  {member && sale.status === "COMPLETED" ? (
+                    <p className="mt-3 border-t border-dashed border-slate-400 pt-2 text-center" data-testid="receipt-rewards">
+                      Rewards: {member.firstName} earned {sale.pointsEarned} points
+                      {sale.rewardsUsed > 0 ? ` and used ${usd(rewardOff.toFixed(2))} off` : ""}. Balance: {member.points} points.
+                    </p>
+                  ) : null}
                   {cardNote ? (
                     <p className="mt-1 text-xs text-slate-600" data-testid="card-note">
                       {cardNote}
