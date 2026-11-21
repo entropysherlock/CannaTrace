@@ -13,7 +13,7 @@ import { addRunInput, startRun } from "@/lib/manufacturing";
 import { scaleRecipe } from "@/lib/manufacturing-math";
 import { can, type Permission } from "@/lib/rbac";
 import type { Session } from "@/lib/session";
-import { convert, type UnitCode } from "@/lib/units";
+import { convert, dimensionOf, type UnitCode } from "@/lib/units";
 import { templateFor } from "./label-tools";
 import type { Proposal, Tool } from "./tools";
 import { currentZone } from "@/lib/time";
@@ -506,6 +506,7 @@ export const JOB_TOOLS: Tool[] = [
         location: text("Where the new packages go. Default: the harvest's room."),
         waste: arr({ ...LINE, properties: { weight: text("Waste weight."), reason: text("What it is, e.g. stems.") }, required: ["weight", "reason"] }, "Waste to log."),
         rest_is_waste: text("If whatever weight is left over is waste, say what it is (e.g. 'stems and trim'). Leave out otherwise."),
+        rest_item: text("Package whatever weight is left over as one package of this item (tracked by weight, e.g. bulk flower). CannaTrace makes the tag. Leave out otherwise."),
         labels: { type: "boolean", description: "Prepare package labels for the new packages. Default true." },
         label_template: text("Label template name; default template if left out."),
         finish: { type: "boolean", description: "Finish the harvest at the end. Default true." },
@@ -545,7 +546,19 @@ export const JOB_TOOLS: Tool[] = [
         steps.push({ k: "waste", say: `Log ${qty(grams, "G")} waste: ${str(w.reason, 200)}`, harvestId: h.id, grams: grams.toString(), reason: str(w.reason, 200) });
         wasteG = wasteG.add(grams);
       }
-      const left = dry.sub(h.waste).sub(h.packaged).sub(packagedG).sub(wasteG).toDecimalPlaces(4);
+      let left = dry.sub(h.waste).sub(h.packaged).sub(packagedG).sub(wasteG).toDecimalPlaces(4);
+      let restNote: string | null = null;
+      if (left.gt(0) && str(input.rest_item)) {
+        // Package everything that's left in one go: the quantity is worked out here so the draft is always current.
+        const item = await findItem(s, str(input.rest_item));
+        if (dimensionOf(item.unit as UnitCode) !== "WEIGHT") throw new InventoryError(`${item.name} isn't counted by weight, so a harvest can't be packaged into it. Pick bulk flower or trim.`);
+        const amount = convert(left, "G", item.unit as UnitCode).toDecimalPlaces(4);
+        if (!convert(amount, item.unit as UnitCode, "G").toDecimalPlaces(4).eq(left)) throw new InventoryError(`${qty(left, "G")} can't be packaged exactly in ${item.name}'s unit. Pick an item counted in grams.`);
+        steps.push({ k: "pkg_harvest", say: `Package the remaining ${qty(left, "G")} as ${item.name} (the tag is made for you)`, harvestId: h.id, tag: "", itemId: item.id, quantity: amount.toString(), locationId: location.id });
+        packagedG = packagedG.add(left);
+        left = new Decimal(0);
+        restNote = "Print its label from Inventory once this is done; the tag is made when you confirm";
+      }
       if (left.lt(0)) throw new InventoryError(`That's ${qty(left.neg(), "G")} more than the harvest has (dry ${qty(dry, "G")}, already used ${qty(new Decimal(h.waste).add(h.packaged), "G")}). Check the numbers.`);
       if (left.gt(0) && str(input.rest_is_waste)) steps.push({ k: "rest_waste", say: `Log the remaining ${qty(left, "G")} as waste: ${str(input.rest_is_waste, 200)}`, harvestId: h.id, reason: str(input.rest_is_waste, 200) });
       const finish = input.finish !== false;
@@ -569,7 +582,7 @@ export const JOB_TOOLS: Tool[] = [
         { label: "Into packages", value: `${qty(packagedG, "G")} in ${plural(newTags.length, "package")}${new Decimal(h.packaged).gt(0) ? ` (+${qty(h.packaged, "G")} already)` : ""}` },
         { label: "Waste", value: qty(wasteG.add(h.waste).add(left.gt(0) && str(input.rest_is_waste) ? left : 0), "G") },
         { label: "Left over", value: left.gt(0) && !str(input.rest_is_waste) ? qty(left, "G") : "0 g" },
-        ...(labelNote ? [{ label: "Labels", value: labelNote }] : []),
+        ...(labelNote ?? restNote ? [{ label: "Labels", value: String(labelNote ?? restNote) }] : []),
       ]);
     },
     execute: (actor, args, ctx) => execute(actor, args, ctx?.key ?? "", () => "Harvest closed out."),

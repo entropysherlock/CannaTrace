@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { facilities, itemCategories, items, labResults, locations, organizations, packages, users, watchFindings } from "@/db/schema";
+import { facilities, harvests, itemCategories, items, labResults, locations, organizations, packages, strains, users, watchFindings } from "@/db/schema";
 import { confirmProposal } from "@/lib/assistant/engine";
 import { db, pool } from "@/lib/db";
 import { addDays, todayIn } from "@/lib/distribution-math";
@@ -86,6 +86,39 @@ describe.skipIf(!hasDb)("Tally Watch (database)", () => {
     expect((await db.select().from(packages).where(eq(packages.id, pkg.id)))[0].status).toBe("ACTIVE");
     await sweepFacility(owner);
     expect(await finding("lab_fail")).toBeUndefined();
+  });
+
+  it("drafts the close-out for a weighed harvest: package everything left as the strain's bulk item, then finish", async () => {
+    const [strain] = await db.insert(strains).values({ orgId: actor.orgId, name: `Draft Haze ${run}`, type: "HYBRID" }).returning();
+    const [cat] = await db.insert(itemCategories).values({ orgId: actor.orgId, name: `Bulk ${run}` }).returning();
+    await db.insert(items).values({ orgId: actor.orgId, name: `Draft Haze Flower (bulk) ${run}`, sku: `${run}-DH`, categoryId: cat.id, unit: "G", strain: `Draft Haze ${run}` });
+    const [h] = await db
+      .insert(harvests)
+      .values({ orgId: actor.orgId, facilityId: actor.facilityId, name: `DH-${run}`, strainId: strain.id, locationId: vault, plantCount: 6, wetWeight: "9000", dryWeight: "7490", userId: actor.userId, harvestedAt: new Date(Date.now() - 2 * 86400_000) })
+      .returning();
+    await sweepFacility(owner);
+    const f = (await openFindings(owner)).find((x) => x.check === "harvest_open" && x.title.includes(`DH-${run}`));
+    expect(f?.fix?.label).toBe("Review the drafted close-out");
+    expect(f?.detail).toContain("7,490 g");
+    const done = await fixAndConfirm(owner, f!.id);
+    expect(done.card.steps).toEqual([`Package the remaining 7,490 g as Draft Haze Flower (bulk) ${run} (the tag is made for you)`, `Finish harvest DH-${run}`]);
+    const closed = (await db.select().from(harvests).where(eq(harvests.id, h.id)))[0];
+    expect(closed.status).toBe("FINISHED");
+    expect(Number(closed.packagedWeight)).toBe(7490);
+    const made = await db.select().from(packages).where(eq(packages.lotNumber, `DH-${run}`));
+    expect(made).toHaveLength(1);
+    expect(Number(made[0].quantity)).toBe(7490);
+    expect(made[0].tag).toBeTruthy();
+  });
+
+  it("doesn't draft a close-out when the strain has no single bulk item to package into", async () => {
+    const [strain] = await db.insert(strains).values({ orgId: actor.orgId, name: `No Bulk ${run}`, type: "INDICA" }).returning();
+    await db.insert(harvests).values({ orgId: actor.orgId, facilityId: actor.facilityId, name: `NB-${run}`, strainId: strain.id, locationId: vault, plantCount: 2, wetWeight: "900", dryWeight: "300", userId: actor.userId, harvestedAt: new Date(Date.now() - 2 * 86400_000) });
+    await sweepFacility(owner);
+    const f = (await openFindings(owner)).find((x) => x.check === "harvest_open" && x.title.includes(`NB-${run}`));
+    expect(f).toBeTruthy();
+    expect(f?.fix).toBeFalsy();
+    expect(f?.detail).toContain(`Add one bulk item for No Bulk ${run}`);
   });
 
   it("flags new packages with no label and prepares one print job for all of them", async () => {
