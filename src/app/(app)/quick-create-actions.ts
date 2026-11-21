@@ -328,7 +328,7 @@ export async function quickRecipeAction(formData: FormData): Promise<CreateResul
     if (twin) return { error: `There is already a retired recipe called ${twin.name}. Bring it back on the Recipes tab, or use a different name.` };
     const itemIds = formData.getAll("inputItemId").map(String);
     const quantities = formData.getAll("inputQuantity").map(String);
-    const lines = itemIds.map((itemId, i) => ({ itemId, quantity: (quantities[i] ?? "").trim() })).filter((line) => line.itemId || line.quantity);
+    const lines = itemIds.map((itemId, i) => ({ itemId, quantity: (quantities[i] ?? "").trim(), row: i + 1 })).filter((line) => line.itemId || line.quantity);
     const recipe = await createRecipe(actorOf(session), {
       name,
       outputItemId: field(formData, "outputItemId"),

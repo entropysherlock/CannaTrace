@@ -31,15 +31,31 @@ function requireText(value: string | null | undefined, message: string): string 
   return text.slice(0, 120);
 }
 
+/**
+ * One input row's quantity, with a message that names the row and says what is wrong:
+ * blank, typed with a unit ("35g"), or not a number. The unit always comes from the item.
+ */
+function recipeLineQty(raw: unknown, row: number): ReturnType<typeof parsePositiveQty> {
+  const text = String(raw ?? "").trim();
+  if (!text) throw new InventoryError(`Input row ${row} has an item but no quantity. Type how much one batch uses, for example 35.`);
+  // "1,000" is a thousands separator, so it is safe to read as 1000.
+  const plain = /^\d{1,3}(,\d{3})+(\.\d+)?$/.test(text) ? text.replace(/,/g, "") : text;
+  if (/^\d*\.?\d+\s*[a-zA-Z]+$/.test(plain)) {
+    throw new InventoryError(`Input row ${row}: type just the number, for example ${plain.replace(/\s*[a-zA-Z]+$/, "")}, not "${text}". The unit comes from the item you picked.`);
+  }
+  if (!/^\d*\.?\d+$/.test(plain)) throw new InventoryError(`Input row ${row}: "${text}" isn't a number. Type it like 35 or 12.5.`);
+  return parsePositiveQty(plain, `Input row ${row} quantity`);
+}
+
 /** Save a recipe (bill of materials): the inputs for one batch and how much one batch makes. */
 export async function createRecipe(
   actor: Actor,
-  input: { name: string; outputItemId: string; outputQuantity: unknown; lines: { itemId: string; quantity: unknown }[] },
+  input: { name: string; outputItemId: string; outputQuantity: unknown; lines: { itemId: string; quantity: unknown; row?: number }[] },
 ): Promise<{ id: string }> {
   const name = requireText(input.name, "Give the recipe a name.");
   const outputQuantity = parsePositiveQty(input.outputQuantity, "Output quantity");
   if (input.lines.length === 0) throw new InventoryError("Add at least one input to the recipe.");
-  const lines = input.lines.map((line) => ({ itemId: line.itemId, quantity: parsePositiveQty(line.quantity, "Each input quantity") }));
+  const lines = input.lines.map((line, i) => ({ itemId: line.itemId, quantity: recipeLineQty(line.quantity, line.row ?? i + 1) }));
   const ids = lines.map((l) => l.itemId);
   if (ids.some((id) => !id)) throw new InventoryError("Choose an item for every input row that has a quantity.");
   if (new Set(ids).size !== ids.length) throw new InventoryError("Each input item can only be listed once.");
