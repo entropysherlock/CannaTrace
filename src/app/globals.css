@@ -60,3 +60,20 @@ body {
 main .grid > * {
   min-width: 0;
 }
+
+/*
+ * When the browser scrolls to a box (a "Please fill out this field" message, or focus moving to it),
+ * keep it clear of the sticky top bar. On phones that bar is taller, so leave more room.
+ */
+input,
+select,
+textarea {
+  scroll-margin-top: 11rem;
+}
+@media (min-width: 768px) {
+  input,
+  select,
+  textarea {
+    scroll-margin-top: 6rem;
+  }
+}
