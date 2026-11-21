@@ -39,7 +39,7 @@ async function startWithClosedDrawer(page: Page) {
   await expect(open.or(home)).toBeVisible();
   if (await open.isVisible()) return;
   await page.goto("/pos/drawer");
-  await page.getByLabel("Cash counted in the drawer").fill("0");
+  await page.getByRole("textbox", { name: "Cash counted in the drawer" }).fill("0");
   await page.getByRole("button", { name: "Close drawer" }).click();
   await expect(page).toHaveURL(/\/pos\/drawer\/[^/]+$/);
 }
@@ -172,7 +172,7 @@ test("a full shift on the touch register: ID scan, barcode scan, limits, discoun
   await page.goto("/pos/drawer");
   await expect(page.getByText("Cash that should be in the drawer").filter({ visible: true })).toBeVisible();
   await expect(page.locator("dd", { hasText: "$204.56" }).filter({ visible: true }).last()).toBeVisible();
-  await page.getByLabel("Cash counted in the drawer").fill("200");
+  await page.getByRole("textbox", { name: "Cash counted in the drawer" }).fill("200");
   await page.getByRole("button", { name: "Close drawer" }).click();
   await expect(page.getByRole("heading", { name: "End-of-day report" })).toBeVisible();
   await expect(page.getByText("short by $4.56").filter({ visible: true })).toBeVisible();

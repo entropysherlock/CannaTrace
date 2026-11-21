@@ -85,7 +85,7 @@ test("Run a register shift: open the drawer, check ID, sell, pay, receipt, blind
   await expect(page).toHaveURL(/\/pos\/drawer$/);
   await onStep(page, "Count out at the end of your shift");
   await expect(page.getByText("Cash that should be in the drawer")).toHaveCount(0); // blind count
-  await page.getByLabel("Cash counted in the drawer").fill("159.56");
+  await page.getByRole("textbox", { name: "Cash counted in the drawer" }).fill("159.56");
   await page.getByRole("button", { name: "Close drawer" }).click();
 
   await expect(page).toHaveURL(/\/pos\/drawer\/[^/]+$/);

@@ -38,7 +38,7 @@ test("a card payment is recorded with its last 4 digits and approval number, and
 
   // Count out the drawer and read the report
   await page.goto("/pos/drawer");
-  const counted = page.getByLabel("Cash counted in the drawer");
+  const counted = page.getByRole("textbox", { name: "Cash counted in the drawer" });
   if (await counted.isVisible()) {
     await counted.fill("100");
     await page.getByRole("button", { name: "Close drawer" }).click();

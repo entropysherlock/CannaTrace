@@ -55,7 +55,7 @@ test("the register keeps selling for cash with no internet, then sends the sale 
   await expect(page.getByText(/S-\d+/).first()).toBeVisible();
 
   await page.goto("/pos/drawer");
-  const counted = page.getByLabel("Cash counted in the drawer");
+  const counted = page.getByRole("textbox", { name: "Cash counted in the drawer" });
   if (await counted.isVisible()) {
     await counted.fill("100");
     await page.getByRole("button", { name: "Close drawer" }).click();

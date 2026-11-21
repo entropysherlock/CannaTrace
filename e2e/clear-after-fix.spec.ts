@@ -79,7 +79,7 @@ test("closing the drawer isn't blocked by an empty cart nobody can see", async (
   await expect(page.getByRole("link", { name: /^Resume S-/ })).toHaveCount(0); // empty carts are not listed
 
   await page.goto("/pos/drawer");
-  await page.getByLabel("Cash counted in the drawer").fill("100");
+  await page.getByRole("textbox", { name: "Cash counted in the drawer" }).fill("100");
   await page.getByRole("button", { name: "Close drawer" }).click();
   await expect(page).toHaveURL(/\/pos\/drawer\/[^/]+$/);
 });
