@@ -104,3 +104,18 @@ test("the Package step comes filled in: the strain's bulk item, the leftover wei
   expect((await harvest.locator("option:checked").textContent()) ?? "").toContain(`${Number(qty).toLocaleString("en-US", { maximumFractionDigits: 1 })} g left`);
   await expect(page.locator('select[name="locationId"] option:checked')).not.toHaveText(/Choose a room/);
 });
+
+test("Cultivation opens on the Overview, and the Grow guide always starts at step 1", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("manager@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  await page.getByRole("link", { name: "Cultivation", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/cultivation\/overview$/);
+  await page.getByRole("link", { name: "Grow guide" }).first().click();
+  await expect(page).toHaveURL(/\/cultivation$/);
+  // The demo business has a harvest waiting to be packaged, but the guide still starts at the first step
+  await expect(page.getByTestId("grow-title")).toHaveText("Start a batch");
+  await expect(page.getByRole("button", { name: /^1\. Start/ })).toHaveAttribute("aria-current", "step");
+});

@@ -82,8 +82,6 @@ export default async function GrowPage() {
   const untagged = batchRows.reduce((n, b) => n + b.untagged, 0);
   const floweringCount = plantRows.filter((p) => p.phase === "FLOWERING").length;
   const counts = { untagged, plants: plantRows.length, flowering: floweringCount, toDry: dryingHarvests.filter((d) => d.ready).length, waiting: waitingToDry, toPackage: packable.length };
-  // Where the grow most likely is: the step with something waiting, working back from the end.
-  const suggested = counts.toPackage ? 5 : counts.toDry ? 4 : counts.waiting && !counts.untagged && !counts.plants ? 4 : counts.untagged ? 1 : counts.plants ? 2 : 0;
 
   const data: GrowData = {
     canAddRoom: can(session, "settings.manage"),
@@ -99,7 +97,6 @@ export default async function GrowPage() {
     packableHarvests: packable,
     finishable,
     counts,
-    suggested,
   };
 
   return (
