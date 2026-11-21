@@ -46,12 +46,18 @@ test("pasting a screenshot anywhere reads it and opens the review", async ({ pag
   await signIn(page);
   await page.goto("/dashboard");
   const b64 = (await png()).toString("base64");
-  await page.evaluate((data) => {
-    const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-    const dt = new DataTransfer();
-    dt.items.add(new File([bytes], "pasted-coa.png", { type: "image/png" }));
-    document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-  }, b64);
+  // The paste listener is attached when the page hydrates, which can be after "load". A paste fired before that goes
+  // nowhere, so fire it again until the page shows it is reading the file (or has already moved on to the review).
+  await expect(async () => {
+    if (page.url().includes("/inbox/")) return;
+    await page.evaluate((data) => {
+      const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+      const dt = new DataTransfer();
+      dt.items.add(new File([bytes], "pasted-coa.png", { type: "image/png" }));
+      document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, b64);
+    await expect(page.getByTestId("global-drop")).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
   await expect(page).toHaveURL(/\/inbox\/[0-9a-f-]+$/, { timeout: 40_000 });
   await expect(page.getByRole("heading", { name: "Review a document" })).toBeVisible();
 });

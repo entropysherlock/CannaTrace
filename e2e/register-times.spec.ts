@@ -63,7 +63,7 @@ test("the register's clock, drawer, held carts, and sales all show the store's t
 
   // End of shift: count out, so the next person starts with a closed drawer
   await page.goto("/pos/drawer");
-  await page.locator('input[name="countedCash"]').fill("100");
+  await page.getByLabel("Cash counted in the drawer").fill("100");
   await page.getByRole("button", { name: "Close drawer" }).click();
   await expect(page).toHaveURL(/\/pos\/drawer\/[^/]+$/);
 });

@@ -75,7 +75,7 @@ test("a manager turns on the menu, a visitor reserves, and staff turn it into a 
   await page.getByRole("button", { name: "Yes, cancel cart" }).click();
   if (openedDrawer) {
     await page.goto("/pos/drawer");
-    await page.locator('input[name="countedCash"]').fill("100");
+    await page.getByLabel("Cash counted in the drawer").fill("100");
     await page.getByRole("button", { name: "Close drawer" }).click();
     await expect(page).toHaveURL(/\/pos\/drawer\/[^/]+$/);
   }

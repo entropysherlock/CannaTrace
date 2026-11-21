@@ -15,10 +15,33 @@ async function signInAtShop(page: Page, email: string) {
 const LICENSE = (birth: string) =>
   `@\n\x1e\rANSI 636014080102DL00410288ZC03290034DLDAQD1234562\nDCSRIVERA\nDACMARISOL\nDBB${birth}\nDBA03142031\nDAJNM\nDCGUSA\n`;
 
-/** A scanner types fast and ends with Enter. Click empty space first so no text box has focus. */
+/**
+ * What a USB scanner does: the whole code arrives as one burst of key presses. The register recognises a scan by
+ * that speed (keys under 60 ms apart; an ID barcode ends after 150 ms of quiet), so the burst is dispatched in a
+ * single page task. Typing it key by key through the browser's protocol takes as long as the machine is busy, and
+ * on a loaded runner the gaps pass the limit and the register rightly treats it as a person typing.
+ */
 async function scan(page: Page, text: string) {
-  await page.locator("body").click({ position: { x: 2, y: 400 } });
-  await page.keyboard.type(text, { delay: 2 });
+  await page.locator("body").click({ position: { x: 2, y: 400 } }); // no text box may have focus
+  await page.evaluate((chars) => {
+    for (const ch of chars) {
+      const key = ch === "\n" || ch === "\r" ? "Enter" : ch;
+      window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    }
+  }, [...text]);
+}
+
+/** Tests that fail part-way leave their drawer open. Start from a closed one so the next run isn't stuck behind it. */
+async function startWithClosedDrawer(page: Page) {
+  await page.goto("/pos");
+  const open = page.getByRole("button", { name: "Open drawer" });
+  const home = page.getByRole("heading", { name: "Next customer" });
+  await expect(open.or(home)).toBeVisible();
+  if (await open.isVisible()) return;
+  await page.goto("/pos/drawer");
+  await page.getByLabel("Cash counted in the drawer").fill("0");
+  await page.getByRole("button", { name: "Close drawer" }).click();
+  await expect(page).toHaveURL(/\/pos\/drawer\/[^/]+$/);
 }
 
 async function typeDates(page: Page, birth: string, expires = "2031-06-30") {
@@ -33,6 +56,7 @@ const qtyOf = (page: Page, name: string) => cart(page).getByRole("group", { name
 test("a full shift on the touch register: ID scan, barcode scan, limits, discount, cash, void, split, hold, close out", async ({ page }) => {
   test.setTimeout(180_000);
   await signInAtShop(page, "manager@demo.test");
+  await startWithClosedDrawer(page);
   await page.goto("/pos");
 
   // Open the drawer
@@ -148,7 +172,7 @@ test("a full shift on the touch register: ID scan, barcode scan, limits, discoun
   await page.goto("/pos/drawer");
   await expect(page.getByText("Cash that should be in the drawer").filter({ visible: true })).toBeVisible();
   await expect(page.locator("dd", { hasText: "$204.56" }).filter({ visible: true }).last()).toBeVisible();
-  await page.locator('input[name="countedCash"]').fill("200");
+  await page.getByLabel("Cash counted in the drawer").fill("200");
   await page.getByRole("button", { name: "Close drawer" }).click();
   await expect(page.getByRole("heading", { name: "End-of-day report" })).toBeVisible();
   await expect(page.getByText("short by $4.56").filter({ visible: true })).toBeVisible();
