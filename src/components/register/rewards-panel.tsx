@@ -1,7 +1,7 @@
 "use client";
 
 import { Gift, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { terminalRewardsFind, terminalRewardsJoin, terminalRewardsRemove, terminalRewardsUse, type TerminalResult } from "@/app/(app)/pos/terminal-actions";
 
 export type RewardsView = {
@@ -40,12 +40,19 @@ export function RewardsPanel({
   const [firstName, setFirstName] = useState("");
   const [birthday, setBirthday] = useState("");
   const [agreed, setAgreed] = useState(false);
+  const phoneBox = useRef<HTMLInputElement>(null);
   const each = Number(view.redeemDollars);
 
   const find = () => {
-    if (!phone.trim()) return;
+    // Read the box itself, so a pasted or browser-filled number counts even if the page missed the change.
+    const typed = phoneBox.current?.value ?? phone;
+    if (!typed.trim()) {
+      phoneBox.current?.focus();
+      return;
+    }
+    setPhone(typed);
     act(
-      () => terminalRewardsFind(saleId, phone),
+      () => terminalRewardsFind(saleId, typed),
       undefined,
       (r) => {
         if (r.notFound) setJoining(true);
@@ -126,6 +133,7 @@ export function RewardsPanel({
         </label>
         <input
           id="rewards-phone"
+          ref={phoneBox}
           value={phone}
           onChange={(e) => {
             setPhone(e.target.value);
@@ -137,7 +145,7 @@ export function RewardsPanel({
           aria-label="Shopper's phone number"
           className="h-9 min-w-0 flex-1 rounded-lg border border-slate-300 px-2 text-sm"
         />
-        <button type="submit" disabled={pending || !phone.trim()} className="h-9 rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white disabled:bg-slate-300">
+        <button type="submit" disabled={pending} className="h-9 rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white disabled:bg-slate-300">
           Find
         </button>
       </form>
