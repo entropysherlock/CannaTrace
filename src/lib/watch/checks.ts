@@ -188,7 +188,7 @@ async function harvests(f: Scope): Promise<Finding[]> {
           : `It's been weighed, and ${qty(s(h.left), "G")} still isn't packaged or logged as waste.${h.strain ? ` Add one bulk item for ${s(h.strain)} (counted in grams) and Tally can draft the close-out.` : ""}`
         : "It still has no dry weight. Weigh it, package it, and log the waste to close it out.",
       permission: "cultivation.view" as const,
-      href: "/cultivation",
+      href: `/cultivation/harvests/${s(h.id)}`,
       ask: `Close out harvest ${s(h.name)}`,
       ...(draft ? { fix: { tool: "close_out_harvest", input: { harvest: s(h.name), rest_item: s(draft.ref) }, label: "Review the drafted close-out" } } : {}),
     };
