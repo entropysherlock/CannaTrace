@@ -198,11 +198,14 @@ export function RewardsLine({
   saleId,
   view,
   rewardDollars,
+  compact,
   pending,
   act,
 }: {
   saleId: string;
   view: RewardsView;
+  /** Sits beside the search box: a fixed-width button instead of a full-width line. */
+  compact?: boolean;
   /** What this cart gets off from rewards, as dollars text (0 when none). */
   rewardDollars: string;
   pending: boolean;
@@ -217,7 +220,7 @@ export function RewardsLine({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open rewards"
-        className="flex h-11 w-full items-center justify-between gap-2 rounded-xl bg-white px-3 text-left text-sm ring-1 ring-slate-200 hover:ring-brand-600"
+        className={`flex items-center justify-between gap-2 rounded-xl bg-white px-3 text-left text-sm ring-1 ring-slate-200 hover:ring-brand-600 ${compact ? "min-h-14 w-48 shrink-0 sm:w-60" : "h-11 w-full"}`}
       >
         <span className="flex min-w-0 items-center gap-2 font-semibold text-slate-800">
           <Gift className="h-4 w-4 shrink-0 text-brand-700" aria-hidden="true" />

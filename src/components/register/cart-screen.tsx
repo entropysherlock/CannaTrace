@@ -178,13 +178,14 @@ export function CartScreen({ view }: { view: CartView }) {
       {/* Products */}
       <section aria-label="Products" className="flex flex-col lg:min-h-0">
         <div className="space-y-3 border-b border-slate-200 bg-white px-4 py-3">
+          <div className="flex items-stretch gap-2">
           <form
             role="search"
             onSubmit={(e) => {
               e.preventDefault();
               submitSearch();
             }}
-            className="flex items-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-3 focus-within:border-brand-600"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-3 focus-within:border-brand-600"
           >
             <Search className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
             <input
@@ -200,6 +201,23 @@ export function CartScreen({ view }: { view: CartView }) {
               <ScanLine className="h-4 w-4" aria-hidden="true" /> Scanner ready
             </span>
           </form>
+            {view.rewards ? (
+              <RewardsLine
+                compact
+                rewardDollars={view.totals.reward}
+                saleId={view.saleId}
+                view={view.rewards}
+                pending={pending}
+                act={(work, okText, after) =>
+                  start(async () => {
+                    const result = await work();
+                    if (!result.notFound) report(result, okText);
+                    after?.(result);
+                  })
+                }
+              />
+            ) : null}
+          </div>
           <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]" role="tablist" aria-label="Categories">
             {["All", ...view.categories].map((c) => (
               <button
@@ -323,26 +341,9 @@ export function CartScreen({ view }: { view: CartView }) {
               ))}
             </ul>
           )}
-          {view.rewards ? (
-            <div className="px-4 pb-3">
-            <RewardsLine
-              rewardDollars={view.totals.reward}
-              saleId={view.saleId}
-              view={view.rewards}
-              pending={pending}
-              act={(work, okText, after) =>
-                start(async () => {
-                  const result = await work();
-                  if (!result.notFound) report(result, okText);
-                  after?.(result);
-                })
-              }
-            />
-            </div>
-          ) : null}
         </div>
 
-        <div className="space-y-3 border-t border-slate-200 bg-[#f6f9f7] px-4 py-3 lg:max-h-[55%] lg:overflow-y-auto">
+        <div className="space-y-3 border-t border-slate-200 bg-[#f6f9f7] px-4 py-3">
           <div className="grid grid-cols-3 gap-3" aria-label="Purchase limits">
             {view.limits.map((l) => (
               <div key={l.label}>
