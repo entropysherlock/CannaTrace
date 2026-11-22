@@ -671,6 +671,17 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             )}
           </div>
         </div>
+        <p className="mx-auto flex max-w-7xl flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 px-5 py-4 text-xs text-slate-500">
+          <Link href="/terms" className="hover:text-brand-700">
+            Terms of Service
+          </Link>
+          <Link href="/privacy" className="hover:text-brand-700">
+            Privacy Policy
+          </Link>
+          <Link href="/data-agreement" className="hover:text-brand-700">
+            Data Agreement
+          </Link>
+        </p>
       </footer>
     </div>
   );

@@ -53,6 +53,8 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/demo") return NextResponse.next();
   // Pricing is for everyone, signed in or not: the sales sheet's QR code lands here.
   if (pathname === "/pricing") return NextResponse.next();
+  // The legal pages are public too, and must open for someone signed in (a link from inside the register, say).
+  if (pathname === "/terms" || pathname === "/privacy" || pathname === "/data-agreement") return NextResponse.next();
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const signedIn = await isSignedIn(request);
   if (!signedIn && !isPublic) return NextResponse.redirect(new URL("/login", request.url));
