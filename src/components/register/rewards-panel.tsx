@@ -189,3 +189,54 @@ export function RewardsPanel({
     </section>
   );
 }
+
+/**
+ * The cart only carries one slim line for rewards, so the totals and Pay button always stay on screen. The full
+ * box (phone lookup, sign-up, reward choices) opens over the register from that line.
+ */
+export function RewardsLine({
+  saleId,
+  view,
+  rewardDollars,
+  pending,
+  act,
+}: {
+  saleId: string;
+  view: RewardsView;
+  /** What this cart gets off from rewards, as dollars text (0 when none). */
+  rewardDollars: string;
+  pending: boolean;
+  act: (work: () => Promise<TerminalResult>, okText?: string, after?: (r: TerminalResult) => void) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const m = view.member;
+  const used = Number(rewardDollars) > 0;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Open rewards"
+        className="flex h-11 w-full items-center justify-between gap-2 rounded-xl bg-white px-3 text-left text-sm ring-1 ring-slate-200 hover:ring-brand-600"
+      >
+        <span className="flex min-w-0 items-center gap-2 font-semibold text-slate-800">
+          <Gift className="h-4 w-4 shrink-0 text-brand-700" aria-hidden="true" />
+          <span className="truncate">{m ? `${m.firstName} · ${m.points} pts` : "Rewards"}</span>
+        </span>
+        <span className="shrink-0 text-xs font-semibold text-brand-700">
+          {m ? (used ? `${money(Number(rewardDollars))} off · Change` : view.available > 0 ? "Reward available" : "View") : "Add shopper"}
+        </span>
+      </button>
+      {open ? (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/40 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label="Rewards">
+          <div className="max-h-full w-full max-w-md overflow-y-auto rounded-2xl bg-white p-3 shadow-xl">
+            <RewardsPanel saleId={saleId} view={view} pending={pending} act={act} />
+            <button type="button" onClick={() => setOpen(false)} className="mt-3 h-11 w-full rounded-xl bg-brand-700 text-base font-bold text-white hover:bg-brand-800">
+              Done
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
