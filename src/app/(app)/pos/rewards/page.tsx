@@ -66,7 +66,7 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
           <Card title="Program settings">
             <ActionForm action={rewardsSettingsAction} submitLabel="Save rewards settings">
               <label className="flex items-start gap-3 text-sm">
-                <input type="checkbox" name="enabled" defaultChecked={program.enabled} className="mt-0.5 h-5 w-5 accent-brand-700" />
+                <input autoComplete="off" type="checkbox" name="enabled" defaultChecked={program.enabled} className="mt-0.5 h-5 w-5 accent-brand-700" />
                 <span>
                   <span className="font-semibold">Rewards are on</span>
                   <span className="block text-slate-600">Shows the Rewards box in every cart, at all your stores.</span>
@@ -74,25 +74,25 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Points per $1" hint="Earned on what the shopper pays after discounts, before tax.">
-                  <input name="pointsPerDollar" inputMode="numeric" required defaultValue={program.pointsPerDollar} className={inputClass} />
+                  <input autoComplete="off" name="pointsPerDollar" inputMode="numeric" required defaultValue={program.pointsPerDollar} className={inputClass} />
                 </Field>
                 <Field label="Points for one reward">
-                  <input name="redeemPoints" inputMode="numeric" required defaultValue={program.redeemPoints} className={inputClass} />
+                  <input autoComplete="off" name="redeemPoints" inputMode="numeric" required defaultValue={program.redeemPoints} className={inputClass} />
                 </Field>
                 <Field label="Each reward is worth ($)">
-                  <input name="redeemDollars" inputMode="decimal" required defaultValue={program.redeemDollars} className={inputClass} />
+                  <input autoComplete="off" name="redeemDollars" inputMode="decimal" required defaultValue={program.redeemDollars} className={inputClass} />
                 </Field>
                 <Field label="Most of a cart rewards pay for (%)" hint={`New Mexico doesn't allow free cannabis, so a reward is spread over the cart and can't cover all of it. Up to ${MAX_SHARE_CEILING}%.`}>
-                  <input name="maxSharePercent" inputMode="numeric" required defaultValue={program.maxSharePercent} className={inputClass} />
+                  <input autoComplete="off" name="maxSharePercent" inputMode="numeric" required defaultValue={program.maxSharePercent} className={inputClass} />
                 </Field>
                 <Field label="Sign-up bonus (points)">
-                  <input name="signupBonus" inputMode="numeric" required defaultValue={program.signupBonus} className={inputClass} />
+                  <input autoComplete="off" name="signupBonus" inputMode="numeric" required defaultValue={program.signupBonus} className={inputClass} />
                 </Field>
                 <Field label="Birthday bonus (points)" hint="Once a year, on their first purchase in their birthday month.">
-                  <input name="birthdayBonus" inputMode="numeric" required defaultValue={program.birthdayBonus} className={inputClass} />
+                  <input autoComplete="off" name="birthdayBonus" inputMode="numeric" required defaultValue={program.birthdayBonus} className={inputClass} />
                 </Field>
                 <Field label="Points expire after (months)" hint="With no purchases. 0 means never.">
-                  <input name="expireMonths" inputMode="numeric" required defaultValue={program.expireMonths} className={inputClass} />
+                  <input autoComplete="off" name="expireMonths" inputMode="numeric" required defaultValue={program.expireMonths} className={inputClass} />
                 </Field>
               </div>
               <p className="text-sm text-slate-600">
