@@ -70,7 +70,7 @@ export function WatchList({ items, dismiss, sweep }: { items: WatchItem[]; dismi
       set(item.id, { ...fix, undo: "error", undoMessage: (e as Error).message });
     }
   };
-  const ask = (text: string) => window.dispatchEvent(new CustomEvent("assistant-ask", { detail: text }));
+  const ask = (text: string) => window.dispatchEvent(new CustomEvent("open-assistant", { detail: text }));
 
   if (!items.length)
     return (
