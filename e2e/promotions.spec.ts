@@ -11,8 +11,9 @@ test("promotions: add, turn off, delete", async ({ page }) => {
     .locator('select[name="facilityId"]')
     .selectOption({ label: "Sandia Storefront · DEMO-RET-0002" });
   await page.getByRole("button", { name: "Switch" }).click();
+  await expect(page.getByText("Sandia Storefront · license DEMO-RET-0002")).toBeVisible();
   await page.goto("/pos/promotions");
-  await expect(page.getByRole("heading", { name: "Promotions", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add promotion" })).toBeVisible();
 
   const name = `E2E Deal ${Date.now().toString(36)}`;
   await page.getByLabel("Name").fill(name);
