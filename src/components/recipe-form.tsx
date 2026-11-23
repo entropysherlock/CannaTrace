@@ -163,6 +163,7 @@ export function RecipePicker({
     <CreatableSelect
       name="recipeId"
       label="Recipe"
+      searchable
       required
       placeholder="Choose a recipe"
       options={recipes}

@@ -58,6 +58,7 @@ export function CreatableSelect({
   hint,
   hideLabel,
   compact,
+  searchable,
   onCreated,
   onChange,
   className,
@@ -76,6 +77,8 @@ export function CreatableSelect({
   hideLabel?: boolean;
   /** An icon-only add button (its name is still read out), for narrow rows. */
   compact?: boolean;
+  /** Type to search the list instead of scrolling it. For pickers that can grow long. */
+  searchable?: boolean;
   /** Told about every record added here, so sibling pickers on the same form can list it at once. */
   onCreated?: (option: CreateOption) => void;
   /** Told whenever the chosen record changes, by hand or because one was just added. */
@@ -92,6 +95,7 @@ export function CreatableSelect({
   const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const selectRef = useRef<HTMLSelectElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   // Where focus goes once the dialog has closed: the picker after a save, the button after a cancel.
   const focusAfterClose = useRef<"select" | "button" | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -110,7 +114,7 @@ export function CreatableSelect({
   // after a save the employee lands on the picker holding the new record, ready for the next field.
   useEffect(() => {
     if (open || !focusAfterClose.current) return;
-    (focusAfterClose.current === "select" ? selectRef.current : buttonRef.current)?.focus();
+    (focusAfterClose.current === "select" ? (searchable ? searchRef.current : selectRef.current) : buttonRef.current)?.focus();
     focusAfterClose.current = null;
   }, [open]);
 
@@ -129,6 +133,21 @@ export function CreatableSelect({
         </span>
       )}
       <div className="flex gap-2">
+        {searchable ? (
+          <SearchBox
+            id={selectId}
+            name={name}
+            inputRef={searchRef}
+            options={options}
+            value={value}
+            required={required}
+            placeholder={options.length === 0 ? `None yet${create ? ": add one →" : ""}` : placeholder}
+            onPick={(id) => {
+              setValue(id);
+              onChange?.(id);
+            }}
+          />
+        ) : (
         <select
           ref={selectRef}
           id={selectId}
@@ -162,6 +181,7 @@ export function CreatableSelect({
             ),
           )}
         </select>
+        )}
         {create ? (
           <button
             ref={buttonRef}
@@ -407,5 +427,147 @@ function CreateDialog({
       </form>
     </dialog>,
     document.body,
+  );
+}
+
+
+/** Words typed in the box must all appear somewhere in an option's text, in any order. */
+function matches(label: string, query: string): boolean {
+  const hay = label.toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => hay.includes(word));
+}
+
+/**
+ * A type-to-search list. The chosen record's id rides in a hidden field, so the form sends exactly what a
+ * <select> would. Typing narrows the list; arrow keys and Enter pick; a typed phrase that was never picked
+ * counts as "nothing chosen", so a required field still stops the form.
+ */
+function SearchBox({
+  id,
+  name,
+  inputRef,
+  options,
+  value,
+  required,
+  placeholder,
+  onPick,
+}: {
+  id: string;
+  name: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  options: CreateOption[];
+  value: string;
+  required?: boolean;
+  placeholder: string;
+  onPick: (id: string) => void;
+}) {
+  const chosen = options.find((o) => o.id === value);
+  const [text, setText] = useState(chosen?.label ?? "");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const listId = useId();
+
+  // A record picked or added from outside the box (the "+ Add" dialog) shows its name here.
+  const [seen, setSeen] = useState(value);
+  if (seen !== value) {
+    setSeen(value);
+    if (value) setText(chosen?.label ?? "");
+  }
+
+  // After a pick the box holds the full name; show everything again until the person types.
+  const searching = open && text !== (chosen?.label ?? "");
+  const shown = useMemo(() => (searching ? options.filter((o) => matches(o.label, text)) : options), [options, text, searching]);
+
+  useEffect(() => {
+    inputRef.current?.setCustomValidity(value || !text ? "" : "Pick one from the list.");
+  }, [value, text, inputRef]);
+
+  const pick = (o: CreateOption) => {
+    onPick(o.id);
+    setText(o.label);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative min-w-0 flex-1">
+      <input type="hidden" name={name} value={value} />
+      <input
+        ref={inputRef}
+        id={id}
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        autoComplete="off"
+        required={required}
+        value={text}
+        placeholder={placeholder}
+        onFocus={(e) => {
+          setOpen(true);
+          e.currentTarget.select();
+        }}
+        onChange={(e) => {
+          setText(e.target.value);
+          if (value) onPick("");
+          setActive(0);
+          setOpen(true);
+        }}
+        onBlur={() => {
+          setOpen(false);
+          if (chosen) setText(chosen.label);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setOpen(true);
+            setActive((a) => Math.min(a + 1, shown.length - 1));
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActive((a) => Math.max(a - 1, 0));
+          } else if (e.key === "Enter" && open && shown[active]) {
+            e.preventDefault();
+            pick(shown[active]);
+          } else if (e.key === "Escape" && open) {
+            e.stopPropagation();
+            setOpen(false);
+          }
+        }}
+        className={`${inputBase} w-full`}
+      />
+      {open ? (
+        <ul
+          id={listId}
+          role="listbox"
+          className="absolute left-0 right-0 z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+        >
+          {shown.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-slate-500">Nothing matches.</li>
+          ) : (
+            shown.map((o, i) => (
+              <li
+                key={o.id}
+                role="option"
+                aria-selected={o.id === value}
+                // mousedown, so the pick lands before the box loses focus and closes the list
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(o);
+                }}
+                onMouseEnter={() => setActive(i)}
+                className={`cursor-pointer px-3 py-2 text-sm ${i === active ? "bg-brand-50 text-brand-900" : "text-slate-800"} ${o.id === value ? "font-semibold" : ""}`}
+              >
+                {o.group ? <span className="mr-2 text-xs text-slate-500">{o.group}</span> : null}
+                {o.label}
+              </li>
+            ))
+          )}
+        </ul>
+      ) : null}
+    </div>
   );
 }

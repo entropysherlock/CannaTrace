@@ -45,8 +45,9 @@ test("save a recipe, run production, and get yield and cost", async ({ page }) =
   await expect(page.getByRole("heading", { name: "Start a new run" })).toBeVisible();
   await expect(page.locator('input[name="name"]')).toHaveValue(/^RUN-\d{8}-\d{2}$/);
   await page.locator('input[name="name"]').fill(`${run}-RUN`);
-  const recipe = page.locator('select[name="recipeId"] option', { hasText: `Recipe ${run} (one batch makes 10 ea)` });
-  await page.locator('select[name="recipeId"]').selectOption((await recipe.getAttribute("value"))!);
+  // The recipe list is searchable: type part of the name, then pick it
+  await page.getByRole("combobox", { name: "Recipe" }).fill(`Recipe ${run}`);
+  await page.getByRole("option", { name: `Recipe ${run} (one batch makes 10 ea)` }).click();
   await page.locator('input[name="batches"]').fill("10");
   await page.getByRole("button", { name: "Start run" }).click();
   await expect(page.getByRole("heading", { name: `${run}-RUN` })).toBeVisible();
@@ -157,4 +158,21 @@ test("a recipe can add the items it needs without leaving the form", async ({ pa
   await page.goto("/catalog");
   await expect(page.getByText(`Live Rosin ${run}`)).toBeVisible();
   await expect(page.getByText(`Fresh Frozen ${run}`)).toBeVisible();
+});
+
+test("the recipe list on a new run narrows as you type", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("owner@demo.test");
+  await page.getByLabel("Password").fill("demo1234");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  await page.goto("/manufacturing");
+  if (await page.getByTestId("new-run").count()) await page.getByTestId("new-run").click();
+  const box = page.getByRole("combobox", { name: "Recipe" });
+  // The recipe saved by the first test in this file is in the list; a phrase that matches nothing shows a message
+  await box.fill(`recipe ${run.toLowerCase()}`);
+  await expect(page.getByRole("option", { name: `Recipe ${run} (one batch makes 10 ea)` })).toBeVisible();
+  await box.fill("zzzz-no-such-recipe");
+  await expect(page.getByText("Nothing matches.")).toBeVisible();
+  await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(0);
 });

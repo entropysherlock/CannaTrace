@@ -544,7 +544,7 @@ test("manufacturing: a recipe, and an item it needs, are added without leaving S
   await drawer.getByLabel("Input quantity 1").fill("35");
   await drawer.getByRole("button", { name: "Save recipe" }).click();
   await expect(drawer).toBeHidden();
-  await expect(page.locator('select[name="recipeId"] option:checked')).toHaveText(`Rosin ${id} (one batch makes 10 ea)`);
+  await expect(page.getByRole("combobox", { name: "Recipe" })).toHaveValue(`Rosin ${id} (one batch makes 10 ea)`);
   await expect(page.locator('input[name="name"]').first()).toHaveValue(`RUN-${id}`);
   await expect(page.locator('input[name="batches"]')).toHaveValue("2");
 });
