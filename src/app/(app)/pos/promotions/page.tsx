@@ -131,12 +131,15 @@ export default async function PromotionsPage() {
                 applies. They don&apos;t pile up.
               </li>
               <li>
-                A promotion only takes money off. At least 10% of an item&apos;s
-                price is always charged, because New Mexico doesn&apos;t allow
-                giving cannabis away free (16.8.2.40(J) NMAC). Deals like “buy
-                one, get one for $1” are on the way; ask your attorney or the
-                Cannabis Control Division before running any deal that comes
-                close to free.
+                A promotion only takes money off. Buy-some-get-some deals
+                discount the cheapest items; whole items only (a weighed 1.5 g
+                line doesn't count). At least 10% of an item&apos;s price is
+                always charged, because New Mexico doesn&apos;t allow giving
+                cannabis away free (16.8.2.40(J) NMAC). Deals like “buy one, get
+                one 50% off” are supported; a “$1 second item” is not, since it
+                comes too close to free. Ask your attorney or the Cannabis
+                Control Division before running any deal that comes close to
+                free.
               </li>
               <li>
                 A cart&apos;s manual discount and rewards come off after
@@ -168,14 +171,45 @@ export default async function PromotionsPage() {
                 >
                   <option value="PERCENT">Percent off</option>
                   <option value="DOLLAR">Dollars off each</option>
+                  <option value="BOGO">Buy some, get some % off</option>
+                  <option value="BUNDLE">Any few for a set price</option>
                 </select>
               </Field>
-              <Field label="Amount" hint="20 means 20% or $20.">
+              <Field
+                label="Amount"
+                hint="20 means 20% or $20. For a bundle, the price of the whole bundle."
+              >
                 <input
                   autoComplete="off"
                   name="amount"
                   inputMode="decimal"
                   required
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field
+                label="Buy / bundle size"
+                hint="For a deal: how many are bought at full price (or make a bundle)."
+              >
+                <input
+                  autoComplete="off"
+                  name="buyQty"
+                  inputMode="numeric"
+                  placeholder="1"
+                  className={inputClass}
+                />
+              </Field>
+              <Field
+                label="Then discounted"
+                hint="Buy some, get some: how many get the % off."
+              >
+                <input
+                  autoComplete="off"
+                  name="getQty"
+                  inputMode="numeric"
+                  placeholder="1"
                   className={inputClass}
                 />
               </Field>

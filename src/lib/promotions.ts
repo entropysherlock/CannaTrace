@@ -20,7 +20,12 @@ export function rowToPromo(r: typeof promotions.$inferSelect): Promo {
   return {
     id: r.id,
     name: r.name,
-    kind: r.kind === "DOLLAR" ? "DOLLAR" : "PERCENT",
+    kind:
+      r.kind === "DOLLAR" || r.kind === "BOGO" || r.kind === "BUNDLE"
+        ? r.kind
+        : "PERCENT",
+    buyQty: r.buyQty,
+    getQty: r.getQty,
     amount: r.amount,
     scope:
       r.scope === "ITEM" ? "ITEM" : r.scope === "CATEGORY" ? "CATEGORY" : "ALL",
@@ -133,18 +138,41 @@ export function parsePromoInput(
     throw new InventoryError(
       "Give the promotion a name, such as Wax Wednesday.",
     );
-  const kind = text(raw.kind) === "DOLLAR" ? "DOLLAR" : "PERCENT";
+  const kindText = text(raw.kind);
+  const kind =
+    kindText === "DOLLAR" || kindText === "BOGO" || kindText === "BUNDLE"
+      ? kindText
+      : "PERCENT";
+  const count = (v: unknown, what: string, fallback: number) => {
+    const t = text(v);
+    if (!t) return fallback;
+    if (!/^\d+$/.test(t) || Number(t) < 1 || Number(t) > 10)
+      throw new InventoryError(`${what} must be a whole number from 1 to 10.`);
+    return Number(t);
+  };
+  const buyQty =
+    kind === "BOGO"
+      ? count(raw.buyQty, "How many to buy", 1)
+      : kind === "BUNDLE"
+        ? count(raw.buyQty, "How many in the bundle", 2)
+        : null;
+  const getQty =
+    kind === "BOGO" ? count(raw.getQty, "How many are discounted", 1) : null;
+  if (kind === "BUNDLE" && buyQty! < 2)
+    throw new InventoryError("A bundle needs at least 2 items.");
   const amountText = text(raw.amount).replace(/^\$/, "").replace(/%$/, "");
   if (!/^\d+(\.\d{1,2})?$/.test(amountText))
     throw new InventoryError(
-      kind === "PERCENT"
+      kind === "PERCENT" || kind === "BOGO"
         ? "Percent off must be a number such as 20."
-        : "Dollars off must be an amount such as 5 or 2.50.",
+        : kind === "BUNDLE"
+          ? "The bundle price must be an amount such as 60."
+          : "Dollars off must be an amount such as 5 or 2.50.",
     );
   const amount = new Decimal(amountText);
   if (amount.lte(0))
     throw new InventoryError("The amount off must be more than zero.");
-  if (kind === "PERCENT" && amount.gt(MAX_PROMO_PERCENT))
+  if ((kind === "PERCENT" || kind === "BOGO") && amount.gt(MAX_PROMO_PERCENT))
     throw new InventoryError(
       `Percent off can be at most ${MAX_PROMO_PERCENT}%. New Mexico doesn't allow giving cannabis away free, so something is always charged.`,
     );
@@ -182,6 +210,8 @@ export function parsePromoInput(
   return {
     name,
     kind,
+    buyQty,
+    getQty,
     amount: amount.toFixed(2),
     scope,
     categoryId: categoryId || null,

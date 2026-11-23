@@ -293,4 +293,53 @@ describe.skipIf(!hasDb)("promotions (database)", () => {
       (await db.select().from(sales).where(eq(sales.id, s2)))[0].promoDiscount,
     ).toBe("0.00");
   });
+
+  it("takes a buy-one-get-one deal off at checkout, and checks the deal's numbers", async () => {
+    await expect(
+      createPromotion(
+        actor,
+        { name: "B", kind: "BOGO", amount: "50", buyQty: "0", scope: "ALL" },
+        [],
+      ),
+    ).rejects.toThrow(/whole number/);
+    await expect(
+      createPromotion(
+        actor,
+        { name: "B", kind: "BUNDLE", amount: "20", buyQty: "1", scope: "ALL" },
+        [],
+      ),
+    ).rejects.toThrow(/at least 2/);
+    await expect(
+      createPromotion(
+        actor,
+        { name: "B", kind: "BOGO", amount: "100", scope: "ALL" },
+        [],
+      ),
+    ).rejects.toThrow(/at most 90%/);
+    const deal = await createPromotion(
+      actor,
+      {
+        name: "BOGO Jars",
+        kind: "BOGO",
+        amount: "50",
+        buyQty: "1",
+        getQty: "1",
+        scope: "ITEM",
+        itemId: jar,
+      },
+      [],
+    );
+    const s = await cart([[jar, "2"]]);
+    await completeSale(actor, { saleId: s, paymentMethod: "DEBIT" });
+    // Two $40 jars: the second is half off ($20 off). $60 taxed: 7.20 + 4.80.
+    expect(
+      (await db.select().from(sales).where(eq(sales.id, s)))[0],
+    ).toMatchObject({
+      subtotal: "80.00",
+      promoDiscount: "20.00",
+      promoNames: "BOGO Jars",
+      total: "72.00",
+    });
+    await deletePromotion(actor, deal.id);
+  });
 });

@@ -1249,6 +1249,9 @@ export const promotions = pgTable("promotions", {
   scope: text("scope").notNull(), // ALL | CATEGORY | ITEM
   categoryId: text("category_id").references(() => itemCategories.id, { onDelete: "cascade" }),
   itemId: text("item_id").references(() => items.id, { onDelete: "cascade" }),
+  /** Buy-X-get-Y deals: how many are bought (or make a bundle) and how many are then discounted. */
+  buyQty: integer("buy_qty"),
+  getQty: integer("get_qty"),
   /** 0 = Sunday ... 6 = Saturday; empty means every day. */
   weekdays: integer("weekdays").array().notNull().default(sql`'{}'::integer[]`),
   startTime: text("start_time"),
