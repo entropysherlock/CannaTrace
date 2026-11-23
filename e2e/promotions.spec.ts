@@ -12,7 +12,7 @@ test("promotions: add, turn off, delete", async ({ page }) => {
     .selectOption({ label: "Sandia Storefront · DEMO-RET-0002" });
   await page.getByRole("button", { name: "Switch" }).click();
   await page.goto("/pos/promotions");
-  await expect(page.getByRole("heading", { name: "Promotions" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Promotions", exact: true })).toBeVisible();
 
   const name = `E2E Deal ${Date.now().toString(36)}`;
   await page.getByLabel("Name").fill(name);
