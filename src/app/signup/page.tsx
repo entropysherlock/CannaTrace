@@ -101,6 +101,21 @@ export default async function SignupPage() {
             </Field>
           </fieldset>
         </ActionForm>
+        <p className="mt-4 text-center text-xs text-slate-500">
+          By creating an account you agree to the{" "}
+          <Link href="/terms" className="font-semibold text-brand-700 hover:underline">
+            Terms of Service
+          </Link>
+          ,{" "}
+          <Link href="/privacy" className="font-semibold text-brand-700 hover:underline">
+            Privacy Policy
+          </Link>{" "}
+          and{" "}
+          <Link href="/data-agreement" className="font-semibold text-brand-700 hover:underline">
+            Data Agreement
+          </Link>
+          .
+        </p>
         <p className="mt-5 text-center text-sm text-slate-600">
           Already have an account?{" "}
           <Link href="/login" className="font-semibold text-brand-700 hover:underline">

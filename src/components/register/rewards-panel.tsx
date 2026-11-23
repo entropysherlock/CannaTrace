@@ -184,6 +184,12 @@ export function RewardsPanel({
             <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-5 w-5 accent-brand-700" />
             The shopper agreed to join rewards (their phone number and first name are saved to earn points).
           </label>
+          <p className="text-xs text-slate-500">
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-700 underline">
+              Privacy Policy
+            </a>{" "}
+            (opens in a new tab)
+          </p>
           <div className="flex gap-2">
             <button type="submit" disabled={pending || !agreed || !firstName.trim()} className="h-9 rounded-lg bg-brand-700 px-3 text-sm font-semibold text-white disabled:bg-slate-300">
               Sign up

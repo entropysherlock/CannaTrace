@@ -49,6 +49,17 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         ) : (
           <p className="mt-5 text-center text-sm text-slate-600">CannaTrace is invite-only right now.</p>
         )}
+        <p className="mt-4 flex justify-center gap-4 text-xs text-slate-500">
+          <Link href="/terms" className="hover:text-brand-700">
+            Terms
+          </Link>
+          <Link href="/privacy" className="hover:text-brand-700">
+            Privacy
+          </Link>
+          <Link href="/data-agreement" className="hover:text-brand-700">
+            Data Agreement
+          </Link>
+        </p>
       </div>
     </main>
   );
