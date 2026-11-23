@@ -32,6 +32,7 @@ import {
   deletePromotion,
   setPromotionActive,
 } from "@/lib/promotions";
+import { storeClock } from "@/lib/promotions";
 
 /** Automatic promotions through the real register: applied at checkout, kept on the sale, never free. */
 const hasDb = Boolean(process.env.DATABASE_URL);
