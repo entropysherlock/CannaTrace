@@ -133,7 +133,7 @@ export default async function PromotionsPage() {
               <li>
                 A promotion only takes money off. Buy-some-get-some deals
                 discount the cheapest items; whole items only (a weighed 1.5 g
-                line doesn't count). At least 10% of an item&apos;s price is
+                line doesn&apos;t count). At least 10% of an item&apos;s price is
                 always charged, because New Mexico doesn&apos;t allow giving
                 cannabis away free (16.8.2.40(J) NMAC). Deals like “buy one, get
                 one 50% off” are supported; a “$1 second item” is not, since it
