@@ -44,7 +44,7 @@ export function ShipToPicker({ options, vendors, canAdd }: { options: CreateOpti
 
   return (
     <CreatableSelect
-      name="destinationId"
+      name="destinationId" searchable
       label="Ship to"
       hint="Vendor and destination. Its license is checked when the order ships."
       required

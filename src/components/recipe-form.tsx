@@ -48,7 +48,7 @@ function RecipeOutputFields({ options, added, categories, canAddItems }: Shared)
         <input name="name" required maxLength={120} className={inputClass} />
       </Field>
       <CreatableSelect
-        name="outputItemId"
+        name="outputItemId" searchable
         label="What it makes"
         required
         placeholder="Choose an item"
@@ -78,7 +78,7 @@ function RecipeInputRow({ index, options, added, categories, canAddItems }: Shar
     <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[minmax(0,1fr)_11rem] sm:items-end">
       <CreatableSelect
         className="min-w-0"
-        name="inputItemId"
+        name="inputItemId" searchable
         label={`Input item ${index + 1}`}
         placeholder={index === 0 ? "Choose an item" : "None"}
         options={options}

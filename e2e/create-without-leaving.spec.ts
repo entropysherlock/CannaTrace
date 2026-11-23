@@ -60,7 +60,7 @@ test("a manager adds a missing strain and room inside Start a batch, then starts
   await expect(dialog(page)).toBeHidden();
   const strainSelect = batchForm(page).locator('select[name="strainId"]');
   await expect(strainSelect.locator("option:checked")).toHaveText(`Strain ${id}`);
-  await expect(strainSelect).toBeFocused();
+  await expect(batchForm(page).getByRole("combobox")).toBeFocused();
   await expectParentKept(page, `${id}-BATCH`);
 
   // Room
@@ -190,7 +190,7 @@ test("keyboard only: open, fill, save with Enter, and land back on the picker", 
   await page.keyboard.press("Enter");
   await expect(dialog(page)).toBeHidden();
   const strainSelect = batchForm(page).locator('select[name="strainId"]');
-  await expect(strainSelect).toBeFocused();
+  await expect(batchForm(page).getByRole("combobox")).toBeFocused();
   await expect(strainSelect.locator("option:checked")).toHaveText(`Strain ${id}`);
   // Enter in the dialog saved only the strain; the batch itself was not started.
   await expect(page).toHaveURL(/\/cultivation\/overview$/);
@@ -540,7 +540,7 @@ test("manufacturing: a recipe, and an item it needs, are added without leaving S
   await expect(drawer.locator('select[name="outputItemId"] option:checked')).toHaveText(`Rosin Jar ${id} (ea)`);
   await drawer.locator('input[name="outputQuantity"]').fill("10");
   await drawer.getByRole("button", { name: "Next" }).click();
-  await drawer.getByLabel("Input item 1").selectOption({ label: "Blue Mesa Flower (bulk) (g)" });
+  await drawer.locator('select[name="inputItemId"]').nth(0).selectOption({ label: "Blue Mesa Flower (bulk) (g)" });
   await drawer.getByLabel("Input quantity 1").fill("35");
   await drawer.getByRole("button", { name: "Save recipe" }).click();
   await expect(drawer).toBeHidden();

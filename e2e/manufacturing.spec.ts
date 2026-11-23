@@ -29,9 +29,9 @@ test("save a recipe, run production, and get yield and cost", async ({ page }) =
   await page.locator('input[name="name"]').fill(`Recipe ${run}`);
   await page.locator('select[name="outputItemId"]').selectOption({ label: "Blue Mesa 3.5 g Jar (ea)" });
   await page.locator('input[name="outputQuantity"]').fill("10");
-  await page.getByLabel("Input item 1").selectOption({ label: "Blue Mesa Flower (bulk) (g)" });
+  await page.locator('select[name="inputItemId"]').nth(0).selectOption({ label: "Blue Mesa Flower (bulk) (g)" });
   await page.getByLabel("Input quantity 1").fill("35");
-  await page.getByLabel("Input item 2").selectOption({ label: "Empty 3.5 g Jar with Lid (ea)" });
+  await page.locator('select[name="inputItemId"]').nth(1).selectOption({ label: "Empty 3.5 g Jar with Lid (ea)" });
   await page.getByLabel("Input quantity 2").fill("10");
   await page.getByRole("button", { name: "Save recipe" }).click();
   await expect(page.getByText(`Saved recipe Recipe ${run}.`)).toBeVisible();
@@ -146,9 +146,9 @@ test("a recipe can add the items it needs without leaving the form", async ({ pa
   await dialog.locator('select[name="unit"]').selectOption("G");
   await dialog.getByRole("button", { name: "Save item" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByLabel("Input item 1").locator("option:checked")).toHaveText(`Fresh Frozen ${run} (g)`);
+  await expect(page.locator('select[name="inputItemId"]').nth(0).locator("option:checked")).toHaveText(`Fresh Frozen ${run} (g)`);
   await page.getByLabel("Input quantity 1").fill("100");
-  await page.getByLabel("Input item 2").selectOption({ label: "Empty 3.5 g Jar with Lid (ea)" });
+  await page.locator('select[name="inputItemId"]').nth(1).selectOption({ label: "Empty 3.5 g Jar with Lid (ea)" });
   await page.getByLabel("Input quantity 2").fill("20");
   await page.getByRole("button", { name: "Save recipe" }).click();
   await expect(page.getByText(`Saved recipe Rosin ${run}.`)).toBeVisible();
