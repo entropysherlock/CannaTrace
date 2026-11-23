@@ -113,7 +113,7 @@ function PackageFields({ data }: { data: GrowData }) {
       </p>
       <CreatableSelect
         key={`item-${harvestId}`}
-        name="itemId"
+        name="itemId" searchable
         label="Item"
         required
         placeholder="Choose an item"
@@ -216,7 +216,7 @@ export function GrowGuide({ data }: { data: GrowData }) {
         {step === 0 ? (
           <ActionForm key="s0" action={growBatchAction} submitLabel="Start batch">
             <CreatableSelect
-              name="strainId"
+              name="strainId" searchable
               label="Strain"
               required
               placeholder="Choose a strain"

@@ -129,7 +129,7 @@ export default async function CultivationPage() {
               </Field>
               {/* A missing strain or room is added right here, without leaving the batch. */}
               <CreatableSelect
-                name="strainId"
+                name="strainId" searchable
                 label="Strain"
                 required
                 placeholder="Choose a strain"

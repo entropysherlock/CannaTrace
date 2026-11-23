@@ -92,7 +92,7 @@ export function ShipmentReceive({
           deniedHint="Location missing? Someone who manages the catalog can add it on the Locations page."
         />
         <CreatableSelect
-          name="vendorId"
+          name="vendorId" searchable
           label="Vendor (optional)"
           placeholder="Not listed"
           options={vendors.map((v) => ({ id: v.id, label: v.name }))}

@@ -237,7 +237,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 <ActionForm action={lineAction} submitLabel="Add line">
                   {hidden}
                   <CreatableSelect
-                    name="itemId"
+                    name="itemId" searchable
                     label="Item"
                     required
                     placeholder="Choose an item"

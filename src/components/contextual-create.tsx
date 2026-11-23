@@ -77,7 +77,7 @@ export function CreatableSelect({
   hideLabel?: boolean;
   /** An icon-only add button (its name is still read out), for narrow rows. */
   compact?: boolean;
-  /** Type to search the list instead of scrolling it. For pickers that can grow long. */
+  /** Type to search the list instead of scrolling it. For pickers that can grow long (items, strains, vendors). */
   searchable?: boolean;
   /** Told about every record added here, so sibling pickers on the same form can list it at once. */
   onCreated?: (option: CreateOption) => void;
@@ -100,6 +100,7 @@ export function CreatableSelect({
   const focusAfterClose = useRef<"select" | "button" | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const selectId = useId();
+  const useSearch = Boolean(searchable);
 
   const choose = (option: CreateOption) => {
     setAdded((current) => (current.some((o) => o.id === option.id) ? current : [...current, option]));
@@ -114,7 +115,7 @@ export function CreatableSelect({
   // after a save the employee lands on the picker holding the new record, ready for the next field.
   useEffect(() => {
     if (open || !focusAfterClose.current) return;
-    (focusAfterClose.current === "select" ? (searchable ? searchRef.current : selectRef.current) : buttonRef.current)?.focus();
+    (focusAfterClose.current === "select" ? (useSearch ? searchRef.current : selectRef.current) : buttonRef.current)?.focus();
     focusAfterClose.current = null;
   }, [open]);
 
@@ -133,10 +134,9 @@ export function CreatableSelect({
         </span>
       )}
       <div className="flex gap-2">
-        {searchable ? (
+        {useSearch ? (
           <SearchBox
             id={selectId}
-            name={name}
             inputRef={searchRef}
             options={options}
             value={value}
@@ -147,18 +147,20 @@ export function CreatableSelect({
               onChange?.(id);
             }}
           />
-        ) : (
+        ) : null}
         <select
           ref={selectRef}
-          id={selectId}
+          id={useSearch ? undefined : selectId}
           name={name}
-          required={required}
+          required={required && !useSearch}
+          // While the search box is showing, this stays as the form's real field but out of sight and out of the tab order.
+          {...(useSearch ? { className: "sr-only", tabIndex: -1, "aria-hidden": true } : {})}
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
             onChange?.(e.target.value);
           }}
-          className={`${inputBase} w-full flex-1`}
+          {...(useSearch ? {} : { className: `${inputBase} w-full flex-1` })}
         >
           <option value="" disabled={required}>
             {options.length === 0 ? `None yet${create ? ": add one →" : ""}` : placeholder}
@@ -181,7 +183,6 @@ export function CreatableSelect({
             ),
           )}
         </select>
-        )}
         {create ? (
           <button
             ref={buttonRef}
@@ -442,13 +443,12 @@ function matches(label: string, query: string): boolean {
 }
 
 /**
- * A type-to-search list. The chosen record's id rides in a hidden field, so the form sends exactly what a
- * <select> would. Typing narrows the list; arrow keys and Enter pick; a typed phrase that was never picked
+ * A type-to-search list. The picker's own (hidden) <select> stays the form's real field, so the form sends exactly
+ * what a <select> would. Typing narrows the list; arrow keys and Enter pick; a typed phrase that was never picked
  * counts as "nothing chosen", so a required field still stops the form.
  */
 function SearchBox({
   id,
-  name,
   inputRef,
   options,
   value,
@@ -457,7 +457,6 @@ function SearchBox({
   onPick,
 }: {
   id: string;
-  name: string;
   inputRef: React.RefObject<HTMLInputElement | null>;
   options: CreateOption[];
   value: string;
@@ -494,7 +493,6 @@ function SearchBox({
 
   return (
     <div className="relative min-w-0 flex-1">
-      <input type="hidden" name={name} value={value} />
       <input
         ref={inputRef}
         id={id}
@@ -507,10 +505,10 @@ function SearchBox({
         required={required}
         value={text}
         placeholder={placeholder}
-        onFocus={(e) => {
-          setOpen(true);
-          e.currentTarget.select();
-        }}
+        // The list opens when the person clicks, types or presses ArrowDown, not on focus alone: focus also
+        // lands here by itself after "+ Add" saves, and an open list there would cover the fields below.
+        onFocus={(e) => e.currentTarget.select()}
+        onClick={() => setOpen(true)}
         onChange={(e) => {
           setText(e.target.value);
           if (value) onPick("");

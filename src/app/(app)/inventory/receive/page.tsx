@@ -57,7 +57,7 @@ export default async function ReceivePage() {
               <ScanInput name="tag" autoFocus placeholder="Blank = new PKG- ID" />
             </Field>
             <CreatableSelect
-              name="itemId"
+              name="itemId" searchable
               label="Item"
               required
               placeholder="Choose an item"
@@ -101,7 +101,7 @@ export default async function ReceivePage() {
             />
             {vendors.length || canAddVendor ? (
               <CreatableSelect
-                name="vendorId"
+                name="vendorId" searchable
                 label="Bought from (optional)"
                 placeholder="Not bought from a vendor"
                 options={vendors.map((v) => ({ id: v.id, label: v.name }))}

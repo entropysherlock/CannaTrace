@@ -149,7 +149,7 @@ export default async function MenuPage() {
           <Card title="Add or change a menu item">
             <ActionForm action={menuItemAction} submitLabel="Save menu item">
               <CreatableSelect
-                name="itemId"
+                name="itemId" searchable
                 label="Item"
                 required
                 placeholder="Choose an item"

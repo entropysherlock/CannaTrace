@@ -165,7 +165,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
                   <ScanInput name="tag" placeholder="Blank = new PKG- IDs" />
                 </Field>
                 <CreatableSelect
-                  name="itemId"
+                  name="itemId" searchable
                   label="Item"
                   hint="Only items counted by weight can be packaged from a harvest."
                   required
