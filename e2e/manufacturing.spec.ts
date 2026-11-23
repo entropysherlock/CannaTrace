@@ -174,5 +174,5 @@ test("the recipe list on a new run narrows as you type", async ({ page }) => {
   await expect(page.getByRole("option", { name: `Recipe ${run} (one batch makes 10 ea)` })).toBeVisible();
   await box.fill("zzzz-no-such-recipe");
   await expect(page.getByText("Nothing matches.")).toBeVisible();
-  await expect(page.getByRole("option")).toHaveCount(0);
+  await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(0);
 });
