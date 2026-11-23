@@ -2,7 +2,7 @@
 
 import { Building2, Camera, ChevronDown, HelpCircle, Bell, Search } from "lucide-react";
 import Link from "next/link";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 type Facility = { id: string; name: string; licenseNumber: string };
 
@@ -58,6 +58,28 @@ export function TopBarRight({
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join("");
+  // The account menu closes on a click anywhere else on the page (or Escape), not only on its own button.
+  const menu = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const close = (e: Event) => {
+      const el = menu.current;
+      if (!el?.open) return;
+      if (e.type === "click" && (e.target as Node | null) && el.querySelector("summary")?.contains(e.target as Node)) return;
+      // After the click has been handled, so a menu link or Sign out still does its job.
+      setTimeout(() => {
+        el.open = false;
+      }, 0);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close(e);
+    };
+    document.addEventListener("click", close, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", close, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
   return (
     <div className="flex items-center gap-1 sm:gap-2">
       <form action="/search" role="search" className="relative hidden lg:block">
@@ -98,7 +120,7 @@ export function TopBarRight({
       <Link href="/walkthroughs" aria-label="Help and walkthroughs" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100">
         <HelpCircle className="h-5 w-5" aria-hidden="true" />
       </Link>
-      <details className="relative">
+      <details ref={menu} className="relative">
         <summary
           aria-label="Your account"
           className="flex cursor-pointer list-none items-center gap-1 rounded-lg p-1 hover:bg-slate-100 [&::-webkit-details-marker]:hidden"
