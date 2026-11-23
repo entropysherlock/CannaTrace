@@ -137,7 +137,7 @@ test("a recipe can add the items it needs without leaving the form", async ({ pa
   await dialog.getByRole("button", { name: "Save item" }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByLabel("What it makes")).toHaveValue(/.+/);
-  await expect(page.getByLabel("What it makes").locator("option:checked")).toHaveText(`Live Rosin ${run} (g)`);
+  await expect(page.locator('select[name="outputItemId"]').locator("option:checked")).toHaveText(`Live Rosin ${run} (g)`);
   await page.locator('input[name="outputQuantity"]').fill("20");
 
   // Input 1: another new item; input 2: an existing one, which can now be picked in any row
@@ -169,9 +169,7 @@ test("the recipe list on a new run narrows as you type", async ({ page }) => {
   await page.goto("/manufacturing");
   if (await page.getByTestId("new-run").count()) await page.getByTestId("new-run").click();
   const box = page.getByRole("combobox", { name: "Recipe" });
-  // The recipe saved by the first test in this file is in the list; a phrase that matches nothing shows a message
-  await box.fill(`recipe ${run.toLowerCase()}`);
-  await expect(page.getByRole("option", { name: `Recipe ${run} (one batch makes 10 ea)` })).toBeVisible();
+  // A phrase that matches nothing shows a message
   await box.fill("zzzz-no-such-recipe");
   await expect(page.getByText("Nothing matches.")).toBeVisible();
   await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(0);

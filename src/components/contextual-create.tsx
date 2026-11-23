@@ -505,10 +505,10 @@ function SearchBox({
         required={required}
         value={text}
         placeholder={placeholder}
-        onFocus={(e) => {
-          setOpen(true);
-          e.currentTarget.select();
-        }}
+        // The list opens when the person clicks, types or presses ArrowDown, not on focus alone: focus also
+        // lands here by itself after "+ Add" saves, and an open list there would cover the fields below.
+        onFocus={(e) => e.currentTarget.select()}
+        onClick={() => setOpen(true)}
         onChange={(e) => {
           setText(e.target.value);
           if (value) onPick("");
