@@ -147,7 +147,7 @@ export function CreatableSelect({
               onChange?.(id);
             }}
           />
-        ) : (
+        ) : null}
         <select
           ref={selectRef}
           id={useSearch ? undefined : selectId}
@@ -183,7 +183,6 @@ export function CreatableSelect({
             ),
           )}
         </select>
-        )}
         {create ? (
           <button
             ref={buttonRef}
