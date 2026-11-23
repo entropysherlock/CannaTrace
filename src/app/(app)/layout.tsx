@@ -27,6 +27,8 @@ export const instant = false;
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const supportAdmin = !session.support && (await isPlatformAdmin(session.userId));
+  // CannaTrace's own staff see "Founder", not "Owner", so it's never mistaken for a shop owner's role.
+  const roleName = supportAdmin ? "Founder" : session.roleName;
   const tally = await tallyAvailability(session);
   // The bell in the top bar: what Tally Watch has open at this facility. Re-check first when anything has
   // changed since the last look, so a fixed problem drops off without anyone dismissing it.
@@ -140,7 +142,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             so on short screens this footer gives its room to the menu. */}
         <div className="mt-4 border-t border-brand-800 px-2 pt-4 text-sm short:mt-3 short:pt-3 shorter:hidden">
           <p className="font-medium">{session.name}</p>
-          <p className="text-brand-200">{session.roleName}</p>
+          <p className="text-brand-200">{roleName}</p>
         </div>
       </aside>
 
@@ -152,7 +154,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="order-last flex w-full min-w-0 md:order-none md:mr-auto md:w-auto">
             <FacilitySwitcher facilities={facilities} current={session.facilityId} action={switchFacility} />
           </div>
-          <TopBarRight name={session.name} roleName={session.roleName} alerts={alerts} signOutAction={signOut} />
+          <TopBarRight name={session.name} roleName={roleName} alerts={alerts} signOutAction={signOut} />
         </header>
         {session.supportVisit ? (
           <div role="note" aria-label="Support view" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-violet-700 px-4 py-2 text-center text-sm text-white print:hidden">
