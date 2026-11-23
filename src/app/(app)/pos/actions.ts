@@ -14,6 +14,7 @@ import {
   returnSale,
 } from "@/lib/pos";
 import { markReviewed } from "@/lib/offline-sales";
+import { createPromotion, deletePromotion, setPromotionActive } from "@/lib/promotions";
 import { adjustPoints, deleteMember, saveProgram, updateMember } from "@/lib/rewards";
 import { giveBackPercent } from "@/lib/rewards-math";
 import { saveMenuSettings, setReservationStatus, startSaleFromReservation } from "@/lib/online-menu";
@@ -235,4 +236,36 @@ export async function rewardsDeleteAction(_state: FormState, formData: FormData)
     return toFormError(error);
   }
   redirect("/pos/rewards?deleted=1");
+}
+
+// ---------- Promotions (managers) ----------
+
+export async function promotionCreateAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const row = await createPromotion(await manager(), Object.fromEntries(formData.entries()), formData.getAll("weekdays").map(String));
+    refresh();
+    return { ok: `${row.name} is on. The register applies it by itself while it's running.` };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function promotionToggleAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await setPromotionActive(await manager(), field(formData, "id"), field(formData, "active") === "true");
+    refresh();
+    return { ok: "Saved." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function promotionDeleteAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await deletePromotion(await manager(), field(formData, "id"));
+    refresh();
+    return { ok: "Promotion deleted." };
+  } catch (error) {
+    return toFormError(error);
+  }
 }

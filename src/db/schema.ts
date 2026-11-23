@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   bigserial,
   boolean,
@@ -1234,6 +1234,31 @@ export const discountPresets = pgTable(
 );
 
 /**
+ * Automatic promotions: a percent or dollars off a category, a product or everything, on chosen weekdays,
+ * hours and dates. The register applies them by itself. They only ever take money off (never free product).
+ */
+export const promotions = pgTable("promotions", {
+  id: id(),
+  orgId: text("org_id")
+    .notNull()
+    .references(() => organizations.id),
+  name: text("name").notNull(),
+  active: boolean("active").notNull().default(true),
+  kind: text("kind").notNull(), // PERCENT | DOLLAR
+  amount: numeric("amount", { precision: 10, scale: 3 }).notNull(),
+  scope: text("scope").notNull(), // ALL | CATEGORY | ITEM
+  categoryId: text("category_id").references(() => itemCategories.id, { onDelete: "cascade" }),
+  itemId: text("item_id").references(() => items.id, { onDelete: "cascade" }),
+  /** 0 = Sunday ... 6 = Saturday; empty means every day. */
+  weekdays: integer("weekdays").array().notNull().default(sql`'{}'::integer[]`),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  createdAt: createdAt(),
+});
+
+/**
  * The business's rewards (loyalty) program: one per business, shared by all its stores.
  * Points are earned per dollar paid (after discounts, before tax) and spent as dollars off. New Mexico
  * forbids giving cannabis away, so a reward can never cover more than maxSharePercent of a cart.
@@ -1367,6 +1392,9 @@ export const sales = pgTable(
     rewardsUsed: integer("rewards_used").notNull().default(0),
     rewardDiscount: money("reward_discount").notNull().default("0"),
     pointsEarned: integer("points_earned").notNull().default(0),
+    /** Automatic promotions: the dollars they took off this sale and their names (kept as a record, since promotions change). */
+    promoDiscount: money("promo_discount").notNull().default("0"),
+    promoNames: text("promo_names"),
     userId: text("user_id").notNull(),
     userName: text("user_name").notNull(),
     createdAt: createdAt(),

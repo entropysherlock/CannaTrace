@@ -5,6 +5,7 @@ import { CartScreen, type CartView } from "@/components/register/cart-screen";
 import { RegisterShell } from "@/components/register/shell";
 import { discountPresets, itemCategories, items, retailPrices, rewardMembers, sales } from "@/db/schema";
 import { db } from "@/lib/db";
+import { cartPromos } from "@/lib/promotions";
 import { cartLines, getRetailSettings, saleTotals, sellableByItem, storePack } from "@/lib/pos";
 import { LIMIT_LABELS, limitUsage, quickCashAmounts } from "@/lib/pos-math";
 import { getProgram } from "@/lib/rewards";
@@ -57,10 +58,11 @@ export default async function CartPage({ params, searchParams }: { params: Promi
 
   const sellable = await sellableByItem(db, session, pack);
   const program = await getProgram(db, session.orgId);
-  const totals = saleTotals(lines, sale, settings, program);
+  const promos = await cartPromos(db, session, lines);
+  const totals = saleTotals(lines, sale, settings, program, promos.total);
   const [member] =
     program.enabled && sale.rewardMemberId ? await db.select().from(rewardMembers).where(and(eq(rewardMembers.id, sale.rewardMemberId), eq(rewardMembers.orgId, session.orgId))) : [];
-  const afterDiscount = totals.subtotal.sub(totals.discount);
+  const afterDiscount = totals.subtotal.sub(totals.promo).sub(totals.discount);
   const usage = limitUsage(lines);
   const { limits } = effectiveLimits(
     { FLOWER: new Decimal(settings.flowerLimitGrams), CONCENTRATE: new Decimal(settings.concentrateLimitGrams), EDIBLE: new Decimal(settings.edibleLimitMg) },
@@ -101,9 +103,11 @@ export default async function CartPage({ params, searchParams }: { params: Promi
     }),
     categories,
     discounts: discounts.map((d) => ({ id: d.id, name: d.name, label: `${d.name} ${num(d.percent)}%` })),
+    promoNames: promos.names.join(", "),
     discountName: sale.discountName,
     totals: {
       subtotal: totals.subtotal.toFixed(2),
+      promo: totals.promo.toFixed(2),
       discount: totals.discount.toFixed(2),
       reward: totals.reward.toFixed(2),
       exciseTax: totals.exciseTax.toFixed(2),

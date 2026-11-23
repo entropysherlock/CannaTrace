@@ -67,6 +67,9 @@ export function limitProblem(usage: Limits, limits: Limits): string | null {
 
 export type Totals = {
   subtotal: Decimal;
+  /** Dollars off from automatic promotions, taken first. */
+  promo: Decimal;
+  /** The percent discount, taken off what the promotions left. */
   discount: Decimal;
   /** Dollars off from rewards points, after the percent discount and before tax. */
   reward: Decimal;
@@ -77,22 +80,23 @@ export type Totals = {
 };
 
 /**
- * Cart totals. The percent discount comes off the subtotal first, then any rewards dollars (already capped by
+ * Cart totals. Automatic promotions come off first, then the percent discount comes off what is left, then any rewards dollars (already capped by
  * the rewards rules, and never more than what's left); each tax is then worked out on what remains and rounded
  * to the cent on its own.
  */
 export function cartTotals(
   lines: Pick<CartLine, "quantity" | "unitPrice">[],
-  options: { discountPercent: Decimal.Value; exciseTaxPercent: Decimal.Value; salesTaxPercent: Decimal.Value; taxExempt: boolean; rewardDiscount?: Decimal.Value },
+  options: { discountPercent: Decimal.Value; exciseTaxPercent: Decimal.Value; salesTaxPercent: Decimal.Value; taxExempt: boolean; rewardDiscount?: Decimal.Value; promoDiscount?: Decimal.Value },
 ): Totals {
   const subtotal = lines.reduce((sum, line) => sum.add(round2(new Decimal(line.quantity).mul(line.unitPrice))), new Decimal(0));
-  const discount = round2(subtotal.mul(options.discountPercent).div(100));
-  const afterDiscount = subtotal.sub(discount);
+  const promo = Decimal.max(0, Decimal.min(round2(new Decimal(options.promoDiscount ?? 0)), subtotal));
+  const discount = round2(subtotal.sub(promo).mul(options.discountPercent).div(100));
+  const afterDiscount = subtotal.sub(promo).sub(discount);
   const reward = Decimal.max(0, Decimal.min(round2(new Decimal(options.rewardDiscount ?? 0)), afterDiscount));
   const taxable = afterDiscount.sub(reward);
   const exciseTax = options.taxExempt ? new Decimal(0) : round2(taxable.mul(options.exciseTaxPercent).div(100));
   const salesTax = options.taxExempt ? new Decimal(0) : round2(taxable.mul(options.salesTaxPercent).div(100));
-  return { subtotal, discount, reward, taxable, exciseTax, salesTax, total: taxable.add(exciseTax).add(salesTax) };
+  return { subtotal, promo, discount, reward, taxable, exciseTax, salesTax, total: taxable.add(exciseTax).add(salesTax) };
 }
 
 export function parsePercent(input: unknown, what: string, max = 100): Decimal {
