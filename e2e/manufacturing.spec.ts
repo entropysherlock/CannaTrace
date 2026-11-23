@@ -169,8 +169,10 @@ test("the recipe list on a new run narrows as you type", async ({ page }) => {
   await page.goto("/manufacturing");
   if (await page.getByTestId("new-run").count()) await page.getByTestId("new-run").click();
   const box = page.getByRole("combobox", { name: "Recipe" });
+  // The recipe saved by the first test in this file is in the list; a phrase that matches nothing shows a message
+  await box.fill(`recipe ${run.toLowerCase()}`);
+  await expect(page.getByRole("option", { name: `Recipe ${run} (one batch makes 10 ea)` })).toBeVisible();
   await box.fill("zzzz-no-such-recipe");
   await expect(page.getByText("Nothing matches.")).toBeVisible();
-  await box.fill("");
-  await expect(page.getByRole("option").first()).toBeVisible();
+  await expect(page.getByRole("option")).toHaveCount(0);
 });
