@@ -3,6 +3,7 @@ import { and, desc, eq, gt } from "drizzle-orm";
 import { CustomerDisplay, type DisplayView } from "@/components/register/customer-display";
 import { facilities, sales } from "@/db/schema";
 import { db } from "@/lib/db";
+import { cartPromos } from "@/lib/promotions";
 import { cartLines, getRetailSettings, msAgo, myOpenDrawer, saleTotals } from "@/lib/pos";
 import { getProgram } from "@/lib/rewards";
 import { requirePagePermission } from "@/lib/session";
@@ -33,9 +34,10 @@ export default async function CustomerDisplayPage() {
       view = { store: view.store, state: "thanks", total: new Decimal(paid.total ?? 0).toFixed(2), change: new Decimal(paid.changeDue ?? 0).toFixed(2) };
     } else if (open) {
       const [lines, settings, program] = await Promise.all([cartLines(db, open.id), getRetailSettings(db, session.facilityId), getProgram(db, session.orgId)]);
-      const totals = saleTotals(lines, open, settings, program);
+      const promos = await cartPromos(db, session, lines);
+      const totals = saleTotals(lines, open, settings, program, promos.total);
       // The customer sees one "savings" line: the percent discount and any rewards together.
-      const off = totals.discount.add(totals.reward);
+      const off = totals.promo.add(totals.discount).add(totals.reward);
       view = {
         store: view.store,
         state: "cart",

@@ -34,7 +34,9 @@ export type CartView = {
   categories: string[];
   discounts: { id: string; name: string; label: string }[];
   discountName: string | null;
-  totals: { subtotal: string; discount: string; reward: string; exciseTax: string; salesTax: string; total: string };
+  /** Names of the automatic promotions taking money off this cart. */
+  promoNames: string;
+  totals: { subtotal: string; promo: string; discount: string; reward: string; exciseTax: string; salesTax: string; total: string };
   /** The rewards box, when the business's rewards program is on. */
   rewards: RewardsView | null;
   taxLabels: { excise: string; sales: string };
@@ -391,6 +393,12 @@ export function CartScreen({ view }: { view: CartView }) {
           <dl className="grid grid-cols-[1fr_auto] gap-y-0.5 text-sm text-slate-600">
             <dt>Subtotal</dt>
             <dd className="text-right tabular-nums">{dollars(view.totals.subtotal)}</dd>
+            {Number(view.totals.promo) > 0 ? (
+              <>
+                <dt data-testid="promo-line">Promotion ({view.promoNames})</dt>
+                <dd className="text-right tabular-nums">-{dollars(view.totals.promo)}</dd>
+              </>
+            ) : null}
             {Number(view.totals.discount) > 0 ? (
               <>
                 <dt>Discount ({view.discountName})</dt>

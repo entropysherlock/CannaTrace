@@ -20,6 +20,7 @@ import {
 } from "@/db/schema";
 import { atomically, db, type Tx } from "./db";
 import { parseDate, parseMoney, parsePrice, todayIn } from "./distribution-math";
+import { cartPromos } from "./promotions";
 import { InventoryError, adjustPackage, audit, consumeFromPackageInTx, lockPackage, returnToPackageInTx, type Actor } from "./inventory";
 import { assertWholeForUnit, parsePositiveQty } from "./inventory-math";
 import { nextNumber } from "./numbering";
@@ -498,17 +499,19 @@ export function saleTotals(
   sale: Pick<Sale, "discountPercent" | "customerType"> & Partial<Pick<Sale, "rewardMemberId" | "rewardsUsed">>,
   settings: Awaited<ReturnType<typeof getRetailSettings>>,
   program?: RewardProgram | null,
+  promoDiscount?: Decimal.Value,
 ): Totals & { rewardsApplied: number } {
   const options = {
     discountPercent: sale.discountPercent,
     exciseTaxPercent: settings.exciseTaxPercent,
     salesTaxPercent: settings.salesTaxPercent,
     taxExempt: sale.customerType === "MEDICAL" && settings.medicalTaxExempt,
+    promoDiscount,
   };
   const before = cartTotals(lines, options);
   // Rewards the shopper chose, cut down to what fits this cart right now (a cart that shrank uses fewer).
   const rewardsApplied =
-    program?.enabled && sale.rewardMemberId && (sale.rewardsUsed ?? 0) > 0 ? rewardsThatFit(sale.rewardsUsed ?? 0, before.subtotal.sub(before.discount), program) : 0;
+    program?.enabled && sale.rewardMemberId && (sale.rewardsUsed ?? 0) > 0 ? rewardsThatFit(sale.rewardsUsed ?? 0, before.subtotal.sub(before.promo).sub(before.discount), program) : 0;
   if (!rewardsApplied) return { ...before, rewardsApplied: 0 };
   return { ...cartTotals(lines, { ...options, rewardDiscount: new Decimal(program!.redeemDollars).mul(rewardsApplied) }), rewardsApplied };
 }
@@ -808,8 +811,9 @@ export async function setRewardsUsed(actor: Actor, input: { saleId: string; coun
     if (count > 0) {
       const lines = await cartLines(tx, sale.id);
       const settings = await getRetailSettings(tx, actor.facilityId);
-      const before = saleTotals(lines, sale, settings);
-      const fit = rewardsThatFit(count, before.subtotal.sub(before.discount), program);
+      const promos = await cartPromos(tx, actor, lines);
+      const before = saleTotals(lines, sale, settings, null, promos.total);
+      const fit = rewardsThatFit(count, before.subtotal.sub(before.promo).sub(before.discount), program);
       if (fit < count)
         throw new InventoryError(
           fit === 0
@@ -895,7 +899,8 @@ export async function completeSale(
     const labGate = requiresLabBeforeRetail(pack);
 
     const program = sale.rewardMemberId ? await getProgram(tx, actor.orgId) : null;
-    const totals = saleTotals(lines, sale, settings, program);
+    const promos = await cartPromos(tx, actor, lines);
+    const totals = saleTotals(lines, sale, settings, program, promos.total);
     const blank = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
     const settled = settlePayment(totals.total, method, {
       cashTendered: method === "DEBIT" || (blank(input.cashTendered) && totals.total.isZero()) ? null : parseMoney(input.cashTendered, "Cash handed over", { allowZero: true }),
@@ -921,7 +926,9 @@ export async function completeSale(
         status: "COMPLETED",
         subtotal: totals.subtotal.toFixed(2),
         // Every dollar off, so subtotal - discount = what was taxed. The rewards part is also kept on its own.
-        discountTotal: totals.discount.add(totals.reward).toFixed(2),
+        discountTotal: totals.promo.add(totals.discount).add(totals.reward).toFixed(2),
+        promoDiscount: totals.promo.toFixed(2),
+        promoNames: totals.promo.gt(0) ? promos.names.join(", ").slice(0, 300) : null,
         rewardsUsed: points ? totals.rewardsApplied : 0,
         rewardDiscount: points ? totals.reward.toFixed(2) : "0",
         pointsEarned: points?.earned ?? 0,
