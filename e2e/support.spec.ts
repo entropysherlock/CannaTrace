@@ -109,3 +109,28 @@ test("support sets up a new business for a customer, and the owner joins from th
   await expect(owner.getByText("Durango Ave · license")).toBeVisible();
   await owner.close();
 });
+
+test("CannaTrace staff see 'Founder' in the header, never 'Owner'; a shop's own owner still sees 'Owner'", async ({ page, browser }) => {
+  await signIn(page, "owner@demo.test");
+  await expect(page.getByText("Founder", { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Support Console" }).first()).toBeVisible();
+
+  // A shop owner who is not CannaTrace staff
+  const shop = await browser.newPage();
+  await shop.goto("/signup");
+  const biz = `Founder Label Co ${run}`;
+  await shop.locator('input[name="businessName"]').filter({ visible: true }).fill(biz);
+  await shop.locator('input[name="facilityName"]').filter({ visible: true }).fill("Label Store");
+  await shop.locator('input[name="licenseNumber"]').filter({ visible: true }).fill(`FL-${run}`);
+  await shop.locator('select[name="licenseType"]').filter({ visible: true }).selectOption("RETAIL");
+  await shop.locator('select[name="state"]').filter({ visible: true }).selectOption("NM");
+  await shop.locator('input[name="ownerName"]').filter({ visible: true }).fill("Sam Shopowner");
+  await shop.locator('input[name="email"]').filter({ visible: true }).fill(`sam-${run}@e2e.test`);
+  await shop.locator('input[name="password"]').filter({ visible: true }).fill(PASSWORD);
+  await shop.locator('input[name="confirm"]').filter({ visible: true }).fill(PASSWORD);
+  await shop.getByRole("button", { name: "Create my account" }).click();
+  await expect(shop).toHaveURL(/\/dashboard/);
+  await expect(shop.getByText("Owner", { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(shop.getByText("Founder", { exact: true })).toHaveCount(0);
+  await shop.close();
+});
