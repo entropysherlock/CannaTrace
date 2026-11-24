@@ -102,7 +102,7 @@ export function NewTemplateStart({ starters, mine, aiReady, aiReason }: { starte
             </div>
           </section>
         ) : null}
-        <LabelDesigner key={`${source.label}-${start.name}`} mode="new" initial={{ ...start, version: 0 }} />
+        <LabelDesigner key={`${source.label}-${start.name}`} mode="new" initial={{ ...start, version: 0 }} previewValues={imp?.preview} />
       </div>
     );
   }

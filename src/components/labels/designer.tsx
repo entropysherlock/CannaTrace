@@ -20,6 +20,8 @@ type Props = {
   mode: "new" | "edit";
   templateId?: string;
   initial: { name: string; kind: LabelKind; jurisdiction: string | null; design: LabelDesign; version: number };
+  /** Field values to show in the preview instead of the built-in examples (the words read from an uploaded photo). */
+  previewValues?: Record<string, string>;
   versions?: { version: number; note: string | null; userName: string; createdAt: string }[];
 };
 
@@ -32,7 +34,7 @@ const ADD: { type: ElementType; label: string; icon: typeof Type }[] = [
   { type: "box", label: "Box", icon: Box },
 ];
 
-export function LabelDesigner({ mode, templateId, initial, versions }: Props) {
+export function LabelDesigner({ mode, templateId, initial, versions, previewValues }: Props) {
   const router = useRouter();
   const [name, setName] = useState(initial.name);
   const [kind, setKind] = useState<LabelKind>(initial.kind);
@@ -46,7 +48,7 @@ export function LabelDesigner({ mode, templateId, initial, versions }: Props) {
   const drag = useRef<{ id: string; mode: "move" | "resize"; sx: number; sy: number; el: LabelElement } | null>(null);
 
   const selected = design.elements.find((e) => e.id === selectedId) ?? null;
-  const values = useMemo(() => ({ ...sampleValues(kind), "_lab.status": "PASS", "_package.status": "ACTIVE", "_package.quantity": "28" }), [kind]);
+  const values = useMemo(() => ({ ...sampleValues(kind), "_lab.status": "PASS", "_package.status": "ACTIVE", "_package.quantity": "28", ...(previewValues ?? {}) }), [kind, previewValues]);
   const svg = useMemo(() => renderLabelSvg(design, values, { scale: PX }), [design, values]);
   const check = useMemo(() => {
     const j = checkJurisdiction(design, kind, jurisdiction || null);

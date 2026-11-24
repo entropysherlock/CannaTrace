@@ -52,9 +52,38 @@ export type ImportResult = {
   matches: { printed: string; became: string; fields: string[] }[];
   unmatched: string[];
   notes: string[];
+  /** What each field held on the photographed label, so the preview shows the customer's words, not example data. */
+  preview: Record<string, string>;
   /** Other labels found in the same photo, which can be rebuilt instead. */
   others?: { index: number; description: string }[];
 };
+
+const escapeRegex = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Pull each field's printed value out of the words: "Lot {{package.lot}}" against "Lot BD-1" gives package.lot = "BD-1". */
+export function valuesFromPrinted(template: string, printed: string): Record<string, string> {
+  const keys: string[] = [];
+  const pattern = template
+    .split(/(\{\{[^}]+\}\})/)
+    .map((part) => {
+      const m = /^\{\{\s*([^}\s]+)\s*\}\}$/.exec(part);
+      if (m) {
+        keys.push(m[1]);
+        return "(.+?)";
+      }
+      return escapeRegex(part).replace(/\s+/g, "\\s+");
+    })
+    .join("");
+  if (!keys.length) return {};
+  const found = new RegExp(`^\\s*${pattern}\\s*$`, "s").exec(printed);
+  if (!found) return {};
+  const out: Record<string, string> = {};
+  keys.forEach((k, i) => {
+    const v = (found[i + 1] ?? "").trim();
+    if (v && !(k in out)) out[k] = v;
+  });
+  return out;
+}
 
 const TYPES: ElementType[] = ["text", "barcode", "qr", "image", "line", "box"];
 const clamp = (n: unknown, min: number, max: number, fallback: number) => {
@@ -109,6 +138,7 @@ export function designFromReading(reading: LabelReading, opts: { aspect?: number
   const H = Math.min(300, Math.max(10, size.heightMm));
 
   const matches: ImportResult["matches"] = [];
+  const preview: Record<string, string> = {};
   const unmatched = [...(reading.unmatched ?? [])].filter((s) => typeof s === "string" && s.trim()).slice(0, 30);
   const elements: LabelElement[] = [];
   let n = 0;
@@ -138,6 +168,7 @@ export function designFromReading(reading: LabelReading, opts: { aspect?: number
       el.bold = r.bold === true;
       el.align = r.align === "center" || r.align === "right" ? r.align : "left";
       el.fontSize = clamp(r.font_size_pt, 4, 72, 8);
+      if (!c.dropped) for (const [k, v] of Object.entries(valuesFromPrinted(text, printed))) if (!(k in preview)) preview[k] = v;
       matches.push({ printed: printed.slice(0, 200), became: text.slice(0, 200), fields: c.dropped ? [] : c.fields });
     } else if (type === "barcode" || type === "qr") {
       let value = (r.value ?? "").slice(0, 500);
@@ -186,5 +217,6 @@ export function designFromReading(reading: LabelReading, opts: { aspect?: number
     matches,
     unmatched: [...new Set(unmatched)].slice(0, 30),
     notes: [...new Set(notes)],
+    preview,
   };
 }
