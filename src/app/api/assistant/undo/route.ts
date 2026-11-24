@@ -27,7 +27,8 @@ export async function POST(request: Request) {
       undoChange({ userId: session.userId, userName: `${session.name} (undo via assistant)`, orgId: session.orgId, facilityId: session.facilityId }, String(changeId)),
     );
     revalidatePath("/", "layout");
-    await refreshWatch(session);
+    // The undo is already saved. If Watch can't refresh, say nothing went wrong rather than "nothing was changed".
+    await refreshWatch(session).catch((error) => console.error("watch refresh after undo failed", error));
     return NextResponse.json({ ok: message });
   } catch (error) {
     if (error instanceof InventoryError) return NextResponse.json({ error: error.message }, { status: 422 });

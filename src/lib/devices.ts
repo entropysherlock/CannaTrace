@@ -74,8 +74,9 @@ export async function redeemPairing(code: string, userAgent: string | null): Pro
     await db.update(linkedDevices).set({ revokedAt: new Date() }).where(eq(linkedDevices.id, old.id));
   }
   const deviceToken = token();
-  await db.insert(linkedDevices).values({ orgId: who.orgId, userId: who.userId, name: deviceName(userAgent), tokenHash: sha(deviceToken) });
-  return { deviceToken, user: who };
+  const [device] = await db.insert(linkedDevices).values({ orgId: who.orgId, userId: who.userId, name: deviceName(userAgent), tokenHash: sha(deviceToken) }).returning({ id: linkedDevices.id });
+  // The sign-in carries the phone's id, so unlinking the phone ends it straight away.
+  return { deviceToken, user: { ...who, deviceId: device.id } };
 }
 
 /** The sign-in details for a person, or null when they may no longer sign in. */
@@ -104,7 +105,7 @@ export async function deviceSession(deviceToken: string | undefined): Promise<{ 
   if (!user) return null;
   // Remember when it was last used, but not on every request.
   if (!device.lastSeenAt || device.lastSeenAt.getTime() < Date.now() - 60_000) await db.update(linkedDevices).set({ lastSeenAt: new Date() }).where(eq(linkedDevices.id, device.id));
-  return { user, deviceId: device.id };
+  return { user: { ...user, deviceId: device.id }, deviceId: device.id };
 }
 
 export type DeviceRow = { id: string; name: string; ownerName: string; createdAt: Date; lastSeenAt: Date | null; mine: boolean };

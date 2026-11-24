@@ -168,11 +168,16 @@ export function quickCashAmounts(total: Decimal.Value): string[] {
 /** idNumber: the ID's own number (AAMVA field DAQ), used only to count daily purchase limits. */
 export type IdScan = { firstName: string | null; lastName: string | null; birthDate: string; idExpires: string; state: string | null; idNumber: string | null };
 
+/** Days in a month, leap years included, so February 31 and April 31 are not accepted as dates. */
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
 /** A YYYY-MM-DD date from an AAMVA 8-digit date, which is MMDDCCYY in the US and CCYYMMDD in Canada. */
 function aamvaDate(raw: string | undefined, canadian: boolean): string | null {
   const d = raw?.replace(/\D/g, "");
   if (!d || d.length !== 8) return null;
-  const valid = (y: number, m: number, day: number) => y >= 1900 && y <= 2200 && m >= 1 && m <= 12 && day >= 1 && day <= 31;
+  const valid = (y: number, m: number, day: number) => y >= 1900 && y <= 2200 && m >= 1 && m <= 12 && day >= 1 && day <= daysInMonth(y, m);
   const asUs = [Number(d.slice(4)), Number(d.slice(0, 2)), Number(d.slice(2, 4))] as const;
   const asCa = [Number(d.slice(0, 4)), Number(d.slice(4, 6)), Number(d.slice(6))] as const;
   const pick = canadian ? (valid(...asCa) ? asCa : valid(...asUs) ? asUs : null) : valid(...asUs) ? asUs : valid(...asCa) ? asCa : null;
