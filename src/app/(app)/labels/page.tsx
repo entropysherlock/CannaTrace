@@ -22,12 +22,12 @@ const STATUS: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
-export default async function LabelsPage({ searchParams }: { searchParams: Promise<{ kind?: string; ids?: string; batch?: string }> }) {
+export default async function LabelsPage({ searchParams }: { searchParams: Promise<{ kind?: string; ids?: string; batch?: string; template?: string }> }) {
   const session = await requirePagePermission("labels.print");
   const zone = await facilityZone(session.facilityId);
   await prepareLabels(session);
   const sp = await searchParams;
-  const kind: LabelKind = LABEL_KINDS.some((k) => k.kind === sp.kind) ? (sp.kind as LabelKind) : "PACKAGE";
+  let kind: LabelKind = LABEL_KINDS.some((k) => k.kind === sp.kind) ? (sp.kind as LabelKind) : "PACKAGE";
   let ids = (sp.ids ?? "").split(",").filter(Boolean).slice(0, 1000);
   if (kind === "PLANT" && sp.batch && ids.length === 0) {
     // "Print plant tags" from a batch: preselect that batch's live plants at this facility.
@@ -45,6 +45,9 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
     listJobs(session, 40),
   ]);
   const templates = allTemplates.filter((t) => !t.archived);
+  // Arriving from a template's Print button: start with that template (and its label type) chosen.
+  const wanted = templates.find((t) => t.id === sp.template);
+  if (wanted && !LABEL_KINDS.some((k) => k.kind === sp.kind)) kind = wanted.kind;
   const archivedTemplates = allTemplates.filter((t) => t.archived).map((t) => ({ id: t.id, name: t.name, kind: t.kind }));
   const open = jobs.filter((j) => j.job.status === "QUEUED" || j.job.status === "RENDERED" || j.job.status === "FAILED");
 
@@ -63,6 +66,7 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
         candidates={candidates}
         initialKind={kind}
         initialIds={ids}
+        initialTemplateId={wanted?.id}
         canManage={can(session, "labels.manage")}
       />
       <Card title={`Print queue (${open.length})`}>

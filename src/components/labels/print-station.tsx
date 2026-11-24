@@ -116,6 +116,7 @@ export function PrintStation({
   candidates,
   initialKind,
   initialIds,
+  initialTemplateId,
   canManage,
 }: {
   templates: TemplateOption[];
@@ -125,12 +126,14 @@ export function PrintStation({
   candidates: Record<LabelKind, CandidateRow[]>;
   initialKind: LabelKind;
   initialIds: string[];
+  /** A template chosen before arriving here, such as from the template editor's Print button. */
+  initialTemplateId?: string;
   canManage: boolean;
 }) {
   const router = useRouter();
   const [kind, setKind] = useState<LabelKind>(initialKind);
   const pickTemplate = (k: LabelKind) => (templates.find((t) => t.kind === k && t.isDefault) ?? templates.find((t) => t.kind === k))?.id ?? "";
-  const [templateId, setTemplateId] = useState(() => pickTemplate(initialKind));
+  const [templateId, setTemplateId] = useState(() => (initialTemplateId && templates.some((t) => t.id === initialTemplateId && t.kind === initialKind) ? initialTemplateId : pickTemplate(initialKind)));
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initialIds));
   const [query, setQuery] = useState("");
   const [copies, setCopies] = useState(1);
