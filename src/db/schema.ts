@@ -1697,8 +1697,10 @@ export const printerProfiles = pgTable(
       .notNull()
       .references(() => facilities.id),
     name: text("name").notNull(),
-    /** How labels reach the printer. Only BROWSER_PDF is built today. */
+    /** How labels reach the printer: BROWSER_PDF (print dialog) or ZPL (sent straight to a Zebra through Zebra Browser Print). */
     adapter: text("adapter").notNull().default("BROWSER_PDF"),
+    /** Print resolution in dots per inch, for ZPL printers (203 or 300). */
+    dpi: integer("dpi").notNull().default(203),
     offsetXMm: numeric("offset_x_mm", { precision: 6, scale: 2 }).notNull().default("0"),
     offsetYMm: numeric("offset_y_mm", { precision: 6, scale: 2 }).notNull().default("0"),
     isDefault: boolean("is_default").notNull().default(false),
