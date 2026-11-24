@@ -165,7 +165,7 @@ export const TOOLS: Tool[] = [
       const pkg = await packageByTag(s, str(input.tag, 60));
       const [detail] = await rows(sql`select p.lot_number, p.cost_per_unit::text, to_char(p.created_at at time zone ${currentZone()}, 'YYYY-MM-DD') as received
         from packages p where p.id = ${pkg.id}`);
-      const labs = await rows(sql`select lab_name, status, thc_percent::text, cbd_percent::text, to_char(sample_date, 'YYYY-MM-DD') as sampled
+      const labs = await rows(sql`select lab_name, status, thc_percent::text, cbd_percent::text, sample_date as sampled
         from lab_results where package_id = ${pkg.id} order by created_at desc limit 5`);
       const history = await rows(sql`select to_char(t.created_at at time zone ${currentZone()}, 'YYYY-MM-DD HH24:MI') as at, t.type, t.quantity_delta::text as change,
           t.quantity_after::text as after, t.reason_code, t.note, u.name as by
