@@ -77,3 +77,39 @@ textarea {
     scroll-margin-top: 6rem;
   }
 }
+
+/*
+ * File pickers: the browser's own "Choose file" button is a tiny grey chip that blends into the page,
+ * so people couldn't tell where to click. Show a clear green button inside a dashed drop box instead.
+ */
+input[type="file"]:not(.sr-only):not(.hidden) {
+  box-sizing: border-box;
+  width: 100%;
+  cursor: pointer;
+  border: 2px dashed var(--color-brand-600);
+  border-radius: 0.75rem;
+  background: var(--color-brand-50, #f0f9f2);
+  padding: 0.75rem;
+  color: #334155;
+}
+input[type="file"]:not(.sr-only):not(.hidden):hover {
+  background: var(--color-brand-100, #dcf1e1);
+}
+input[type="file"]:not(.sr-only):not(.hidden)::file-selector-button {
+  margin-right: 0.875rem;
+  cursor: pointer;
+  border: 0;
+  border-radius: 0.5rem;
+  background: var(--color-brand-600);
+  padding: 0.6rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+}
+input[type="file"]:not(.sr-only):not(.hidden)::file-selector-button:hover {
+  background: var(--color-brand-700, #1c6232);
+}
+input[type="file"]:not(.sr-only):not(.hidden):focus-visible {
+  outline: 3px solid var(--color-brand-600);
+  outline-offset: 2px;
+}
