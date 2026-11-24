@@ -6,7 +6,12 @@ import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { db } from "@/lib/db";
 import { reviewCount } from "@/lib/offline-sales";
 import { waitingCount } from "@/lib/online-menu";
-import { listPromotions, rowToPromo, storeClock } from "@/lib/promotions";
+import {
+  listPromotions,
+  promotionResults,
+  rowToPromo,
+  storeClock,
+} from "@/lib/promotions";
 import { WEEKDAY_NAMES, describePromo, isRunning } from "@/lib/promotions-math";
 import { requirePagePermission } from "@/lib/session";
 import {
@@ -19,7 +24,7 @@ export const metadata = { title: "Promotions · CannaTrace" };
 
 export default async function PromotionsPage() {
   const session = await requirePagePermission("pos.manage");
-  const [rows, categories, products, clock] = await Promise.all([
+  const [rows, categories, products, clock, results] = await Promise.all([
     listPromotions(db, session.orgId),
     db
       .select()
@@ -32,6 +37,7 @@ export default async function PromotionsPage() {
       .where(and(eq(items.orgId, session.orgId), eq(items.active, true)))
       .orderBy(asc(items.name)),
     storeClock(session.facilityId),
+    promotionResults(db, session.orgId),
   ]);
   const catName = new Map(categories.map((c) => [c.id, c.name]));
   const itemName = new Map(products.map((p) => [p.id, p.name]));
@@ -120,6 +126,65 @@ export default async function PromotionsPage() {
               </ul>
             )}
           </Card>
+          <Card title="Results, last 30 days">
+            {results.length === 0 ? (
+              <p className="text-sm text-slate-600">
+                No promotion has been used on a completed sale in the last 30
+                days.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table
+                  className="w-full text-sm"
+                  data-testid="promotion-results"
+                >
+                  <thead>
+                    <tr className="text-left text-slate-600">
+                      <th className="py-1 pr-3 font-semibold">Promotion</th>
+                      <th className="py-1 pr-3 text-right font-semibold">
+                        Sales
+                      </th>
+                      <th className="py-1 pr-3 text-right font-semibold">
+                        Items
+                      </th>
+                      <th className="py-1 pr-3 text-right font-semibold">
+                        Money off
+                      </th>
+                      <th className="py-1 text-right font-semibold">
+                        Sales total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {results.map((r) => (
+                      <tr key={r.promoId}>
+                        <td className="py-1.5 pr-3 font-medium text-slate-900">
+                          {r.name}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">
+                          {r.sales}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">
+                          {r.lines}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">
+                          ${Number(r.discount).toFixed(2)}
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums">
+                          ${Number(r.salesTotal).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="mt-2 text-xs text-slate-500">
+              Counts completed sales only; voided sales drop out. “Sales total”
+              is what customers paid on the sales the promotion was used in,
+              including everything else in the cart.
+            </p>
+          </Card>
           <Card title="How promotions work">
             <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
               <li>
@@ -133,8 +198,8 @@ export default async function PromotionsPage() {
               <li>
                 A promotion only takes money off. Buy-some-get-some deals
                 discount the cheapest items; whole items only (a weighed 1.5 g
-                line doesn&apos;t count). At least 10% of an item&apos;s price is
-                always charged, because New Mexico doesn&apos;t allow giving
+                line doesn&apos;t count). At least 10% of an item&apos;s price
+                is always charged, because New Mexico doesn&apos;t allow giving
                 cannabis away free (16.8.2.40(J) NMAC). Deals like “buy one, get
                 one 50% off” are supported; a “$1 second item” is not, since it
                 comes too close to free. Ask your attorney or the Cannabis

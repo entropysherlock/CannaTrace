@@ -1306,6 +1306,26 @@ export const rewardMembers = pgTable(
   (t) => [uniqueIndex("reward_members_org_phone_key").on(t.orgId, t.phone)],
 );
 
+/** What each promotion took off each completed sale, for the Promotions results. Kept even if the promotion is later deleted. */
+export const salePromotions = pgTable(
+  "sale_promotions",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    saleId: text("sale_id")
+      .notNull()
+      .references(() => sales.id, { onDelete: "cascade" }),
+    promoId: text("promo_id").notNull(),
+    promoName: text("promo_name").notNull(),
+    /** Cart lines the promotion discounted on this sale. */
+    lineCount: integer("line_count").notNull(),
+    amount: money("amount").notNull(),
+  },
+  (t) => [index("sale_promotions_org_promo_idx").on(t.orgId, t.promoId), index("sale_promotions_sale_idx").on(t.saleId)],
+);
+
 /** Every change to a shopper's points, so balances can always be explained. */
 export const rewardLedger = pgTable(
   "reward_ledger",
