@@ -14,7 +14,7 @@ import { LabelDesigner } from "./designer";
 
 type Mine = { id: string; name: string; kind: LabelKind; jurisdiction: string | null; design: LabelDesign };
 type Start = { name: string; kind: LabelKind; jurisdiction: string | null; design: LabelDesign };
-type Source = { label: string; imported?: ImportResult; original?: { url: string; pdf: boolean; name: string } };
+type Source = { label: string; imported?: ImportResult; original?: { url: string; pdf: boolean; name: string; file?: File; kind?: string } };
 
 const BLANK: Start = {
   name: "",
@@ -80,6 +80,7 @@ export function NewTemplateStart({ starters, mine, aiReady, aiReason }: { starte
                 <Sparkles className="mr-1 inline h-4 w-4 text-brand-700" aria-hidden="true" />
                 Rebuilt as {imp.design.elements.length} editable pieces. Check the matches below, then fix anything off in the editor.
               </p>
+              {imp.others?.length && source.original?.file ? <OtherLabels others={imp.others} original={source.original} onRebuilt={(r) => setChosen({ start: { name: r.name, kind: r.kind, jurisdiction: r.jurisdiction, design: r.design }, source: { ...source, label: `${source.label} (another label)`, imported: r } })} /> : null}
               {imp.notes.length ? (
                 <ul className="list-disc space-y-1 pl-5 text-slate-700">
                   {imp.notes.map((n) => (
@@ -156,7 +157,7 @@ export function NewTemplateStart({ starters, mine, aiReady, aiReason }: { starte
   );
 }
 
-function UploadPanel({ aiReady, aiReason, onDone }: { aiReady: boolean; aiReason: string | null; onDone: (r: ImportResult, original: { url: string; pdf: boolean; name: string }) => void }) {
+function UploadPanel({ aiReady, aiReason, onDone }: { aiReady: boolean; aiReason: string | null; onDone: (r: ImportResult, original: { url: string; pdf: boolean; name: string; file: File; kind: string }) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [kind, setKind] = useState("");
   const [busy, setBusy] = useState(false);
@@ -174,7 +175,7 @@ function UploadPanel({ aiReady, aiReason, onDone }: { aiReady: boolean; aiReason
       const res = await fetch("/api/labels/import", { method: "POST", body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "The label couldn't be read.");
-      onDone(data as ImportResult, { url: URL.createObjectURL(file), pdf: file.type === "application/pdf" || /\.pdf$/i.test(file.name), name: file.name });
+      onDone(data as ImportResult, { url: URL.createObjectURL(file), pdf: file.type === "application/pdf" || /\.pdf$/i.test(file.name), name: file.name, file, kind });
     } catch (e) {
       setError((e as Error).message || "The label couldn't be read.");
     } finally {
@@ -328,5 +329,45 @@ function Helper({ starters, onUse }: { starters: CatalogEntry[]; onUse: (t: Cata
         ))}
       </ul>
     </section>
+  );
+}
+
+function OtherLabels({ others, original, onRebuilt }: { others: { index: number; description: string }[]; original: { file?: File; kind?: string }; onRebuilt: (r: ImportResult) => void }) {
+  const [busy, setBusy] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function go(index: number) {
+    if (!original.file) return;
+    setBusy(index);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.set("file", original.file);
+      if (original.kind) form.set("kind", original.kind);
+      form.set("pick", String(index));
+      const res = await fetch("/api/labels/import", { method: "POST", body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "That label couldn't be read.");
+      onRebuilt(data as ImportResult);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+      <p className="font-semibold text-slate-900">This photo has other labels. Rebuild a different one instead?</p>
+      <ul className="mt-2 space-y-1.5">
+        {others.map((o) => (
+          <li key={o.index} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="text-slate-700">{o.description}</span>
+            <button type="button" disabled={busy !== null} onClick={() => go(o.index)} className="inline-flex min-h-8 items-center rounded-lg border border-brand-300 bg-white px-3 font-bold text-brand-800 hover:border-brand-600 disabled:opacity-50">
+              {busy === o.index ? "Reading…" : "Rebuild this one"}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {error ? <p role="alert" className="mt-2 text-xs font-semibold text-red-700">{error}</p> : null}
+    </div>
   );
 }

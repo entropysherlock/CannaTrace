@@ -20,7 +20,9 @@ export async function POST(req: Request) {
     if (file.size > 15 * 1024 * 1024) throw new LabelError("That file is over 15 MB. Use a smaller photo or PDF.");
     const kindRaw = String(form.get("kind") ?? "");
     const kind = LABEL_KINDS.some((k) => k.kind === kindRaw) ? (kindRaw as LabelKind) : null;
-    const result = await importLabel(session, { bytes: Buffer.from(await file.arrayBuffer()), name: file.name }, { kind });
+    const pickRaw = Number(form.get("pick"));
+    const pick = form.get("pick") !== null && Number.isInteger(pickRaw) ? pickRaw : null;
+    const result = await importLabel(session, { bytes: Buffer.from(await file.arrayBuffer()), name: file.name }, { kind, pick });
     return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
   });
 }

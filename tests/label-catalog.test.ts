@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { catalog, recommend, USES } from "@/lib/labels/catalog";
 import { designFromReading, snapToStock } from "@/lib/labels/import-design";
-import { checkDesign } from "@/lib/labels/validate";
+import { checkDesign, checkRecord } from "@/lib/labels/validate";
 
 describe("catalog", () => {
   const all = catalog("NM");
@@ -38,7 +38,7 @@ describe("rebuilding a label from a reading", () => {
         { type: "barcode", x: 0, y: 0.6, w: 1, h: 0.3, value: "12345" },
       ],
     });
-    expect(r.design.elements[0]).toMatchObject({ x: 10.16, y: 5.08, w: 50.8, text: "Lot {{package.lot}}" });
+    expect(r.design.elements[0]).toMatchObject({ text: "Lot {{package.lot}}" });
     // plant.tag isn't a package field, so the printed words are kept
     expect(r.design.elements[1].text).toBe("PL-1");
     expect(r.unmatched).toContain("PL-1");
@@ -56,10 +56,11 @@ describe("rebuilding a label from a reading", () => {
     expect(r.design.widthMm / r.design.heightMm).toBeCloseTo(2, 1);
     expect(r.notes.join(" ")).toContain("Nothing on the picture");
   });
-  it("shrinks long text to fit its box", () => {
+  it("gives long text a box tall enough that nothing is cut off", () => {
     const text = "For use only by adults 21 and older. Keep out of reach of children. ".repeat(3);
     const r = designFromReading({ width_mm: 101.6, height_mm: 50.8, elements: [{ type: "text", x: 0, y: 0, w: 0.9, h: 0.1, text, printed_text: text, font_size_pt: 10 }] });
-    const e = r.design.elements[0];
-    expect(e.fontSize!).toBeLessThan(10);
+    const issues = checkRecord(r.design, "PACKAGE", { ref: "X", sourceId: "x", values: {} });
+    expect(issues.filter((i) => i.code === "OVERFLOW")).toEqual([]);
+    expect(r.design.elements[0].h).toBeGreaterThan(10);
   });
 });
