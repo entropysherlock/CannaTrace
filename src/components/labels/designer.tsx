@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { Field, inputClass } from "@/components/ui";
 import { STOCK_SIZES } from "@/lib/labels/defaults";
-import { fieldsFor, sampleValues } from "@/lib/labels/fields";
+import { fieldDef, fieldsFor, placeholders, sampleValues } from "@/lib/labels/fields";
+import { elementSource, fieldNameValues, withField, withoutField } from "@/lib/labels/field-usage";
 import { labelPackFor } from "@/lib/labels/jurisdictions";
 import { renderLabelSvg } from "@/lib/labels/render-svg";
 import { LABEL_KINDS, type ElementType, type LabelDesign, type LabelElement, type LabelKind } from "@/lib/labels/types";
 import { checkDesign, checkJurisdiction, checkRecord } from "@/lib/labels/validate";
+import { FieldPanel, PieceFields, RecordPicker, type PreviewRecord } from "./field-panel";
 import { IssueList } from "./issues";
 
 const STATES = "AK AL AR AZ CA CO CT DC DE FL GA HI IA ID IL IN KS KY LA MA MD ME MI MN MO MS MT NC ND NE NH NJ NM NV NY OH OK OR PA RI SC SD TN TX UT VA VT WA WI WV WY".split(" ");
@@ -48,13 +50,20 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
   const drag = useRef<{ id: string; mode: "move" | "resize"; sx: number; sy: number; el: LabelElement } | null>(null);
 
   const selected = design.elements.find((e) => e.id === selectedId) ?? null;
-  const values = useMemo(() => ({ ...sampleValues(kind), "_lab.status": "PASS", "_package.status": "ACTIVE", "_package.quantity": "28", ...(previewValues ?? {}) }), [kind, previewValues]);
-  const svg = useMemo(() => renderLabelSvg(design, values, { scale: PX }), [design, values]);
+  const [record, setRecord] = useState<PreviewRecord | null>(null);
+  const [showNames, setShowNames] = useState(false);
+  // The data every check runs on: a real record's values as they are (blanks stay blank), otherwise examples.
+  const values = useMemo<Record<string, string | null>>(
+    () => (record ? record.values : { ...sampleValues(kind), "_lab.status": "PASS", "_package.status": "ACTIVE", "_package.quantity": "28", ...(previewValues ?? {}) }),
+    [kind, previewValues, record],
+  );
+  const shown = useMemo(() => (showNames ? { ...values, ...fieldNameValues(kind) } : values), [showNames, values, kind]);
+  const svg = useMemo(() => renderLabelSvg(design, shown, { scale: PX }), [design, shown]);
   const check = useMemo(() => {
     const j = checkJurisdiction(design, kind, jurisdiction || null);
-    const issues = [...checkDesign(design, kind), ...checkRecord(design, kind, { ref: "Sample", sourceId: "sample", values }), ...j.issues];
+    const issues = [...checkDesign(design, kind), ...checkRecord(design, kind, { ref: record?.ref ?? "Sample", sourceId: record?.sourceId ?? "sample", values }), ...j.issues];
     return { issues, blocked: issues.some((i) => i.severity === "block"), j };
-  }, [design, kind, jurisdiction, values]);
+  }, [design, kind, jurisdiction, values, record]);
   const pack = labelPackFor(jurisdiction);
 
   function update(next: LabelDesign) {
@@ -134,11 +143,41 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
   }
 
   const fields = fieldsFor(kind);
-  const insertField = (key: string) => {
-    if (!selected) return;
-    if (selected.type === "text") patch(selected.id, { text: `${selected.text ?? ""}{{${key}}}` });
-    else if (selected.type === "barcode" || selected.type === "qr") patch(selected.id, { value: `{{${key}}}` });
-  };
+  const labelOf = (key: string) => fieldDef(key)?.label ?? key;
+  /** Add a field to a piece: after its words for text, as the data for a barcode or QR code. */
+  const addFieldTo = (el: LabelElement, key: string): Partial<LabelElement> | null =>
+    el.type === "text" ? { text: withField(el.text, key) } : el.type === "barcode" || el.type === "qr" ? { value: `{{${key}}}` } : null;
+  /** A new text piece holding just this field, placed at (x, y) or below the lowest piece. */
+  function addFieldPiece(key: string, at?: { x: number; y: number }) {
+    const id = `e${crypto.randomUUID().slice(0, 8)}`;
+    const lowest = design.elements.reduce((m, e) => Math.max(m, e.y + e.h), 0);
+    const w = Math.max(10, Math.min(40, design.widthMm - 4));
+    const x = Math.min(Math.max(0, at?.x ?? 2), Math.max(0, design.widthMm - w));
+    const y = Math.min(Math.max(0, at?.y ?? Math.min(lowest + 1, design.heightMm - 6)), Math.max(0, design.heightMm - 5));
+    update({ ...design, elements: [...design.elements, { id, type: "text", x: snap(x), y: snap(y), w, h: 5, text: `{{${key}}}`, fontSize: 9 }] });
+    setSelectedId(id);
+  }
+  /** Click a field: add it to the selected piece, or make a new piece for it. */
+  function pickField(key: string) {
+    const patchFor = selected ? addFieldTo(selected, key) : null;
+    if (selected && patchFor) patch(selected.id, patchFor);
+    else addFieldPiece(key);
+  }
+  const insertField = pickField;
+  /** Drop a field on the label: onto a piece that can hold it, otherwise as a new piece where it landed. */
+  function onDropField(e: React.DragEvent) {
+    const key = e.dataTransfer.getData("text/x-label-field");
+    if (!key) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / PX;
+    const y = (e.clientY - rect.top) / PX;
+    const hit = [...design.elements].reverse().find((el) => x >= el.x && x <= el.x + el.w && y >= el.y && y <= el.y + el.h && addFieldTo(el, key));
+    if (hit) {
+      patch(hit.id, addFieldTo(hit, key)!);
+      setSelectedId(hit.id);
+    } else addFieldPiece(key, { x, y });
+  }
 
   return (
     <div className="space-y-5" onKeyDown={onKeyDown}>
@@ -147,7 +186,7 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
           <input className={inputClass} value={name} maxLength={80} onChange={(e) => { setName(e.target.value); setDirty(true); }} />
         </Field>
         <Field label="Label type">
-          <select className={inputClass} value={kind} disabled={mode === "edit"} onChange={(e) => { setKind(e.target.value as LabelKind); setDirty(true); }}>
+          <select className={inputClass} value={kind} disabled={mode === "edit"} onChange={(e) => { setKind(e.target.value as LabelKind); setRecord(null); setDirty(true); }}>
             {LABEL_KINDS.map((k) => (
               <option key={k.kind} value={k.kind}>
                 {k.label}
@@ -202,13 +241,33 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
               </button>
             ))}
           </div>
-          <p className="text-xs text-slate-500">Drag to move, drag the corner to resize, arrow keys nudge 0.5 mm (Shift for 5 mm). Showing sample data.</p>
+          <RecordPicker kind={kind} record={record} onChange={setRecord} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-slate-500">Drag to move, drag the corner to resize, arrow keys nudge 0.5 mm (Shift for 5 mm). Showing {showNames ? "field names" : record ? `${record.ref}'s data` : "example data"}. Blue pieces fill in from the record.</p>
+            <div className="inline-flex overflow-hidden rounded-lg border border-slate-300 text-xs font-semibold" role="group" aria-label="What the preview shows">
+              <button type="button" aria-pressed={!showNames} onClick={() => setShowNames(false)} className={`px-3 py-1.5 ${!showNames ? "bg-brand-600 text-white" : "bg-white text-slate-700"}`}>
+                Data
+              </button>
+              <button type="button" aria-pressed={showNames} onClick={() => setShowNames(true)} className={`px-3 py-1.5 ${showNames ? "bg-brand-600 text-white" : "bg-white text-slate-700"}`}>
+                Field names
+              </button>
+            </div>
+          </div>
           <div className="overflow-auto rounded-lg bg-slate-100 p-6" onClick={() => setSelectedId(null)}>
-            <div className="relative mx-auto bg-white shadow-md ring-1 ring-slate-300" style={{ width: design.widthMm * PX, height: design.heightMm * PX }} onPointerMove={onPointerMove} onPointerUp={() => (drag.current = null)} data-testid="designer-canvas">
+            <div
+              className="relative mx-auto bg-white shadow-md ring-1 ring-slate-300"
+              style={{ width: design.widthMm * PX, height: design.heightMm * PX }}
+              onPointerMove={onPointerMove}
+              onPointerUp={() => (drag.current = null)}
+              onDragOver={(e) => e.dataTransfer.types.includes("text/x-label-field") && e.preventDefault()}
+              onDrop={onDropField}
+              data-testid="designer-canvas"
+            >
               <div className="pointer-events-none absolute inset-0 [&>svg]:block" dangerouslySetInnerHTML={{ __html: svg }} />
               {design.elements.map((el) => {
                 const on = el.id === selectedId;
                 const bad = check.issues.some((i) => i.elementId === el.id && i.severity === "block");
+                const dynamic = placeholders(elementSource(el)).length > 0;
                 return (
                   <div
                     key={el.id}
@@ -218,7 +277,7 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
                     onPointerDown={(e) => onPointerDown(e, el, "move")}
                     onClick={(e) => e.stopPropagation()}
                     onFocus={() => setSelectedId(el.id)}
-                    className={`absolute cursor-move outline-none ${on ? "ring-2 ring-brand-600" : bad ? "ring-2 ring-red-500" : "hover:ring-1 hover:ring-brand-400"}`}
+                    className={`absolute cursor-move outline-none ${on ? "ring-2 ring-brand-600" : bad ? "ring-2 ring-red-500" : dynamic ? "bg-brand-200/30 ring-1 ring-brand-300 hover:ring-brand-500" : "hover:ring-1 hover:ring-brand-400"}`}
                     style={{ left: el.x * PX, top: el.y * PX, width: Math.max(4, el.w * PX), height: Math.max(4, el.h * PX) }}
                   >
                     {on ? <span onPointerDown={(e) => onPointerDown(e, el, "resize")} className="absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize rounded-sm border border-white bg-brand-600" /> : null}
@@ -237,6 +296,7 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
         </section>
 
         <aside className="space-y-4">
+          <FieldPanel kind={kind} design={design} values={values} usingRecord={!!record} onPick={pickField} />
           <section className="space-y-3 rounded-xl border border-brand-100 bg-white p-4 shadow-sm">
             <h2 className="font-bold text-brand-950">{selected ? `Selected ${selected.type}` : "Nothing selected"}</h2>
             {selected ? (
@@ -250,9 +310,10 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
                 </div>
                 {selected.type === "text" ? (
                   <>
-                    <Field label="Text">
+                    <Field label="Text" hint="Words you type print the same on every label. Fields fill in from each package.">
                       <textarea rows={3} className={`${inputClass} py-2`} value={selected.text ?? ""} onChange={(e) => patch(selected.id, { text: e.target.value })} />
                     </Field>
+                    <PieceFields keys={placeholders(selected.text)} values={values} labelOf={labelOf} onRemove={(k) => patch(selected.id, { text: withoutField(selected.text, k) })} />
                     <div className="grid grid-cols-3 gap-2">
                       <Field label="Size pt">
                         <input type="number" min={2} max={72} step="0.5" className={inputClass} value={selected.fontSize ?? 8} onChange={(e) => patch(selected.id, { fontSize: Number(e.target.value) || 8 })} />
