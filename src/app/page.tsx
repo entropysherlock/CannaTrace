@@ -324,6 +324,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                 Sign in
               </Link>
             )}
+            {demoOn ? (
+              <Link href="/demo" prefetch={false} className="hidden rounded-lg border-2 border-brand-700 px-4 py-2 text-sm font-bold text-brand-800 hover:bg-brand-50 sm:block">
+                Try Live Demo
+              </Link>
+            ) : null}
             <a href={DEMO_LINK} className="rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-brand-800">
               Book a Demo
             </a>
@@ -349,8 +354,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               <Link href={cta.href} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-7 py-3.5 text-base font-bold text-white shadow-sm hover:bg-brand-800">
                 {cta.label} <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </Link>
+              {demoOn ? (
+                <Link href="/demo" prefetch={false} className="inline-flex items-center gap-2 rounded-xl border-2 border-brand-700 bg-white px-7 py-3 text-base font-bold text-brand-800 hover:bg-brand-50">
+                  Try Live Demo <ArrowRight className="h-5 w-5" aria-hidden="true" />
+                </Link>
+              ) : null}
               <DemoVideoButton className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-7 py-3 text-base font-bold text-slate-900 hover:border-brand-600">
-                <Play className="h-5 w-5" aria-hidden="true" /> Watch the Live Demo
+                <Play className="h-5 w-5" aria-hidden="true" /> Watch the Video Tour
               </DemoVideoButton>
             </div>
             <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-700">
@@ -594,15 +604,20 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <DemoVideoButton className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-6 py-3 font-bold text-white shadow-sm hover:bg-brand-800">
-                <Play className="h-5 w-5" aria-hidden="true" /> Watch the Live Demo
+                <Play className="h-5 w-5" aria-hidden="true" /> Watch the Video Tour
               </DemoVideoButton>
+              {demoOn ? (
+                <Link href="/demo" prefetch={false} className="inline-flex items-center gap-2 rounded-xl border-2 border-brand-700 bg-white px-6 py-2.5 font-bold text-brand-800 hover:bg-brand-50">
+                  Try Live Demo <ArrowRight className="h-5 w-5" aria-hidden="true" />
+                </Link>
+              ) : null}
               <a href={DEMO_LINK} className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-6 py-2.5 font-bold text-slate-900 hover:border-brand-600">
                 Book a Demo <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </a>
             </div>
             {demoOn ? (
               <p className="mt-4 max-w-lg text-sm text-slate-600">
-                Want to click around yourself?{" "}
+                Prefer to click around yourself?{" "}
                 <Link href="/demo" prefetch={false} className="font-semibold text-brand-700 underline hover:no-underline">
                   Open the sample business
                 </Link>
