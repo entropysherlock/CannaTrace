@@ -167,3 +167,108 @@ describe("describing a promotion", () => {
     ).toBe("$5.00 off each · Every day");
   });
 });
+
+describe("buy some, get some, and bundles", () => {
+  const deal = (over: Partial<Promo> = {}): Promo =>
+    promo({
+      kind: "BOGO",
+      amount: 50,
+      buyQty: 1,
+      getQty: 1,
+      scope: "ALL",
+      categoryId: null,
+      weekdays: [],
+      ...over,
+    });
+  const L = (id: string, price: string, quantity = 1): PromoLine => ({
+    id,
+    itemId: id,
+    categoryId: "c",
+    quantity,
+    unitPrice: price,
+  });
+
+  it("buy 1 get 1 at 50% off discounts the cheaper item", () => {
+    const r = applyPromotions([L("a", "40"), L("b", "20")], [deal()], wed);
+    expect(r.total.toFixed(2)).toBe("10.00");
+    expect([...r.byLine.keys()]).toEqual(["b"]);
+  });
+  it("pairs up units within one line and leaves an odd one out", () => {
+    expect(
+      applyPromotions([L("a", "10", 3)], [deal()], wed).total.toFixed(2),
+    ).toBe("5.00");
+    expect(
+      applyPromotions([L("a", "10", 1)], [deal()], wed).total.toFixed(2),
+    ).toBe("0.00");
+  });
+  it("buy 2 get 1 works in groups of three", () => {
+    expect(
+      applyPromotions(
+        [L("a", "10", 6)],
+        [deal({ buyQty: 2, getQty: 1, amount: 100 })],
+        wed,
+      ).total.toFixed(2),
+    ).toBe("18.00");
+  });
+  it("never makes the discounted item free", () => {
+    expect(
+      applyPromotions(
+        [L("a", "10", 2)],
+        [deal({ amount: 100 })],
+        wed,
+      ).total.toFixed(2),
+    ).toBe("9.00");
+  });
+  it("ignores weighed lines", () => {
+    expect(
+      applyPromotions([L("a", "10", 1.5)], [deal()], wed).total.toFixed(2),
+    ).toBe("0.00");
+  });
+  it("a bundle of 3 for $60 takes off what the three cost over $60", () => {
+    const b = deal({ kind: "BUNDLE", amount: 60, buyQty: 3 });
+    const r = applyPromotions(
+      [L("a", "30"), L("b", "25"), L("c", "20"), L("d", "5")],
+      [b],
+      wed,
+    );
+    expect(r.total.toFixed(2)).toBe("15.00");
+    expect(
+      [...r.byLine.values()]
+        .reduce((t, v) => t.add(v.amount), new Decimal(0))
+        .toFixed(2),
+    ).toBe("15.00");
+  });
+  it("a bundle price that is too low still charges at least 10%", () => {
+    const b = deal({ kind: "BUNDLE", amount: 1, buyQty: 2 });
+    expect(
+      applyPromotions([L("a", "20"), L("b", "20")], [b], wed).total.toFixed(2),
+    ).toBe("36.00");
+  });
+  it("describes a deal", () => {
+    const base = {
+      weekdays: [],
+      startTime: null,
+      endTime: null,
+      startDate: null,
+      endDate: null,
+    };
+    expect(
+      describePromo({
+        ...base,
+        kind: "BOGO",
+        amount: 50,
+        buyQty: 1,
+        getQty: 1,
+      }),
+    ).toBe("Buy 1, get 1 at 50% off · Every day");
+    expect(
+      describePromo({
+        ...base,
+        kind: "BUNDLE",
+        amount: 60,
+        buyQty: 3,
+        getQty: null,
+      }),
+    ).toBe("Any 3 for $60.00 · Every day");
+  });
+});

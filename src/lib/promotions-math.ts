@@ -11,7 +11,8 @@ import Decimal from "decimal.js";
 
 export const MAX_PROMO_PERCENT = 90;
 
-export type PromoKind = "PERCENT" | "DOLLAR";
+/** PERCENT / DOLLAR take money off each matching item. BOGO: buy `buyQty`, get `getQty` at `amount`% off. BUNDLE: any `buyQty` for `amount` dollars. */
+export type PromoKind = "PERCENT" | "DOLLAR" | "BOGO" | "BUNDLE";
 export type PromoScope = "ALL" | "CATEGORY" | "ITEM";
 
 export type Promo = {
@@ -23,6 +24,10 @@ export type Promo = {
   scope: PromoScope;
   categoryId?: string | null;
   itemId?: string | null;
+  /** BOGO: how many are bought at full price. BUNDLE: how many make a bundle. */
+  buyQty?: number | null;
+  /** BOGO: how many are then discounted. */
+  getQty?: number | null;
   /** Days of the week it runs, 0 = Sunday ... 6 = Saturday. Empty means every day. */
   weekdays: number[];
   /** "HH:MM" 24-hour store time. Both empty means all day. */
@@ -92,6 +97,7 @@ export function appliesToLine(p: Promo, line: PromoLine): boolean {
 
 /** Dollars one promotion takes off one line, never more than 90% of the line. */
 export function lineDiscount(p: Promo, line: PromoLine): Decimal {
+  if (p.kind === "BOGO" || p.kind === "BUNDLE") return new Decimal(0);
   const lineTotal = round2(new Decimal(line.quantity).mul(line.unitPrice));
   if (lineTotal.lte(0)) return new Decimal(0);
   const raw =
@@ -106,6 +112,62 @@ export function lineDiscount(p: Promo, line: PromoLine): Decimal {
   return Decimal.max(0, Decimal.min(raw, cap));
 }
 
+type Unit = { lineId: string; price: Decimal };
+
+/** Each whole unit on matching lines. Weighed lines (1.5 g) don't count toward a deal. */
+function unitsFor(p: Promo, lines: PromoLine[]): Unit[] {
+  const units: Unit[] = [];
+  for (const line of lines) {
+    const q = new Decimal(line.quantity);
+    if (!appliesToLine(p, line) || !q.isInteger() || q.lte(0) || q.gt(200))
+      continue;
+    for (let i = 0; i < q.toNumber(); i++)
+      units.push({ lineId: line.id, price: new Decimal(line.unitPrice) });
+  }
+  return units.sort((a, b) => b.price.comparedTo(a.price));
+}
+
+/** Dollars a buy-X-get-Y or bundle deal takes off, per line. Cheapest items are the ones discounted. */
+export function dealDiscounts(
+  p: Promo,
+  lines: PromoLine[],
+): Map<string, Decimal> {
+  const out = new Map<string, Decimal>();
+  const add = (id: string, d: Decimal) =>
+    d.gt(0) && out.set(id, (out.get(id) ?? new Decimal(0)).add(d));
+  const units = unitsFor(p, lines);
+  if (p.kind === "BOGO") {
+    const buy = Math.max(1, p.buyQty ?? 1);
+    const get = Math.max(1, p.getQty ?? 1);
+    const pct = Decimal.min(new Decimal(p.amount), MAX_PROMO_PERCENT);
+    for (let i = 0; i + buy + get <= units.length; i += buy + get) {
+      for (const u of units.slice(i + buy, i + buy + get))
+        add(u.lineId, round2(u.price.mul(pct).div(100)));
+    }
+  } else if (p.kind === "BUNDLE") {
+    const size = Math.max(2, p.buyQty ?? 2);
+    for (let i = 0; i + size <= units.length; i += size) {
+      const group = units.slice(i, i + size);
+      const sum = group.reduce((t, u) => t.add(u.price), new Decimal(0));
+      const total = Decimal.min(
+        round2(sum.sub(p.amount)),
+        round2(sum.mul(MAX_PROMO_PERCENT).div(100)),
+      );
+      if (total.lte(0)) continue;
+      let left = total;
+      group.forEach((u, idx) => {
+        const share =
+          idx === group.length - 1
+            ? left
+            : Decimal.min(left, round2(total.mul(u.price).div(sum)));
+        left = left.sub(share);
+        add(u.lineId, share);
+      });
+    }
+  }
+  return out;
+}
+
 export function applyPromotions(
   lines: PromoLine[],
   promos: Promo[],
@@ -115,10 +177,27 @@ export function applyPromotions(
   const byLine: PromoResult["byLine"] = new Map();
   const names: string[] = [];
   let total = new Decimal(0);
+  const deals = running
+    .filter((p) => p.kind === "BOGO" || p.kind === "BUNDLE")
+    .map((p) => ({ p, per: dealDiscounts(p, lines) }));
   for (const line of lines) {
     let best: { amount: Decimal; promo: Promo } | null = null;
+    for (const { p, per } of deals) {
+      const amount = Decimal.min(
+        per.get(line.id) ?? 0,
+        round2(
+          new Decimal(line.quantity)
+            .mul(line.unitPrice)
+            .mul(MAX_PROMO_PERCENT)
+            .div(100),
+        ),
+      );
+      if (amount.gt(0) && (!best || amount.gt(best.amount)))
+        best = { amount, promo: p };
+    }
     for (const p of running) {
-      if (!appliesToLine(p, line)) continue;
+      if (p.kind === "BOGO" || p.kind === "BUNDLE" || !appliesToLine(p, line))
+        continue;
       const amount = lineDiscount(p, line);
       if (amount.gt(0) && (!best || amount.gt(best.amount)))
         best = { amount, promo: p };
@@ -156,12 +235,18 @@ export function describePromo(
     | "endTime"
     | "startDate"
     | "endDate"
+    | "buyQty"
+    | "getQty"
   >,
 ): string {
   const amount =
-    p.kind === "PERCENT"
-      ? `${new Decimal(p.amount).toString()}% off`
-      : `$${new Decimal(p.amount).toFixed(2)} off each`;
+    p.kind === "BOGO"
+      ? `Buy ${p.buyQty ?? 1}, get ${p.getQty ?? 1} at ${new Decimal(p.amount).toString()}% off`
+      : p.kind === "BUNDLE"
+        ? `Any ${p.buyQty ?? 2} for $${new Decimal(p.amount).toFixed(2)}`
+        : p.kind === "PERCENT"
+          ? `${new Decimal(p.amount).toString()}% off`
+          : `$${new Decimal(p.amount).toFixed(2)} off each`;
   const days =
     p.weekdays.length === 0 || p.weekdays.length === 7
       ? "Every day"
