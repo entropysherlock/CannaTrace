@@ -418,9 +418,9 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
                   className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-brand-600 bg-white px-5 text-sm font-bold text-brand-800 hover:bg-brand-50"
                   data-testid="print-with-template"
                 >
-                  <Printer className="h-4 w-4" aria-hidden="true" /> {record ? `Print ${record.ref} with this template` : "Print labels with this template"}
+                  <Printer className="h-4 w-4" aria-hidden="true" /> {record ? `Print ${record.ref} with this template` : "Choose packages to print with this template"}
                 </Link>
-                <p className="text-xs text-slate-600">{dirty ? "Prints the last saved version. Save your changes first." : "Opens the print page with this template chosen."}</p>
+                <p className="text-xs text-slate-600">{dirty ? "Prints the last saved version. Save your changes first." : record ? "Opens the print page with the preview and Print button ready." : "Tip: pick a real package in the preview above and this button prints that package right away."}</p>
               </div>
             ) : null}
             {check.blocked ? <p className="text-xs text-amber-800">You can save a design with problems, but labels won&apos;t print from it until they&apos;re fixed.</p> : null}

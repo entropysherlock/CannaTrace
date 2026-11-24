@@ -3,7 +3,7 @@
 import { Printer, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { quickPrinterAction, quickTemplateAction } from "@/app/(app)/quick-create-actions";
 import { CreatableSelect } from "@/components/contextual-create";
 import { Field, inputClass } from "@/components/ui";
@@ -193,6 +193,17 @@ export function PrintStation({
       setBusy(false);
     }
   }
+
+  // Arriving from a template's Print button with a package already chosen: run the check straight away, so the
+  // preview and the Print button are the first thing on screen.
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (autoChecked.current || !initialTemplateId || initialIds.length === 0 || !templateId) return;
+    autoChecked.current = true;
+    const t = setTimeout(() => void check(initialIds), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function createJob() {
     setBusy(true);
@@ -416,7 +427,13 @@ export function PrintStation({
         {!preview ? (
           <div className="flex h-full min-h-60 flex-col items-center justify-center gap-2 text-center text-slate-500">
             <Printer className="h-10 w-10 text-brand-300" aria-hidden="true" />
-            <p className="max-w-sm text-sm">Choose records, then press Check and preview. Labels fill in from saved records, so there&apos;s nothing to type.</p>
+            {templateId && initialTemplateId ? (
+              <p className="max-w-sm text-sm font-semibold text-slate-700" data-testid="print-next-step">
+                &ldquo;{templates.find((t) => t.id === templateId)?.name}&rdquo; is chosen. Now pick which {{ PLANT: "plants", BATCH: "plant batches", PACKAGE: "packages", PRODUCT: "packages", TRANSFER: "orders" }[kind]} to print from the list on the left, then press Check and preview, then Print.
+              </p>
+            ) : (
+              <p className="max-w-sm text-sm">Choose records, then press Check and preview. Labels fill in from saved records, so there&apos;s nothing to type.</p>
+            )}
           </div>
         ) : (
           <>
