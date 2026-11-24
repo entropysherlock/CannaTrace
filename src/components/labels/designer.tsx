@@ -49,6 +49,10 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok?: string; error?: string } | null>(null);
   const [dirty, setDirty] = useState(mode === "new");
+  // On the New template page, printing creates the template and keeps the person here; these track that.
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const [version, setVersion] = useState(initial.version);
+  const savedId = templateId ?? createdId;
   const drag = useRef<{ id: string; mode: "move" | "resize"; sx: number; sy: number; el: LabelElement } | null>(null);
 
   const selected = design.elements.find((e) => e.id === selectedId) ?? null;
@@ -118,32 +122,47 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
     }
   }
 
-  async function save(): Promise<boolean> {
+  /**
+   * Save the template. On the New template page the first save creates it and, unless `stay` is set (printing),
+   * opens it. Returns the template's id, or null when it didn't save.
+   */
+  async function save(opts: { stay?: boolean } = {}): Promise<string | null> {
     setBusy(true);
     setMessage(null);
     try {
-      const body = { name, kind, jurisdiction: jurisdiction || null, design, note, baseVersion: initial.version };
-      const res = await fetch(mode === "new" ? "/api/labels/templates" : `/api/labels/templates/${templateId}`, {
-        method: mode === "new" ? "POST" : "PUT",
+      const existing = savedId;
+      const body = { name, kind, jurisdiction: jurisdiction || null, design, note, baseVersion: version };
+      const res = await fetch(existing ? `/api/labels/templates/${existing}` : "/api/labels/templates", {
+        method: existing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setDirty(false);
-      if (mode === "new") router.push(`/labels/templates/${data.id}`);
-      else {
-        setMessage({ ok: `Saved as version ${data.version}.` });
-        setNote("");
-        router.refresh();
+      if (!existing) {
+        setCreatedId(data.id);
+        setVersion(1);
+        if (opts.stay) setMessage({ ok: "Template saved. You can keep editing it here or open it from Label templates." });
+        else router.push(`/labels/templates/${data.id}`);
+        return data.id as string;
       }
-      return true;
+      setVersion(Number(data.version) || version + 1);
+      setMessage({ ok: `Saved as version ${data.version}.` });
+      setNote("");
+      router.refresh();
+      return existing;
     } catch (e) {
       setMessage({ error: (e as Error).message || "Not saved." });
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
+  }
+  /** Make sure the latest design is saved (creating the template if it's new) before printing it. */
+  async function ensureSaved(): Promise<string | null> {
+    if (savedId && !dirty) return savedId;
+    return save({ stay: true });
   }
 
   const fields = fieldsFor(kind);
@@ -190,7 +209,7 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
           <input className={inputClass} value={name} maxLength={80} onChange={(e) => { setName(e.target.value); setDirty(true); }} />
         </Field>
         <Field label="Label type">
-          <select className={inputClass} value={kind} disabled={mode === "edit"} onChange={(e) => { setKind(e.target.value as LabelKind); setRecord(null); setDirty(true); }}>
+          <select className={inputClass} value={kind} disabled={mode === "edit" || !!createdId} onChange={(e) => { setKind(e.target.value as LabelKind); setRecord(null); setDirty(true); }}>
             {LABEL_KINDS.map((k) => (
               <option key={k.kind} value={k.kind}>
                 {k.label}
@@ -300,7 +319,7 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
         </section>
 
         <aside className="space-y-4">
-          {mode === "edit" && templateId ? <PrintNow templateId={templateId} record={record} dirty={dirty} saveFirst={save} /> : null}
+          <PrintNow kind={kind} design={design} sampleValues={values} record={record} dirty={dirty} ensureSaved={ensureSaved} />
           <FieldPanel kind={kind} design={design} values={values} usingRecord={!!record} onPick={pickField} />
           <section className="space-y-3 rounded-xl border border-brand-100 bg-white p-4 shadow-sm">
             <h2 className="font-bold text-brand-950">{selected ? `Selected ${selected.type}` : "Nothing selected"}</h2>
@@ -407,18 +426,18 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
           </section>
 
           <section className="space-y-3 rounded-xl border border-brand-100 bg-white p-4 shadow-sm">
-            {mode === "edit" ? (
+            {savedId ? (
               <Field label="What changed (optional)">
                 <input className={inputClass} value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="Bigger barcode" />
               </Field>
             ) : null}
-            <button type="button" disabled={busy || !dirty} onClick={save} className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-brand-700 disabled:opacity-50">
-              {busy ? "Saving…" : mode === "new" ? "Create template" : dirty ? `Save as version ${initial.version + 1}` : "Saved"}
+            <button type="button" disabled={busy || !dirty} onClick={() => void save()} className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-brand-700 disabled:opacity-50">
+              {busy ? "Saving…" : !savedId ? "Create template" : dirty ? `Save as version ${version + 1}` : "Saved"}
             </button>
-            {mode === "edit" && templateId ? (
+            {savedId ? (
               <div className="space-y-1 border-t border-slate-200 pt-3">
                 <Link
-                  href={`/labels?kind=${kind}&template=${templateId}${record ? `&ids=${encodeURIComponent(record.sourceId)}` : ""}`}
+                  href={`/labels?kind=${kind}&template=${savedId}${record ? `&ids=${encodeURIComponent(record.sourceId)}` : ""}`}
                   className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-brand-600 bg-white px-5 text-sm font-bold text-brand-800 hover:bg-brand-50"
                   data-testid="print-with-template"
                 >

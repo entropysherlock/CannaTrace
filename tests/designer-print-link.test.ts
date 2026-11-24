@@ -13,12 +13,6 @@ describe("template editor print button", () => {
     expect(html).toContain('href="/labels?kind=PACKAGE&amp;template=tpl-1"');
     expect(html).toContain("Print many labels (choose packages)");
   });
-  it("has no print button while a template is still being created", async () => {
-    const { LabelDesigner } = await import("@/components/labels/designer");
-    const t = starterTemplates("NM")[0];
-    const html = renderToString(createElement(LabelDesigner, { mode: "new", initial: { name: t.name, kind: t.kind, jurisdiction: t.jurisdiction ?? null, design: t.design, version: 0 } }));
-    expect(html).not.toContain("print-with-template");
-  });
 });
 
 describe("print now panel", () => {
@@ -28,12 +22,15 @@ describe("print now panel", () => {
     const html = renderToString(createElement(LabelDesigner, { mode: "edit", templateId: "tpl-1", initial: { name: t.name, kind: t.kind, jurisdiction: t.jurisdiction ?? null, design: t.design, version: 1 } })).replace(/<!-- -->/g, "");
     expect(html).toContain('data-testid="print-now"');
     expect(html).toContain("Print this template");
-    expect(html).toContain("/api/labels/templates/tpl-1/sample?copies=1");
+    expect(html).toContain("Print a sample");
   });
-  it("is not shown while a template is still being created", async () => {
+  it("is also on the New template page, with the sample button that works before saving", async () => {
     const { LabelDesigner } = await import("@/components/labels/designer");
     const t = starterTemplates("NM")[0];
-    const html = renderToString(createElement(LabelDesigner, { mode: "new", initial: { name: t.name, kind: t.kind, jurisdiction: t.jurisdiction ?? null, design: t.design, version: 0 } }));
-    expect(html).not.toContain("print-now");
+    const html = renderToString(createElement(LabelDesigner, { mode: "new", initial: { name: t.name, kind: t.kind, jurisdiction: t.jurisdiction ?? null, design: t.design, version: 0 } })).replace(/<!-- -->/g, "");
+    expect(html).toContain('data-testid="print-now"');
+    expect(html).toContain("Print a sample (works before saving)");
+    expect(html).toContain("Create template");
+    expect(html).not.toContain("Print many labels");
   });
 });
