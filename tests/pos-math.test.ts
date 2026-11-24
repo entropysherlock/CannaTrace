@@ -128,6 +128,17 @@ describe("payments, quick cash, and ID barcodes", () => {
     expect(parseIdBarcode("CT-000101")).toBeNull();
     expect(parseIdBarcode("@ANSI DLDAQ1\nDBB99999999\n")).toBeNull();
   });
+
+  it("refuses dates that are not on the calendar, like February 31", async () => {
+    const { parseIdBarcode } = await import("@/lib/pos-math");
+    const scan = (born: string, expires = "03142028") => parseIdBarcode(`@ANSI DLDAQD1234562\nDBB${born}\nDBA${expires}\nDAJNM\n`);
+    expect(scan("02311988")).toBeNull();
+    expect(scan("04311988")).toBeNull();
+    expect(scan("02291989")).toBeNull(); // 1989 was not a leap year
+    expect(scan("03141988", "02302028")).toBeNull();
+    expect(scan("02291988")).toMatchObject({ birthDate: "1988-02-29" }); // 1988 was
+    expect(scan("12311988")).toMatchObject({ birthDate: "1988-12-31" });
+  });
 });
 
 describe("card payment details", () => {

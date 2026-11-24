@@ -2,8 +2,8 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
-import { and, eq } from "drizzle-orm";
-import { customRoles, organizations, users } from "@/db/schema";
+import { and, eq, isNull } from "drizzle-orm";
+import { customRoles, linkedDevices, organizations, users } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
 import { allowedFacilities } from "./facility-access";
@@ -30,6 +30,8 @@ export type SessionToken = {
   support?: { homeOrgId: string; homeFacilityId: string; until: number };
   /** When the cookie was issued (seconds). A password change makes older cookies stop working. */
   issuedAt?: number;
+  /** Set when a linked phone signed this cookie in: unlinking that phone ends the sign-in at once. */
+  deviceId?: string;
 };
 
 export type Session = SessionToken & {
@@ -55,8 +57,8 @@ function secret(): Uint8Array {
 }
 
 export async function createSession(session: SessionToken): Promise<void> {
-  const { userId, orgId, facilityId, role, name, support } = session;
-  const token = await new SignJWT({ userId, orgId, facilityId, role, name, ...(support ? { support } : {}) })
+  const { userId, orgId, facilityId, role, name, support, deviceId } = session;
+  const token = await new SignJWT({ userId, orgId, facilityId, role, name, ...(support ? { support } : {}), ...(deviceId ? { deviceId } : {}) })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE_SECONDS}s`)
@@ -79,7 +81,7 @@ export async function readToken(token: string | undefined): Promise<SessionToken
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
-    const { userId, orgId, facilityId, role, name, support, iat } = payload as Record<string, unknown>;
+    const { userId, orgId, facilityId, role, name, support, iat, deviceId } = payload as Record<string, unknown>;
     if (typeof userId !== "string" || typeof orgId !== "string" || typeof facilityId !== "string") {
       return null;
     }
@@ -88,7 +90,7 @@ export async function readToken(token: string | undefined): Promise<SessionToken
       s && typeof s.homeOrgId === "string" && typeof s.homeFacilityId === "string" && typeof s.until === "number"
         ? { homeOrgId: s.homeOrgId, homeFacilityId: s.homeFacilityId, until: s.until }
         : undefined;
-    return { userId, orgId, facilityId, role: role as Role, name: String(name ?? ""), ...(visit ? { support: visit } : {}), ...(typeof iat === "number" ? { issuedAt: iat } : {}) };
+    return { userId, orgId, facilityId, role: role as Role, name: String(name ?? ""), ...(visit ? { support: visit } : {}), ...(typeof iat === "number" ? { issuedAt: iat } : {}), ...(typeof deviceId === "string" ? { deviceId } : {}) };
   } catch {
     return null;
   }
@@ -147,6 +149,14 @@ async function resolve(session: SessionToken): Promise<Session | null> {
   if (!(user.isDemo && liveDemoOn()) && !(await memberMaySignIn(user.email, session.orgId))) return null;
   // Signed in before the password was changed or reset: that sign-in no longer counts.
   if (user.passwordChangedAt && session.issuedAt !== undefined && session.issuedAt * 1000 < user.passwordChangedAt.getTime()) return null;
+  // A sign-in made by a linked phone ends the moment that phone is unlinked, not when the cookie runs out.
+  if (session.deviceId) {
+    const [device] = await db
+      .select({ id: linkedDevices.id })
+      .from(linkedDevices)
+      .where(and(eq(linkedDevices.id, session.deviceId), eq(linkedDevices.userId, session.userId), isNull(linkedDevices.revokedAt)));
+    if (!device) return null;
+  }
   const custom = user.customRoleId && user.customPermissions;
   // Someone limited to some facilities always works inside them, even with an older cookie for another one.
   const allowed = allowedFacilities({ role: user.role, customRoleId: user.customRoleId, facilityIds: user.facilityIds });

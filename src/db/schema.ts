@@ -1488,6 +1488,13 @@ export const saleLines = pgTable(
       .references(() => items.id),
     quantity: qty("quantity").notNull(),
     unitPrice: qty("unit_price").notNull(),
+    /**
+     * How this line counted toward purchase limits when the sale was completed. Kept on the line so a
+     * later edit to the item can't change what an earlier sale counted for. Empty on carts still open
+     * and on sales from before this was kept (those fall back to the item's current numbers).
+     */
+    limitCategory: limitCategoryEnum("limit_category"),
+    limitPerUnit: qty("limit_per_unit"),
   },
   (t) => [uniqueIndex("sale_lines_sale_item_key").on(t.saleId, t.itemId)],
 );

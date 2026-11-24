@@ -225,7 +225,7 @@ async function loadChange(actor: Actor, changeId: string): Promise<TallyChange> 
 }
 
 /** Refuse when anything the change touched has been changed again since, by anyone. */
-async function assertNothingChangedSince(change: TallyChange, entries: Entry[]): Promise<void> {
+async function assertNothingChangedSince(change: TallyChange, entries: Entry[], ignoreIds: string[] = []): Promise<void> {
   const touched = new Map<string, Entry>();
   for (const e of entries) if (e.entityType !== "print_job") touched.set(`${e.entityType}:${e.entityId}`, e);
   for (const e of touched.values()) {
@@ -238,7 +238,7 @@ async function assertNothingChangedSince(change: TallyChange, entries: Entry[]):
           eq(auditLogs.entityType, e.entityType),
           eq(auditLogs.entityId, e.entityId),
           gt(auditLogs.createdAt, change.createdAt),
-          notInArray(auditLogs.id, change.auditIds),
+          notInArray(auditLogs.id, [...change.auditIds, ...ignoreIds]),
         ),
       )
       .orderBy(desc(auditLogs.createdAt))
@@ -277,7 +277,14 @@ export async function undoChange(actor: Actor, changeId: string): Promise<string
     await assertNothingChangedSince(change, entries);
     const reason = `Undo of Tally change: ${change.title}`;
     const steps = plan(entries);
-    for (const step of steps) await step.run(actor, reason);
+    const written: string[] = [];
+    await recordingAudits(written, async () => {
+      for (const step of steps) await step.run(actor, reason);
+    });
+    // The check above can't lock anything, so someone could save a change between it and the steps. The steps
+    // have now locked what they touch, so look again: anything newer than this Undo's own entries means
+    // someone got in first, and the whole Undo rolls back instead of overwriting their change.
+    await assertNothingChangedSince(change, entries, written);
     await db.update(tallyChanges).set({ status: "UNDONE", undoneAt: new Date(), undoneByName: actor.userName }).where(eq(tallyChanges.id, change.id));
     return `Undone: ${change.title}. ${steps.length} step${steps.length === 1 ? "" : "s"} reversed, each recorded in the audit trail.`;
   });

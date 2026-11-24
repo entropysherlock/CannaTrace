@@ -63,6 +63,22 @@ describe.skipIf(!hasDb)("linking a phone", () => {
     expect(await deviceSession(linked.deviceToken)).toBeNull();
   });
 
+  it("a sign-in made by a linked phone ends the moment that phone is unlinked", async () => {
+    const linked = (await redeemPairing((await createPairing(owner)).code, "iPhone"))!;
+    const { SignJWT } = await import("jose");
+    const { sessionFromToken } = await import("@/lib/session");
+    const iat = Math.floor(Date.now() / 1000);
+    const { userId, orgId, facilityId, role, name } = linked.user;
+    const cookie = await new SignJWT({ userId, orgId, facilityId, role, name, deviceId: linked.user.deviceId })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt(iat)
+      .setExpirationTime(iat + 3600)
+      .sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+    expect((await sessionFromToken(cookie))?.userId).toBe(owner.userId);
+    await revokeDevice(owner, linked.user.deviceId!);
+    expect(await sessionFromToken(cookie)).toBeNull();
+  });
+
   it("stops working when the person is deactivated or changes their password", async () => {
     const a = (await redeemPairing((await createPairing(owner)).code, "iPhone"))!;
     await db.update(users).set({ passwordChangedAt: new Date(Date.now() + 5000) }).where(eq(users.id, owner.userId));

@@ -589,7 +589,12 @@ async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" 
   // "Today" is the store's own day, in its state's time zone.
   const zone = await facilityZone(sale.facilityId, tx);
   return tx
-    .select({ quantity: saleLines.quantity, limitCategory: items.limitCategory, limitPerUnit: items.limitPerUnit })
+    // Each line counts as it did when it was sold; only sales from before that was kept use the item's current numbers.
+    .select({
+      quantity: saleLines.quantity,
+      limitCategory: sql<LimitCategory>`coalesce(${saleLines.limitCategory}, ${items.limitCategory})`,
+      limitPerUnit: sql<string | null>`case when ${saleLines.limitCategory} is null then ${items.limitPerUnit} else ${saleLines.limitPerUnit} end`,
+    })
     .from(saleLines)
     .innerJoin(sales, eq(sales.id, saleLines.saleId))
     .innerJoin(items, eq(items.id, saleLines.itemId))
@@ -946,6 +951,8 @@ export async function completeSale(
         completedAt: new Date(),
       })
       .where(eq(sales.id, sale.id));
+    // Keep how each line counted toward purchase limits, so editing the item later can't rewrite this sale's count.
+    for (const line of lines) await tx.update(saleLines).set({ limitCategory: line.limitCategory, limitPerUnit: line.limitPerUnit }).where(eq(saleLines.id, line.id));
     const perPromo = new Map<string, { name: string; lines: number; amount: Decimal }>();
     for (const hit of promos.byLine.values()) {
       const row = perPromo.get(hit.promoId) ?? { name: hit.promoName, lines: 0, amount: new Decimal(0) };
