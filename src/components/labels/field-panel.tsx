@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { inputClass } from "@/components/ui";
 import { fieldsFor, type FieldDef } from "@/lib/labels/fields";
 import { fieldsUsed } from "@/lib/labels/field-usage";
@@ -13,7 +13,7 @@ type Candidate = { id: string; ref: string; detail: string; status?: string };
 const KIND_NOUN: Record<LabelKind, string> = { PACKAGE: "package", PRODUCT: "package", PLANT: "plant", BATCH: "plant batch", TRANSFER: "order" };
 
 /** Choose a real package (or plant, batch, order) to preview the label with, instead of example data. */
-export function RecordPicker({ kind, record, onChange }: { kind: LabelKind; record: PreviewRecord | null; onChange: (r: PreviewRecord | null) => void }) {
+export function RecordPicker({ kind, record, onChange, autoPick = false }: { kind: LabelKind; record: PreviewRecord | null; onChange: (r: PreviewRecord | null) => void; autoPick?: boolean }) {
   const [loaded, setLoaded] = useState<{ kind: LabelKind; list: Candidate[] | null; error: string | null } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,6 +47,15 @@ export function RecordPicker({ kind, record, onChange }: { kind: LabelKind; reco
       setBusy(false);
     }
   }
+
+  // In the editor of a saved template, start on the newest record so it can be printed in one click.
+  const picked = useRef(false);
+  useEffect(() => {
+    if (!autoPick || picked.current || record || !list?.length) return;
+    picked.current = true;
+    void choose(list[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPick, list, record]);
 
   const index = list && record ? list.findIndex((c) => c.id === record.sourceId) : -1;
   const step = (d: number) => {

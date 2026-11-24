@@ -11,12 +11,29 @@ describe("template editor print button", () => {
     const t = starterTemplates("NM").find((x) => x.kind === "PACKAGE")!;
     const html = renderToString(createElement(LabelDesigner, { mode: "edit", templateId: "tpl-1", initial: { name: t.name, kind: t.kind, jurisdiction: t.jurisdiction ?? null, design: t.design, version: 1 } }));
     expect(html).toContain('href="/labels?kind=PACKAGE&amp;template=tpl-1"');
-    expect(html).toContain("Choose packages to print with this template");
+    expect(html).toContain("Print many labels (choose packages)");
   });
   it("has no print button while a template is still being created", async () => {
     const { LabelDesigner } = await import("@/components/labels/designer");
     const t = starterTemplates("NM")[0];
     const html = renderToString(createElement(LabelDesigner, { mode: "new", initial: { name: t.name, kind: t.kind, jurisdiction: t.jurisdiction ?? null, design: t.design, version: 0 } }));
     expect(html).not.toContain("print-with-template");
+  });
+});
+
+describe("print now panel", () => {
+  it("is on a saved template's editor, with copies and a sample link", async () => {
+    const { LabelDesigner } = await import("@/components/labels/designer");
+    const t = starterTemplates("NM").find((x) => x.kind === "PACKAGE")!;
+    const html = renderToString(createElement(LabelDesigner, { mode: "edit", templateId: "tpl-1", initial: { name: t.name, kind: t.kind, jurisdiction: t.jurisdiction ?? null, design: t.design, version: 1 } })).replace(/<!-- -->/g, "");
+    expect(html).toContain('data-testid="print-now"');
+    expect(html).toContain("Print this template");
+    expect(html).toContain("/api/labels/templates/tpl-1/sample?copies=1");
+  });
+  it("is not shown while a template is still being created", async () => {
+    const { LabelDesigner } = await import("@/components/labels/designer");
+    const t = starterTemplates("NM")[0];
+    const html = renderToString(createElement(LabelDesigner, { mode: "new", initial: { name: t.name, kind: t.kind, jurisdiction: t.jurisdiction ?? null, design: t.design, version: 0 } }));
+    expect(html).not.toContain("print-now");
   });
 });

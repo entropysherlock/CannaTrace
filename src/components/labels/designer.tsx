@@ -14,6 +14,7 @@ import { LABEL_KINDS, type ElementType, type LabelDesign, type LabelElement, typ
 import { checkDesign, checkJurisdiction, checkRecord } from "@/lib/labels/validate";
 import { FieldPanel, PieceFields, RecordPicker, type PreviewRecord } from "./field-panel";
 import { IssueList } from "./issues";
+import { PrintNow } from "./print-now";
 
 const STATES = "AK AL AR AZ CA CO CT DC DE FL GA HI IA ID IL IN KS KY LA MA MD ME MI MN MO MS MT NC ND NE NH NJ NM NV NY OH OK OR PA RI SC SD TN TX UT VA VT WA WI WV WY".split(" ");
 const PX = 6; // screen pixels per millimetre in the editor
@@ -117,7 +118,7 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
     }
   }
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setBusy(true);
     setMessage(null);
     try {
@@ -136,8 +137,10 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
         setNote("");
         router.refresh();
       }
+      return true;
     } catch (e) {
       setMessage({ error: (e as Error).message || "Not saved." });
+      return false;
     } finally {
       setBusy(false);
     }
@@ -242,7 +245,7 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
               </button>
             ))}
           </div>
-          <RecordPicker kind={kind} record={record} onChange={setRecord} />
+          <RecordPicker kind={kind} record={record} onChange={setRecord} autoPick={mode === "edit"} />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-slate-500">Drag to move, drag the corner to resize, arrow keys nudge 0.5 mm (Shift for 5 mm). Showing {showNames ? "field names" : record ? `${record.ref}'s data` : "example data"}. Blue pieces fill in from the record.</p>
             <div className="inline-flex overflow-hidden rounded-lg border border-slate-300 text-xs font-semibold" role="group" aria-label="What the preview shows">
@@ -297,6 +300,7 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
         </section>
 
         <aside className="space-y-4">
+          {mode === "edit" && templateId ? <PrintNow templateId={templateId} record={record} dirty={dirty} saveFirst={save} /> : null}
           <FieldPanel kind={kind} design={design} values={values} usingRecord={!!record} onPick={pickField} />
           <section className="space-y-3 rounded-xl border border-brand-100 bg-white p-4 shadow-sm">
             <h2 className="font-bold text-brand-950">{selected ? `Selected ${selected.type}` : "Nothing selected"}</h2>
@@ -418,9 +422,9 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
                   className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-brand-600 bg-white px-5 text-sm font-bold text-brand-800 hover:bg-brand-50"
                   data-testid="print-with-template"
                 >
-                  <Printer className="h-4 w-4" aria-hidden="true" /> {record ? `Print ${record.ref} with this template` : "Choose packages to print with this template"}
+                  <Printer className="h-4 w-4" aria-hidden="true" /> Print many labels (choose packages)
                 </Link>
-                <p className="text-xs text-slate-600">{dirty ? "Prints the last saved version. Save your changes first." : record ? "Opens the print page with the preview and Print button ready." : "Tip: pick a real package in the preview above and this button prints that package right away."}</p>
+                <p className="text-xs text-slate-600">{dirty ? "Prints the last saved version. Save your changes first." : record ? "Opens the print page for several packages, with this one ready." : "Opens the print page to choose several packages at once."}</p>
               </div>
             ) : null}
             {check.blocked ? <p className="text-xs text-amber-800">You can save a design with problems, but labels won&apos;t print from it until they&apos;re fixed.</p> : null}
