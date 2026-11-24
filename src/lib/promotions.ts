@@ -1,7 +1,13 @@
 import Decimal from "decimal.js";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { itemCategories, items, promotions } from "@/db/schema";
+import {
+  itemCategories,
+  items,
+  promotions,
+  salePromotions,
+  sales,
+} from "@/db/schema";
 import { InventoryError, audit, type Actor } from "@/lib/inventory";
 import {
   MAX_PROMO_PERCENT,
@@ -305,4 +311,33 @@ export async function deletePromotion(actor: Actor, id: string) {
         before: { name: row.name },
       });
   });
+}
+
+/** What each promotion did over the last `days` days, from completed (not voided) sales. */
+export async function promotionResults(
+  reader: Reader,
+  orgId: string,
+  days = 30,
+) {
+  const rows = await reader
+    .select({
+      promoId: salePromotions.promoId,
+      name: sql<string>`max(${salePromotions.promoName})`,
+      sales: sql<number>`count(distinct ${salePromotions.saleId})::int`,
+      lines: sql<number>`coalesce(sum(${salePromotions.lineCount}), 0)::int`,
+      discount: sql<string>`coalesce(sum(${salePromotions.amount}), 0)::text`,
+      salesTotal: sql<string>`coalesce(sum(${sales.total}), 0)::text`,
+    })
+    .from(salePromotions)
+    .innerJoin(sales, eq(sales.id, salePromotions.saleId))
+    .where(
+      and(
+        eq(salePromotions.orgId, orgId),
+        eq(sales.status, "COMPLETED"),
+        sql`${sales.completedAt} >= now() - (${days} * interval '1 day')`,
+      ),
+    )
+    .groupBy(salePromotions.promoId)
+    .orderBy(sql`sum(${salePromotions.amount}) desc`);
+  return rows;
 }

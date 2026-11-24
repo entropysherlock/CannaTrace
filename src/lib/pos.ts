@@ -11,6 +11,7 @@ import {
   retailSettings,
   saleLinePackages,
   saleLines,
+  salePromotions,
   saleReturnLines,
   saleReturns,
   sales,
@@ -945,6 +946,15 @@ export async function completeSale(
         completedAt: new Date(),
       })
       .where(eq(sales.id, sale.id));
+    const perPromo = new Map<string, { name: string; lines: number; amount: Decimal }>();
+    for (const hit of promos.byLine.values()) {
+      const row = perPromo.get(hit.promoId) ?? { name: hit.promoName, lines: 0, amount: new Decimal(0) };
+      row.lines += 1;
+      row.amount = row.amount.add(hit.amount);
+      perPromo.set(hit.promoId, row);
+    }
+    if (perPromo.size > 0)
+      await tx.insert(salePromotions).values([...perPromo].map(([promoId, v]) => ({ orgId: actor.orgId, saleId: sale.id, promoId, promoName: v.name, lineCount: v.lines, amount: v.amount.toFixed(2) })));
     await audit(tx, actor, {
       entityType: "Sale",
       entityId: sale.id,

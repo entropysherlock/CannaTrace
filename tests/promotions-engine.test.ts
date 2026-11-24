@@ -26,12 +26,7 @@ import {
   setMenuItem,
   voidSale,
 } from "@/lib/pos";
-import {
-  cartPromos,
-  createPromotion,
-  deletePromotion,
-  setPromotionActive,
-} from "@/lib/promotions";
+import { cartPromos, createPromotion, deletePromotion, promotionResults, setPromotionActive } from "@/lib/promotions";
 import { storeClock } from "@/lib/promotions";
 
 /** Automatic promotions through the real register: applied at checkout, kept on the sale, never free. */
@@ -340,6 +335,19 @@ describe.skipIf(!hasDb)("promotions (database)", () => {
       promoNames: "BOGO Jars",
       total: "72.00",
     });
+    const results = await promotionResults(db, actor.orgId);
+    expect(results.find((r) => r.name === "BOGO Jars")).toMatchObject({
+      sales: 1,
+      lines: 1,
+      discount: "20.00",
+      salesTotal: "72.00",
+    });
+    await voidSale(actor, { saleId: s, reason: "test" });
+    expect(
+      (await promotionResults(db, actor.orgId)).find(
+        (r) => r.name === "BOGO Jars",
+      ),
+    ).toBeUndefined();
     await deletePromotion(actor, deal.id);
   });
 });
