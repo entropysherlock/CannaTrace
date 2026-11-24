@@ -85,9 +85,9 @@ export default async function CultivationPage() {
       <CultivationTabs current="/cultivation/overview" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {tiles.map((tile) => (
-          <Link key={tile.label} href={tile.href} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-brand-500">
-            <p className="text-sm text-slate-600">{tile.label}</p>
-            <p className="mt-1 text-3xl font-bold text-slate-900">{tile.value}</p>
+          <Link key={tile.label} href={tile.href} className="rounded-xl border border-brand-100 bg-white p-4 shadow-sm transition hover:border-brand-500 hover:shadow">
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">{tile.label}</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900">{tile.value}</p>
           </Link>
         ))}
       </div>
@@ -100,23 +100,52 @@ export default async function CultivationPage() {
             <p className="text-sm text-slate-600">No batches yet. Start one with clones or seeds.</p>
           ) : (
             <ScrollBox label="Plant batches">
-            <ul className="divide-y divide-slate-100 text-sm">
-              {batches.map((batch) => (
-                <li key={batch.id}>
-                  <Link href={`/cultivation/batches/${batch.id}`} className="flex min-h-12 items-center justify-between gap-3 py-2 hover:text-brand-700">
-                    <span className="min-w-0 flex-1 truncate">
-                      <span className="font-semibold">{batch.name}</span>{" "}
-                      <span className="text-slate-600">
-                        · {batch.strainName} · {batch.source.toLowerCase()}s · {batch.roomName}
-                      </span>
-                    </span>
-                    <span className={`shrink-0 whitespace-nowrap ${batch.status === "CLOSED" ? "text-slate-400" : "font-semibold text-slate-900"}`}>
-                      {batch.status === "CLOSED" ? "all tagged" : `${batch.untaggedCount} of ${batch.initialCount} untagged`} ›
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+              <ul className="space-y-2.5">
+                {batches.map((batch) => {
+                  const closed = batch.status === "CLOSED";
+                  const tagged = Math.max(0, batch.initialCount - batch.untaggedCount);
+                  const pct = batch.initialCount > 0 ? Math.round((tagged / batch.initialCount) * 100) : 100;
+                  return (
+                    <li key={batch.id}>
+                      <Link
+                        href={`/cultivation/batches/${batch.id}`}
+                        className={`group block rounded-lg border p-3.5 transition hover:border-brand-500 hover:shadow-sm ${closed ? "border-slate-200 bg-slate-50" : "border-brand-100 bg-white"}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-base font-bold text-slate-900 group-hover:text-brand-700">{batch.name}</p>
+                            <p className="mt-0.5 truncate text-sm text-slate-600">{batch.strainName}</p>
+                          </div>
+                          <span
+                            className={`shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${closed ? "bg-slate-200 text-slate-700" : "bg-amber-100 text-amber-900"}`}
+                          >
+                            {closed ? "All tagged" : `${batch.untaggedCount} untagged`}
+                          </span>
+                        </div>
+                        <div className="mt-2.5 flex flex-wrap gap-1.5 text-xs font-medium">
+                          <span className="rounded-md bg-brand-50 px-2 py-0.5 text-brand-800">{batch.source === "SEED" ? "Seeds" : "Clones"}</span>
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-slate-700">{batch.roomName}</span>
+                        </div>
+                        <div className="mt-3">
+                          <div
+                            className="h-1.5 overflow-hidden rounded-full bg-slate-200"
+                            role="progressbar"
+                            aria-label={`${batch.name}: ${tagged} of ${batch.initialCount} plants tagged`}
+                            aria-valuemin={0}
+                            aria-valuemax={batch.initialCount}
+                            aria-valuenow={tagged}
+                          >
+                            <div className={`h-full rounded-full ${closed ? "bg-slate-400" : "bg-brand-600"}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600">
+                            {tagged} of {batch.initialCount} tagged
+                          </p>
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             </ScrollBox>
           )}
         </Card>
