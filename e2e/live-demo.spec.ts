@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("a visitor opens the live demo from the homepage without signing up", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("link", { name: "Open the sample business" }).click();
+  await page.getByRole("link", { name: "Try Live Demo" }).first().click();
   await expect(page).toHaveURL(/\/dashboard$/, { timeout: 60_000 });
   await expect(page.getByRole("note")).toContainText("Live demo");
   await expect(page.getByText("Desert Bloom Cannabis Co. (sample)").or(page.getByText("Olivia Owner")).first()).toBeVisible();
@@ -38,9 +38,9 @@ test("someone signed in to a real business is not moved into the demo", async ({
   await expect(page.getByRole("note")).toHaveCount(0);
 });
 
-test("the Live Demo button plays the product tour video", async ({ page, request }) => {
+test("the Watch the Video Tour button plays the product tour video", async ({ page, request }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Watch the Live Demo" }).first().click();
+  await page.getByRole("button", { name: "Watch the Video Tour" }).first().click();
   const player = page.getByRole("dialog", { name: "CannaTrace product tour" });
   await expect(player).toBeVisible();
   const video = page.locator("dialog video");
