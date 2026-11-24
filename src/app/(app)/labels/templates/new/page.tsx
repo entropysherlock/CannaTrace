@@ -1,31 +1,25 @@
-import { LabelDesigner } from "@/components/labels/designer";
+import { NewTemplateStart } from "@/components/labels/new-template-start";
 import { PageHeader } from "@/components/ui";
+import { tallyAvailability } from "@/lib/ai/connection";
+import { catalog } from "@/lib/labels/catalog";
+import { listTemplates } from "@/lib/labels/service";
 import { requirePagePermission } from "@/lib/session";
+import { prepareLabels } from "../../shared";
 
 export const instant = false;
 
 export default async function NewTemplatePage() {
-  await requirePagePermission("labels.manage");
+  const session = await requirePagePermission("labels.manage");
+  const { state } = await prepareLabels(session);
+  const [mine, ai] = await Promise.all([listTemplates(session), tallyAvailability(session)]);
   return (
-    <div>
-      <PageHeader title="New label template" />
-      <LabelDesigner
-        mode="new"
-        initial={{
-          name: "",
-          kind: "PACKAGE",
-          jurisdiction: null,
-          version: 0,
-          design: {
-            widthMm: 101.6,
-            heightMm: 50.8,
-            elements: [
-              { id: "e1", type: "text", x: 4, y: 3, w: 93.6, h: 6, text: "{{item.name}}", fontSize: 13, bold: true },
-              { id: "e2", type: "barcode", x: 2, y: 14, w: 97.6, h: 14, value: "{{package.tag}}", format: "code128" },
-              { id: "e3", type: "text", x: 4, y: 30, w: 93.6, h: 5, text: "{{package.tag}}", fontSize: 11, align: "center" },
-            ],
-          },
-        }}
+    <div className="space-y-5">
+      <PageHeader title="New label template" subtitle="Upload a label you already use and CannaTrace rebuilds it, or start from a ready-made template." />
+      <NewTemplateStart
+        starters={catalog(state)}
+        mine={mine.map((t) => ({ id: t.id, name: t.name, kind: t.kind, jurisdiction: t.jurisdiction, design: t.design }))}
+        aiReady={ai.ready}
+        aiReason={ai.reason}
       />
     </div>
   );

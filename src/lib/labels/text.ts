@@ -66,3 +66,18 @@ export function layoutText(text: string, widthMm: number, heightMm: number, font
   const fits = Math.max(1, Math.floor(heightMm / lineHeightMm(fontSizePt) + 0.001));
   return { lines: lines.slice(0, fits), overflow: lines.length > fits, totalLines: lines.length };
 }
+
+/** Make a text element's words fit its box: shrink the type a little, then grow the box downward. Mutates the element. */
+export function fitText(el: { text?: string; fontSize?: number; bold?: boolean; w: number; h: number; y: number }, labelW: number, labelH: number): void {
+  void labelW;
+  let size = el.fontSize ?? 8;
+  const text = el.text ?? "";
+  // A pattern like {{field}} prints shorter or longer than its name; measure it as a typical value of similar length.
+  const measured = text.replace(/\{\{[^}]*\}\}/g, "XXXXXXXXXX");
+  while (size > 4.5 && layoutText(measured, el.w, el.h, size, el.bold).overflow) size = Math.round((size - 0.5) * 10) / 10;
+  el.fontSize = size;
+  if (layoutText(measured, el.w, el.h, size, el.bold).overflow) {
+    const needed = wrapText(measured, el.w, size, el.bold).length * lineHeightMm(size);
+    el.h = Math.min(Math.round(needed * 100) / 100 + 0.5, Math.max(el.h, labelH - el.y));
+  }
+}
