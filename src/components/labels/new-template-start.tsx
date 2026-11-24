@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Copy, FileUp, LayoutGrid, Loader2, PenLine, Sparkles, Wand2 } from "lucide-react";
+import { ArrowLeft, Camera, Copy, FileUp, LayoutGrid, Loader2, PenLine, Sparkles, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Field, inputClass } from "@/components/ui";
@@ -163,6 +163,8 @@ function UploadPanel({ aiReady, aiReason, onDone }: { aiReady: boolean; aiReason
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
+  const preview = useMemo(() => (file && file.type.startsWith("image/") ? URL.createObjectURL(file) : null), [file]);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   async function read() {
     if (!file) return;
@@ -198,17 +200,33 @@ function UploadPanel({ aiReady, aiReason, onDone }: { aiReady: boolean; aiReason
         <h2 className="text-lg font-bold text-slate-900">Upload a label you already use</h2>
         <p className="text-sm text-slate-600">A clear photo, a scan, or a PDF of a finished label. CannaTrace rebuilds it as an editable template and matches the words to your product, package, and lab fields.</p>
       </div>
-      <label
-        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) setFile(f); }}
-        className={`flex min-h-36 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl text-center transition ${drag ? "bg-brand-100" : "bg-brand-50 hover:bg-brand-100"}`}
-      >
-        <FileUp className="h-7 w-7 text-brand-700" aria-hidden="true" />
-        <span className="font-semibold text-slate-900">{file ? file.name : "Drop a photo or PDF here, or choose a file"}</span>
-        <span className="text-xs text-slate-600">PNG, JPG, or PDF, up to 15 MB. Lay the label flat and photograph it straight on for the best match.</span>
-        <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {/* "capture" opens the phone's camera straight away; on a computer it just opens the file picker. */}
+        <label className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 text-base font-bold text-white transition hover:bg-brand-700 focus-within:ring-2 focus-within:ring-brand-600 focus-within:ring-offset-2">
+          <Camera className="h-5 w-5" aria-hidden="true" /> Take a photo
+          <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = ""; }} />
+        </label>
+        <label
+          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) setFile(f); }}
+          className={`flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 text-base font-bold text-brand-900 transition ${drag ? "bg-brand-200" : "bg-brand-50 hover:bg-brand-100"}`}
+        >
+          <FileUp className="h-5 w-5 text-brand-700" aria-hidden="true" /> Choose a photo or PDF
+          <input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) setFile(f); e.target.value = ""; }} />
+        </label>
+      </div>
+      <p className="text-xs text-slate-600">PNG, JPG, or PDF, up to 15 MB. Lay the label flat and take the photo straight on, in good light, close enough that the small print is sharp.</p>
+      {file ? (
+        <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-2 text-sm">
+          {preview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={preview} alt="The photo you picked" className="h-20 w-20 rounded object-cover ring-1 ring-slate-300" />
+          ) : null}
+          <span className="min-w-0 flex-1 truncate font-semibold text-slate-900">{file.name}</span>
+          <button type="button" onClick={() => setFile(null)} className="min-h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-slate-500">Remove</button>
+        </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-[minmax(0,260px)_1fr] sm:items-end">
         <Field label="What kind of label is it?" hint="Leave on automatic and CannaTrace will work it out.">
           <select className={inputClass} value={kind} onChange={(e) => setKind(e.target.value)}>

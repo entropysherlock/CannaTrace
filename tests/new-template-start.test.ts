@@ -12,6 +12,8 @@ describe("new template screen", () => {
     const upload = renderToString(createElement(NewTemplateStart, { starters, mine: [], aiReady: true, aiReason: null }));
     expect(upload).toContain("Upload a label you already use");
     expect(upload).toContain("Read this label");
+    expect(upload).toContain("Take a photo");
+    expect(upload).toContain('capture="environment"');
     const noAi = renderToString(createElement(NewTemplateStart, { starters, mine: [], aiReady: false, aiReason: "NOT_CONNECTED" }));
     
     expect(noAi).toContain("Use this template");
