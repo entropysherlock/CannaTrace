@@ -1,4 +1,4 @@
-import { AlertOctagon, CheckCircle2 } from "lucide-react";
+import { AlertOctagon, CheckCircle2, Printer } from "lucide-react";
 import Link from "next/link";
 import { TemplateActions } from "@/components/labels/template-actions";
 import { Card, PageHeader, buttonLinkClass } from "@/components/ui";
@@ -58,6 +58,11 @@ export default async function TemplatesPage() {
                         {blocks ? <AlertOctagon className="h-3.5 w-3.5" aria-hidden="true" /> : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}
                         {blocks ? `${blocks} blocking problem${blocks === 1 ? "" : "s"} in the design. Open it to see why.` : "Design passes its checks (sample data shown)."}
                       </p>
+                      {!t.archived ? (
+                        <Link href={`/labels?kind=${t.kind}&template=${t.id}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-bold text-white hover:bg-brand-700">
+                          <Printer className="h-4 w-4" aria-hidden="true" /> Print with this template
+                        </Link>
+                      ) : null}
                       {manage ? <TemplateActions id={t.id} name={t.name} kind={t.kind} isDefault={t.isDefault} archived={t.archived} /> : null}
                     </li>
                   );

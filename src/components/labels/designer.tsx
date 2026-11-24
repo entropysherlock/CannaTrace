@@ -1,6 +1,7 @@
 "use client";
 
-import { Barcode, Box, Image as ImageIcon, Minus, QrCode, Trash2, Type } from "lucide-react";
+import { Barcode, Box, Image as ImageIcon, Minus, Printer, QrCode, Trash2, Type } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { Field, inputClass } from "@/components/ui";
@@ -410,6 +411,18 @@ export function LabelDesigner({ mode, templateId, initial, versions, previewValu
             <button type="button" disabled={busy || !dirty} onClick={save} className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-brand-700 disabled:opacity-50">
               {busy ? "Saving…" : mode === "new" ? "Create template" : dirty ? `Save as version ${initial.version + 1}` : "Saved"}
             </button>
+            {mode === "edit" && templateId ? (
+              <div className="space-y-1 border-t border-slate-200 pt-3">
+                <Link
+                  href={`/labels?kind=${kind}&template=${templateId}${record ? `&ids=${encodeURIComponent(record.sourceId)}` : ""}`}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-brand-600 bg-white px-5 text-sm font-bold text-brand-800 hover:bg-brand-50"
+                  data-testid="print-with-template"
+                >
+                  <Printer className="h-4 w-4" aria-hidden="true" /> {record ? `Print ${record.ref} with this template` : "Print labels with this template"}
+                </Link>
+                <p className="text-xs text-slate-600">{dirty ? "Prints the last saved version. Save your changes first." : "Opens the print page with this template chosen."}</p>
+              </div>
+            ) : null}
             {check.blocked ? <p className="text-xs text-amber-800">You can save a design with problems, but labels won&apos;t print from it until they&apos;re fixed.</p> : null}
             {message?.ok ? <p role="status" className="text-sm font-semibold text-brand-800">{message.ok}</p> : null}
             {message?.error ? <p role="alert" className="text-sm font-semibold text-red-700">{message.error}</p> : null}
