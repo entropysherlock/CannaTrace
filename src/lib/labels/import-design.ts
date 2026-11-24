@@ -1,6 +1,6 @@
 import { STOCK_SIZES } from "./defaults";
 import { fieldDef, fieldsFor, placeholders } from "./fields";
-import { fitText } from "./text";
+import { tidyDesign } from "./tidy";
 import type { BarcodeFormat, ElementType, LabelDesign, LabelElement, LabelKind } from "./types";
 import { LABEL_KINDS } from "./types";
 
@@ -52,6 +52,8 @@ export type ImportResult = {
   matches: { printed: string; became: string; fields: string[] }[];
   unmatched: string[];
   notes: string[];
+  /** Other labels found in the same photo, which can be rebuilt instead. */
+  others?: { index: number; description: string }[];
 };
 
 const TYPES: ElementType[] = ["text", "barcode", "qr", "image", "line", "box"];
@@ -136,7 +138,6 @@ export function designFromReading(reading: LabelReading, opts: { aspect?: number
       el.bold = r.bold === true;
       el.align = r.align === "center" || r.align === "right" ? r.align : "left";
       el.fontSize = clamp(r.font_size_pt, 4, 72, 8);
-      fitText(el, W, H);
       matches.push({ printed: printed.slice(0, 200), became: text.slice(0, 200), fields: c.dropped ? [] : c.fields });
     } else if (type === "barcode" || type === "qr") {
       let value = (r.value ?? "").slice(0, 500);
@@ -171,12 +172,17 @@ export function designFromReading(reading: LabelReading, opts: { aspect?: number
   if (unmatched.length) notes.push(`${unmatched.length} printed value${unmatched.length === 1 ? "" : "s"} didn't match any CannaTrace field, so they were kept as typed text. They won't change from label to label.`);
   if (reading.notes) notes.push(String(reading.notes).slice(0, 400));
 
+  // Photos give rough positions: lay the pieces out again in clean rows.
+  const tidied = tidyDesign({ widthMm: W, heightMm: H, elements }, kind);
+  if (tidied.changed) notes.push("The pieces were lined up into neat rows. Drag them where you want them.");
+  const finalDesign = tidied.design;
+
   const state = typeof reading.state === "string" && /^[A-Za-z]{2}$/.test(reading.state.trim()) ? reading.state.trim().toUpperCase() : null;
   return {
     kind,
     name: (reading.suggested_name ?? "").trim().slice(0, 80) || "Imported label",
     jurisdiction: state,
-    design: { widthMm: W, heightMm: H, elements },
+    design: finalDesign,
     matches,
     unmatched: [...new Set(unmatched)].slice(0, 30),
     notes: [...new Set(notes)],
