@@ -64,3 +64,15 @@ describe("rebuilding a label from a reading", () => {
     expect(r.design.elements[0].h).toBeGreaterThan(10);
   });
 });
+
+import { valuesFromPrinted } from "@/lib/labels/import-design";
+import { describe as d2, expect as e2, it as i2 } from "vitest";
+
+d2("valuesFromPrinted", () => {
+  i2("reads each field's value out of the printed words", () => {
+    e2(valuesFromPrinted("{{item.name}}", "Cherry AK47 3.5g")).toEqual({ "item.name": "Cherry AK47 3.5g" });
+    e2(valuesFromPrinted("Lot {{package.lot}} · Harvest {{package.harvest}}", "Lot BD-1 · Harvest 10/02/26")).toEqual({ "package.lot": "BD-1", "package.harvest": "10/02/26" });
+    e2(valuesFromPrinted("Lot {{package.lot}}", "Something else")).toEqual({});
+    e2(valuesFromPrinted("No fields here", "No fields here")).toEqual({});
+  });
+});

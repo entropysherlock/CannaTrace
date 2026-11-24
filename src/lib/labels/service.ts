@@ -133,6 +133,12 @@ export async function defaultTemplateId(scope: Scope, kind: LabelKind): Promise<
 
 const STATE_RE = /^[A-Z]{2}$/;
 
+/** A unique-name clash. Drizzle wraps the database error, so the code can sit on the error or on its cause. */
+function isDuplicate(e: unknown): boolean {
+  const code = (x: unknown) => String((x as { code?: string } | null)?.code);
+  return code(e) === "23505" || code((e as { cause?: unknown } | null)?.cause) === "23505";
+}
+
 export async function createTemplate(actor: LabelActor, input: { name: string; kind: LabelKind; jurisdiction: string | null; design: unknown; copyOf?: string | null }) {
   const name = input.name.trim().slice(0, 80);
   if (!name) throw new LabelError("Give the template a name.");
@@ -150,7 +156,7 @@ export async function createTemplate(actor: LabelActor, input: { name: string; k
     await log(actor, "label_template", id, "label_template.created", { name, kind: input.kind, jurisdiction });
     return id;
   } catch (e) {
-    if (String((e as { code?: string }).code) === "23505") throw new LabelError(`A template named "${name}" already exists here.`);
+    if (isDuplicate(e)) throw new LabelError(`A template named "${name}" already exists here.`);
     throw e;
   }
 }
@@ -244,7 +250,7 @@ export async function savePrinter(actor: LabelActor, input: { id?: string | null
     await log(actor, "printer", id, input.id ? "printer.updated" : "printer.added", values);
     return id;
   } catch (e) {
-    if (String((e as { code?: string }).code) === "23505") throw new LabelError(`A printer named "${name}" already exists here.`);
+    if (isDuplicate(e)) throw new LabelError(`A printer named "${name}" already exists here.`);
     throw e;
   }
 }
