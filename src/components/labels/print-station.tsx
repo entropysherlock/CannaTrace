@@ -10,7 +10,7 @@ import { Field, inputClass } from "@/components/ui";
 import type { LabelIssue, LabelKind } from "@/lib/labels/types";
 import { LABEL_KINDS } from "@/lib/labels/types";
 import { IssueList, type IssueLink, type PackInfo } from "./issues";
-import { JobActions, newRequestKey, printJobPdf } from "./job-actions";
+import { JobActions, newRequestKey, printJob } from "./job-actions";
 
 export type TemplateOption = { id: string; name: string; kind: LabelKind; isDefault: boolean; jurisdiction: string | null; size: string };
 export type ArchivedTemplate = { id: string; name: string; kind: LabelKind };
@@ -61,6 +61,20 @@ function PrinterFields() {
         </Field>
         <Field label="Shift down (mm)">
           <input name="offsetYMm" type="number" step="0.1" min={-20} max={20} defaultValue={0} className={inputClass} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="How it prints">
+          <select name="adapter" defaultValue="BROWSER_PDF" className={inputClass}>
+            <option value="BROWSER_PDF">Browser print dialog (PDF)</option>
+            <option value="ZPL">Zebra, direct (needs Zebra Browser Print)</option>
+          </select>
+        </Field>
+        <Field label="Zebra resolution">
+          <select name="dpi" defaultValue="203" className={inputClass}>
+            <option value="203">203 dpi (most desktop Zebras)</option>
+            <option value="300">300 dpi</option>
+          </select>
         </Field>
       </div>
       <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-slate-800">
@@ -192,7 +206,7 @@ export function PrintStation({
         throw new Error(data.error);
       }
       // One click: create the job, then go straight to the print dialog.
-      const printed = await printJobPdf(data.job.id);
+      const printed = await printJob(data.job.id);
       setJob({ ...data.job, status: printed.ok ? "RENDERED" : "FAILED", duplicate: data.duplicate });
       if (!printed.ok) setError(printed.error);
       router.refresh();

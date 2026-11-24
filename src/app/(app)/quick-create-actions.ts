@@ -388,6 +388,8 @@ export async function quickPrinterAction(formData: FormData): Promise<CreateResu
       offsetXMm: Number(field(formData, "offsetXMm") || 0),
       offsetYMm: Number(field(formData, "offsetYMm") || 0),
       isDefault: formData.get("isDefault") === "on",
+      adapter: field(formData, "adapter") || "BROWSER_PDF",
+      dpi: Number(field(formData, "dpi") || 203),
     });
     revalidatePath("/labels", "layout");
     return { created: { id, label: name } };

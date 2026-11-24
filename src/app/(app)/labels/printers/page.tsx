@@ -60,7 +60,7 @@ export default async function PrintersPage() {
             ))}
           </ul>
           <p className="mt-3 text-xs text-slate-600">
-            Browser PDF works with any printer your computer can print to, including Zebra, DYMO, Brother, and Rollo label printers, through their normal drivers. CannaTrace doesn&apos;t talk to the printer directly, so a person confirms each job printed.
+            Browser PDF works with any printer your computer can print to, including Zebra, DYMO, Brother, and Rollo label printers, through their normal drivers. Zebra direct sends labels straight to a Zebra printer through the free Zebra Browser Print app. Either way, a person confirms each job printed.
           </p>
         </Card>
 
@@ -107,7 +107,7 @@ export default async function PrintersPage() {
                   {p.isDefault ? <span className="ml-2 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-800">Default</span> : null}
                 </p>
                 <p className="text-slate-600">
-                  Browser PDF · shift {Number(p.offsetXMm)} mm right, {Number(p.offsetYMm)} mm down
+                  {p.adapter === "ZPL" ? `Zebra direct · ${p.dpi} dpi` : "Browser PDF"} · shift {Number(p.offsetXMm)} mm right, {Number(p.offsetYMm)} mm down
                 </p>
               </li>
             ))}
@@ -123,6 +123,20 @@ export default async function PrintersPage() {
                 </Field>
                 <Field label="Shift down (mm)" hint="Use a negative number to shift up.">
                   <input name="offsetYMm" type="number" step="0.1" min={-20} max={20} defaultValue={0} className={inputClass} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="How it prints" hint="Zebra direct needs the free Zebra Browser Print app on the computer the printer is plugged into.">
+                  <select name="adapter" defaultValue="BROWSER_PDF" className={inputClass}>
+                    <option value="BROWSER_PDF">Browser print dialog (PDF)</option>
+                    <option value="ZPL">Zebra, direct (ZPL)</option>
+                  </select>
+                </Field>
+                <Field label="Zebra resolution" hint="Most desktop Zebras are 203 dpi.">
+                  <select name="dpi" defaultValue="203" className={inputClass}>
+                    <option value="203">203 dpi</option>
+                    <option value="300">300 dpi</option>
+                  </select>
                 </Field>
               </div>
               <label className="flex items-center gap-2 text-sm font-medium text-slate-800">

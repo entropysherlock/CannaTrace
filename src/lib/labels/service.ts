@@ -7,6 +7,7 @@ import { loadLabelRecords, type Scope } from "./data";
 import { starterTemplates } from "./defaults";
 import { parseDesign } from "./design";
 import { renderLabelsPdf } from "./render-pdf";
+import { renderLabelSvg } from "./render-svg";
 import type { LabelDesign, LabelIssue, LabelKind } from "./types";
 import { validateLabels } from "./validate";
 
@@ -204,8 +205,10 @@ export async function setTemplateArchived(actor: LabelActor, templateId: string,
 
 export const PRINTER_ADAPTERS = [
   { id: "BROWSER_PDF", name: "Browser PDF", ready: true, note: "Opens an exact-size PDF; print it from the browser's print dialog at Actual size (100%)." },
-  { id: "ZPL", name: "Zebra ZPL (direct)", ready: false, note: "Planned. Needs a print bridge on a computer next to the printer. Not built yet." },
+  { id: "ZPL", name: "Zebra ZPL (direct)", ready: true, note: "Sends labels straight to a Zebra over USB or the network, with no print dialog. Needs the free Zebra Browser Print app running on the computer next to the printer." },
 ] as const;
+
+export const PRINTER_DPIS = [203, 300] as const;
 
 export async function listPrinters(scope: Scope) {
   return db
@@ -215,11 +218,14 @@ export async function listPrinters(scope: Scope) {
     .orderBy(desc(printerProfiles.isDefault), printerProfiles.name);
 }
 
-export async function savePrinter(actor: LabelActor, input: { id?: string | null; name: string; offsetXMm: number; offsetYMm: number; isDefault: boolean }) {
+export async function savePrinter(actor: LabelActor, input: { id?: string | null; name: string; offsetXMm: number; offsetYMm: number; isDefault: boolean; adapter?: string; dpi?: number }) {
   const name = input.name.trim().slice(0, 60);
   if (!name) throw new LabelError("Give the printer a name, like \"Packaging room Zebra\".");
   for (const v of [input.offsetXMm, input.offsetYMm]) if (!Number.isFinite(v) || Math.abs(v) > 20) throw new LabelError("Offsets must be between -20 and 20 mm.");
-  const values = { name, adapter: "BROWSER_PDF", offsetXMm: String(input.offsetXMm), offsetYMm: String(input.offsetYMm), isDefault: input.isDefault };
+  const adapter = input.adapter === "ZPL" ? "ZPL" : "BROWSER_PDF";
+  const dpi = input.dpi ?? 203;
+  if (!(PRINTER_DPIS as readonly number[]).includes(dpi)) throw new LabelError("Print resolution must be 203 or 300 dpi. It's printed on the printer's box or setup sheet.");
+  const values = { name, adapter, dpi, offsetXMm: String(input.offsetXMm), offsetYMm: String(input.offsetYMm), isDefault: input.isDefault };
   try {
     const id = await db.transaction(async (tx) => {
       if (input.isDefault) await tx.update(printerProfiles).set({ isDefault: false }).where(and(eq(printerProfiles.orgId, actor.orgId), eq(printerProfiles.facilityId, actor.facilityId)));
@@ -349,11 +355,14 @@ export async function getJob(scope: Scope, jobId: string) {
   return job;
 }
 
+type PreparedJob = { job: Awaited<ReturnType<typeof getJob>>; preview: Awaited<ReturnType<typeof previewLabels>>; printer: Awaited<ReturnType<typeof printerFor>> | null };
+
 /**
- * Build the PDF for a job. Data is re-read and re-checked every time, so a reprint can't
- * show stale or since-failed values. Each attempt is counted; failures are recorded on the job.
+ * Re-read and re-check a job's records, then build its output (the PDF, or the label drawings for a Zebra).
+ * Data is checked again every time, so a reprint can't show stale or since-failed values. Each attempt is
+ * counted; failures are recorded on the job.
  */
-export async function renderJob(actor: LabelActor, jobId: string): Promise<{ pdf: Uint8Array; fileName: string }> {
+async function renderJobWith<T>(actor: LabelActor, jobId: string, build: (p: PreparedJob) => Promise<T>): Promise<T> {
   const job = await getJob(actor, jobId);
   if (job.status === "CANCELLED") throw new LabelError("This job was cancelled.");
   if (job.status === "FAILED" && job.attempts === 0 && job.error?.startsWith("Blocked")) throw new LabelError(job.error);
@@ -364,23 +373,58 @@ export async function renderJob(actor: LabelActor, jobId: string): Promise<{ pdf
     const blocking = preview.issues.filter((i) => i.severity === "block");
     if (blocking.length) throw new LabelError(`The records changed and now fail a check: ${blocking[0].message}`, preview.issues);
     const printer = job.printerProfileId ? await printerFor(actor, job.printerProfileId) : null;
-    const pdf = await renderLabelsPdf(preview.design, preview.records, {
-      copies: job.copies,
-      offsetXMm: printer ? Number(printer.offsetXMm) : 0,
-      offsetYMm: printer ? Number(printer.offsetYMm) : 0,
-      title: `${preview.template.name} (${job.labelCount} labels)`,
-    });
+    const out = await build({ job, preview, printer });
     await db
       .update(printJobs)
       .set({ status: job.status === "PRINTED" ? "PRINTED" : "RENDERED", error: null })
       .where(eq(printJobs.id, job.id));
-    return { pdf, fileName: `labels-${job.id.slice(0, 8)}.pdf` };
+    return out;
   } catch (e) {
     const message = e instanceof Error ? e.message : "The labels could not be made.";
     await db.update(printJobs).set({ status: "FAILED", error: message.slice(0, 500) }).where(eq(printJobs.id, job.id));
     await log(actor, "print_job", job.id, "labels.render_failed", { attempt: job.attempts + 1 }, message.slice(0, 200));
     throw e instanceof LabelError ? e : new LabelError(message);
   }
+}
+
+/** Build the PDF for a job. */
+export async function renderJob(actor: LabelActor, jobId: string): Promise<{ pdf: Uint8Array; fileName: string }> {
+  return renderJobWith(actor, jobId, async ({ job, preview, printer }) => {
+    const pdf = await renderLabelsPdf(preview.design, preview.records, {
+      copies: job.copies,
+      offsetXMm: printer ? Number(printer.offsetXMm) : 0,
+      offsetYMm: printer ? Number(printer.offsetYMm) : 0,
+      title: `${preview.template.name} (${job.labelCount} labels)`,
+    });
+    return { pdf, fileName: `labels-${job.id.slice(0, 8)}.pdf` };
+  });
+}
+
+/** What the browser needs to send a job straight to a Zebra: the printer's settings and one drawing per label. */
+export type DirectJob = { direct: false } | { direct: true; printerName: string; dpi: number; widthMm: number; heightMm: number; offsetXMm: number; offsetYMm: number; copies: number; labels: string[] };
+
+/**
+ * For a job whose printer is a Zebra sending ZPL directly: the labels as drawings at the printer's resolution.
+ * A job on any other printer answers {direct: false} without being counted as an attempt, so the caller falls back to the PDF.
+ */
+export async function directJob(actor: LabelActor, jobId: string): Promise<DirectJob> {
+  const job = await getJob(actor, jobId);
+  const printer = job.printerProfileId ? await printerFor(actor, job.printerProfileId) : null;
+  if (!printer || printer.adapter !== "ZPL") return { direct: false };
+  return renderJobWith(actor, jobId, async ({ job: j, preview }) => {
+    const scale = printer.dpi / 25.4;
+    return {
+      direct: true as const,
+      printerName: printer.name,
+      dpi: printer.dpi,
+      widthMm: preview.design.widthMm,
+      heightMm: preview.design.heightMm,
+      offsetXMm: Number(printer.offsetXMm),
+      offsetYMm: Number(printer.offsetYMm),
+      copies: j.copies,
+      labels: preview.records.map((r) => renderLabelSvg(preview.design, r.values, { scale })),
+    };
+  });
 }
 
 /**

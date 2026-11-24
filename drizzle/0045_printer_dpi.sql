@@ -1,0 +1,1 @@
+ALTER TABLE "printer_profiles" ADD COLUMN "dpi" integer DEFAULT 203 NOT NULL;

@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { labelSvgToZpl } from "@/lib/labels/zpl";
+import { findPrinter, sendZpl, ZebraError } from "@/lib/labels/zebra-browser-print";
 
 export const newRequestKey = () => crypto.randomUUID().replace(/-/g, "");
 
@@ -40,6 +42,34 @@ export async function printJobPdf(id: string): Promise<{ ok: true } | { ok: fals
   };
   document.body.appendChild(frame);
   return { ok: true };
+}
+
+/**
+ * Print a job. On a Zebra printer set up for direct printing the labels go straight to it through Zebra Browser Print;
+ * on any other printer the PDF opens in the browser's print dialog.
+ */
+export async function printJob(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Automated tests use the PDF path, which they can observe.
+  if ((window as unknown as { __labelPrints?: string[] }).__labelPrints) return printJobPdf(id);
+  let plan: { direct: boolean; printerName?: string; dpi?: number; widthMm?: number; heightMm?: number; offsetXMm?: number; offsetYMm?: number; copies?: number; labels?: string[]; error?: string };
+  try {
+    const res = await fetch(`/api/labels/jobs/${id}/direct`, { cache: "no-store" });
+    plan = await res.json();
+    if (!res.ok) return { ok: false, error: plan.error ?? "The labels could not be made." };
+  } catch {
+    return { ok: false, error: "The labels could not be made." };
+  }
+  if (!plan.direct) return printJobPdf(id);
+  try {
+    const target = await findPrinter(plan.printerName ?? "");
+    for (const svg of plan.labels ?? []) {
+      const zpl = await labelSvgToZpl(svg, { dpi: plan.dpi!, widthMm: plan.widthMm!, heightMm: plan.heightMm!, offsetXMm: plan.offsetXMm, offsetYMm: plan.offsetYMm, copies: plan.copies });
+      await sendZpl(target, zpl);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof ZebraError || e instanceof Error ? e.message : "The Zebra printer couldn't be reached." };
+  }
 }
 
 const btn = "inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-bold transition disabled:opacity-50";
@@ -98,7 +128,7 @@ export function JobActions({ id, status: initial, blocked }: { id: string; statu
     setBusy(true);
     setError(null);
     try {
-      const r = await printJobPdf(id);
+      const r = await printJob(id);
       if (!r.ok) {
         setStatus("FAILED");
         throw new Error(r.error);
