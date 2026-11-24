@@ -43,14 +43,14 @@ export default async function ReceivePage() {
   return (
     <>
       <PageHeader title="Receive package" subtitle="Scan the tag, pick the item, enter what arrived." />
-      <p className="mb-4 max-w-xl text-sm text-slate-700">
+      <p className="mx-auto mb-4 max-w-xl text-sm text-slate-700">
         Receiving a whole shipment?{" "}
         <Link href="/inventory/receive/shipment" className="font-semibold text-brand-700 underline">
           Receive it against the manifest
         </Link>{" "}
         to count every package at once.
       </p>
-      <div className="max-w-xl">
+      <div className="mx-auto max-w-xl">
         <Card>
           <ActionForm action={receiveAction} submitLabel="Receive">
             <Field label="Package tag (blank to generate)" hint="Leave blank and CannaTrace makes a new unique ID (PKG-000123). Or scan a state tag with a barcode scanner, tap Scan to use the camera, or type it in.">
