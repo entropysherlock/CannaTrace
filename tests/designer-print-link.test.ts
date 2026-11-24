@@ -11,7 +11,7 @@ describe("template editor print button", () => {
     const t = starterTemplates("NM").find((x) => x.kind === "PACKAGE")!;
     const html = renderToString(createElement(LabelDesigner, { mode: "edit", templateId: "tpl-1", initial: { name: t.name, kind: t.kind, jurisdiction: t.jurisdiction ?? null, design: t.design, version: 1 } }));
     expect(html).toContain('href="/labels?kind=PACKAGE&amp;template=tpl-1"');
-    expect(html).toContain("Print labels with this template");
+    expect(html).toContain("Choose packages to print with this template");
   });
   it("has no print button while a template is still being created", async () => {
     const { LabelDesigner } = await import("@/components/labels/designer");
