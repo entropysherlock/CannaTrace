@@ -11,7 +11,7 @@ import { signupAction } from "./actions";
 
 // Whether sign-up is open is read on each request (lib/access.ts), so never prerender this page.
 export const instant = false;
-export const metadata = { title: "Create your Leaf2Sale account" };
+export const metadata = { title: "Create your Leaf2Sale account", robots: { index: false } };
 
 export default async function SignupPage() {
   // Read the access settings on each request, not once at build time.

@@ -22,6 +22,8 @@ import { leaveDemo, signOut } from "../login/actions";
 import { switchFacility } from "./settings/actions";
 
 // Every screen here needs the signed-in session and live data, so routes are allowed to block.
+export const metadata = { robots: { index: false, follow: false } };
+
 export const instant = false;
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

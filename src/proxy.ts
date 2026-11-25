@@ -51,6 +51,8 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/reset" || pathname.startsWith("/reset/")) return NextResponse.next();
   // The live demo signs visitors in itself, and must also work for someone already in the demo.
   if (pathname === "/demo") return NextResponse.next();
+  // Search engines read these without signing in.
+  if (pathname === "/robots.txt" || pathname === "/sitemap.xml" || pathname.startsWith("/opengraph-image") || pathname === "/new-mexico-cannabis-seed-to-sale-software") return NextResponse.next();
   // Pricing is for everyone, signed in or not: the sales sheet's QR code lands here.
   if (pathname === "/pricing") return NextResponse.next();
   // The legal pages are public too, and must open for someone signed in (a link from inside the register, say).

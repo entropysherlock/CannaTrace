@@ -22,6 +22,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Metadata } from "next";
+import { JsonLd, faqSchema } from "@/components/json-ld";
+import { SITE_URL } from "@/lib/site";
 import Image from "next/image";
 import Link from "next/link";
 import { DemoVideoButton, DemoVideoPlayer, DemoVideoPoster } from "@/components/demo-video";
@@ -34,6 +36,8 @@ import { getSession } from "@/lib/session";
 export const metadata: Metadata = {
   title: "Leaf2Sale · Seed-to-Sale Operations Platform",
   description: "Leaf2Sale helps cannabis operators manage cultivation, inventory, compliance, manufacturing, distribution, and retail operations in one integrated platform.",
+  alternates: { canonical: "/" },
+  openGraph: { title: "Leaf2Sale · Seed-to-Sale Operations Platform", description: "Cultivation, inventory, labels, compliance, distribution, and retail in one platform. Built in New Mexico.", url: "/", type: "website" },
 };
 
 const DEMO_LINK = mailto("Leaf2Sale demo request");
@@ -272,6 +276,26 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="bg-white text-slate-900">
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@graph": [
+            { "@type": "Organization", "@id": `${SITE_URL}/#org`, name: "Leaf2Sale", url: SITE_URL, logo: `${SITE_URL}/brand/leaf2sale-logo.png`, address: { "@type": "PostalAddress", addressLocality: "Albuquerque", addressRegion: "NM", addressCountry: "US" } },
+            { "@type": "WebSite", "@id": `${SITE_URL}/#site`, url: SITE_URL, name: "Leaf2Sale", publisher: { "@id": `${SITE_URL}/#org` } },
+            {
+              "@type": "SoftwareApplication",
+              name: "Leaf2Sale",
+              applicationCategory: "BusinessApplication",
+              operatingSystem: "Web browser",
+              description: "Seed-to-sale inventory, compliance, labels, manufacturing, distribution, and retail software for licensed cannabis operators, built in New Mexico.",
+              url: SITE_URL,
+              publisher: { "@id": `${SITE_URL}/#org` },
+              offers: PRICES.map((p) => ({ "@type": "Offer", name: `${facilitiesLabel(p.facilities)}`, price: p.price, priceCurrency: "USD", priceSpecification: { "@type": "UnitPriceSpecification", price: p.price, priceCurrency: "USD", unitText: "MONTH" } })),
+            },
+          ],
+        }}
+      />
+      <JsonLd data={faqSchema(FAQ)} />
       <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-3">
           <Link href="/" aria-label="Leaf2Sale home">
@@ -687,6 +711,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           </div>
         </div>
         <p className="mx-auto flex max-w-7xl flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 px-5 py-4 text-xs text-slate-500">
+          <Link href="/new-mexico-cannabis-seed-to-sale-software" className="hover:text-brand-700">
+            New Mexico seed-to-sale software
+          </Link>
+          <Link href="/pricing" className="hover:text-brand-700">
+            Pricing
+          </Link>
           <Link href="/terms" className="hover:text-brand-700">
             Terms of Service
           </Link>
