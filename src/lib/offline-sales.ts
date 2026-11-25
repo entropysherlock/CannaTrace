@@ -57,6 +57,19 @@ const dayIn = (when: Date, zone: string) => new Intl.DateTimeFormat("en-CA", { t
  * to try again. Sending the same sale twice never records it twice.
  */
 export async function recordOfflineSale(actor: Actor, input: OfflineSale): Promise<OfflineSyncResult> {
+  try {
+    return await recordOfflineSaleOnce(actor, input);
+  } catch (error) {
+    // Two syncs of the same sale at the same moment: one wins, and the other is told it was already recorded (APEX-36).
+    const code = (error as { code?: string; cause?: { code?: string } })?.code ?? (error as { cause?: { code?: string } })?.cause?.code;
+    if (code !== "23505" || !isUuid(input?.offlineId)) throw error;
+    const [seen] = await db.select({ id: sales.id, number: sales.number, reviewNote: sales.reviewNote }).from(sales).where(and(eq(sales.facilityId, actor.facilityId), eq(sales.offlineId, input.offlineId)));
+    if (!seen) throw error;
+    return { saleId: seen.id, number: seen.number, flagged: seen.reviewNote !== null, duplicate: true };
+  }
+}
+
+async function recordOfflineSaleOnce(actor: Actor, input: OfflineSale): Promise<OfflineSyncResult> {
   if (!input || typeof input !== "object") throw new InventoryError("That offline sale was not readable.");
   if (!isUuid(input.offlineId)) throw new InventoryError("That offline sale has no valid id.");
   if (input.facilityId !== actor.facilityId) throw new InventoryError("This offline sale was rung up at a different store. Switch to that store, then sync again.");
@@ -212,7 +225,7 @@ export async function recordOfflineSale(actor: Actor, input: OfflineSale): Promi
     // from the register; without it the sale cannot be tied to the customer, so a manager must look.
     const idNumber = typeof input.idNumber === "string" ? input.idNumber.trim().slice(0, 40) : "";
     const customerKey = settings.dailyLimits && idNumber ? customerKeyFor(actor.orgId, idNumber) : null;
-    const before = customerKey ? await earlierToday(tx, { id: "", orgId: actor.orgId, facilityId: actor.facilityId, customerKey }) : [];
+    const before = customerKey ? await earlierToday(tx, { id: "", orgId: actor.orgId, facilityId: actor.facilityId, customerKey }, soldDay) : [];
     const limitProblem = limitCheck(
       rows.map((r) => ({ quantity: r.quantity, limitCategory: r.checkCategory, limitPerUnit: r.checkPerUnit })),
       settings,

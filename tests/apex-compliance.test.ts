@@ -137,4 +137,35 @@ describe.skipIf(!hasDb)("Apex II compliance", () => {
     expect(actions).toContain("CART_QUANTITY_REDUCED");
     expect(actions).toContain("CART_LINE_REMOVED");
   });
+  it("APEX-32: a synced offline sale is queued for state reporting like any other retail sale", async () => {
+    const p = await receiveRaw(A, { tag: tag(), itemId: flower, quantity: "5", locationId: loc });
+    await addLabResult(A, { packageId: p.id, labName: "Lab", status: "PASS", thcPercent: "20" });
+    const [d] = (await db.execute<{ id: string }>(sql`select id from drawer_sessions where user_id = ${A.userId} and status = 'OPEN'`)).rows;
+    const r = await recordOfflineSale(A, {
+      offlineId: crypto.randomUUID(), localNumber: "OFF-Q", facilityId: A.facilityId, sellerId: A.userId, sellerName: A.userName, drawerId: d.id, soldAt: new Date(Date.now() - 60_000).toISOString(),
+      customerType: "ADULT_USE", birthDate: idDates.birthDate, idExpires: idDates.idExpires, idNumber: `DLQ-${run}`,
+      lines: [{ itemId: flower, name: "Flower jar", quantity: "1", unitPrice: "10.00" }], discount: null,
+      rates: { exciseTaxPercent: "14", salesTaxPercent: "7.625", medicalTaxExempt: true }, total: "12.17", cashTendered: "20.00", changeDue: "7.83",
+    });
+    const queued = (await db.execute<{ type: string }>(sql`select type from sync_events where entity_id = ${r.saleId}`)).rows;
+    expect(queued.map((q) => q.type)).toContain("RETAIL_SALE");
+  });
+
+  it("APEX-36: two simultaneous syncs of one offline sale record it once and report a duplicate", async () => {
+    const p = await receiveRaw(A, { tag: tag(), itemId: flower, quantity: "5", locationId: loc });
+    await addLabResult(A, { packageId: p.id, labName: "Lab", status: "PASS", thcPercent: "20" });
+    const [d] = (await db.execute<{ id: string }>(sql`select id from drawer_sessions where user_id = ${A.userId} and status = 'OPEN'`)).rows;
+    const sale = {
+      offlineId: crypto.randomUUID(), localNumber: "OFF-DUP", facilityId: A.facilityId, sellerId: A.userId, sellerName: A.userName, drawerId: d.id, soldAt: new Date(Date.now() - 60_000).toISOString(),
+      customerType: "ADULT_USE" as const, birthDate: idDates.birthDate, idExpires: idDates.idExpires, idNumber: `DLD-${run}`,
+      lines: [{ itemId: flower, name: "Flower jar", quantity: "1", unitPrice: "10.00" }], discount: null,
+      rates: { exciseTaxPercent: "14", salesTaxPercent: "7.625", medicalTaxExempt: true }, total: "12.17", cashTendered: "20.00", changeDue: "7.83",
+    };
+    const results = await Promise.all([recordOfflineSale(A, sale), recordOfflineSale(A, sale), recordOfflineSale(A, sale)]);
+    expect(results.filter((r) => !r.duplicate)).toHaveLength(1);
+    expect(new Set(results.map((r) => r.saleId)).size).toBe(1);
+    const n = (await db.execute<{ n: number }>(sql`select count(*)::int n from sales where offline_id = ${sale.offlineId}`)).rows[0].n;
+    expect(n).toBe(1);
+  });
+
 });

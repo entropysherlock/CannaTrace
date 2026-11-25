@@ -1,16 +1,16 @@
 // Project Apex II: financial regressions. APEX-13 (partial refunds), 14 (offline cash drawer), 15 (offline EACH), 16 (unit cost), 18 (discount cap).
 import Decimal from "decimal.js";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { drawerSessions, facilities, itemCategories, items, locations, organizations, packages, users } from "@/db/schema";
+import { discountPresets, drawerSessions, facilities, itemCategories, items, locations, organizations, packages, users } from "@/db/schema";
 import { db, pool } from "@/lib/db";
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { addLabResult, receivePackage as receiveRaw, type Actor } from "@/lib/inventory";
 import { InventoryError } from "@/lib/inventory-math";
 import { unitCost } from "@/lib/manufacturing-math";
 import { recordOfflineSale } from "@/lib/offline-sales";
-import { addToCart, checkInCustomer, closeDrawer, completeSale, createDiscount, openDrawer, returnSale, saveRetailSettings, setMenuItem } from "@/lib/pos";
-import { createPromotion } from "@/lib/promotions";
+import { addToCart, checkInCustomer, closeDrawer, completeSale, createDiscount, openDrawer, returnSale, saveRetailSettings, setCartDiscount, setMenuItem, voidSale } from "@/lib/pos";
+import { createPromotion, setPromotionActive } from "@/lib/promotions";
 import { allocateToOrder, addOrderLine, confirmOrder, createCustomer, createDriver, createOrder, createVehicle, packOrder, shipOrder, verifyCustomerLicense } from "@/lib/distribution";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
@@ -131,6 +131,23 @@ describe.skipIf(!hasDb)("Apex II financial fixes", () => {
     await createDiscount(A, { name: `Big ${run}`, percent: "90" });
   });
 
+  it("APEX-35: a 90% promotion plus a 90% cart discount cannot stack into a near-free sale", async () => {
+    const [cat] = await db.select().from(itemCategories).where(eq(itemCategories.orgId, A.orgId));
+    const [it] = await db.insert(items).values({ orgId: A.orgId, name: "Stack", sku: `${run}-STK`, categoryId: cat.id, unit: "EACH" }).returning();
+    await setMenuItem(A, { itemId: it.id, price: "100.00", limitCategory: "NONE" });
+    await receive(it.id, "5");
+    const promo = await createPromotion(A, { name: `Stack ${run}`, kind: "PERCENT", amount: "90", scope: "ITEM", itemId: it.id }, []);
+    await createDiscount(A, { name: `Stack90 ${run}`, percent: "90" });
+    const [preset] = await db.select().from(discountPresets).where(and(eq(discountPresets.orgId, A.orgId), eq(discountPresets.name, `Stack90 ${run}`)));
+    const c = await checkInCustomer(A2, id);
+    await addToCart(A2, { saleId: c.id, itemId: it.id, quantity: "1" });
+    await setCartDiscount(A2, { saleId: c.id, discountId: preset.id });
+    await expect(completeSale(A2, { saleId: c.id, paymentMethod: "CASH", cashTendered: "100" })).rejects.toThrow(/together take more than 90%/);
+    await setCartDiscount(A2, { saleId: c.id, discountId: "" });
+    await completeSale(A2, { saleId: c.id, paymentMethod: "CASH", cashTendered: "100" });
+    await setPromotionActive(A, promo.id, false);
+  });
+
   it("APEX-17: a retail return into a package already reserved for a wholesale order is billed when it ships", async () => {
     const [cat] = await db.select().from(itemCategories).where(eq(itemCategories.orgId, A.orgId));
     const [fresh] = await db.insert(items).values({ orgId: A.orgId, name: "C", sku: `${run}-C`, categoryId: cat.id, unit: "EACH" }).returning();
@@ -151,6 +168,35 @@ describe.skipIf(!hasDb)("Apex II financial fixes", () => {
     await allocateToOrder(A2, { orderId: order.id, lineId, tag: (await db.select().from(packages).where(eq(packages.id, p.id)))[0].tag });
     const saleLine = (await db.execute<{ id: string }>(sql`select id from sale_lines where sale_id = ${c.id}`)).rows[0].id;
     await returnSale(A2, { saleId: c.id, lines: [{ saleLineId: saleLine, quantity: "3" }], refundMethod: "CARD", disposition: "RESTOCK", reason: "customer changed mind" });
+    await packOrder(A2, { orderId: order.id });
+    const shipped = await shipOrder(A2, { orderId: order.id, driverId: drv.id, vehicleId: veh.id, departAt: `${today}T10:00` });
+    const inv = (await db.execute<{ total: string }>(sql`select total from invoices where number = ${shipped.invoiceNumber} and facility_id = ${A2.facilityId}`)).rows[0];
+    const unitsShipped = new Decimal((await db.execute<{ q: string }>(sql`select -quantity_delta q from inventory_transactions where package_id = ${p.id} and type = 'SELL' order by created_at desc limit 1`)).rows[0].q);
+    // Whatever physically leaves on the manifest must be on the invoice.
+    expect(new Decimal(inv.total).toFixed(2)).toBe(unitsShipped.mul(5).toFixed(2));
+  });
+
+  it("APEX-33: voiding a retail sale into a package already reserved for a wholesale order is billed when it ships", async () => {
+    const [cat] = await db.select().from(itemCategories).where(eq(itemCategories.orgId, A.orgId));
+    const [fresh] = await db.insert(items).values({ orgId: A.orgId, name: "C2", sku: `${run}-C2`, categoryId: cat.id, unit: "EACH" }).returning();
+    await setMenuItem(A, { itemId: fresh.id, price: "10.00", limitCategory: "NONE" });
+    const p = await receive(fresh.id, "10");
+    const c = await checkInCustomer(A2, id);
+    await addToCart(A2, { saleId: c.id, itemId: fresh.id, quantity: "3" });
+    await completeSale(A2, { saleId: c.id, paymentMethod: "CASH", cashTendered: "100" });
+    const exp = addDays(today, 900);
+    const cust = await createCustomer(A2, { name: `W2 ${run}`, licenseNumber: `${run}-WC2`, licenseType: "Retailer", licenseExpires: exp, paymentTermsDays: "15" });
+    await verifyCustomerLicense(A2, { customerId: cust.id });
+    const drv = await createDriver(A2, { name: "Dana", licenseNumber: `${run}-D2` });
+    const veh = await createVehicle(A2, { make: "Ford", model: "Transit", plate: `${run}`.slice(2, 9) + "9" });
+    const order = await createOrder(A2, { customerId: cust.id });
+    await addOrderLine(A2, { orderId: order.id, itemId: fresh.id, quantity: "7", unitPrice: "5.00" });
+    await confirmOrder(A2, { orderId: order.id });
+    const lineId = (await db.execute<{ id: string }>(sql`select id from order_lines where order_id = ${order.id}`)).rows[0].id;
+    await allocateToOrder(A2, { orderId: order.id, lineId, tag: (await db.select().from(packages).where(eq(packages.id, p.id)))[0].tag });
+    const saleLine = (await db.execute<{ id: string }>(sql`select id from sale_lines where sale_id = ${c.id}`)).rows[0].id;
+    void saleLine;
+    await voidSale(A2, { saleId: c.id, reason: "rung up by mistake" });
     await packOrder(A2, { orderId: order.id });
     const shipped = await shipOrder(A2, { orderId: order.id, driverId: drv.id, vehicleId: veh.id, departAt: `${today}T10:00` });
     const inv = (await db.execute<{ total: string }>(sql`select total from invoices where number = ${shipped.invoiceNumber} and facility_id = ${A2.facilityId}`)).rows[0];

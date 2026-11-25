@@ -224,7 +224,7 @@ export async function completeRun(
 ): Promise<{ run: ProductionRun; output: Package }> {
   const actual = parsePositiveQty(input.actualQuantity, "Actual output");
   const extraText = String(input.extraCost ?? "").trim();
-  const extra = extraText === "" ? new Decimal(0) : parsePositiveQty(extraText, "Labor and other cost");
+  const extra = extraText === "" || extraText === "0" ? new Decimal(0) : parsePositiveQty(extraText, "Labor and other cost");
 
   return db.transaction(async (tx) => {
     const run = await lockOpenRun(tx, actor, input.runId);

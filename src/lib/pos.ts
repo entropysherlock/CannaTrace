@@ -594,7 +594,7 @@ export function customerKeyFor(orgId: string, idNumber: string): string {
 type LimitLine = Parameters<typeof limitUsage>[0][number];
 
 /** What this customer already bought today at completed sales anywhere in the business, for daily limits. */
-export async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" | "customerKey" | "facilityId">): Promise<LimitLine[]> {
+export async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" | "customerKey" | "facilityId">, day?: string): Promise<LimitLine[]> {
   // Whenever the customer's ID number is known, today's earlier purchases count: a second cart is not a fresh limit.
   if (!sale.customerKey) return [];
   // "Today" is the store's own day, in its state's time zone.
@@ -615,7 +615,7 @@ export async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "
         eq(sales.customerKey, sale.customerKey),
         eq(sales.status, "COMPLETED"),
         sql`${sales.id} <> ${sale.id}`,
-        sql`(${sales.completedAt} at time zone ${zone})::date = ${todayIn(zone)}::date`,
+        sql`(${sales.completedAt} at time zone ${zone})::date = ${day ?? todayIn(zone)}::date`,
       ),
     );
 }
@@ -930,6 +930,11 @@ export async function completeSale(
     const program = sale.rewardMemberId ? await getProgram(tx, actor.orgId) : null;
     const promos = await cartPromos(tx, actor, lines);
     const totals = saleTotals(lines, sale, settings, program, promos.total);
+    // Each discount layer is capped on its own, but they stack: promotion, cart discount and rewards together must still
+    // leave the customer paying at least a tenth of the price, because New Mexico does not allow giving cannabis away (APEX-35).
+    if (totals.subtotal.gt(0) && totals.taxable.lt(totals.subtotal.mul(100 - MAX_PROMO_PERCENT).div(100))) {
+      throw new InventoryError(`These discounts together take more than ${MAX_PROMO_PERCENT}% off. New Mexico does not allow giving cannabis away free, so remove a discount or reward from this cart.`);
+    }
     const blank = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
     const settled = settlePayment(totals.total, method, {
       cashTendered: method === "DEBIT" || (blank(input.cashTendered) && totals.total.isZero()) ? null : parseMoney(input.cashTendered, "Cash handed over", { allowZero: true }),
@@ -1029,6 +1034,7 @@ export async function voidSale(actor: Actor, input: { saleId: string; reason: st
       .where(eq(saleLines.saleId, sale.id))
       .orderBy(asc(saleLinePackages.packageId));
     for (const row of taken) {
+      const before = await lockPackage(tx, actor, row.packageId);
       await returnToPackageInTx(tx, actor, {
         packageId: row.packageId,
         quantity: new Decimal(row.quantity),
@@ -1036,6 +1042,12 @@ export async function voidSale(actor: Actor, input: { saleId: string; reason: st
         auditAction: "RETURNED_FROM_VOIDED_SALE",
         type: "RETURN",
       });
+      if (before.status === "ALLOCATED") {
+        // The package was reserved for a wholesale order since this sale: the restocked units ship with it, so the
+        // order's picked quantity grows too and the invoice bills what leaves (same rule as a return, APEX-17).
+        const [alloc] = await tx.select().from(orderAllocations).where(eq(orderAllocations.packageId, row.packageId)).orderBy(desc(orderAllocations.quantity)).limit(1).for("update");
+        if (alloc) await tx.update(orderAllocations).set({ quantity: store(new Decimal(alloc.quantity).add(new Decimal(row.quantity))) }).where(eq(orderAllocations.id, alloc.id));
+      }
     }
     await reverseSaleRewards(tx, actor, sale);
     await tx.update(sales).set({ status: "VOIDED", voidReason: reason }).where(eq(sales.id, sale.id));
