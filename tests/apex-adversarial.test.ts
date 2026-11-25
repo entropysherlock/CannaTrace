@@ -243,6 +243,16 @@ describe.skipIf(!hasDb)("Apex adversarial scenarios", () => {
     expect(stuck[0].n).toBeGreaterThanOrEqual(0);
   });
 
+  it("a connection that dies while checked out does not crash the process (CI finding APEX-31)", async () => {
+    const victim = await pool.connect();
+    const pid = (await victim.query("select pg_backend_pid() pid")).rows[0].pid as number;
+    expect(victim.listenerCount("error")).toBeGreaterThan(0);
+    await db.execute(sql`select pg_terminate_backend(${pid})`);
+    await new Promise((r) => setTimeout(r, 300));
+    victim.release(true);
+    expect((await db.execute<{ one: number }>(sql`select 1 as one`)).rows[0].one).toBe(1);
+  });
+
   it("the same package tag received four times at once makes one package", async () => {
     const t = tag();
     const rs = await Promise.allSettled(Array.from({ length: 4 }, () => receiveRaw(A, { tag: t, itemId: item, quantity: "5", locationId: loc })));

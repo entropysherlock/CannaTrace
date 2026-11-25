@@ -23,6 +23,20 @@ if (pool.listenerCount("error") === 0) {
   });
 }
 
+// The pool's listener above only covers connections sitting idle. A connection that dies while a query or
+// transaction is using it emits "error" on the client itself, and with no listener Node ends the process even
+// though the running query already fails normally. Give every client a permanent listener so a dropped
+// connection only fails the work it was serving. (Apex finding APEX-31, found by CI.)
+const guarded = pool as Pool & { __clientGuard?: boolean };
+if (!guarded.__clientGuard) {
+  guarded.__clientGuard = true;
+  pool.on("connect", (client) => {
+    client.on("error", (error) => {
+      console.error("[db] a database connection was lost while in use:", error.message);
+    });
+  });
+}
+
 const base = drizzle(pool, { schema });
 
 export type Db = typeof base;
