@@ -103,14 +103,14 @@ export async function commandCenter(
       select to_char(d.day, 'YYYY-MM-DD') as day, coalesce(sum(m.amount), 0) as value
       from days d left join money m on m.day = d.day group by d.day order by d.day`),
     q(sql`select coalesce(sum(amount), 0) as total from (
-        select total as amount, ${local(sql`completed_at`)} as day from sales where org_id = ${orgId} and facility_id = any(${inIds}) and status = 'COMPLETED'
+        select total as amount, ${local(sql`completed_at`)} as day from sales where org_id = ${orgId} and facility_id = any(${inIds}) and status = 'COMPLETED' and completed_at > now() - make_interval(days => ${2 * days + 2})
         union all
-        select total, ${local(sql`created_at`)} from invoices where org_id = ${orgId} and facility_id = any(${inIds})
+        select total, ${local(sql`created_at`)} from invoices where org_id = ${orgId} and facility_id = any(${inIds}) and created_at > now() - make_interval(days => ${2 * days + 2})
         union all
-        select -amount, ${local(sql`created_at`)} from sale_returns where org_id = ${orgId} and facility_id = any(${inIds})
+        select -amount, ${local(sql`created_at`)} from sale_returns where org_id = ${orgId} and facility_id = any(${inIds}) and created_at > now() - make_interval(days => ${2 * days + 2})
       ) m where m.day >= ${prevStart} and m.day < ${start}`),
     q(sql`select coalesce(sum(amount), 0) as total, count(*) filter (where ticket) as tickets from (
-        select total as amount, true as ticket from sales where org_id = ${orgId} and facility_id = any(${inIds}) and status = 'COMPLETED'
+        select total as amount, true as ticket from sales where org_id = ${orgId} and facility_id = any(${inIds}) and status = 'COMPLETED' and completed_at > now() - interval '2 days'
           and ${local(sql`completed_at`)} = (now() at time zone ${TZ})::date
         union all
         select total, true from invoices where org_id = ${orgId} and facility_id = any(${inIds}) and ${local(sql`created_at`)} = (now() at time zone ${TZ})::date
@@ -156,7 +156,7 @@ export async function commandCenter(
         (select count(*) from plants p where p.facility_id = f.id and p.status = 'ACTIVE')
           + (select coalesce(sum(b.untagged_count), 0) from plant_batches b where b.facility_id = f.id and b.status = 'ACTIVE') as plants,
         (select count(*) from packages p where p.facility_id = f.id and p.status in ('ACTIVE','ALLOCATED')) as packages,
-        (select coalesce(sum(s.total), 0) from sales s where s.facility_id = f.id and s.status = 'COMPLETED' and ${local(sql`s.completed_at`)} >= ${start})
+        (select coalesce(sum(s.total), 0) from sales s where s.facility_id = f.id and s.status = 'COMPLETED' and ${local(sql`s.completed_at`)} >= ${start} and s.completed_at > now() - make_interval(days => ${days + 1}))
           + (select coalesce(sum(i.total), 0) from invoices i where i.facility_id = f.id and ${local(sql`i.created_at`)} >= ${start})
           - (select coalesce(sum(r.amount), 0) from sale_returns r where r.facility_id = f.id and ${local(sql`r.created_at`)} >= ${start}) as sales
       from facilities f where f.org_id = ${orgId} and f.id = any(${visible}) order by f.name`),

@@ -26,6 +26,8 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   },
 });
 const qty = (name: string) => numeric(name, { precision: 18, scale: 4 });
+/** Cost per unit keeps 8 decimals so tiny unit costs survive (APEX-16). */
+const cost = (name: string) => numeric(name, { precision: 18, scale: 8 });
 
 export const roleEnum = pgEnum("role", [
   "OWNER",
@@ -537,7 +539,7 @@ export const packages = pgTable(
     /** When the package last went on hold or into quarantine; cleared on release. Used for waste hold periods. */
     heldSince: timestamp("held_since", { withTimezone: true }),
     lotNumber: text("lot_number"),
-    costPerUnit: qty("cost_per_unit"),
+    costPerUnit: cost("cost_per_unit"),
     /** The vendor this package was bought from, when it was received from outside. */
     vendorId: text("vendor_id"),
     createdAt: createdAt(),
@@ -901,7 +903,7 @@ export const productionRuns = pgTable(
     outputPackageId: text("output_package_id").references(() => packages.id),
     inputCost: qty("input_cost"),
     extraCost: qty("extra_cost"),
-    costPerUnit: qty("cost_per_unit"),
+    costPerUnit: cost("cost_per_unit"),
     lossNote: text("loss_note"),
     status: runStatusEnum("status").notNull().default("IN_PROGRESS"),
     userId: text("user_id").notNull(),
@@ -931,7 +933,7 @@ export const productionInputs = pgTable(
     quantity: qty("quantity").notNull(),
     unit: unitEnum("unit").notNull(),
     // Cost per unit of the source package when it was consumed; null when the package had no cost.
-    costPerUnit: qty("cost_per_unit"),
+    costPerUnit: cost("cost_per_unit"),
     userName: text("user_name").notNull(),
     createdAt: createdAt(),
   },
@@ -1428,6 +1430,11 @@ export const sales = pgTable(
     uniqueIndex("sales_facility_offline_key").on(t.facilityId, t.offlineId),
     index("sales_session_idx").on(t.drawerSessionId, t.status),
     index("sales_customer_day_idx").on(t.orgId, t.customerKey, t.completedAt),
+    // Dashboards, reports and the daily check read sales by store and date; without these they scan every sale ever made (Apex: ~3 s at one million sales).
+    index("sales_facility_completed_idx").on(t.facilityId, t.completedAt),
+    index("sales_org_completed_idx").on(t.orgId, t.completedAt),
+    // The manager review queue and its badge look only at the few offline sales with a note.
+    index("sales_review_idx").on(t.facilityId, t.reviewedAt).where(sql`${t.reviewNote} is not null`),
   ],
 );
 
@@ -1495,6 +1502,8 @@ export const saleLines = pgTable(
      */
     limitCategory: limitCategoryEnum("limit_category"),
     limitPerUnit: qty("limit_per_unit"),
+    /** The automatic-promotion dollars this line carried when the sale was completed, so a partial return refunds what that line actually cost. */
+    promoDiscount: money("promo_discount").notNull().default("0"),
   },
   (t) => [uniqueIndex("sale_lines_sale_item_key").on(t.saleId, t.itemId)],
 );
@@ -1574,6 +1583,17 @@ export const apiKeys = pgTable(
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
   },
   (t) => [index("api_keys_org_idx").on(t.orgId)],
+);
+
+/** How many requests each API key made in each minute, so one key cannot flood the service (APEX-19). */
+export const apiRateWindows = pgTable(
+  "api_rate_windows",
+  {
+    keyId: text("key_id").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.keyId, t.windowStart] })],
 );
 
 export const webhooks = pgTable(

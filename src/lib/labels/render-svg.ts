@@ -45,6 +45,8 @@ function barcodeSvg(el: LabelElement, values: Record<string, string | null>): st
   }
 }
 
+const SAFE_IMAGE = /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=\s]+$/;
+
 function elementSvg(el: LabelElement, values: Record<string, string | null>): string {
   switch (el.type) {
     case "text":
@@ -53,7 +55,9 @@ function elementSvg(el: LabelElement, values: Record<string, string | null>): st
     case "qr":
       return barcodeSvg(el, values);
     case "image":
-      return el.src
+      // Only a picture stored inside the label itself is ever drawn. A web address would make every viewer's browser
+      // fetch it, which tells whoever runs that address who looked at the label (APEX-21).
+      return el.src && SAFE_IMAGE.test(el.src)
         ? `<image href="${esc(el.src)}" x="${n(el.x)}" y="${n(el.y)}" width="${n(el.w)}" height="${n(el.h)}" preserveAspectRatio="xMidYMid meet"/>`
         : `<rect x="${n(el.x)}" y="${n(el.y)}" width="${n(el.w)}" height="${n(el.h)}" fill="none" stroke="#999" stroke-width="0.2" stroke-dasharray="1 0.6"/>`;
     case "line": {

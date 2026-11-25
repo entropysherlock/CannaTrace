@@ -45,7 +45,7 @@ export async function revokeApiKey(actor: Actor, input: { keyId: string }): Prom
     const [gone] = await tx
       .update(apiKeys)
       .set({ revokedAt: new Date() })
-      .where(and(eq(apiKeys.id, input.keyId), eq(apiKeys.orgId, actor.orgId), isNull(apiKeys.revokedAt)))
+      .where(and(eq(apiKeys.id, input.keyId), eq(apiKeys.orgId, actor.orgId), eq(apiKeys.facilityId, actor.facilityId), isNull(apiKeys.revokedAt)))
       .returning({ id: apiKeys.id, name: apiKeys.name, prefix: apiKeys.prefix });
     if (gone) await logAdminAction(tx, actor, { entityType: "ApiKey", entityId: gone.id, action: "REVOKE", before: { name: gone.name, prefix: gone.prefix } });
   });
@@ -71,7 +71,12 @@ export async function authenticateApiKey(header: string | null): Promise<ApiKey 
 
 /** True for addresses inside a private network, this machine, or cloud metadata services. */
 export function isPrivateAddress(address: string): boolean {
-  const v4 = address.startsWith("::ffff:") ? address.slice(7) : address;
+  const lower = address.toLowerCase();
+  // IPv4 carried inside IPv6, written dotted (::ffff:10.0.0.1) or as hex pairs (::ffff:a00:1, which is how URL parsing normalizes it).
+  const hexMapped = lower.match(/^(?:::ffff:|::|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  const v4 = hexMapped
+    ? [parseInt(hexMapped[1], 16) >> 8, parseInt(hexMapped[1], 16) & 255, parseInt(hexMapped[2], 16) >> 8, parseInt(hexMapped[2], 16) & 255].join(".")
+    : lower.startsWith("::ffff:") ? lower.slice(7) : lower;
   if (isIP(v4) === 4) {
     const [a, b] = v4.split(".").map(Number);
     return (
@@ -79,8 +84,8 @@ export function isPrivateAddress(address: string): boolean {
       (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224
     );
   }
-  const v6 = address.toLowerCase();
-  return v6 === "::" || v6 === "::1" || v6.startsWith("fc") || v6.startsWith("fd") || v6.startsWith("fe80");
+  // fe80::/10 is link-local (fe8-feb); fc00::/7 is unique-local.
+  return lower === "::" || lower === "::1" || /^f[cd]/.test(lower) || /^fe[89ab]/.test(lower);
 }
 
 /** Check a webhook address before saving it: public https only. */
@@ -145,7 +150,7 @@ export async function setWebhookActive(actor: Actor, input: { webhookId: string;
     const [changed] = await tx
       .update(webhooks)
       .set({ active: input.active })
-      .where(and(eq(webhooks.id, input.webhookId), eq(webhooks.orgId, actor.orgId)))
+      .where(and(eq(webhooks.id, input.webhookId), eq(webhooks.orgId, actor.orgId), eq(webhooks.facilityId, actor.facilityId)))
       .returning({ id: webhooks.id, url: webhooks.url });
     if (changed) await logAdminAction(tx, actor, { entityType: "Webhook", entityId: changed.id, action: input.active ? "TURN_ON" : "TURN_OFF", after: { url: changed.url } });
   });

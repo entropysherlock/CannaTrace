@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { packages } from "@/db/schema";
-import { apiRoute, num, readJson } from "@/lib/api";
+import { apiRoute, num, readJson, safeDecode } from "@/lib/api";
 import { db } from "@/lib/db";
 import { adjustPackage } from "@/lib/inventory";
 import { InventoryError } from "@/lib/inventory-math";
@@ -11,8 +11,8 @@ export const POST = apiRoute<{ tag: string }>({ write: true }, async (request, {
   const [pkg] = await db
     .select({ id: packages.id })
     .from(packages)
-    .where(and(eq(packages.orgId, key.orgId), eq(packages.facilityId, key.facilityId), eq(packages.tag, decodeURIComponent(tag).toUpperCase())));
-  if (!pkg) throw new InventoryError(`No package with tag ${decodeURIComponent(tag)} at this facility.`);
+    .where(and(eq(packages.orgId, key.orgId), eq(packages.facilityId, key.facilityId), eq(packages.tag, safeDecode(tag).toUpperCase())));
+  if (!pkg) throw new InventoryError(`No package with tag ${safeDecode(tag)} at this facility.`);
   const updated = await adjustPackage(actor, {
     packageId: pkg.id,
     newQuantity: body.newQuantity,

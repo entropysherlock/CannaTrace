@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import Decimal from "decimal.js";
-import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 import {
   discountPresets,
   drawerSessions,
@@ -9,6 +9,7 @@ import {
   packages,
   retailPrices,
   retailSettings,
+  orderAllocations,
   saleLinePackages,
   saleLines,
   salePromotions,
@@ -22,6 +23,7 @@ import {
 import { atomically, db, type Tx } from "./db";
 import { parseDate, parseMoney, parsePrice, todayIn } from "./distribution-math";
 import { cartPromos } from "./promotions";
+import { MAX_PROMO_PERCENT } from "./promotions-math";
 import { InventoryError, adjustPackage, audit, consumeFromPackageInTx, lockPackage, returnToPackageInTx, type Actor } from "./inventory";
 import { assertWholeForUnit, parsePositiveQty } from "./inventory-math";
 import { nextNumber } from "./numbering";
@@ -62,12 +64,18 @@ const UNSET = {
   labelWarning: null as string | null,
 };
 
+/** A state whose purchase limits are per day starts with per-customer daily limits ON, so the first sale is not unchecked (APEX-22). */
+async function stateCountsPerDay(tx: Tx | typeof db, facilityId: string): Promise<boolean> {
+  const [f] = await tx.select({ state: facilities.state }).from(facilities).where(eq(facilities.id, facilityId));
+  return (packFor(f?.state)?.rules ?? []).some((r) => r.kind === "PURCHASE_LIMIT" && r.period === "DAY");
+}
+
 export async function getRetailSettings(
   tx: Tx | typeof db,
   facilityId: string,
 ): Promise<Omit<RetailSettings, "facilityId" | "orgId"> & { saved: boolean }> {
   const [row] = await tx.select().from(retailSettings).where(eq(retailSettings.facilityId, facilityId));
-  return row ? { ...row, saved: true } : { ...UNSET, saved: false };
+  return row ? { ...row, saved: true } : { ...UNSET, dailyLimits: await stateCountsPerDay(tx, facilityId), saved: false };
 }
 
 export async function saveRetailSettings(
@@ -101,9 +109,11 @@ export async function saveRetailSettings(
     ...(input.labelWarning !== undefined ? { labelWarning: words(input.labelWarning, "The label warning") } : {}),
   };
   await db.transaction(async (tx) => {
+    const firstSave = values.dailyLimits === undefined && (await tx.$count(retailSettings, eq(retailSettings.facilityId, actor.facilityId))) === 0;
+    const insertValues = firstSave ? { ...values, dailyLimits: await stateCountsPerDay(tx, actor.facilityId) } : values;
     await tx
       .insert(retailSettings)
-      .values({ facilityId: actor.facilityId, orgId: actor.orgId, ...values })
+      .values({ facilityId: actor.facilityId, orgId: actor.orgId, ...insertValues })
       .onConflictDoUpdate({ target: retailSettings.facilityId, set: values });
     await audit(tx, actor, { entityType: "RetailSettings", entityId: actor.facilityId, action: "SAVE", after: values });
   });
@@ -154,7 +164,8 @@ export async function setMenuItem(
 export async function createDiscount(actor: Actor, input: { name: string; percent: unknown }): Promise<void> {
   const name = input.name.trim().slice(0, 60);
   if (!name) throw new InventoryError("Give the discount a name, for example Veteran 10%.");
-  const percent = parsePercent(input.percent, "Discount");
+  // Same ceiling as promotions: New Mexico does not allow giving cannabis away free (APEX-18).
+  const percent = parsePercent(input.percent, "Discount", MAX_PROMO_PERCENT);
   if (percent.lte(0)) throw new InventoryError("Discount must be more than zero.");
   await db.transaction(async (tx) => {
     // Names are matched ignoring capitals, so "veteran" and "Veteran" are the same discount.
@@ -583,7 +594,7 @@ export function customerKeyFor(orgId: string, idNumber: string): string {
 type LimitLine = Parameters<typeof limitUsage>[0][number];
 
 /** What this customer already bought today at completed sales anywhere in the business, for daily limits. */
-async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" | "customerKey" | "facilityId">): Promise<LimitLine[]> {
+export async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" | "customerKey" | "facilityId">, day?: string): Promise<LimitLine[]> {
   // Whenever the customer's ID number is known, today's earlier purchases count: a second cart is not a fresh limit.
   if (!sale.customerKey) return [];
   // "Today" is the store's own day, in its state's time zone.
@@ -604,7 +615,7 @@ async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" 
         eq(sales.customerKey, sale.customerKey),
         eq(sales.status, "COMPLETED"),
         sql`${sales.id} <> ${sale.id}`,
-        sql`(${sales.completedAt} at time zone ${zone})::date = ${todayIn(zone)}::date`,
+        sql`(${sales.completedAt} at time zone ${zone})::date = ${day ?? todayIn(zone)}::date`,
       ),
     );
 }
@@ -653,7 +664,10 @@ export async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, item
   const before = await cartLines(tx, sale.id);
   const existing = before.find((line) => line.itemId === item.id);
   if (newQuantity.lte(0)) {
-    if (existing) await tx.delete(saleLines).where(eq(saleLines.id, existing.id));
+    if (existing) {
+      await tx.delete(saleLines).where(eq(saleLines.id, existing.id));
+      await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "CART_LINE_REMOVED", before: { number: sale.number, item: item.name, quantity: existing.quantity, unitPrice: existing.unitPrice } });
+    }
     return item.name;
   }
   const pack = await storePack(tx, actor.facilityId);
@@ -666,6 +680,9 @@ export async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, item
   }
   if (existing) {
     await tx.update(saleLines).set({ quantity: store(newQuantity) }).where(eq(saleLines.id, existing.id));
+    // Taking quantity off a cart is the edit worth a record (it is how a ring-up gets quietly shortened); adding is not.
+    if (newQuantity.lt(new Decimal(existing.quantity)))
+      await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "CART_QUANTITY_REDUCED", before: { number: sale.number, item: item.name, quantity: existing.quantity }, after: { quantity: store(newQuantity) } });
   } else {
     await tx.insert(saleLines).values({ saleId: sale.id, itemId: item.id, quantity: store(newQuantity), unitPrice: item.price });
   }
@@ -741,6 +758,7 @@ export async function removeFromCart(actor: Actor, input: { lineId: string }): P
     if (!line) return;
     await lockSale(tx, actor, line.saleId, ["OPEN"], "changed");
     await tx.delete(saleLines).where(eq(saleLines.id, line.id));
+    await audit(tx, actor, { entityType: "Sale", entityId: line.saleId, action: "CART_LINE_REMOVED", before: { item: line.itemId, quantity: line.quantity, unitPrice: line.unitPrice } });
   });
 }
 
@@ -759,6 +777,7 @@ export async function setCartDiscount(actor: Actor, input: { saleId: string; dis
       .from(discountPresets)
       .where(and(eq(discountPresets.id, input.discountId), eq(discountPresets.orgId, actor.orgId), eq(discountPresets.active, true)));
     if (!discount) throw new InventoryError("Pick a discount from the list.");
+    if (new Decimal(discount.percent).gt(MAX_PROMO_PERCENT)) throw new InventoryError(`${discount.name} takes more than ${MAX_PROMO_PERCENT}% off. New Mexico does not allow giving cannabis away free, so a manager needs to lower it.`);
     await tx.update(sales).set({ discountName: discount.name, discountPercent: discount.percent }).where(eq(sales.id, sale.id));
     await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "DISCOUNT", after: { name: discount.name, percent: discount.percent } });
   });
@@ -776,6 +795,7 @@ export async function attachRewardsMember(actor: Actor, input: { saleId: string;
     if (!found) return null;
     const member = await expireIfIdle(tx, actor, await lockMember(tx, actor.orgId, found.id), program);
     await tx.update(sales).set({ rewardMemberId: member.id, rewardsUsed: 0 }).where(eq(sales.id, sale.id));
+    await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "REWARDS_ATTACHED", after: { number: sale.number, memberId: member.id } });
     return { firstName: member.firstName, points: member.points };
   });
 }
@@ -791,6 +811,7 @@ export async function joinRewards(
     const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
     const member = await createMember(tx, actor, program, input);
     await tx.update(sales).set({ rewardMemberId: member.id, rewardsUsed: 0 }).where(eq(sales.id, sale.id));
+    await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "REWARDS_ATTACHED", after: { number: sale.number, memberId: member.id, joined: true } });
     return { firstName: member.firstName, points: member.points };
   });
 }
@@ -799,6 +820,8 @@ export async function detachRewardsMember(actor: Actor, input: { saleId: string 
   await db.transaction(async (tx) => {
     const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
     await tx.update(sales).set({ rewardMemberId: null, rewardsUsed: 0 }).where(eq(sales.id, sale.id));
+    if (sale.rewardMemberId)
+      await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "REWARDS_DETACHED", before: { number: sale.number, memberId: sale.rewardMemberId, rewardsUsed: sale.rewardsUsed } });
   });
 }
 
@@ -907,6 +930,11 @@ export async function completeSale(
     const program = sale.rewardMemberId ? await getProgram(tx, actor.orgId) : null;
     const promos = await cartPromos(tx, actor, lines);
     const totals = saleTotals(lines, sale, settings, program, promos.total);
+    // Each discount layer is capped on its own, but they stack: promotion, cart discount and rewards together must still
+    // leave the customer paying at least a tenth of the price, because New Mexico does not allow giving cannabis away (APEX-35).
+    if (totals.subtotal.gt(0) && totals.taxable.lt(totals.subtotal.mul(100 - MAX_PROMO_PERCENT).div(100))) {
+      throw new InventoryError(`These discounts together take more than ${MAX_PROMO_PERCENT}% off. New Mexico does not allow giving cannabis away free, so remove a discount or reward from this cart.`);
+    }
     const blank = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
     const settled = settlePayment(totals.total, method, {
       cashTendered: method === "DEBIT" || (blank(input.cashTendered) && totals.total.isZero()) ? null : parseMoney(input.cashTendered, "Cash handed over", { allowZero: true }),
@@ -952,7 +980,11 @@ export async function completeSale(
       })
       .where(eq(sales.id, sale.id));
     // Keep how each line counted toward purchase limits, so editing the item later can't rewrite this sale's count.
-    for (const line of lines) await tx.update(saleLines).set({ limitCategory: line.limitCategory, limitPerUnit: line.limitPerUnit }).where(eq(saleLines.id, line.id));
+    for (const line of lines)
+      await tx
+        .update(saleLines)
+        .set({ limitCategory: line.limitCategory, limitPerUnit: line.limitPerUnit, promoDiscount: (promos.byLine.get(line.id)?.amount ?? new Decimal(0)).toFixed(2) })
+        .where(eq(saleLines.id, line.id));
     const perPromo = new Map<string, { name: string; lines: number; amount: Decimal }>();
     for (const hit of promos.byLine.values()) {
       const row = perPromo.get(hit.promoId) ?? { name: hit.promoName, lines: 0, amount: new Decimal(0) };
@@ -1002,6 +1034,7 @@ export async function voidSale(actor: Actor, input: { saleId: string; reason: st
       .where(eq(saleLines.saleId, sale.id))
       .orderBy(asc(saleLinePackages.packageId));
     for (const row of taken) {
+      const before = await lockPackage(tx, actor, row.packageId);
       await returnToPackageInTx(tx, actor, {
         packageId: row.packageId,
         quantity: new Decimal(row.quantity),
@@ -1009,6 +1042,12 @@ export async function voidSale(actor: Actor, input: { saleId: string; reason: st
         auditAction: "RETURNED_FROM_VOIDED_SALE",
         type: "RETURN",
       });
+      if (before.status === "ALLOCATED") {
+        // The package was reserved for a wholesale order since this sale: the restocked units ship with it, so the
+        // order's picked quantity grows too and the invoice bills what leaves (same rule as a return, APEX-17).
+        const [alloc] = await tx.select().from(orderAllocations).where(eq(orderAllocations.packageId, row.packageId)).orderBy(desc(orderAllocations.quantity)).limit(1).for("update");
+        if (alloc) await tx.update(orderAllocations).set({ quantity: store(new Decimal(alloc.quantity).add(new Decimal(row.quantity))) }).where(eq(orderAllocations.id, alloc.id));
+      }
     }
     await reverseSaleRewards(tx, actor, sale);
     await tx.update(sales).set({ status: "VOIDED", voidReason: reason }).where(eq(sales.id, sale.id));
@@ -1031,7 +1070,7 @@ export function msAgo(ms: number): Date {
 export const RETURN_DISPOSITIONS = ["RESTOCK", "DISPOSE"] as const;
 export const REFUND_METHODS = ["CASH", "CARD"] as const;
 
-export type ReturnableLine = { saleLineId: string; itemName: string; unit: string; sold: string; returned: string; returnable: string; unitPrice: string };
+export type ReturnableLine = { saleLineId: string; itemName: string; unit: string; sold: string; returned: string; returnable: string; unitPrice: string; promoDiscount: string };
 
 /** Each line of a sale with how much is still returnable. */
 export async function returnableLines(tx: Tx | typeof db, saleId: string): Promise<ReturnableLine[]> {
@@ -1042,6 +1081,7 @@ export async function returnableLines(tx: Tx | typeof db, saleId: string): Promi
       unit: items.unit,
       sold: saleLines.quantity,
       unitPrice: saleLines.unitPrice,
+      promoDiscount: saleLines.promoDiscount,
       returned: sql<string>`coalesce((select sum(${saleReturnLines.quantity}) from ${saleReturnLines} where ${saleReturnLines.saleLineId} = ${saleLines.id}), 0)`,
     })
     .from(saleLines)
@@ -1054,6 +1094,7 @@ export async function returnableLines(tx: Tx | typeof db, saleId: string): Promi
     returned: new Decimal(r.returned).toString(),
     returnable: Decimal.max(new Decimal(r.sold).sub(r.returned), 0).toString(),
     unitPrice: new Decimal(r.unitPrice).toFixed(2),
+    promoDiscount: new Decimal(r.promoDiscount).toFixed(2),
   }));
 }
 
@@ -1094,6 +1135,8 @@ export async function returnSale(
 
       // Work out the refund from the share of the sale coming back.
       let returnedValue = new Decimal(0);
+      // Sales completed before lines kept their own promotion dollars fall back to the sale-wide average share.
+      const linePromoKept = new Decimal(sale.promoDiscount ?? 0).isZero() || lines.some((l) => new Decimal(l.promoDiscount).gt(0));
       const plan: { line: ReturnableLine; quantity: Decimal }[] = [];
       for (const w of wanted) {
         const line = lines.find((l) => l.saleLineId === w.saleLineId);
@@ -1103,9 +1146,11 @@ export async function returnSale(
         if (quantity.gt(line.returnable))
           throw new InventoryError(`Only ${line.returnable} of ${line.itemName} can still be returned (${line.sold} sold, ${line.returned} already returned).`);
         plan.push({ line, quantity });
-        returnedValue = returnedValue.add(quantity.mul(line.unitPrice));
+        // What the returned units were worth after the promotion their own line carried (APEX-13). The percent
+        // discount, rewards dollars and tax were spread over the whole cart, so they follow this net value.
+        returnedValue = returnedValue.add(quantity.mul(line.unitPrice).sub(linePromoKept ? new Decimal(line.promoDiscount).mul(quantity).div(line.sold) : 0));
       }
-      const subtotal = new Decimal(sale.subtotal ?? 0);
+      const subtotal = new Decimal(sale.subtotal ?? 0).sub(linePromoKept ? (sale.promoDiscount ?? 0) : 0);
       const total = new Decimal(sale.total ?? 0);
       const remaining = total.sub(refunded);
       const everything = lines.every((l) => {
@@ -1154,21 +1199,33 @@ export async function returnSale(
           const take = Decimal.min(need, room);
           const before = await lockPackage(tx, actor, src.packageId);
           if (before.status === "DESTROYED") throw new InventoryError(`Package ${before.tag}, which ${line.itemName} came from, has been destroyed, so the return can't be recorded against it.`);
-          const after = await returnToPackageInTx(tx, actor, {
-            packageId: src.packageId,
-            quantity: take,
-            note: `Return ${number} from sale ${sale.number}: ${reason}`,
-            auditAction: "RETURNED_BY_CUSTOMER",
-            type: "RETURN",
-          });
-          if (input.disposition === "DISPOSE") {
-            // Opened or damaged: written off straight away, so it can't be sold again.
-            await adjustPackage(actor, {
+          if (before.status === "ALLOCATED" && input.disposition === "DISPOSE") {
+            // Damaged product coming back into a package reserved for a wholesale order never joins that package, so it
+            // cannot ship; the return is recorded and nothing is added to the reserved stock (APEX-17).
+            await audit(tx, actor, { entityType: "Package", entityId: src.packageId, action: "RETURN_WRITTEN_OFF", after: { quantity: take.toString(), return: number }, reason: `Customer return ${number} not resellable: ${reason}` });
+          } else {
+            const after = await returnToPackageInTx(tx, actor, {
               packageId: src.packageId,
-              newQuantity: new Decimal(after.quantity).sub(take).toString(),
-              reasonCode: "DAMAGE",
-              note: `Customer return ${number} not resellable: ${reason}`,
+              quantity: take,
+              note: `Return ${number} from sale ${sale.number}: ${reason}`,
+              auditAction: "RETURNED_BY_CUSTOMER",
+              type: "RETURN",
             });
+            if (before.status === "ALLOCATED") {
+              // Put back into a package reserved for a wholesale order, these units will ship with it: the order's picked
+              // quantity grows with the package so the invoice bills exactly what leaves (APEX-17).
+              const [alloc] = await tx.select().from(orderAllocations).where(eq(orderAllocations.packageId, src.packageId)).orderBy(desc(orderAllocations.quantity)).limit(1).for("update");
+              if (alloc) await tx.update(orderAllocations).set({ quantity: store(new Decimal(alloc.quantity).add(take)) }).where(eq(orderAllocations.id, alloc.id));
+            }
+            if (input.disposition === "DISPOSE") {
+              // Opened or damaged: written off straight away, so it can't be sold again.
+              await adjustPackage(actor, {
+                packageId: src.packageId,
+                newQuantity: new Decimal(after.quantity).sub(take).toString(),
+                reasonCode: "DAMAGE",
+                note: `Customer return ${number} not resellable: ${reason}`,
+              });
+            }
           }
           await tx.insert(saleReturnLines).values({ returnId: ret.id, saleLineId: line.saleLineId, packageId: src.packageId, quantity: store(take) });
           need = need.sub(take);

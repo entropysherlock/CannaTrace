@@ -72,6 +72,14 @@ const anthropicValidator: Validator = async (apiKey) => {
   return models;
 };
 
+/**
+ * The stand-in model is for automated tests only. It is switched off on a real Vercel production deployment even if
+ * the variable is set there by mistake, so a business can never be answered by canned text (APEX-29).
+ */
+export function fakeAssistantOn(): boolean {
+  return process.env.ASSISTANT_FAKE === "1" && process.env.VERCEL_ENV !== "production";
+}
+
 /** Automated tests run with ASSISTANT_FAKE=1 and no network: these made-up keys stand in for real ones. */
 const fakeValidator: Validator = async (apiKey) => {
   if (apiKey.includes("bad")) throw new ProviderError("INVALID_KEY", explainProviderError({ status: 401 }).message);
@@ -84,7 +92,7 @@ const fakeValidator: Validator = async (apiKey) => {
 };
 
 export function defaultValidator(): Validator {
-  return process.env.ASSISTANT_FAKE === "1" ? fakeValidator : anthropicValidator;
+  return fakeAssistantOn() ? fakeValidator : anthropicValidator;
 }
 
 /** The model to use: the one asked for, or the current one, or CannaTrace's default, if the key can use it. */
@@ -298,7 +306,7 @@ function platformAllowed(orgId: string, isDemo: boolean): boolean {
 
 /** Decide whose Claude account answers this person's question. Always scoped to their own business. */
 export async function resolveTally(session: Pick<Session, "orgId" | "isDemo">): Promise<TallyRoute> {
-  if (process.env.ASSISTANT_FAKE === "1") {
+  if (fakeAssistantOn()) {
     const [row] = await db.select().from(aiConnections).where(eq(aiConnections.orgId, session.orgId));
     if (row && !row.enabled) return { kind: "off", reason: "PAUSED" };
     return { kind: "fake", model: row?.model ?? DEFAULT_MODEL, maxTokens: row?.maxAnswerTokens ?? 2048, limits: row ?? DEFAULT_LIMITS };
@@ -319,7 +327,7 @@ export async function resolveTally(session: Pick<Session, "orgId" | "isDemo">): 
 
 /** Whether Tally can answer for this business right now, without loading the key. For the panel. */
 export async function tallyAvailability(session: Pick<Session, "orgId" | "isDemo">): Promise<{ ready: boolean; reason: string | null }> {
-  if (process.env.ASSISTANT_FAKE === "1") {
+  if (fakeAssistantOn()) {
     const [row] = await db.select({ enabled: aiConnections.enabled }).from(aiConnections).where(eq(aiConnections.orgId, session.orgId));
     return row && !row.enabled ? { ready: false, reason: "PAUSED" } : { ready: true, reason: null };
   }

@@ -14,6 +14,29 @@ const pool =
 
 if (process.env.NODE_ENV !== "production") globalForDb.pool = pool;
 
+// A connection the database drops while it sits idle (a restart, a failover, a pooler timeout) is reported on the
+// pool as an "error" event. With nobody listening Node treats that as an uncaught exception and ends the process,
+// so log it and let the pool open a fresh connection on the next query.
+if (pool.listenerCount("error") === 0) {
+  pool.on("error", (error) => {
+    console.error("[db] an idle database connection was lost; the pool will reconnect:", error.message);
+  });
+}
+
+// The pool's listener above only covers connections sitting idle. A connection that dies while a query or
+// transaction is using it emits "error" on the client itself, and with no listener Node ends the process even
+// though the running query already fails normally. Give every client a permanent listener so a dropped
+// connection only fails the work it was serving. (Apex finding APEX-31, found by CI.)
+const guarded = pool as Pool & { __clientGuard?: boolean };
+if (!guarded.__clientGuard) {
+  guarded.__clientGuard = true;
+  pool.on("connect", (client) => {
+    client.on("error", (error) => {
+      console.error("[db] a database connection was lost while in use:", error.message);
+    });
+  });
+}
+
 const base = drizzle(pool, { schema });
 
 export type Db = typeof base;

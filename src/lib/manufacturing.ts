@@ -20,7 +20,7 @@ import {
   returnToPackageInTx,
   type Actor,
 } from "./inventory";
-import { normalizeTag, parsePositiveQty } from "./inventory-math";
+import { normalizeTag, parsePositiveQty, storeCost } from "./inventory-math";
 import { inputCost, parseBatches, scaleRecipe, unitCost } from "./manufacturing-math";
 
 const store = (value: Decimal) => value.toFixed(4);
@@ -224,7 +224,7 @@ export async function completeRun(
 ): Promise<{ run: ProductionRun; output: Package }> {
   const actual = parsePositiveQty(input.actualQuantity, "Actual output");
   const extraText = String(input.extraCost ?? "").trim();
-  const extra = extraText === "" ? new Decimal(0) : parsePositiveQty(extraText, "Labor and other cost");
+  const extra = extraText === "" || extraText === "0" ? new Decimal(0) : parsePositiveQty(extraText, "Labor and other cost");
 
   return db.transaction(async (tx) => {
     const run = await lockOpenRun(tx, actor, input.runId);
@@ -281,7 +281,7 @@ export async function completeRun(
         outputPackageId: output.id,
         inputCost: cost ? store(cost) : null,
         extraCost: store(extra),
-        costPerUnit: perUnit ? store(perUnit) : null,
+        costPerUnit: perUnit ? storeCost(perUnit) : null,
         lossNote: input.lossNote?.trim().slice(0, 500) || null,
         completedAt: new Date(),
       })

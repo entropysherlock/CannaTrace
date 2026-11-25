@@ -1,4 +1,4 @@
-import { and, asc, eq, gte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray } from "drizzle-orm";
 import { sales } from "@/db/schema";
 import { apiRoute, pageParams } from "@/lib/api";
 import { db } from "@/lib/db";
@@ -24,9 +24,9 @@ export const GET = apiRoute<Record<string, never>>({}, async (request, { key }) 
       completedAt: sales.completedAt,
     })
     .from(sales)
-    .where(and(eq(sales.orgId, key.orgId), eq(sales.facilityId, key.facilityId), from ? gte(sales.createdAt, from) : undefined))
+    .where(and(eq(sales.orgId, key.orgId), eq(sales.facilityId, key.facilityId), inArray(sales.status, ["COMPLETED", "VOIDED"]), from ? gte(sales.createdAt, from) : undefined))
     .orderBy(asc(sales.createdAt), asc(sales.id))
     .limit(limit + 1)
     .offset(offset);
-  return { data: rows.slice(0, limit).filter((r) => r.status === "COMPLETED" || r.status === "VOIDED"), nextOffset: rows.length > limit ? offset + limit : null };
+  return { data: rows.slice(0, limit), nextOffset: rows.length > limit ? offset + limit : null };
 });

@@ -295,6 +295,22 @@ describe.skipIf(!hasDb)("QA round fixes (database)", () => {
       // Fractions of a counted item are caught when the manifest is checked, not only when receiving.
       const half = await receiveShipment(manager, { manifestNumber: "M-HALF", table: [["Package Tag", "Item Name", "Quantity"], [tag(), "Jar", "4.5"]], locationId: floor, received: {}, commit: false });
       expect(half.problems.join(" ")).toMatch(/whole number/);
+
+      // APEX-34: a package shipped to an outside licensee is not ours to take in, even with the right manifest number.
+      const outside = await createCustomer(growActor, { name: "Outside shop", licenseNumber: `${run}-OUT`, licenseType: "Retailer", licenseExpires: addDays(todayIn(), 300) });
+      await verifyCustomerLicense(growActor, { customerId: outside.id });
+      const q = await receivePackage(growActor, { tag: tag(), itemId: jar, quantity: "10", locationId: vault });
+      await addLabResult(growActor, { packageId: q.id, labName: "Lab", status: "PASS" });
+      const o2 = await createOrder(growActor, { customerId: outside.id });
+      await addOrderLine(growActor, { orderId: o2.id, itemId: jar, quantity: "10", unitPrice: "10" });
+      await confirmOrder(growActor, { orderId: o2.id });
+      const line2 = (await db.execute<{ id: string }>(`select id from order_lines where order_id = '${o2.id}'` as never)).rows[0].id;
+      await allocateToOrder(growActor, { orderId: o2.id, lineId: line2, tag: q.tag });
+      await packOrder(growActor, { orderId: o2.id });
+      const shipped2 = await shipOrder(growActor, { orderId: o2.id, driverId, vehicleId, departAt: new Date(Date.now() + 3_600_000).toISOString() });
+      const steal = await receiveShipment(manager, { manifestNumber: shipped2.manifestNumber, table: [["Package Tag", "Item Name", "Quantity", "Lot"], [q.tag, "Jar", "10", ""]], locationId: floor, received: {}, commit: false });
+      expect(steal.problems.join(" ")).toMatch(/already in CannaTrace/);
+      expect((await pkg(q.id)).facilityId).not.toBe(store);
     });
   });
 

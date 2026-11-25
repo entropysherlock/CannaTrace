@@ -28,11 +28,11 @@ export async function POST(request: Request) {
     );
     revalidatePath("/", "layout");
     // The undo is already saved. If Watch can't refresh, say nothing went wrong rather than "nothing was changed".
-    await refreshWatch(session).catch((error) => console.error("watch refresh after undo failed", error));
+    await refreshWatch(session).catch((error) => console.error("watch refresh after undo failed", (error as Error)?.name));
     return NextResponse.json({ ok: message });
   } catch (error) {
     if (error instanceof InventoryError) return NextResponse.json({ error: error.message }, { status: 422 });
-    console.error("assistant undo failed", error);
+    console.error("assistant undo failed", (error as Error)?.name);
     return NextResponse.json({ error: "The undo did not go through. Nothing was changed." }, { status: 500 });
   }
 }

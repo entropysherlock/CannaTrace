@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { InventoryError } from "./inventory-math";
+import { InventoryError, roundCost } from "./inventory-math";
 import { convert, dimensionOf, roundQty, type UnitCode } from "./units";
 
 /** How many times a recipe is being made. Half batches are allowed. */
@@ -41,7 +41,7 @@ export function inputCost(inputs: { quantity: Decimal.Value; costPerUnit: Decima
 
 export function unitCost(total: Decimal | null, extra: Decimal, output: Decimal): Decimal | null {
   if (total === null || output.lte(0)) return null;
-  return roundQty(total.add(extra).div(output));
+  return roundCost(total.add(extra).div(output));
 }
 
 /** Actual output as a percentage of planned output, to one decimal place. */

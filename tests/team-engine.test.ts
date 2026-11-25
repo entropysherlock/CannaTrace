@@ -122,8 +122,10 @@ describe.skipIf(!hasDb)("sign-up, invites, and custom roles", () => {
     await changeUserRole(owner, hr.userId, `custom:${teamRole}`);
     const admin: Session = { ...hr, role: "READ_ONLY", customRoleId: teamRole, permissions: ["inventory.view", "users.manage"], roleName: "Team admin" };
 
-    // Can invite ordinary roles...
-    await createInvite(admin, { email: mail("ordinary"), roleChoice: "builtin:BUDTENDER" });
+    // Can invite roles that do no more than their own (Apex II: no escalation), but not wider built-in roles...
+    const viewer = await saveCustomRole(owner, { name: "Plain viewer", description: "", permissions: ["inventory.view"] });
+    await createInvite(admin, { email: mail("ordinary"), roleChoice: `custom:${viewer}` });
+    await expect(createInvite(admin, { email: mail("wider"), roleChoice: "builtin:BUDTENDER" })).rejects.toThrow(/no more than yours/);
     // ...but not owners, other team admins, or API control, and cannot touch owners or their own role.
     await expect(createInvite(admin, { email: mail("o2"), roleChoice: "builtin:OWNER" })).rejects.toThrow(/Only an owner/);
     await expect(createInvite(admin, { email: mail("o3"), roleChoice: `custom:${teamRole}` })).rejects.toThrow(/Only an owner/);

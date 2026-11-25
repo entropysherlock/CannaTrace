@@ -212,7 +212,7 @@ export async function runAssistant(
         }
       } catch (error) {
         const message = error instanceof InventoryError ? error.message : "That lookup failed.";
-        if (!(error instanceof InventoryError)) console.error("assistant tool failed", call.name, error);
+        if (!(error instanceof InventoryError)) console.error("assistant tool failed", call.name, (error as Error)?.name);
         results.push({ type: "tool_result", tool_use_id: call.id, content: message, is_error: true });
       }
     }

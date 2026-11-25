@@ -1,0 +1,78 @@
+name: Apex (enterprise simulation)
+
+# Project Apex: runs the independent-ledger simulation, adversarial and security scenarios, and (on request) the
+# one-million-transaction stress test against a real PostgreSQL database. Never touches production: it uses its
+# own throwaway database service and test-only secrets.
+on:
+  schedule:
+    - cron: "17 7 * * 1" # weekly, Monday
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Simulated business days"
+        default: "365"
+      sales_per_store_day:
+        description: "Retail sales per store per day (94 x 3 stores x 365 days is over 100,000 sales)"
+        default: "94"
+      stress:
+        description: "Also run the 1,000,000-sale stress test"
+        type: boolean
+        default: false
+
+jobs:
+  apex:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cannatrace
+          POSTGRES_PASSWORD: cannatrace
+          POSTGRES_DB: cannatrace
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cannatrace"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://cannatrace:cannatrace@localhost:5432/cannatrace
+      AUTH_SECRET: ci-only-secret-not-used-anywhere-real
+      AI_KEY_ENCRYPTION_KEY: Y2ktb25seS1rZXktbm90LWZvci1yZWFsLXVzZS0zMiE=
+      SIGNUPS_PER_HOUR: "1000"
+      OPEN_ACCESS: "1"
+      ASSISTANT_FAKE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - name: Earlier findings and adversarial scenarios
+        run: npx vitest run tests/apex-findings.test.ts tests/apex-adversarial.test.ts
+      - name: Seeded enterprise simulation
+        env:
+          APEX_SEED: "20260101"
+          APEX_DAYS: ${{ inputs.days || '365' }}
+          APEX_SALES: ${{ inputs.sales_per_store_day || '94' }}
+          APEX_PACK: "12"
+          APEX_PLANTS: "130"
+          APEX_BUDGET_MIN: "300"
+          APEX_STATS: apex-sim-stats.json
+        run: npx vitest run tests/apex-sim.test.ts
+      - name: One-million-transaction stress
+        if: ${{ inputs.stress }}
+        env:
+          APEX_STRESS: "1"
+          APEX_PERF_OUT: apex-stress.json
+        run: npx vitest run tests/apex-stress.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apex-results
+          path: |
+            apex-sim-stats.json
+            apex-stress.json

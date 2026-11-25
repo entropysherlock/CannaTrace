@@ -3,11 +3,27 @@ import { and, eq, sql } from "drizzle-orm";
 import { auditLogs, facilities, licenseTypeEnum, locations, organizations } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
+import { canUseFacility, allowedFacilities } from "./facility-access";
 import { isRoomArea, roomAreaLabel } from "./rooms";
 import { isSupportedState } from "./states";
 import { forgetFacilityZone } from "./time";
 
-export type FacilityActor = { orgId: string; userId: string; userName: string; facilityId: string };
+/** `facilityIds` is the list the person is limited to (null or missing: every facility in the business). */
+export type FacilityActor = { orgId: string; userId: string; userName: string; facilityId: string; role?: string; customRoleId?: string | null; facilityIds?: string[] | null };
+
+const accessOf = (a: FacilityActor) => ({ role: a.role ?? "STAFF", customRoleId: a.customRoleId ?? null, facilityIds: a.facilityIds ?? null });
+
+/** Someone limited to certain facilities may only change those facilities (APEX-12). */
+function assertFacilityAccess(actor: FacilityActor, facilityId: string) {
+  if (actor.role === undefined && actor.facilityIds === undefined) return; // legacy callers without access info are unrestricted
+  if (!canUseFacility(accessOf(actor), facilityId)) throw new InventoryError("That facility was not found.");
+}
+
+/** Changes that reach the whole business (adding a facility, renaming the business) need a person with no facility limit. */
+function assertWholeBusiness(actor: FacilityActor) {
+  if (actor.role === undefined && actor.facilityIds === undefined) return;
+  if (allowedFacilities(accessOf(actor)) !== null) throw new InventoryError("Only someone who can work at every facility can do that.");
+}
 export type FacilityInput = { name: string; licenseNumber: string; licenseType: string; state: string };
 
 function clean(input: FacilityInput, keepState?: string) {
@@ -25,6 +41,7 @@ function clean(input: FacilityInput, keepState?: string) {
 const duplicate = (e: unknown) => String((e as { code?: string; cause?: { code?: string } }).code ?? (e as { cause?: { code?: string } }).cause?.code) === "23505";
 
 export async function addFacility(actor: FacilityActor, input: FacilityInput) {
+  assertWholeBusiness(actor);
   const values = clean(input);
   try {
     const [f] = await db.insert(facilities).values({ orgId: actor.orgId, ...values }).returning();
@@ -38,6 +55,7 @@ export async function addFacility(actor: FacilityActor, input: FacilityInput) {
 
 /** Changing the state switches which state's rules CannaTrace enforces at that facility from then on. */
 export async function updateFacility(actor: FacilityActor, facilityId: string, input: FacilityInput) {
+  assertFacilityAccess(actor, facilityId);
   const [before] = await db.select().from(facilities).where(and(eq(facilities.id, facilityId), eq(facilities.orgId, actor.orgId)));
   if (!before) throw new InventoryError("That facility was not found.");
   const values = clean(input, before.state);
@@ -67,6 +85,7 @@ export async function updateFacility(actor: FacilityActor, facilityId: string, i
  * its records, audit trail, and state reports stay exactly as they are. You can't hide the one you're in.
  */
 export async function setFacilityHidden(actor: FacilityActor, facilityId: string, hidden: boolean) {
+  assertFacilityAccess(actor, facilityId);
   const [before] = await db.select().from(facilities).where(and(eq(facilities.id, facilityId), eq(facilities.orgId, actor.orgId)));
   if (!before) throw new InventoryError("That facility was not found.");
   if (hidden && facilityId === actor.facilityId) throw new InventoryError("Switch to another facility before hiding this one.");
@@ -88,6 +107,7 @@ export async function setFacilityHidden(actor: FacilityActor, facilityId: string
 
 /** Change the business's own name (not a facility's). */
 export async function renameBusiness(actor: FacilityActor, input: string): Promise<string> {
+  assertWholeBusiness(actor);
   const name = input.trim().replace(/\s+/g, " ");
   if (!name) throw new InventoryError("Enter the business name.");
   if (name.length > 100) throw new InventoryError("Keep the business name under 100 characters.");
@@ -169,6 +189,7 @@ export async function findLocationByName(orgId: string, facilityId: string, name
 /** A room is a ROOM location with an area type. It shows up anywhere the facility's locations are listed. */
 export async function addRoom(actor: FacilityActor, facilityId: string, input: RoomInput) {
   const values = cleanRoom(input);
+  assertFacilityAccess(actor, facilityId);
   await facilityInOrg(actor, facilityId);
   return db.transaction(async (tx) => {
     const [room] = await tx
@@ -198,6 +219,7 @@ export async function updateRoom(actor: FacilityActor, roomId: string, input: Ro
     .from(locations)
     .where(and(eq(locations.id, roomId), eq(locations.orgId, actor.orgId), eq(locations.type, "ROOM")));
   if (!before) throw new InventoryError("That room was not found.");
+  assertFacilityAccess(actor, before.facilityId);
   try {
     await db.transaction(async (tx) => {
       await tx.update(locations).set(values).where(eq(locations.id, roomId));

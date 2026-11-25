@@ -27,6 +27,7 @@ import {
   updateVendors,
 } from "@/lib/distribution";
 import { InventoryError } from "@/lib/inventory-math";
+import { can } from "@/lib/rbac";
 import type { Session } from "@/lib/session";
 import type { Tool } from "./tools";
 
@@ -326,6 +327,10 @@ export const BULK_TOOLS: Tool[] = [
     name: "bulk_edit_items",
     label: "Preparing a bulk item change",
     permission: "catalog.manage",
+    extraPermissions: (a) => {
+      const c = JSON.parse(a.changes ?? "{}") as Record<string, unknown>;
+      return "limitCategory" in c || "limitPerUnit" in c || "limit_category" in c || "limit_per_unit" in c ? ["pos.manage"] : [];
+    },
     description: `Propose the same change to many catalog items at once (up to ${BULK_MAX}): category, strain, archive/unarchive, and how each unit counts toward purchase limits. Match items by SKUs, names, part of the name, category, or strain. One card lists every item; nothing changes until the user presses Confirm. For shelf prices use bulk_set_prices.`,
     schema: obj(
       {
@@ -357,6 +362,9 @@ export const BULK_TOOLS: Tool[] = [
       const changes = cleanItemChanges(raw);
       if (!Object.keys(changes).length)
         throw new InventoryError("Say what to change on these items.");
+      // Purchase limits are store rules: the same permission as the Menu and store rules screen (APEX-24).
+      if (("limitCategory" in changes || "limitPerUnit" in changes) && !can(s, "pos.manage"))
+        throw new InventoryError("Changing how items count toward purchase limits needs the permission to run the store. Ask a manager.");
       return {
         title: `Change ${rows.length} item${rows.length === 1 ? "" : "s"}`,
         details: [

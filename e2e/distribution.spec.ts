@@ -18,6 +18,16 @@ test("sell wholesale: customer, order, pick, ship, manifest, invoice, payment", 
   await page.getByRole("button", { name: "Receive" }).click();
   await expect(page.getByRole("heading", { name: `${run}-JARS` })).toBeVisible();
 
+  // A retailer only receives tested product, so record a passing lab result (the picked part inherits it).
+  await page.locator("summary", { hasText: "Add lab result" }).click();
+  await page.getByTestId("enter-manually").click();
+  await page.locator('input[name="labName"]').fill("Mesa Analytical");
+  await page.locator('form:has(input[name="labName"]) select[name="status"]').selectOption("PASS");
+  await page.locator('input[name="thcPercent"]').fill("20.1");
+  await page.locator('input[name="coa"]').setInputFiles({ name: "coa.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n% test certificate\n") });
+  await page.getByRole("button", { name: "Save result" }).click();
+  await expect(page.getByText("THC 20.1%")).toBeVisible();
+
   // New customer, not yet verified
   await page.goto("/distribution/customers");
   await page.locator('input[name="name"]').fill(`Shop ${run}`);

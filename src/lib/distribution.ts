@@ -4,6 +4,7 @@ import {
   customers,
   destinations,
   drivers,
+  facilities,
   invoices,
   items,
   orderAllocations,
@@ -18,6 +19,7 @@ import {
   type Package,
 } from "@/db/schema";
 import { db, type Tx } from "./db";
+import { packFor, requiresLabBeforeRetail } from "./rules";
 import {
   PAYMENT_METHODS,
   addDays,
@@ -544,6 +546,20 @@ export async function shipOrder(
 
     const manifestNumber = await nextNumber(tx, actor.facilityId, "MAN");
     const invoiceNumber = await nextNumber(tx, actor.facilityId, "INV");
+    // A state that tests before retail sale does not let untested product go to a retailer either (APEX-26).
+    if (/retail|dispens/i.test(customer.licenseType)) {
+      const [fac] = await tx.select({ state: facilities.state }).from(facilities).where(eq(facilities.id, actor.facilityId));
+      if (requiresLabBeforeRetail(packFor(fac?.state))) {
+        for (const allocation of allocations) {
+          const labStatus = await latestLabStatus(tx, allocation.packageId);
+          // A failed result is refused by the shipping step itself with its own message.
+          if (labStatus !== "PASS" && labStatus !== "FAIL") {
+            const [p] = await tx.select({ tag: packages.tag }).from(packages).where(eq(packages.id, allocation.packageId));
+            throw new InventoryError(`Package ${p?.tag ?? ""} has no passing lab result, and ${customer.name} is a retailer. Record a passing lab result first.`);
+          }
+        }
+      }
+    }
     for (const allocation of allocations) {
       await shipPackageInTx(tx, actor, allocation.packageId, `Shipped to ${customer.name} on manifest ${manifestNumber}`);
     }

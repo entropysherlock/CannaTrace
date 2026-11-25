@@ -77,6 +77,8 @@ export async function receiveShipment(
   // facilities: a package another facility shipped on this same manifest is taken in here (moved), not created twice.
   const tags = lines.filter((l) => l.status !== "MISSING").map((l) => l.tag);
   const transfers = new Map<string, { id: string; itemId: string }>();
+  const [receiving] = await db.select({ licenseNumber: facilities.licenseNumber }).from(facilities).where(eq(facilities.id, actor.facilityId));
+  const receivingLicense = receiving?.licenseNumber ?? "";
   if (tags.length) {
     const taken = await db
       .select({ id: packages.id, tag: packages.tag, itemId: packages.itemId, facilityId: packages.facilityId, status: packages.status, quantity: packages.quantity })
@@ -87,8 +89,10 @@ export async function receiveShipment(
           .select({ packageId: orderAllocations.packageId })
           .from(orderAllocations)
           .innerJoin(orders, eq(orders.id, orderAllocations.orderId))
+          .innerJoin(customers, eq(customers.id, orders.customerId))
           .where(
             and(
+              eq(customers.licenseNumber, receivingLicense),
               eq(orders.orgId, actor.orgId),
               eq(orders.manifestNumber, manifestNumber),
               inArray(orders.status, ["SHIPPED", "DELIVERED"]),
@@ -211,6 +215,18 @@ async function takeInTransferInTx(
 ) {
   const [pkg] = await tx.select().from(packages).where(and(eq(packages.id, input.packageId), eq(packages.orgId, actor.orgId))).for("update");
   if (!pkg || pkg.status !== "FINISHED" || Number(pkg.quantity) !== 0) throw new InventoryError(`${pkg?.tag ?? "A package"} changed while receiving. Check the manifest again.`);
+  // Only a package that was shipped TO this facility, on this manifest, can be taken in, and never more than was shipped.
+  // Manifest numbers repeat across facilities, so the number alone proves nothing (APEX-34).
+  const sent = (await tx.execute(sql`
+    select oa.quantity::text as quantity from order_allocations oa
+    join orders o on o.id = oa.order_id
+    join customers c on c.id = o.customer_id
+    join facilities f on f.id = ${actor.facilityId}
+    where oa.package_id = ${pkg.id} and o.org_id = ${actor.orgId} and o.manifest_number = ${input.manifestNumber}
+      and o.status in ('SHIPPED','DELIVERED') and c.license_number = f.license_number
+    order by oa.quantity desc limit 1`)).rows[0] as { quantity: string } | undefined;
+  if (!sent) throw new InventoryError(`${pkg.tag} was not shipped to this facility on manifest ${input.manifestNumber}.`);
+  if (new Decimal(input.quantity).gt(new Decimal(sent.quantity))) throw new InventoryError(`${pkg.tag}: ${new Decimal(sent.quantity).toString()} was shipped, so more than that cannot be received.`);
   const [location] = await tx.execute(sql`select 1 from locations where id = ${input.locationId} and facility_id = ${actor.facilityId}`).then((r) => r.rows);
   if (!location) throw new InventoryError("Choose where the shipment is put away.");
   const quantity = new Decimal(input.quantity).toFixed(4);

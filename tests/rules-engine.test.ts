@@ -69,7 +69,7 @@ describe.skipIf(!hasDb)("state rules at the register and in the daily check (dat
   let jar: string;
   let shelf: string;
   const today = todayIn();
-  const adult = { birthDate: "1990-01-01", idExpires: addDays(today, 365), customerType: "ADULT_USE" };
+  const adult = { birthDate: "1990-01-01", idExpires: addDays(today, 365), customerType: "ADULT_USE", idNumber: "D1234567" };
 
   beforeAll(async () => {
     const [org] = await db.insert(organizations).values({ name: `Rules Org ${run}` }).returning();

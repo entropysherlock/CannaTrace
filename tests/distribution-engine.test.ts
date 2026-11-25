@@ -25,7 +25,7 @@ import {
   verifyCustomerLicense,
 } from "@/lib/distribution";
 import { addDays, todayIn } from "@/lib/distribution-math";
-import { adjustPackage, destroyPackage, receivePackage, splitPackage, type Actor } from "@/lib/inventory";
+import { addLabResult, adjustPackage, destroyPackage, receivePackage, splitPackage, type Actor } from "@/lib/inventory";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const run = `D${Date.now().toString(36).toUpperCase()}`;
@@ -46,7 +46,12 @@ const pkg = async (id: string) => {
   return { quantity: new Decimal(row.quantity).toString(), status: row.status };
 };
 const order = async (id: string) => (await db.select().from(orders).where(eq(orders.id, id)))[0];
-const receive = (itemId: string, quantity: string) => receivePackage(actor, { tag: tag(), itemId, quantity, locationId: shelf, lotNumber: "LOT-D" });
+// Product goes to a retailer only with a passing lab result in a state that tests before retail sale (APEX-26).
+const receive = async (itemId: string, quantity: string) => {
+  const pkg = await receivePackage(actor, { tag: tag(), itemId, quantity, locationId: shelf, lotNumber: "LOT-D" });
+  await addLabResult(actor, { packageId: pkg.id, labName: "Lab", status: "PASS", thcPercent: "20" });
+  return pkg;
+};
 const lineId = async (orderId: string, itemId: string) =>
   (await db.execute<{ id: string }>(sql`select id from order_lines where order_id = ${orderId} and item_id = ${itemId}`)).rows[0].id;
 

@@ -39,6 +39,8 @@ const EVENT_TYPES: Record<string, string> = {
   // which is what the receiver must record in the state system. Its packages don't get one each.
   "Shipment:RECEIVE": "TRANSFER_RECEIVED",
   "Sale:COMPLETE": "RETAIL_SALE",
+  // A sale rung up offline is still a retail sale the state must hear about once it syncs (APEX-32).
+  "Sale:OFFLINE_SYNC": "RETAIL_SALE",
   "Sale:VOID": "RETAIL_SALE_VOIDED",
   "Sale:RETURN": "RETAIL_SALE_RETURNED",
 };

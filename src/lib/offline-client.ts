@@ -136,6 +136,7 @@ export function buildSale(
     customerType: "ADULT_USE" | "MEDICAL";
     birthDate: string;
     idExpires: string;
+    idNumber?: string;
     discount: { name: string; percent: string } | null;
     cashTendered: string;
     localNumber: string;
@@ -145,6 +146,8 @@ export function buildSale(
   if (input.cart.length === 0) throw new Error("The cart is empty.");
   const priced = priceCart(snap, input.cart, input.customerType, input.discount?.percent ?? 0);
   if (priced.problem) throw new Error(priced.problem);
+  const idNumber = (input.idNumber ?? "").trim();
+  if (snap.settings.dailyLimits && !idNumber) throw new Error("This store counts purchase limits per customer per day. Enter the number from the customer's ID.");
   const tendered = new Decimal(input.cashTendered || 0);
   const change = changeDue(priced.total, tendered);
   return {
@@ -158,8 +161,10 @@ export function buildSale(
     customerType: input.customerType,
     birthDate: input.birthDate,
     idExpires: input.idExpires,
-    lines: input.cart.map((c) => ({ itemId: c.item.id, name: c.item.name, quantity: c.quantity.toString(), unitPrice: c.item.price })),
+    ...(snap.settings.dailyLimits && idNumber ? { idNumber: idNumber.slice(0, 40) } : {}),
+    lines: input.cart.map((c) => ({ itemId: c.item.id, name: c.item.name, quantity: c.quantity.toString(), unitPrice: c.item.price, limitCategory: c.item.limitCategory, limitPerUnit: c.item.limitPerUnit })),
     discount: input.discount,
+    rates: { exciseTaxPercent: snap.settings.exciseTaxPercent, salesTaxPercent: snap.settings.salesTaxPercent, medicalTaxExempt: snap.settings.medicalTaxExempt },
     total: priced.total.toFixed(2),
     cashTendered: tendered.toFixed(2),
     changeDue: change.toFixed(2),

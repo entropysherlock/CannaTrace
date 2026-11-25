@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { inventoryTransactions, items, locations, packages } from "@/db/schema";
-import { apiRoute, num } from "@/lib/api";
+import { apiRoute, num, safeDecode } from "@/lib/api";
 import { db } from "@/lib/db";
 import { InventoryError } from "@/lib/inventory-math";
 
@@ -22,8 +22,8 @@ export const GET = apiRoute<{ tag: string }>({}, async (_request, { key }, { tag
     .from(packages)
     .innerJoin(items, eq(items.id, packages.itemId))
     .leftJoin(locations, eq(locations.id, packages.locationId))
-    .where(and(eq(packages.orgId, key.orgId), eq(packages.facilityId, key.facilityId), eq(packages.tag, decodeURIComponent(tag).toUpperCase())));
-  if (!pkg) throw new InventoryError(`No package with tag ${decodeURIComponent(tag)} at this facility.`);
+    .where(and(eq(packages.orgId, key.orgId), eq(packages.facilityId, key.facilityId), eq(packages.tag, safeDecode(tag).toUpperCase())));
+  if (!pkg) throw new InventoryError(`No package with tag ${safeDecode(tag)} at this facility.`);
   const history = await db
     .select({
       type: inventoryTransactions.type,

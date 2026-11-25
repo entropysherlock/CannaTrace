@@ -41,6 +41,7 @@ export function OfflineRegister({ fresh }: { fresh: OfflineSnapshot | null }) {
   const [cart, setCart] = useState<Record<string, string>>({});
   const [customerType, setCustomerType] = useState<"ADULT_USE" | "MEDICAL">("ADULT_USE");
   const [birthDate, setBirthDate] = useState("");
+  const [idNumber, setIdNumber] = useState("");
   const [idExpires, setIdExpires] = useState("");
   const [discountId, setDiscountId] = useState("");
   const [cash, setCash] = useState("");
@@ -149,6 +150,7 @@ export function OfflineRegister({ fresh }: { fresh: OfflineSnapshot | null }) {
         customerType,
         birthDate,
         idExpires,
+        idNumber,
         discount: discount ? { name: discount.name, percent: discount.percent } : null,
         cashTendered: cash,
         localNumber: nextLocalNumber(),
@@ -158,6 +160,7 @@ export function OfflineRegister({ fresh }: { fresh: OfflineSnapshot | null }) {
       setCart({});
       setBirthDate("");
       setIdExpires("");
+      setIdNumber("");
       setCash("");
       setDiscountId("");
       refresh();
@@ -249,6 +252,13 @@ export function OfflineRegister({ fresh }: { fresh: OfflineSnapshot | null }) {
             <input type="date" className={field} value={idExpires} onChange={(e) => setIdExpires(e.target.value)} />
           </label>
         </div>
+        {snap.settings.dailyLimits ? (
+          <label className="block text-sm font-semibold">
+            ID number
+            <input className={field} value={idNumber} onChange={(e) => setIdNumber(e.target.value)} autoComplete="off" />
+            <span className="mt-1 block text-xs font-normal text-slate-600">This store counts limits per customer per day. The number is kept as a scrambled code once the sale is sent.</span>
+          </label>
+        ) : null}
         {snap.discounts.length > 0 ? (
           <label className="block text-sm font-semibold">
             Discount
