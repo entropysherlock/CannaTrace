@@ -2,6 +2,7 @@ import { Check, Gift, MapPin } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+import { JsonLd, faqSchema } from "@/components/json-ld";
 import { mailto } from "@/lib/contact";
 import { liveDemoOn } from "@/lib/access";
 import { FEATURES, FOUNDING, PRICES, facilitiesLabel, usd } from "@/lib/pricing";
@@ -9,6 +10,7 @@ import { FEATURES, FOUNDING, PRICES, facilitiesLabel, usd } from "@/lib/pricing"
 export const metadata: Metadata = {
   title: "Pricing · Leaf2Sale",
   description: `${usd(PRICES[0].price)} a month for 1 facility, ${usd(PRICES[1].price)} for 2, every feature included. Founding customers get ${FOUNDING.freeDays} days free and ${usd(PRICES[0].price - PRICES[0].founderPrice)} off every month for life.`,
+  alternates: { canonical: "/pricing" },
 };
 
 const FOUNDER_LINK = mailto("Leaf2Sale founding customer");
@@ -41,6 +43,7 @@ const QUESTIONS: [string, string][] = [
 export default function PricingPage() {
   return (
     <div className="min-h-screen bg-white text-slate-900">
+      <JsonLd data={faqSchema(QUESTIONS)} />
       <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3">
           <Link href="/" aria-label="Leaf2Sale home">

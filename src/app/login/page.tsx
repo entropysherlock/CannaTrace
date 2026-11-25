@@ -7,6 +7,8 @@ import { redirect } from "next/navigation";
 import { needsSetup } from "@/lib/setup";
 import { signIn } from "./actions";
 
+export const metadata = { title: "Sign in · Leaf2Sale", robots: { index: false } };
+
 // Checks the database on every visit (is the system set up yet?), so it cannot be built ahead of time.
 export const instant = false;
 
