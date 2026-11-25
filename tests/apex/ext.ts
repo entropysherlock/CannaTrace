@@ -2,7 +2,7 @@
  * Project Apex II extension: manufacturing, promotions, rewards, label generation and Tally operations.
  *
  * Runs once a day inside the 365-day simulation, in its own organization so the main ledger's totals stay clean.
- * Every expectation below is computed here, with whole-cent BigInt arithmetic, without calling CannaTrace's own
+ * Every expectation below is computed here, with whole-cent BigInt arithmetic, without calling Leaf2Sale's own
  * math: if the application and this file disagree, the disagreement is recorded as a finding, never reconciled away.
  */
 import { and, eq, sql } from "drizzle-orm";

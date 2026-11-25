@@ -39,7 +39,7 @@ export function DemoVideoPlayer() {
   return (
     <dialog
       ref={dialog}
-      aria-label="CannaTrace product tour"
+      aria-label="Leaf2Sale product tour"
       onClose={() => video.current?.pause()}
       // A click on the dark area around the video closes it.
       onClick={(e) => {
@@ -75,7 +75,7 @@ export function DemoVideoPoster() {
   return (
     <DemoVideoButton className="group relative block w-full overflow-hidden rounded-2xl shadow-xl ring-1 ring-black/10 focus-visible:outline-4 focus-visible:outline-brand-600">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={TOUR_POSTER} alt="CannaTrace dashboard, the first scene of the product tour" className="aspect-video w-full object-cover" />
+      <img src={TOUR_POSTER} alt="Leaf2Sale dashboard, the first scene of the product tour" className="aspect-video w-full object-cover" />
       <span className="absolute inset-0 flex items-center justify-center bg-black/10 transition group-hover:bg-black/25">
         <span className="flex h-20 w-20 items-center justify-center rounded-full bg-white/95 text-brand-800 shadow-lg transition group-hover:scale-105">
           <Play className="ml-1 h-9 w-9" aria-hidden="true" fill="currentColor" />

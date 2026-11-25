@@ -16,7 +16,7 @@ async function signIn(page: Page, email: string, facility?: string) {
 test("a Tally Watch alert clears itself once it's fixed, with no Dismiss, and comes back when it changes back", async ({ page }) => {
   await signIn(page, "owner@demo.test", "Sandia Storefront · DEMO-RET-0002");
   await page.goto("/watch");
-  // The state system says gummies package CT-000103 holds 58; CannaTrace says 60 (the demo amount)
+  // The state system says gummies package CT-000103 holds 58; Leaf2Sale says 60 (the demo amount)
   await page.getByText("Match against the state system").click();
   const csv = ["Tag,Item,Quantity,UoM,Status", "CT-000103,Gummies,58,Each,Active"].join("\n");
   await page.getByLabel("State package report (CSV)").setInputFiles({ name: "state.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
@@ -24,7 +24,7 @@ test("a Tally Watch alert clears itself once it's fixed, with no Dismiss, and co
   await expect(page.getByText(/Compared 1 state package/)).toBeVisible();
 
   await page.goto("/watch");
-  const alert = () => page.locator("[data-watch-item]", { hasText: /CT-000103: CannaTrace has 60 ea, the state has 58 ea/ });
+  const alert = () => page.locator("[data-watch-item]", { hasText: /CT-000103: Leaf2Sale has 60 ea, the state has 58 ea/ });
   const showAll = page.getByRole("button", { name: /^Show all \d+$/ });
   if (await showAll.isVisible()) await showAll.click();
   await expect(alert()).toBeVisible();

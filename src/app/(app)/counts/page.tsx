@@ -42,7 +42,7 @@ export default async function CountsPage() {
 
   return (
     <>
-      <PageHeader title="Cycle counts" subtitle="Pick a location, count what is there, and CannaTrace corrects the differences." />
+      <PageHeader title="Cycle counts" subtitle="Pick a location, count what is there, and Leaf2Sale corrects the differences." />
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title="Count a location">
           <ul className="divide-y divide-slate-100 text-sm">

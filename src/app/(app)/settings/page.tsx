@@ -31,7 +31,7 @@ export default async function SettingsPage() {
           <Card title="Business">
             <ActionForm action={renameBusinessAction} submitLabel="Save name" className="flex flex-wrap items-end gap-3">
               <div className="min-w-0 flex-1">
-                <Field label="Business name" hint="Your company's name, shown on reports and to CannaTrace support. Each facility keeps its own name.">
+                <Field label="Business name" hint="Your company's name, shown on reports and to Leaf2Sale support. Each facility keeps its own name.">
                   <input name="name" required maxLength={100} defaultValue={org?.name} className={inputClass} />
                 </Field>
               </div>

@@ -15,7 +15,7 @@ import { requirePagePermission } from "@/lib/session";
 import { facilityZone } from "@/lib/time";
 import { rewardsAdjustAction, rewardsDeleteAction, rewardsUpdateAction } from "../../actions";
 
-export const metadata = { title: "Rewards shopper · CannaTrace" };
+export const metadata = { title: "Rewards shopper · Leaf2Sale" };
 
 const KIND: Record<string, string> = {
   SIGNUP: "Welcome bonus",

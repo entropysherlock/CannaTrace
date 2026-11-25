@@ -14,7 +14,7 @@ export const MI: StatePack = {
   trackingSystem: "Metrc (statewide monitoring system)",
   reviewed: CHECKED,
   coverage:
-    "Adult-use per-sale limits, medical daily limit, minimum age, and testing before sale, from the CRA's administrative rules (R 420.506 and R 420.303a). Medical patients' 10-ounce monthly limit and limit checks in the statewide monitoring system are not enforced by CannaTrace yet. Infused products count toward the 2.5 oz by weight equivalents, which CannaTrace does not calculate yet. Not yet included: waste, labeling, and packaging rules.",
+    "Adult-use per-sale limits, medical daily limit, minimum age, and testing before sale, from the CRA's administrative rules (R 420.506 and R 420.303a). Medical patients' 10-ounce monthly limit and limit checks in the statewide monitoring system are not enforced by Leaf2Sale yet. Infused products count toward the 2.5 oz by weight equivalents, which Leaf2Sale does not calculate yet. Not yet included: waste, labeling, and packaging rules.",
   rules: [
     {
       id: "mi-adult-limit",

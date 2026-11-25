@@ -86,7 +86,7 @@ export function OfflineRegister({ fresh }: { fresh: OfflineSnapshot | null }) {
   const queueBox = (
     <section className="rounded-xl border border-slate-200 bg-white p-4" data-testid="offline-queue">
       <h2 className="font-display text-lg font-bold">Sales waiting to send: {queue.length}</h2>
-      {queue.length === 0 ? <p className="mt-1 text-sm text-slate-600">Nothing waiting. Every sale made here has reached CannaTrace.</p> : null}
+      {queue.length === 0 ? <p className="mt-1 text-sm text-slate-600">Nothing waiting. Every sale made here has reached Leaf2Sale.</p> : null}
       <ul className="mt-2 space-y-1 text-sm">
         {queue.map((q) => (
           <li key={q.sale.offlineId} className="flex flex-wrap justify-between gap-2">
@@ -110,7 +110,7 @@ export function OfflineRegister({ fresh }: { fresh: OfflineSnapshot | null }) {
   const banner = (
     <p className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold ${online ? "bg-brand-100 text-brand-900" : "bg-amber-100 text-amber-900"}`} role="status" data-testid="offline-banner">
       <WifiOff className="h-5 w-5 shrink-0" aria-hidden="true" />
-      {online ? "You are back online. Sales made here are sent to CannaTrace." : "No internet. Cash sales are saved on this device and sent when the connection returns."}
+      {online ? "You are back online. Sales made here are sent to Leaf2Sale." : "No internet. Cash sales are saved on this device and sent when the connection returns."}
     </p>
   );
 

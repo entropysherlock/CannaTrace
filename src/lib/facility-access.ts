@@ -1,6 +1,6 @@
 /**
  * Which facilities a person may work at. `facilityIds` null (or empty) means every facility in the business,
- * and a built-in owner always has every facility. Everything else in CannaTrace is scoped to the session's
+ * and a built-in owner always has every facility. Everything else in Leaf2Sale is scoped to the session's
  * facility, so keeping the session inside this list keeps every page and action inside it too.
  */
 export type FacilityAccess = { role: string; customRoleId?: string | null; facilityIds?: string[] | null };

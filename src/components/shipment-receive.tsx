@@ -133,7 +133,7 @@ export function ShipmentReceive({
                   <td className="px-3 py-2 font-mono text-xs">{l.tag}</td>
                   <td className="px-3 py-2">
                     {l.itemName ?? l.product}
-                    {!l.itemName && l.status !== "MISSING" ? <span className="block text-xs font-semibold text-red-700">Not in CannaTrace</span> : null}
+                    {!l.itemName && l.status !== "MISSING" ? <span className="block text-xs font-semibold text-red-700">Not in Leaf2Sale</span> : null}
                   </td>
                   <td className="px-3 py-2 text-right">{l.quantity}</td>
                   <td className="px-3 py-2">

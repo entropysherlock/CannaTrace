@@ -1,6 +1,7 @@
 import Image from "next/image";
+import { BRAND } from "@/lib/brand";
 
-/** CannaTrace mark: an original seven-point leaf, drawn in code. */
+/** Leaf2Sale mark: an original seven-point leaf, drawn in code. */
 export function LeafMark({ className = "h-7 w-7" }: { className?: string }) {
   const leaflets = [
     { angle: 0, length: 44 },
@@ -27,20 +28,21 @@ export function LeafMark({ className = "h-7 w-7" }: { className?: string }) {
   );
 }
 
-/** The CannaTrace logo (public/brand/cannatrace-logo.png, 960×205). Its "Trace" is black, so on dark
- * backgrounds (tone "light") it sits on a white badge to stay readable. */
+/** The Leaf2Sale logo (public/brand). tone "light" is for dark backgrounds and uses the white-text version. */
 export function Logo({ tone = "dark", size = "md" }: { tone?: "dark" | "light"; size?: "md" | "lg" }) {
   const height = size === "lg" ? 40 : tone === "light" ? 26 : 30;
-  const img = (
-    <Image
-      src="/brand/cannatrace-logo.png"
-      alt="CannaTrace"
-      width={Math.round((height * 960) / 205)}
-      height={height}
-      priority
-      className="block h-auto max-w-full"
-      style={{ height, width: "auto" }}
-    />
+  const art = tone === "light" ? BRAND.logoDark : BRAND.logo;
+  return (
+    <span className="inline-flex">
+      <Image
+        src={art.src}
+        alt={BRAND.name}
+        width={Math.round((height * art.width) / art.height)}
+        height={height}
+        priority
+        className="block h-auto max-w-full"
+        style={{ height, width: "auto" }}
+      />
+    </span>
   );
-  return tone === "light" ? <span className="inline-flex rounded-lg bg-white px-2.5 py-1.5 shadow-sm">{img}</span> : <span className="inline-flex">{img}</span>;
 }

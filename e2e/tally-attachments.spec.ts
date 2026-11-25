@@ -18,7 +18,7 @@ test("an employee attaches images, a PDF, and a spreadsheet to Tally, and the fi
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/dashboard/);
   await page.keyboard.press("Control+j");
-  const panel = page.getByRole("dialog", { name: /CannaTrace assistant/ });
+  const panel = page.getByRole("dialog", { name: /Leaf2Sale assistant/ });
 
   // The + menu, with the disclosure about where files go
   await panel.getByRole("button", { name: "Attach files" }).click();
@@ -75,7 +75,7 @@ test("an employee attaches images, a PDF, and a spreadsheet to Tally, and the fi
   await expect(panel.locator("[data-attachment-chip=ready]")).toHaveCount(1);
   await panel.getByLabel("Message the assistant").fill("compare this with inventory");
   await panel.getByLabel("Message the assistant").press("Enter");
-  await expect(panel.getByText(/Compared recount\.csv: \d+ match, 1 differ, 1 not in CannaTrace\. Nothing was changed\./)).toBeVisible();
+  await expect(panel.getByText(/Compared recount\.csv: \d+ match, 1 differ, 1 not in Leaf2Sale\. Nothing was changed\./)).toBeVisible();
 
   // The other formats through the same path: Excel, Word, JPG (with camera data), and WEBP
   await panel.locator("[data-attach-input=sheet]").setInputFiles({ name: "counts.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: await fx.xlsx() });

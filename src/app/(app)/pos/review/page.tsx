@@ -17,7 +17,7 @@ export default async function ReviewPage() {
     <>
       <PageHeader
         title="Sales to review"
-        subtitle="Sales made while the register was offline that CannaTrace could not fully check afterwards. The sale is already recorded; look at the note, fix anything it points to, then mark it reviewed."
+        subtitle="Sales made while the register was offline that Leaf2Sale could not fully check afterwards. The sale is already recorded; look at the note, fix anything it points to, then mark it reviewed."
       />
       <PosTabs current="/pos/review" canManage pickups={pickups} review={open} />
       {rows.length === 0 ? (

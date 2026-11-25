@@ -236,7 +236,7 @@ test("a sign-in for an account that no longer exists is cleared instead of loopi
 test("the public homepage shows the product and leads to sign in", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /From seed to sale/i })).toBeVisible();
-  await expect(page.getByText("The real CannaTrace Dashboard, shown with sample data.")).toBeVisible();
+  await expect(page.getByText("The real Leaf2Sale Dashboard, shown with sample data.")).toBeVisible();
   // The tour: a real screen for every part of the app, each image loaded
   await expect(page.getByTestId("tour-section")).toHaveCount(13);
   for (const img of await page.locator("img[src*='site%2F'], img[src*='/site/']").all()) {

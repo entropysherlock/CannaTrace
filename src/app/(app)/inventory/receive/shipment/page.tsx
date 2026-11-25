@@ -10,7 +10,7 @@ import { requirePagePermission } from "@/lib/session";
 import { quickLocationAction } from "../../../quick-create-actions";
 import { checkShipmentAction, receiveShipmentAction } from "../../actions";
 
-export const metadata = { title: "Receive a shipment · CannaTrace" };
+export const metadata = { title: "Receive a shipment · Leaf2Sale" };
 
 /** Receive a whole shipment against its manifest: count what arrived, explain any difference, receive it all at once. */
 export default async function ReceiveShipmentPage() {

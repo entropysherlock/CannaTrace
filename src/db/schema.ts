@@ -98,7 +98,7 @@ export const organizations = pgTable("organizations", {
   /** Tally questions asked in this demo day, so a public demo cannot run up the AI bill. */
   demoAssistantCalls: integer("demo_assistant_calls").notNull().default(0),
   /**
-   * While CannaTrace is invite-only: set when CannaTrace support approves this business (setting it up in the
+   * While Leaf2Sale is invite-only: set when Leaf2Sale support approves this business (setting it up in the
    * Support Console does this), so its owner and the staff they invite can sign in without being on the
    * server's email list.
    */
@@ -176,7 +176,7 @@ export const passwordResets = pgTable(
 );
 
 /**
- * CannaTrace staff who may open any customer's account to help them (the support console).
+ * Leaf2Sale staff who may open any customer's account to help them (the support console).
  * Granted only by another support admin; never from inside a customer's own settings.
  */
 export const platformAdmins = pgTable("platform_admins", {
@@ -319,7 +319,7 @@ export type JobRun = typeof jobRuns.$inferSelect;
 
 /**
  * A package report exported from the state system (for example Metrc's Packages grid) and uploaded,
- * so Tally Watch can compare it with CannaTrace until a live connection is approved.
+ * so Tally Watch can compare it with Leaf2Sale until a live connection is approved.
  */
 export const stateReports = pgTable(
   "state_reports",
@@ -384,7 +384,7 @@ export const aiUsage = pgTable(
     userId: text("user_id").notNull(),
     userName: text("user_name").notNull(),
     facilityId: text("facility_id"),
-    /** CUSTOMER (the business's own key) or PLATFORM (CannaTrace's key: live demo and allowed test accounts only). */
+    /** CUSTOMER (the business's own key) or PLATFORM (Leaf2Sale's key: live demo and allowed test accounts only). */
     billedTo: text("billed_to").notNull(),
     model: text("model").notNull(),
     inputTokens: integer("input_tokens").notNull().default(0),
@@ -1397,7 +1397,7 @@ export const sales = pgTable(
     cashTendered: money("cash_tendered"),
     /** The amount charged to debit. Null on sales from before split payments existed. */
     debitAmount: money("debit_amount"),
-    /** Optional, for matching a card payment to the store's own terminal: the last 4 digits and the approval number. CannaTrace never charges cards. */
+    /** Optional, for matching a card payment to the store's own terminal: the last 4 digits and the approval number. Leaf2Sale never charges cards. */
     cardLast4: text("card_last4"),
     cardRef: text("card_ref"),
     /** A sale rung up on a register with no internet: its own id (so syncing twice never doubles it), and what a manager should check. */

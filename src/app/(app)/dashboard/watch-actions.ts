@@ -14,7 +14,7 @@ export async function uploadStateReportAction(_state: FormState, formData: FormD
     if (file.size > 5 * 1024 * 1024) throw new InventoryError("The file is larger than 5 MB.");
     const { packages } = await saveStateReport(session, { fileName: file.name, text: await file.text() });
     revalidatePath("/", "layout");
-    return { ok: `Compared ${packages.toLocaleString("en-US")} state packages with CannaTrace. Differences are listed in Tally Watch.` };
+    return { ok: `Compared ${packages.toLocaleString("en-US")} state packages with Leaf2Sale. Differences are listed in Tally Watch.` };
   } catch (error) {
     return toFormError(error);
   }

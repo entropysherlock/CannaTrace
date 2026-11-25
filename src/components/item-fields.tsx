@@ -50,7 +50,7 @@ export function ItemFields({ categories, units, context }: { categories: string[
           <input name="category" list="quick-item-categories" defaultValue={categories[0] ?? ""} maxLength={60} className={inputClass} />
         </Field>
       </div>
-      <Field label="SKU (blank to generate)" hint="Leave blank and CannaTrace makes one from the category, like FLO-0007.">
+      <Field label="SKU (blank to generate)" hint="Leave blank and Leaf2Sale makes one from the category, like FLO-0007.">
         <input name="sku" autoCapitalize="characters" placeholder="Blank = generated" className={inputClass} />
       </Field>
       <Field label="Strain (optional)">

@@ -1,7 +1,7 @@
 import type { LabelElement, LabelKind } from "./types";
 
 /**
- * State label rules that CannaTrace checks. Every rule names its source and the date it was read.
+ * State label rules that Leaf2Sale checks. Every rule names its source and the date it was read.
  * A state or label type that is not listed here has no verified label rules: the checker says so
  * instead of guessing, and never applies one state's rules to another.
  */
@@ -24,7 +24,7 @@ export type LabelRuleCheck =
   | { type: "statement"; text: string; bold?: boolean }
   /** The template must contain an image marked as the state logo, at least this size. */
   | { type: "logo"; minMm: number }
-  /** CannaTrace cannot check this from its records; a person has to confirm it. */
+  /** Leaf2Sale cannot check this from its records; a person has to confirm it. */
   | { type: "manual" };
 
 export type LabelRule = {
@@ -183,8 +183,8 @@ export const NM_LABEL_PACK: LabelRulePack = {
   ],
   notes: [
     "Covers finished product labels only. Seed and immature plant labels (16.8.3.10 NMAC) and internal inventory, plant, and transfer tags are not checked against state rules.",
-    "Items marked for a person to confirm can't be checked from CannaTrace records.",
-    "Small edible containers may use the reduced label in 16.8.3.9(M) NMAC; CannaTrace checks the full label.",
+    "Items marked for a person to confirm can't be checked from Leaf2Sale records.",
+    "Small edible containers may use the reduced label in 16.8.3.9(M) NMAC; Leaf2Sale checks the full label.",
     'Rules marked "where they apply" are checked against each product when you print: a product with CBD, ingredients, or a refrigeration flag must show them.',
   ],
 };

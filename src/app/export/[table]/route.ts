@@ -88,7 +88,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tab
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="cannatrace-${table}-${date}.csv"`,
+      "Content-Disposition": `attachment; filename="leaf2sale-${table}-${date}.csv"`,
       "Cache-Control": "private, no-store",
     },
   });

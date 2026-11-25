@@ -11,7 +11,7 @@ import { signupAction } from "./actions";
 
 // Whether sign-up is open is read on each request (lib/access.ts), so never prerender this page.
 export const instant = false;
-export const metadata = { title: "Create your CannaTrace account" };
+export const metadata = { title: "Create your Leaf2Sale account" };
 
 export default async function SignupPage() {
   // Read the access settings on each request, not once at build time.
@@ -24,10 +24,10 @@ export default async function SignupPage() {
           <Logo size="lg" />
         </Link>
         <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-lg shadow-brand-900/5" data-testid="signup-closed">
-          <h1 className="text-2xl font-bold text-slate-900">CannaTrace is invite-only right now</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Leaf2Sale is invite-only right now</h1>
           <p className="mt-2 text-sm text-slate-600">We&apos;re setting up our first businesses by hand. Email us and we&apos;ll walk you through it.</p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
-            <a href={mailto("CannaTrace demo request")} className="inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-brand-800">
+            <a href={mailto("Leaf2Sale demo request")} className="inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-brand-800">
               Book a demo
             </a>
             <Link href="/login" className="inline-flex min-h-11 items-center rounded-lg border-2 border-slate-300 px-5 text-sm font-bold text-slate-900 hover:border-brand-600">

@@ -174,7 +174,7 @@ export function designFromReading(reading: LabelReading, opts: { aspect?: number
       let value = (r.value ?? "").slice(0, 500);
       const c = checkPlaceholders(value, kind);
       if (!value.trim() || c.dropped || c.fields.length === 0) {
-        if (value.trim()) notes.push(`A ${type === "qr" ? "QR code" : "barcode"} held "${value.slice(0, 40)}", which isn't a CannaTrace field. It now scans to the ${DEFAULT_ID_FIELD[kind]} instead.`);
+        if (value.trim()) notes.push(`A ${type === "qr" ? "QR code" : "barcode"} held "${value.slice(0, 40)}", which isn't a Leaf2Sale field. It now scans to the ${DEFAULT_ID_FIELD[kind]} instead.`);
         value = `{{${DEFAULT_ID_FIELD[kind]}}}`;
       }
       el.value = value;
@@ -200,7 +200,7 @@ export function designFromReading(reading: LabelReading, opts: { aspect?: number
     elements.push(el);
   }
   if (elements.length === 0) notes.push("Nothing on the picture could be read as label content. Try a sharper, straighter photo.");
-  if (unmatched.length) notes.push(`${unmatched.length} printed value${unmatched.length === 1 ? "" : "s"} didn't match any CannaTrace field, so they were kept as typed text. They won't change from label to label.`);
+  if (unmatched.length) notes.push(`${unmatched.length} printed value${unmatched.length === 1 ? "" : "s"} didn't match any Leaf2Sale field, so they were kept as typed text. They won't change from label to label.`);
   if (reading.notes) notes.push(String(reading.notes).slice(0, 400));
 
   // Photos give rough positions: lay the pieces out again in clean rows.

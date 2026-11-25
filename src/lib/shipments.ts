@@ -11,7 +11,7 @@ import { parseManifest, reviewShipment, type Received, type ReviewLine } from "@
 /**
  * Receiving a whole shipment against its manifest. This is not a migration (that's the Dutchie, Flourish,
  * and NMS2S importers): it's new stock arriving from another licensee.
- * - Checked in full first: every product must already be in CannaTrace, no tag may be in use, and the same
+ * - Checked in full first: every product must already be in Leaf2Sale, no tag may be in use, and the same
  *   manifest can't be received twice at a facility.
  * - The receiver reviews every difference: short and missing lines need a reason; more than the manifest
  *   lists is refused.
@@ -47,7 +47,7 @@ export async function receiveShipment(
   const [facility] = await db.select({ system: facilities.trackTraceSystem }).from(facilities).where(eq(facilities.id, actor.facilityId));
   const stateSystem = SYSTEM_LABELS[(facility?.system ?? "MOCK") as SystemName];
 
-  // Every product must already be in CannaTrace, matched by SKU, then by exact name.
+  // Every product must already be in Leaf2Sale, matched by SKU, then by exact name.
   const catalog = await db
     .select({ id: items.id, name: items.name, sku: items.sku })
     .from(items)
@@ -67,7 +67,7 @@ export async function receiveShipment(
   const unknown = lines.filter((l) => !l.item && l.status !== "MISSING");
   if (unknown.length)
     problems.push(
-      `${unknown.length} product${unknown.length === 1 ? " isn't" : "s aren't"} in CannaTrace yet (${unknown
+      `${unknown.length} product${unknown.length === 1 ? " isn't" : "s aren't"} in Leaf2Sale yet (${unknown
         .slice(0, 5)
         .map((l) => l.product)
         .join(", ")}${unknown.length > 5 ? ", …" : ""}). Add ${unknown.length === 1 ? "it" : "them"} in Catalog with the same name or SKU, then check again.`,
@@ -110,7 +110,7 @@ export async function receiveShipment(
       const t = byTag.get(tagOnManifest);
       if (!t) continue;
       if (onManifest.has(t.id) && t.facilityId !== actor.facilityId && t.status === "FINISHED" && Number(t.quantity) === 0) transfers.set(t.tag, { id: t.id, itemId: t.itemId });
-      else problems.push(`${t.tag} is already in CannaTrace. A package can only be received once.`);
+      else problems.push(`${t.tag} is already in Leaf2Sale. A package can only be received once.`);
     }
     for (const l of lines) {
       const moved = transfers.get(l.tag);

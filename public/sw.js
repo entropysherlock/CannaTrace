@@ -1,4 +1,4 @@
-/* CannaTrace service worker: keeps the offline register openable with no internet. It never touches the API. */
+/* Leaf2Sale service worker: keeps the offline register openable with no internet. It never touches the API. */
 const CACHE = "ct-offline-v1";
 const OFFLINE_PAGE = "/pos/offline";
 

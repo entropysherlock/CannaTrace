@@ -4,11 +4,11 @@ import { checkPairing } from "@/lib/devices";
 import { linkPhoneAction } from "./actions";
 
 export const instant = false;
-export const metadata = { title: "Link this phone to CannaTrace", robots: { index: false } };
+export const metadata = { title: "Link this phone to Leaf2Sale", robots: { index: false } };
 
 const PROBLEMS = {
   invalid: "This link isn't valid. Open Account on your computer and show a new QR code.",
-  used: "This link was already used. If this phone is already linked, open CannaTrace from its home screen. Otherwise show a new QR code.",
+  used: "This link was already used. If this phone is already linked, open Leaf2Sale from its home screen. Otherwise show a new QR code.",
   expired: "This link expired (they last 10 minutes). Show a new QR code on your computer and scan it again.",
 };
 

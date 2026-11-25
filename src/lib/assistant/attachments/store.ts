@@ -43,7 +43,7 @@ export async function deleteExpiredAttachments(): Promise<number> {
 export async function startUpload(session: Session, input: { name: string; size: number; source?: "chat" | "phone" | "desktop" }): Promise<{ id: string; chunkBytes: number }> {
   // Documents sent to be read (from a phone or dropped on the desktop) wait for review much longer than chat files.
   const source = input.source === "phone" ? "phone" : input.source === "desktop" ? "desktop" : "chat";
-  if (!encryptionReady()) throw new AttachmentError("File attachments aren't set up on this server yet (secure storage is missing). CannaTrace support needs to finish setup.");
+  if (!encryptionReady()) throw new AttachmentError("File attachments aren't set up on this server yet (secure storage is missing). Leaf2Sale support needs to finish setup.");
   const name = cleanName(String(input.name ?? ""));
   const size = Math.trunc(Number(input.size));
   if (!Number.isFinite(size) || size > MAX_FILE_BYTES) throw new AttachmentError(`${name} is too large to attach.`);

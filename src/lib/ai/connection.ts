@@ -11,9 +11,9 @@ import { encryptionReady, keyHint, needsReseal, openSecret, sealSecret } from ".
 
 /**
  * Tally's Claude connection. Each business connects its own Anthropic account; everyone in the business
- * shares it, and Tally's requests for that business are billed to it. CannaTrace's own key is only used
- * for the public live demo and for accounts CannaTrace explicitly lists (TALLY_PLATFORM_ORGS), or locally
- * when a developer opts in, so CannaTrace never quietly pays for a customer.
+ * shares it, and Tally's requests for that business are billed to it. Leaf2Sale's own key is only used
+ * for the public live demo and for accounts Leaf2Sale explicitly lists (TALLY_PLATFORM_ORGS), or locally
+ * when a developer opts in, so Leaf2Sale never quietly pays for a customer.
  */
 
 export const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
@@ -55,7 +55,7 @@ export function explainProviderError(error: unknown): ProviderError {
     return new ProviderError("ERROR", "The Claude model chosen for Tally couldn't read one of the attached files. Try a different file, or pick another model in Settings → Tally AI.");
   if (e?.status === 529 || type === "overloaded_error") return new ProviderError("ERROR", "Claude is busy right now. Try again in a minute.");
   if (e?.status && e.status >= 500) return new ProviderError("ERROR", "Anthropic had a problem answering. Try again in a minute.");
-  if (/connection|fetch failed|ENOTFOUND|ETIMEDOUT|timed out/i.test(text)) return new ProviderError("ERROR", "CannaTrace couldn't reach Anthropic. Try again in a minute.");
+  if (/connection|fetch failed|ENOTFOUND|ETIMEDOUT|timed out/i.test(text)) return new ProviderError("ERROR", "Leaf2Sale couldn't reach Anthropic. Try again in a minute.");
   console.error("[tally] unclassified provider error", e?.status, type, text.trim().slice(0, 400));
   const detail = text.trim().replace(/\s+/g, " ").slice(0, 160);
   return new ProviderError("ERROR", `Something went wrong talking to Claude${detail ? ` (${e?.status ? `${e.status}: ` : ""}${detail})` : ""}. Try again.`);
@@ -95,7 +95,7 @@ export function defaultValidator(): Validator {
   return fakeAssistantOn() ? fakeValidator : anthropicValidator;
 }
 
-/** The model to use: the one asked for, or the current one, or CannaTrace's default, if the key can use it. */
+/** The model to use: the one asked for, or the current one, or Leaf2Sale's default, if the key can use it. */
 function pickModel(models: ModelOption[], wanted: (string | null | undefined)[]): string {
   for (const w of wanted) if (w && models.some((m) => m.id === w)) return w;
   return models.find((m) => /sonnet/.test(m.id))?.id ?? models[0]?.id ?? DEFAULT_MODEL;
@@ -177,7 +177,7 @@ export async function connectKey(session: Session, input: { apiKey: string; mode
   needManager(session);
   const apiKey = input.apiKey.trim();
   if (!/^sk-ant-[A-Za-z0-9_-]{16,}$/.test(apiKey)) throw new InventoryError("That doesn't look like a Claude API key. Keys start with sk-ant- and are about 100 characters long. Copy the whole key from the Claude Console.");
-  if (!encryptionReady()) throw new InventoryError("Secure key storage isn't set up on this CannaTrace server yet, so keys can't be saved. Ask CannaTrace support to finish setup.");
+  if (!encryptionReady()) throw new InventoryError("Secure key storage isn't set up on this Leaf2Sale server yet, so keys can't be saved. Ask Leaf2Sale support to finish setup.");
   let models: ModelOption[];
   try {
     models = await validate(apiKey);
@@ -266,7 +266,7 @@ export async function setLimits(
   await log(session, "LIMITS_CHANGED", limits);
 }
 
-/** Remove the key from CannaTrace. (It still exists in the Claude Console; delete it there too if it's no longer needed.) */
+/** Remove the key from Leaf2Sale. (It still exists in the Claude Console; delete it there too if it's no longer needed.) */
 export async function disconnect(session: Session): Promise<void> {
   needManager(session);
   const [row] = await db.delete(aiConnections).where(eq(aiConnections.orgId, session.orgId)).returning({ keyHint: aiConnections.keyHint });
@@ -462,7 +462,7 @@ export type UsageSummary = {
   recentProblems: { at: Date; outcome: string; name: string }[];
 };
 
-/** Tally use for the settings page. Counts and tokens only: CannaTrace can't see the Claude account's balance. */
+/** Tally use for the settings page. Counts and tokens only: Leaf2Sale can't see the Claude account's balance. */
 export async function usageSummary(orgId: string, now = new Date()): Promise<UsageSummary> {
   const since = monthStart(now);
   const [totals] = (

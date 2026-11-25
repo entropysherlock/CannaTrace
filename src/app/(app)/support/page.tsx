@@ -13,7 +13,7 @@ import { requireSession } from "@/lib/session";
 import { sentryDsn } from "@/lib/sentry-options";
 import { addAdminAction, businessAccessAction, createBusinessAction, openAccountAction, removeAdminAction, sendTestCrashAction } from "./actions";
 
-export const metadata = { title: "Support Console · CannaTrace" };
+export const metadata = { title: "Support Console · Leaf2Sale" };
 
 const when = (d: Date | null) =>
   d ? d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Denver" }) : "never";
@@ -54,7 +54,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
     <>
       <PageHeader
         title="Support Console"
-        subtitle={`${real.length} business${real.length === 1 ? "" : "es"} on CannaTrace. Open any account to see exactly what the customer sees and help them.`}
+        subtitle={`${real.length} business${real.length === 1 ? "" : "es"} on Leaf2Sale. Open any account to see exactly what the customer sees and help them.`}
       />
       <div className="grid gap-5 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
@@ -99,7 +99,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
                     <StateSelect />
                   </Field>
                 </div>
-                <Field label="Owner's email" hint="They get an invite link to set their own password. It must not already have a CannaTrace account.">
+                <Field label="Owner's email" hint="They get an invite link to set their own password. It must not already have a Leaf2Sale account.">
                   <input name="ownerEmail" type="email" required className={inputClass} />
                 </Field>
               </div>
@@ -229,7 +229,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
                 <ol className="list-decimal space-y-1 pl-5">
                   <li>Make a free account at sentry.io and create a project (platform: Next.js).</li>
                   <li>Copy the project&apos;s DSN (Settings → Client Keys). It looks like https://…@…ingest.sentry.io/….</li>
-                  <li>In Vercel: the CannaTrace project → Settings → Environment Variables → add NEXT_PUBLIC_SENTRY_DSN with that value (Production).</li>
+                  <li>In Vercel: the Leaf2Sale project → Settings → Environment Variables → add NEXT_PUBLIC_SENTRY_DSN with that value (Production).</li>
                   <li>
                     For readable stack traces, also add SENTRY_AUTH_TOKEN (Sentry → Settings → Auth Tokens), SENTRY_ORG and SENTRY_PROJECT (your
                     organization and project names in Sentry).
@@ -243,7 +243,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
           <Card title="How support visits work">
             <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
               <li>You see and can do everything the business owner can.</li>
-              <li>Anything you change is saved under your name, marked &quot;CannaTrace support&quot;.</li>
+              <li>Anything you change is saved under your name, marked &quot;Leaf2Sale support&quot;.</li>
               <li>The visit and your reason go into the customer&apos;s own audit trail.</li>
               <li>A visit ends when you press Exit support view, or after 2 hours.</li>
             </ul>
@@ -260,8 +260,8 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
                     : "Not set up yet: AI_KEY_ENCRYPTION_KEY is missing or empty on this server. Businesses can't connect Tally until it is set."}
                 </p>
                 <ol className="list-decimal space-y-1 pl-5">
-                  <li>Press Generate and Copy below. The value is made in your browser and never sent to CannaTrace.</li>
-                  <li>In Vercel: the CannaTrace project → Settings → Environment Variables → add AI_KEY_ENCRYPTION_KEY with that value (Production).</li>
+                  <li>Press Generate and Copy below. The value is made in your browser and never sent to Leaf2Sale.</li>
+                  <li>In Vercel: the Leaf2Sale project → Settings → Environment Variables → add AI_KEY_ENCRYPTION_KEY with that value (Production).</li>
                   <li>Redeploy. Keep the value secret and never change it; changing it would disconnect every business.</li>
                 </ol>
                 <SecretGenerator />
@@ -287,7 +287,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
               ))}
             </ul>
             <ActionForm action={addAdminAction} submitLabel="Add to support team" className="mt-3 space-y-2">
-              <Field label="Email of their CannaTrace account" hint="They need an account first. Only add people who work for CannaTrace.">
+              <Field label="Email of their Leaf2Sale account" hint="They need an account first. Only add people who work for Leaf2Sale.">
                 <input name="email" type="email" required className={inputClass} />
               </Field>
             </ActionForm>
@@ -300,7 +300,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
               <ul className="space-y-2 text-sm">
                 {visits.map((v, i) => (
                   <li key={i}>
-                    <span className="font-semibold">{v.org}</span> · {v.action === "SUPPORT_VISIT_START" ? "opened" : "left"} by {v.who.replace(" (CannaTrace support)", "")}
+                    <span className="font-semibold">{v.org}</span> · {v.action === "SUPPORT_VISIT_START" ? "opened" : "left"} by {v.who.replace(" (Leaf2Sale support)", "")}
                     <span className="block text-xs text-slate-500">
                       {when(v.at)}
                       {v.reason ? ` · ${v.reason}` : ""}

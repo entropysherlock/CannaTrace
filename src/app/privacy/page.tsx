@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
 import { LEGAL, type LegalSection } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "Privacy Policy · CannaTrace", description: "What CannaTrace collects, why, and who sees it." };
+export const metadata: Metadata = { title: "Privacy Policy · Leaf2Sale", description: "What Leaf2Sale collects, why, and who sees it." };
 
 const SECTIONS: LegalSection[] = [
   {
     heading: "Who is who",
     paragraphs: [
-      `${LEGAL.operator} ("we") runs CannaTrace. For the records a business keeps in CannaTrace (its sales, inventory, staff and customers), the business decides what goes in and why, and we handle that data on its behalf under the Data Agreement. For our website, accounts and billing, we decide what we collect.`,
+      `${LEGAL.operator} ("we") runs Leaf2Sale. For the records a business keeps in Leaf2Sale (its sales, inventory, staff and customers), the business decides what goes in and why, and we handle that data on its behalf under the Data Agreement. For our website, accounts and billing, we decide what we collect.`,
     ],
   },
   {
@@ -26,7 +26,7 @@ const SECTIONS: LegalSection[] = [
   {
     heading: "How we use it",
     items: [
-      "To run CannaTrace for the business that entered it: show it, calculate with it, print labels from it, and create the reports you ask for.",
+      "To run Leaf2Sale for the business that entered it: show it, calculate with it, print labels from it, and create the reports you ask for.",
       "To keep it secure and fix bugs, and to contact account owners about the service.",
       "To bill businesses and keep our own records.",
     ],
@@ -34,7 +34,7 @@ const SECTIONS: LegalSection[] = [
   },
   {
     heading: "Who else sees it",
-    paragraphs: ["We use a small number of outside services to run CannaTrace. Each handles data only to do the job described:"],
+    paragraphs: ["We use a small number of outside services to run Leaf2Sale. Each handles data only to do the job described:"],
     items: LEGAL.providers.map((p) => `${p.name} ${p.does}.`),
   },
   {
@@ -65,12 +65,12 @@ const SECTIONS: LegalSection[] = [
   {
     heading: "Your choices",
     paragraphs: [
-      "You can ask what we hold about you, ask us to fix or delete it, or ask us to stop using it, by emailing us. If your information is in a business's CannaTrace records (for example you are a rewards member), please ask that business first, since it controls those records, and we will help it respond.",
+      "You can ask what we hold about you, ask us to fix or delete it, or ask us to stop using it, by emailing us. If your information is in a business's Leaf2Sale records (for example you are a rewards member), please ask that business first, since it controls those records, and we will help it respond.",
     ],
   },
   {
     heading: "Age",
-    paragraphs: ["CannaTrace is for businesses and their adult staff. It is not directed at children, and we do not knowingly collect information from anyone under 18."],
+    paragraphs: ["Leaf2Sale is for businesses and their adult staff. It is not directed at children, and we do not knowingly collect information from anyone under 18."],
   },
   {
     heading: "Changes",
@@ -83,7 +83,7 @@ export default function PrivacyPage() {
     <LegalPage
       current="/privacy"
       title="Privacy Policy"
-      intro="This explains what CannaTrace collects, why, who can see it, and the choices you have. We have tried to keep it short and plain."
+      intro="This explains what Leaf2Sale collects, why, who can see it, and the choices you have. We have tried to keep it short and plain."
       sections={SECTIONS}
     />
   );

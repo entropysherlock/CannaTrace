@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json({ error: error instanceof InventoryError ? error.message : "Tally is unavailable right now." }, { status: 429 });
   }
-  // The live demo runs on CannaTrace's key, with its own small daily allowance.
+  // The live demo runs on Leaf2Sale's key, with its own small daily allowance.
   if (route.kind === "platform" && session.isDemo && !(await takeDemoAssistantCall(session.orgId))) {
     await settleUsage(reservation, { inputTokens: 0, outputTokens: 0, outcome: "REFUSED" });
     return NextResponse.json({ error: "Tally has answered all the live demo questions it can for today. Try again tomorrow, or create your own account." }, { status: 429 });
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
           // Log the kind and HTTP status only: never the request, which carries the key.
           console.error("assistant failed", problem.kind, (error as { status?: number })?.status ?? "");
           if (route.kind === "customer" && problem.kind !== "ERROR") await markProblem(session.orgId, problem);
-          const who = route.kind === "platform" ? "CannaTrace's" : "your business's";
+          const who = route.kind === "platform" ? "Leaf2Sale's" : "your business's";
           emit({ type: "error", message: route.kind === "platform" && problem.kind === "NO_CREDIT" ? `Tally is temporarily unavailable (${who} AI account). Try again later.` : problem.message });
         }
       } finally {

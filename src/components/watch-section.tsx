@@ -51,7 +51,7 @@ export async function WatchSection({ session, findings }: { session: Session; fi
           </summary>
           <p className="mt-2 text-sm text-slate-600">
             Export your Packages list from the state system (for example Metrc → Packages → Active → Export as CSV) and upload it here. Tally Watch flags every package
-            that&apos;s missing on either side or has a different quantity. A live connection replaces this once CannaTrace is an approved integrator.
+            that&apos;s missing on either side or has a different quantity. A live connection replaces this once Leaf2Sale is an approved integrator.
           </p>
           <ActionForm action={uploadStateReportAction} submitLabel="Upload and compare" className="mt-3 space-y-3">
             <label className="block text-sm font-semibold text-slate-700">

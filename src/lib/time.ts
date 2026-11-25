@@ -23,7 +23,7 @@ const STATE_ZONES: Record<string, string> = {
   WY: "America/Denver",
 };
 
-/** Where CannaTrace started; used only when a facility's state is unknown. */
+/** Where Leaf2Sale started; used only when a facility's state is unknown. */
 export const DEFAULT_ZONE = "America/Denver";
 
 export const zoneForState = (state: string | null | undefined): string => STATE_ZONES[(state ?? "").toUpperCase()] ?? DEFAULT_ZONE;

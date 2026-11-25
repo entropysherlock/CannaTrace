@@ -55,14 +55,14 @@ export type CustomerAccount = {
   packages: number;
   lastActivity: Date | null;
   /**
-   * Who can sign in while CannaTrace is invite-only. approved: support approved it. listed: someone on the
+   * Who can sign in while Leaf2Sale is invite-only. approved: support approved it. listed: someone on the
    * server's email list is a member (your own business). suspended: support turned it off. none: neither,
    * so nobody in it can sign in.
    */
   access: "approved" | "listed" | "suspended" | "none";
 };
 
-/** Every business on CannaTrace, newest activity first. */
+/** Every business on Leaf2Sale, newest activity first. */
 export async function listCustomerAccounts(): Promise<CustomerAccount[]> {
   const rows = await db.execute<{
     id: string;
@@ -112,12 +112,12 @@ export async function listCustomerAccounts(): Promise<CustomerAccount[]> {
 }
 
 /**
- * Turn a business's access on or off while CannaTrace is invite-only. Suspending signs everyone in it out on
+ * Turn a business's access on or off while Leaf2Sale is invite-only. Suspending signs everyone in it out on
  * their next click (support can still visit); restoring or approving lets the owner and their staff back in.
  * Recorded in the business's own audit trail.
  */
 export async function setBusinessAccess(admin: Admin, orgId: string, action: "approve" | "suspend", reason: string): Promise<string> {
-  if (!(await isPlatformAdmin(admin.userId))) throw new InventoryError("Only CannaTrace support admins can change a business's access.");
+  if (!(await isPlatformAdmin(admin.userId))) throw new InventoryError("Only Leaf2Sale support admins can change a business's access.");
   if (orgId === admin.orgId && action === "suspend") throw new InventoryError("You can't suspend your own business.");
   const why = reason.trim().replace(/\s+/g, " ").slice(0, 300);
   if (action === "suspend" && !why) throw new InventoryError("Say why you're suspending this business, for example \"unpaid since Dec 1\".");
@@ -131,7 +131,7 @@ export async function setBusinessAccess(admin: Admin, orgId: string, action: "ap
     await tx.insert(auditLogs).values({
       orgId,
       userId: admin.userId,
-      userName: `${admin.name} (CannaTrace support)`,
+      userName: `${admin.name} (Leaf2Sale support)`,
       entityType: "Business",
       entityId: orgId,
       action: action === "suspend" ? "SUPPORT_SUSPENDED_ACCESS" : "SUPPORT_RESTORED_ACCESS",
@@ -151,7 +151,7 @@ type Admin = { userId: string; orgId: string; facilityId: string; name: string }
  * after two hours. The visit is written into the customer's own audit trail.
  */
 export async function openSupportVisit(admin: Admin, orgId: string, reason: string, facilityId?: string): Promise<SessionToken> {
-  if (!(await isPlatformAdmin(admin.userId))) throw new InventoryError("Only CannaTrace support admins can open customer accounts.");
+  if (!(await isPlatformAdmin(admin.userId))) throw new InventoryError("Only Leaf2Sale support admins can open customer accounts.");
   const why = reason.trim().slice(0, 300);
   if (!why) throw new InventoryError("Say why you are opening this account, for example \"Helping with a stuck label print\". It goes in their audit trail.");
   const [facility] = await db
@@ -166,7 +166,7 @@ export async function openSupportVisit(admin: Admin, orgId: string, reason: stri
     orgId,
     facilityId: facility.id,
     userId: admin.userId,
-    userName: `${admin.name} (CannaTrace support)`,
+    userName: `${admin.name} (Leaf2Sale support)`,
     entityType: "Support",
     entityId: orgId,
     action: "SUPPORT_VISIT_START",
@@ -192,7 +192,7 @@ export async function endSupportVisit(session: SessionToken & { support: NonNull
     orgId: session.orgId,
     facilityId: session.facilityId,
     userId: session.userId,
-    userName: `${adminName} (CannaTrace support)`,
+    userName: `${adminName} (Leaf2Sale support)`,
     entityType: "Support",
     entityId: session.orgId,
     action: "SUPPORT_VISIT_END",
@@ -216,14 +216,14 @@ export async function listSupportAdmins(): Promise<SupportAdmin[]> {
     .map((r) => ({ userId: r.userId, name: r.name, email: r.email, addedBy: r.addedBy, founder: r.addedBy === null }));
 }
 
-/** Give an existing CannaTrace account support access. */
+/** Give an existing Leaf2Sale account support access. */
 export async function addSupportAdmin(admin: Admin, email: string): Promise<string> {
   if (!(await isPlatformAdmin(admin.userId))) throw new InventoryError("Only support admins can add support admins.");
   const [user] = await db
     .select({ id: users.id, name: users.name, active: users.active })
     .from(users)
     .where(sql`lower(${users.email}) = lower(${email.trim()})`);
-  if (!user || !user.active) throw new InventoryError("No active CannaTrace account uses that email. They need an account first (sign up, or be invited to a team).");
+  if (!user || !user.active) throw new InventoryError("No active Leaf2Sale account uses that email. They need an account first (sign up, or be invited to a team).");
   await db.insert(platformAdmins).values({ userId: user.id, addedByName: admin.name }).onConflictDoNothing();
   return user.name;
 }
@@ -253,7 +253,7 @@ export async function createCustomerBusiness(
   admin: Admin,
   input: { businessName: string; facilityName: string; licenseNumber: string; licenseType: string; state: string; ownerEmail: string },
 ): Promise<{ orgId: string; businessName: string; inviteToken: string; ownerEmail: string }> {
-  if (!(await isPlatformAdmin(admin.userId))) throw new InventoryError("Only CannaTrace support admins can set up businesses.");
+  if (!(await isPlatformAdmin(admin.userId))) throw new InventoryError("Only Leaf2Sale support admins can set up businesses.");
   const text = (value: string, message: string, max = 120) => {
     const t = value.trim().replace(/\s+/g, " ").slice(0, max);
     if (!t) throw new InventoryError(message);
@@ -270,7 +270,7 @@ export async function createCustomerBusiness(
 
   return db.transaction(async (tx) => {
     if ((await tx.$count(users, sql`lower(${users.email}) = ${ownerEmail}`)) > 0)
-      throw new InventoryError("Someone already has a CannaTrace account with that email. Use a different email for the new owner.");
+      throw new InventoryError("Someone already has a Leaf2Sale account with that email. Use a different email for the new owner.");
     // Set up by support, so approved: its owner and the staff they invite can sign in while invite-only.
     const [org] = await tx.insert(organizations).values({ name: businessName, accessApprovedAt: new Date() }).returning({ id: organizations.id });
     const [facility] = await tx
@@ -289,7 +289,7 @@ export async function createCustomerBusiness(
       orgId: org.id,
       facilityId: facility.id,
       userId: admin.userId,
-      userName: `${admin.name} (CannaTrace support)`,
+      userName: `${admin.name} (Leaf2Sale support)`,
       entityType: "Business",
       entityId: org.id,
       action: "SUPPORT_CREATED_BUSINESS",

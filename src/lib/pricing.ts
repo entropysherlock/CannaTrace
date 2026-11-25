@@ -1,5 +1,5 @@
 /**
- * CannaTrace pricing, in one place: one plan with every feature, priced by how many facilities
+ * Leaf2Sale pricing, in one place: one plan with every feature, priced by how many facilities
  * (licenses) a business runs. The pricing page reads these, and the sales sheet, demo script,
  * and partner agreement quote the same numbers.
  */

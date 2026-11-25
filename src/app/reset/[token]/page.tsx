@@ -8,7 +8,7 @@ import { lookupReset } from "@/lib/team";
 import { resetPasswordAction } from "./actions";
 
 export const instant = false;
-export const metadata = { title: "Set a new password · CannaTrace", robots: { index: false } };
+export const metadata = { title: "Set a new password · Leaf2Sale", robots: { index: false } };
 
 export default async function ResetPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

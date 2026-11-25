@@ -256,7 +256,7 @@ async function stateReporting(f: Scope): Promise<Finding[]> {
         title: job.failing
           ? `The last automatic state send didn't finish (${plural(Number(r.pending), "record")} waiting)`
           : `Automatic state sending hasn't run on time (${plural(Number(r.pending), "record")} waiting)`,
-        detail: "Records only reach the state when they're sent. Press Send now on State reporting, and let CannaTrace support know so the schedule gets fixed.",
+        detail: "Records only reach the state when they're sent. Press Send now on State reporting, and let Leaf2Sale support know so the schedule gets fixed.",
         permission: "compliance.view",
         href: "/compliance",
       });
@@ -292,7 +292,7 @@ async function rules(f: Scope): Promise<Finding[]> {
     .map((i) => ({ key: `rule:${i.id}`, check: "rule", severity: "critical" as const, title: i.title, detail: i.detail, permission: "compliance.view" as const, href: i.fix?.href ?? "/compliance/rules" }));
 }
 
-// ---------- Matching CannaTrace against the state system ----------
+// ---------- Matching Leaf2Sale against the state system ----------
 
 const STATE_UNITS: Record<string, UnitCode> = {
   each: "EACH", ea: "EACH", count: "EACH", units: "EACH", unit: "EACH",
@@ -392,8 +392,8 @@ async function reconcile(f: Scope): Promise<Finding[]> {
       key: `state_qty:${s(p.id)}:${stateQty.toString()}`,
       check: "state_qty",
       severity: "critical",
-      title: `Package ${s(p.tag)}: CannaTrace has ${qty(s(p.quantity), s(p.unit))}, the state has ${qty(stateQty, s(p.unit))}`,
-      detail: `${s(p.item)}, per ${source}. Recount it first. If the state is right, Tally can set CannaTrace to match.`,
+      title: `Package ${s(p.tag)}: Leaf2Sale has ${qty(s(p.quantity), s(p.unit))}, the state has ${qty(stateQty, s(p.unit))}`,
+      detail: `${s(p.item)}, per ${source}. Recount it first. If the state is right, Tally can set Leaf2Sale to match.`,
       permission: "compliance.view",
       href: `/inventory/${s(p.id)}`,
       fix: {
@@ -410,11 +410,11 @@ async function reconcile(f: Scope): Promise<Finding[]> {
       key: `state_only:${tag}`,
       check: "state_only",
       severity: "critical",
-      title: `Package ${tag} is open in the state system but not in CannaTrace`,
+      title: `Package ${tag} is open in the state system but not in Leaf2Sale`,
       detail: `The state shows ${r.quantity ?? "?"} ${r.unit ?? ""} per ${source}. Receive it here, or close it in the state system.`,
       permission: "compliance.view",
       href: "/inventory/receive",
-      ask: `Package ${tag} is in the state system but not in CannaTrace. Help me receive it.`,
+      ask: `Package ${tag} is in the state system but not in Leaf2Sale. Help me receive it.`,
     });
   }
   if (mismatches > PER_CHECK || missingThere > PER_CHECK || missingHere > PER_CHECK)

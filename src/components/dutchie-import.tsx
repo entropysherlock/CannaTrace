@@ -47,7 +47,7 @@ function Summary({ r, done }: { r: DutchieResult; done: boolean }) {
       <p className="rounded-lg border-l-4 border-brand-600 bg-brand-50 px-3 py-2 font-medium text-brand-900">
         {done ? "Imported" : "Ready to import"}: {r.packages.toLocaleString("en-US")} package{r.packages === 1 ? "" : "s"}, {r.products.created} new product
         {r.products.created === 1 ? "" : "s"}
-        {r.products.reused ? ` (${r.products.reused} already in CannaTrace)` : ""}, {r.rooms.created} new room{r.rooms.created === 1 ? "" : "s"}
+        {r.products.reused ? ` (${r.products.reused} already in Leaf2Sale)` : ""}, {r.rooms.created} new room{r.rooms.created === 1 ? "" : "s"}
         {r.labResults ? `, ${r.labResults.toLocaleString("en-US")} lab result${r.labResults === 1 ? "" : "s"}` : ""}.
       </p>
       {r.warnings.length ? (
@@ -103,7 +103,7 @@ const STEPS = {
       <>
         In Dutchie Backoffice, open <span className="font-semibold">Reports → Current Inventory</span> (or Products → Inventory) for one store location.
       </>,
-      <>Export it to Excel or CSV. Keep the columns you have; CannaTrace finds Product Name, Package ID, Batch, Quantity, Room, and the rest by name.</>,
+      <>Export it to Excel or CSV. Keep the columns you have; Leaf2Sale finds Product Name, Package ID, Batch, Quantity, Room, and the rest by name.</>,
     ],
   },
   flourish: {
@@ -112,7 +112,7 @@ const STEPS = {
       <>
         In Flourish, open <span className="font-semibold">Inventory → All Packages</span> for one facility. Show the Metrc or state tag, Lot, Area, Quantity, UOM, and Unit Weight columns if they&apos;re hidden.
       </>,
-      <>Export it to Excel (or save it as CSV). CannaTrace finds Item Name, Package ID, Lot, Area, Quantity, and the rest by name.</>,
+      <>Export it to Excel (or save it as CSV). Leaf2Sale finds Item Name, Package ID, Lot, Area, Quantity, and the rest by name.</>,
     ],
   },
   nms2s: {
@@ -194,7 +194,7 @@ export function DutchieImport({ preview, run, source = "dutchie" }: { preview: A
                 ? `Your file is for ${stores[0].name}. Confirm it goes into this facility.`
                 : `Your file has ${stores.length} stores. Pick the one that goes into this facility.`}
           </span>
-          <span className="mb-2 block text-xs text-amber-900">CannaTrace checks it right away. To bring in another store, switch facilities and upload the same file again.</span>
+          <span className="mb-2 block text-xs text-amber-900">Leaf2Sale checks it right away. To bring in another store, switch facilities and upload the same file again.</span>
           <select
             name="store"
             defaultValue=""

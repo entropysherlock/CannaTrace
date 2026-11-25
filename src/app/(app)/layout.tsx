@@ -27,7 +27,7 @@ export const instant = false;
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const supportAdmin = !session.support && (await isPlatformAdmin(session.userId));
-  // CannaTrace's own staff see "Founder", not "Owner", so it's never mistaken for a shop owner's role.
+  // Leaf2Sale's own staff see "Founder", not "Owner", so it's never mistaken for a shop owner's role.
   const roleName = supportAdmin ? "Founder" : session.roleName;
   const tally = await tallyAvailability(session);
   // The bell in the top bar: what Tally Watch has open at this facility. Re-check first when anything has
@@ -132,7 +132,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <WalkthroughProvider allowed={walkthroughsFor((p) => can(session, p), hereType)}>
     <div className="min-h-screen md:flex">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-brand-950 p-4 text-white short:py-3 md:flex print:!hidden">
-        <Link href="/" className="mb-6 flex justify-center short:mb-3" title="CannaTrace home">
+        <Link href="/" className="mb-6 flex justify-center short:mb-3" title="Leaf2Sale home">
           <Logo tone="light" />
         </Link>
         <div className="sidebar-scroll -mx-1 min-h-0 flex-1 overflow-y-auto px-1">
@@ -148,7 +148,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       <div className="flex min-w-0 flex-1 flex-col pb-40 md:pb-24">
         <header className="sticky top-0 z-30 flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur md:gap-3 md:px-6 print:hidden">
-          <Link href="/" className="mr-auto md:hidden" title="CannaTrace home">
+          <Link href="/" className="mr-auto md:hidden" title="Leaf2Sale home">
             <Logo />
           </Link>
           <div className="order-last flex w-full min-w-0 md:order-none md:mr-auto md:w-auto">
@@ -159,7 +159,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {session.supportVisit ? (
           <div role="note" aria-label="Support view" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-violet-700 px-4 py-2 text-center text-sm text-white print:hidden">
             <span>
-              <strong>Support view:</strong> you are inside <strong>{session.supportVisit.orgName}</strong> as CannaTrace support. Changes are saved under your
+              <strong>Support view:</strong> you are inside <strong>{session.supportVisit.orgName}</strong> as Leaf2Sale support. Changes are saved under your
               name and the visit is in their audit trail. Ends at{" "}
               {new Date(session.supportVisit.until).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Denver" })}.
             </span>

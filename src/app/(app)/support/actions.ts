@@ -74,9 +74,9 @@ export async function createBusinessAction(_state: FormState, formData: FormData
 export async function sendTestCrashAction(): Promise<FormState> {
   try {
     const me = await admin();
-    if (!(await isPlatformAdmin(me.userId))) throw new InventoryError("Only CannaTrace support can send a test crash.");
+    if (!(await isPlatformAdmin(me.userId))) throw new InventoryError("Only Leaf2Sale support can send a test crash.");
     if (!sentryDsn) throw new InventoryError("Crash alerts are off: add NEXT_PUBLIC_SENTRY_DSN in Vercel and redeploy first.");
-    Sentry.captureException(new Error(`CannaTrace test crash from the Support Console (${new Date().toISOString()})`), { tags: { test: "yes" } });
+    Sentry.captureException(new Error(`Leaf2Sale test crash from the Support Console (${new Date().toISOString()})`), { tags: { test: "yes" } });
     const sent = await Sentry.flush(5000);
     if (!sent) throw new InventoryError("Couldn't reach Sentry within 5 seconds. Check the DSN in Vercel.");
     return { ok: "Test crash sent. It should show in Sentry, and in your email, within a minute." };

@@ -46,7 +46,7 @@ import { ADAPTERS } from "@/lib/sync";
 import { SYSTEM_LABELS, type SystemName } from "@/lib/sync-math";
 import { sweepIfStaleBriefly } from "@/lib/watch";
 
-export const metadata = { title: "Dashboard · CannaTrace" };
+export const metadata = { title: "Dashboard · Leaf2Sale" };
 
 const num = (v: number) => v.toLocaleString("en-US");
 

@@ -189,7 +189,7 @@ describe.skipIf(!hasDb)("Tally Watch (database)", () => {
     }
   });
 
-  it("matches CannaTrace against an uploaded state report and fixes a quantity mismatch", async () => {
+  it("matches Leaf2Sale against an uploaded state report and fixes a quantity mismatch", async () => {
     await receivePackage(actor, { tag: `${run}-SAME`, itemId: jar, quantity: "5", locationId: vault });
     await receivePackage(actor, { tag: `${run}-DIFF`, itemId: jar, quantity: "8", locationId: vault });
     await receivePackage(actor, { tag: `${run}-HERE`, itemId: jar, quantity: "2", locationId: vault });
@@ -198,9 +198,9 @@ describe.skipIf(!hasDb)("Tally Watch (database)", () => {
     expect(await saveStateReport(owner, { fileName: "metrc.csv", text: csv })).toEqual({ packages: 4 });
     const open = await openFindings(owner);
     const titles = open.map((f) => f.title);
-    expect(titles).toContain(`Package ${run}-DIFF: CannaTrace has 8 ea, the state has 7 ea`);
+    expect(titles).toContain(`Package ${run}-DIFF: Leaf2Sale has 8 ea, the state has 7 ea`);
     expect(titles).toContain(`Package ${run}-HERE is in stock here but missing in the state system`);
-    expect(titles).toContain(`Package ${run}-THERE is open in the state system but not in CannaTrace`);
+    expect(titles).toContain(`Package ${run}-THERE is open in the state system but not in Leaf2Sale`);
     expect(titles.some((t) => t.includes(`${run}-SAME`))).toBe(false);
 
     // A budtender doesn't see compliance findings, and can't run their fixes.

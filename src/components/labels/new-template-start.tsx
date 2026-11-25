@@ -198,7 +198,7 @@ function UploadPanel({ aiReady, aiReason, onDone }: { aiReady: boolean; aiReason
     <section className="space-y-4 rounded-xl border border-brand-100 bg-white p-5 shadow-sm">
       <div>
         <h2 className="text-lg font-bold text-slate-900">Upload a label you already use</h2>
-        <p className="text-sm text-slate-600">A clear photo, a scan, or a PDF of a finished label. CannaTrace rebuilds it as an editable template and matches the words to your product, package, and lab fields.</p>
+        <p className="text-sm text-slate-600">A clear photo, a scan, or a PDF of a finished label. Leaf2Sale rebuilds it as an editable template and matches the words to your product, package, and lab fields.</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {/* "capture" opens the phone's camera straight away; on a computer it just opens the file picker. */}
@@ -228,7 +228,7 @@ function UploadPanel({ aiReady, aiReason, onDone }: { aiReady: boolean; aiReason
         </div>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-[minmax(0,260px)_1fr] sm:items-end">
-        <Field label="What kind of label is it?" hint="Leave on automatic and CannaTrace will work it out.">
+        <Field label="What kind of label is it?" hint="Leave on automatic and Leaf2Sale will work it out.">
           <select className={inputClass} value={kind} onChange={(e) => setKind(e.target.value)}>
             <option value="">Work it out automatically</option>
             {LABEL_KINDS.map((k) => (
@@ -245,7 +245,7 @@ function UploadPanel({ aiReady, aiReason, onDone }: { aiReady: boolean; aiReason
       </div>
       {busy ? <p role="status" className="text-sm text-slate-600">This usually takes 15 to 40 seconds. Please keep this page open.</p> : null}
       {error ? <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p> : null}
-      <p className="text-xs text-slate-500">The picture is sent to your Claude account through Tally AI to read it, and isn&apos;t kept by CannaTrace. Nothing is saved until you review the result and press Save.</p>
+      <p className="text-xs text-slate-500">The picture is sent to your Claude account through Tally AI to read it, and isn&apos;t kept by Leaf2Sale. Nothing is saved until you review the result and press Save.</p>
     </section>
   );
 }

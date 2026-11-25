@@ -283,7 +283,7 @@ describe.skipIf(!hasDb)("QA round fixes (database)", () => {
       ];
       // A different manifest number doesn't unlock the tag.
       const wrong = await receiveShipment(manager, { manifestNumber: "NOT-OURS", table, locationId: floor, received: {}, commit: false });
-      expect(wrong.problems).toEqual([expect.stringMatching(/already in CannaTrace/)]);
+      expect(wrong.problems).toEqual([expect.stringMatching(/already in Leaf2Sale/)]);
 
       const result = await receiveShipment(manager, { manifestNumber, table, locationId: floor, received: { [p.tag]: { quantity: "9", reason: "one jar crushed" } }, commit: true });
       expect(result.received).toBe(true);
@@ -309,7 +309,7 @@ describe.skipIf(!hasDb)("QA round fixes (database)", () => {
       await packOrder(growActor, { orderId: o2.id });
       const shipped2 = await shipOrder(growActor, { orderId: o2.id, driverId, vehicleId, departAt: new Date(Date.now() + 3_600_000).toISOString() });
       const steal = await receiveShipment(manager, { manifestNumber: shipped2.manifestNumber, table: [["Package Tag", "Item Name", "Quantity", "Lot"], [q.tag, "Jar", "10", ""]], locationId: floor, received: {}, commit: false });
-      expect(steal.problems.join(" ")).toMatch(/already in CannaTrace/);
+      expect(steal.problems.join(" ")).toMatch(/already in Leaf2Sale/);
       expect((await pkg(q.id)).facilityId).not.toBe(store);
     });
   });

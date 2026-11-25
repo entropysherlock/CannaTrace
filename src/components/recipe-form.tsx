@@ -12,7 +12,7 @@ import type { CreateOption } from "@/lib/contextual-create";
 
 export type ItemOption = { id: string; label: string };
 
-/** "+ Add item" for every picker on a recipe: the same dialog as everywhere else in CannaTrace. */
+/** "+ Add item" for every picker on a recipe: the same dialog as everywhere else in Leaf2Sale. */
 const addItem = (categories: string[], what: string, canAddItems: boolean): CreateConfig | undefined =>
   canAddItems
     ? {
@@ -63,7 +63,7 @@ function RecipeOutputFields({ options, added, categories, canAddItems }: Shared)
   );
 }
 
-/** "Blue Mesa Flower (g)" → "g". Every item label in CannaTrace ends with its unit in brackets. */
+/** "Blue Mesa Flower (g)" → "g". Every item label in Leaf2Sale ends with its unit in brackets. */
 const unitOf = (label: string | undefined) => label?.match(/\(([^()]+)\)\s*$/)?.[1] ?? "";
 
 /**

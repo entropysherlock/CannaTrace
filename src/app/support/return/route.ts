@@ -8,7 +8,7 @@ async function leave(request: Request) {
   if (!token?.support) return NextResponse.redirect(new URL("/dashboard", request.url), 303);
   let home;
   try {
-    home = await endSupportVisit({ ...token, support: token.support }, token.name.replace(/ \(CannaTrace support\)$/, ""));
+    home = await endSupportVisit({ ...token, support: token.support }, token.name.replace(/ \(Leaf2Sale support\)$/, ""));
   } catch {
     // The visit's sign-in no longer counts (password changed, account switched off): sign out instead.
     await destroySession();

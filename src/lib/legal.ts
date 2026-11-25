@@ -1,7 +1,7 @@
 /** Shared facts for the public legal pages. Change the operator line here when the LLC forms. */
 export const LEGAL = {
   /** Who "we" are. Replace with the company's legal name once the LLC exists. */
-  operator: "CannaTrace, operated by Caleb J. Westfall",
+  operator: "Leaf2Sale, operated by Caleb J. Westfall",
   place: "Albuquerque, New Mexico, USA",
   effective: "November 22, 2026",
   /** Shown on every legal page until a lawyer has reviewed it. */

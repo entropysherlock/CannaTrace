@@ -102,7 +102,7 @@ export function StoreRulesForm({
             <p>Review the numbers, add your tax rates, then press Save store rules.</p>
           </div>
         ) : (
-          <p className="mt-2 text-xs text-brand-900">Fills in the purchase limits from CannaTrace&apos;s rules for that state, with the regulation they come from.</p>
+          <p className="mt-2 text-xs text-brand-900">Fills in the purchase limits from Leaf2Sale&apos;s rules for that state, with the regulation they come from.</p>
         )}
       </div>
       <Field label="Flower limit per purchase, in grams">
@@ -137,7 +137,7 @@ export function StoreRulesForm({
           </span>
         </span>
       </label>
-      <Field label="Receipt warning (optional)" hint="Printed at the bottom of every receipt. Copy the exact wording your state requires; CannaTrace doesn't supply receipt wording.">
+      <Field label="Receipt warning (optional)" hint="Printed at the bottom of every receipt. Copy the exact wording your state requires; Leaf2Sale doesn't supply receipt wording.">
         <textarea name="receiptWarning" defaultValue={receiptWarning} rows={3} maxLength={1500} className={inputClass} />
       </Field>
       <Field label="Label warning (optional)" hint="Available to label templates as the “Store warning” field.">

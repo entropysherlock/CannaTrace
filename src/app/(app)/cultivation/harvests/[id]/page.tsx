@@ -161,7 +161,7 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
             <Card title="Package from this harvest">
               <ActionForm action={packageHarvestAction} submitLabel="Create packages">
                 {hidden}
-                <Field label="New package tag (blank to generate)" hint="Leave blank and CannaTrace makes a new unique ID (PKG-000123) for each package. Or scan or type state tags, one per package, separated by spaces or commas.">
+                <Field label="New package tag (blank to generate)" hint="Leave blank and Leaf2Sale makes a new unique ID (PKG-000123) for each package. Or scan or type state tags, one per package, separated by spaces or commas.">
                   <ScanInput name="tag" placeholder="Blank = new PKG- IDs" />
                 </Field>
                 <CreatableSelect

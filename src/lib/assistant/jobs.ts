@@ -522,7 +522,7 @@ export const JOB_TOOLS: Tool[] = [
         location: text("Where the new packages go. Default: the harvest's room."),
         waste: arr({ ...LINE, properties: { weight: text("Waste weight."), reason: text("What it is, e.g. stems.") }, required: ["weight", "reason"] }, "Waste to log."),
         rest_is_waste: text("If whatever weight is left over is waste, say what it is (e.g. 'stems and trim'). Leave out otherwise."),
-        rest_item: text("Package whatever weight is left over as one package of this item (tracked by weight, e.g. bulk flower). CannaTrace makes the tag. Leave out otherwise."),
+        rest_item: text("Package whatever weight is left over as one package of this item (tracked by weight, e.g. bulk flower). Leaf2Sale makes the tag. Leave out otherwise."),
         labels: { type: "boolean", description: "Prepare package labels for the new packages. Default true." },
         label_template: text("Label template name; default template if left out."),
         finish: { type: "boolean", description: "Finish the harvest at the end. Default true." },
@@ -611,7 +611,7 @@ export const JOB_TOOLS: Tool[] = [
     label: "Planning the plant tags",
     permission: "cultivation.write",
     description:
-      "Give individual tags to the untagged plants in a batch: CannaTrace makes a new unique tag for every plant. Shows the plan; one Confirm runs it, and Undo takes the tags back.",
+      "Give individual tags to the untagged plants in a batch: Leaf2Sale makes a new unique tag for every plant. Shows the plan; one Confirm runs it, and Undo takes the tags back.",
     schema: obj({ batch: text("Plant batch name.") }, ["batch"]),
     propose: async (s, input) => {
       const want = str(input.batch);

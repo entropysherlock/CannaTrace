@@ -9,7 +9,7 @@ import { requirePagePermission } from "@/lib/session";
 import { checkKeyAction, connectKeyAction, disconnectAction, limitsAction, modelAction } from "./actions";
 import { facilityZone } from "@/lib/time";
 
-export const metadata = { title: "Tally AI · CannaTrace" };
+export const metadata = { title: "Tally AI · Leaf2Sale" };
 
 const when = (d: Date | null, zone: string) =>
   d ? d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: zone }) : "never";
@@ -60,14 +60,14 @@ function SetupSteps() {
       <li className="flex gap-3">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">3</span>
         <p>
-          <strong className="text-slate-900">Create an API key</strong> named &quot;CannaTrace Tally&quot; and copy it. It starts with <code className="rounded bg-slate-100 px-1">sk-ant-</code>{" "}
+          <strong className="text-slate-900">Create an API key</strong> named &quot;Leaf2Sale Tally&quot; and copy it. It starts with <code className="rounded bg-slate-100 px-1">sk-ant-</code>{" "}
           and is shown only once. <ConsoleLink href={CONSOLE_LINKS.keys}>Go to API keys</ConsoleLink>
         </p>
       </li>
       <li className="flex gap-3">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">4</span>
         <p>
-          <strong className="text-slate-900">Paste it below and press Connect.</strong> CannaTrace checks it with Anthropic before saving. Everyone on your team then
+          <strong className="text-slate-900">Paste it below and press Connect.</strong> Leaf2Sale checks it with Anthropic before saving. Everyone on your team then
           shares it, within the limits you set here.
         </p>
       </li>
@@ -92,7 +92,7 @@ function ConnectForm({ label, replacing }: { label: string; replacing: boolean }
       <p className="flex gap-2 text-xs text-slate-600">
         <Lock className="mt-0.5 h-4 w-4 shrink-0 text-brand-700" aria-hidden="true" />
         <span>
-          The key is encrypted before it is stored. After you save it, nobody can see it again, including your team and CannaTrace. Only the last four characters
+          The key is encrypted before it is stored. After you save it, nobody can see it again, including your team and Leaf2Sale. Only the last four characters
           are shown so you can tell keys apart.{replacing ? " The old key stops being used the moment the new one is saved." : ""}
         </span>
       </p>
@@ -115,7 +115,7 @@ export default async function TallyAiSettingsPage() {
       {!conn.storageReady ? (
         <p role="alert" className="mb-5 flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900">
           <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden="true" />
-          Secure key storage isn&apos;t set up on this CannaTrace server yet, so a key can&apos;t be saved. CannaTrace support needs to finish setup first.
+          Secure key storage isn&apos;t set up on this Leaf2Sale server yet, so a key can&apos;t be saved. Leaf2Sale support needs to finish setup first.
         </p>
       ) : null}
 
@@ -178,7 +178,7 @@ export default async function TallyAiSettingsPage() {
                   <div className="border-t border-slate-100 p-4">
                     <ActionForm action={disconnectAction} submitLabel="Disconnect Tally" quiet>
                       <p className="text-sm text-slate-700">
-                        Removes the key from CannaTrace. Tally stops answering for everyone until a key is connected again. Usage history is kept.
+                        Removes the key from Leaf2Sale. Tally stops answering for everyone until a key is connected again. Usage history is kept.
                       </p>
                       <Field label='Type "disconnect" to confirm'>
                         <input name="confirm" autoComplete="off" className={inputClass} />
@@ -240,7 +240,7 @@ export default async function TallyAiSettingsPage() {
               </p>
               {usage.cost.unpricedModels.length ? (
                 <p className="mt-1 text-xs text-amber-800">
-                  Not included: {usage.cost.unpricedModels.join(", ")} (CannaTrace doesn&apos;t have a price for {usage.cost.unpricedModels.length === 1 ? "this model" : "these models"}).
+                  Not included: {usage.cost.unpricedModels.join(", ")} (Leaf2Sale doesn&apos;t have a price for {usage.cost.unpricedModels.length === 1 ? "this model" : "these models"}).
                 </p>
               ) : null}
             </div>
@@ -277,7 +277,7 @@ export default async function TallyAiSettingsPage() {
             ) : null}
             <p className="mt-3 text-xs text-slate-500">
               Dollar amounts are estimates from Anthropic&apos;s list prices for each model (checked {PRICES_CHECKED}), counting only questions on your own key.
-              CannaTrace can&apos;t see your Claude credit balance or exact charges; those are in the Claude Console under{" "}
+              Leaf2Sale can&apos;t see your Claude credit balance or exact charges; those are in the Claude Console under{" "}
               <ConsoleLink href={CONSOLE_LINKS.usage}>Usage</ConsoleLink> and <ConsoleLink href={CONSOLE_LINKS.billing}>Billing</ConsoleLink>.
             </p>
           </Card>

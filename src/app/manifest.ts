@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { BRAND } from "@/lib/brand";
 
-/** Lets a phone add CannaTrace to its home screen. It opens straight to the camera screen. */
+/** Lets a phone add Leaf2Sale to its home screen. It opens straight to the camera screen. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "CannaTrace",
-    short_name: "CannaTrace",
+    name: BRAND.name,
+    short_name: BRAND.name,
     description: "Seed-to-sale for New Mexico cannabis businesses",
     start_url: "/capture",
     scope: "/",

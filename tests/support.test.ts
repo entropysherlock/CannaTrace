@@ -31,7 +31,7 @@ describe.skipIf(!hasDb)("support visits (database)", () => {
   let helperId: string;
 
   beforeAll(async () => {
-    const [home, customer] = await db.insert(organizations).values([{ name: `CannaTrace HQ ${run}` }, { name: `Customer ${run}` }]).returning();
+    const [home, customer] = await db.insert(organizations).values([{ name: `Leaf2Sale HQ ${run}` }, { name: `Customer ${run}` }]).returning();
     const [hq, shop] = await db
       .insert(facilities)
       .values([
@@ -55,11 +55,11 @@ describe.skipIf(!hasDb)("support visits (database)", () => {
 
   it("refuses anyone who is not support, and support admins can grant and remove access", async () => {
     expect(await isPlatformAdmin(admin.userId)).toBe(false);
-    await expect(openSupportVisit(admin, customerOrg, "help")).rejects.toThrow(/Only CannaTrace support admins/);
+    await expect(openSupportVisit(admin, customerOrg, "help")).rejects.toThrow(/Only Leaf2Sale support admins/);
     await db.execute(sql`insert into platform_admins (user_id, added_by_name) values (${admin.userId}, 'test')`);
     expect(await isPlatformAdmin(admin.userId)).toBe(true);
 
-    await expect(addSupportAdmin(admin, "nobody@nowhere.invalid")).rejects.toThrow(/No active CannaTrace account/);
+    await expect(addSupportAdmin(admin, "nobody@nowhere.invalid")).rejects.toThrow(/No active Leaf2Sale account/);
     expect(await addSupportAdmin(admin, `HELPER-${run}@test.invalid`)).toBe("New Helper");
     expect(await isPlatformAdmin(helperId)).toBe(true);
     await expect(removeSupportAdmin(admin, admin.userId)).rejects.toThrow(/your own/);
@@ -79,8 +79,8 @@ describe.skipIf(!hasDb)("support visits (database)", () => {
     const trail = await db.select().from(auditLogs).where(eq(auditLogs.orgId, customerOrg));
     expect(trail.map((t) => [t.action, t.userName, t.reason])).toEqual(
       expect.arrayContaining([
-        ["SUPPORT_VISIT_START", "Carly Support (CannaTrace support)", "Label printer help"],
-        ["SUPPORT_VISIT_END", "Carly Support (CannaTrace support)", null],
+        ["SUPPORT_VISIT_START", "Carly Support (Leaf2Sale support)", "Label printer help"],
+        ["SUPPORT_VISIT_END", "Carly Support (Leaf2Sale support)", null],
       ]),
     );
   });
@@ -90,7 +90,7 @@ describe.skipIf(!hasDb)("support visits (database)", () => {
     const token = await openSupportVisit(admin, customerOrg, "Checking a sync error");
     const live = await sessionFromToken(await cookieFor(token));
     // Inside the customer's business only, with an owner's permissions, under a name that says support
-    expect(live).toMatchObject({ orgId: customerOrg, name: "Carly Support (CannaTrace support)", roleName: "CannaTrace support" });
+    expect(live).toMatchObject({ orgId: customerOrg, name: "Carly Support (Leaf2Sale support)", roleName: "Leaf2Sale support" });
 
     // Ran out
     expect(await sessionFromToken(await cookieFor({ ...token, support: { ...token.support!, until: Date.now() - 1000 } }))).toBeNull();
@@ -121,7 +121,7 @@ describe.skipIf(!hasDb)("support visits (database)", () => {
     // Every change goes through the actor built from the session: its user id is the support person's own
     expect({ userId: visit.userId, userName: visit.name, orgId: visit.orgId }).toEqual({
       userId: admin.userId,
-      userName: "Carly Support (CannaTrace support)",
+      userName: "Carly Support (Leaf2Sale support)",
       orgId: customerOrg,
     });
   });

@@ -1,6 +1,6 @@
 # Hosting, backups and monitoring
 
-Plain steps to run CannaTrace for a real store. Do these before the first pilot.
+Plain steps to run Leaf2Sale for a real store. Do these before the first pilot.
 
 ## 1. Host it (about 20 minutes)
 Follow "Deploy (Vercel + Neon)" in the README. Then:

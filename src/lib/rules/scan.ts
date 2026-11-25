@@ -39,7 +39,7 @@ export async function scanFacility(orgId: string, facilityId: string): Promise<S
       severity: "info",
       title: `No rule pack for ${state || "this state"} yet`,
       detail:
-        "CannaTrace still enforces your store's own limits and settings, and keeps every record, but it is not checking this state's specific rules. Review them with your regulator.",
+        "Leaf2Sale still enforces your store's own limits and settings, and keeps every record, but it is not checking this state's specific rules. Review them with your regulator.",
     });
   }
 

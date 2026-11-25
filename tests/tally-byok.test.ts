@@ -182,7 +182,7 @@ describe.skipIf(!hasDb)("business Claude connections (database)", () => {
     expect(await resolveTally(owner)).toMatchObject({ model: "claude-haiku-5-5" });
   });
 
-  it("keeps each business on its own key, and never quietly bills CannaTrace for a customer", async () => {
+  it("keeps each business on its own key, and never quietly bills Leaf2Sale for a customer", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant-platform-key-for-tests-only-0000";
     expect(await resolveTally(otherOwner)).toEqual({ kind: "off", reason: "NOT_CONNECTED" });
     // A copied row from another business cannot be opened there.
@@ -190,7 +190,7 @@ describe.skipIf(!hasDb)("business Claude connections (database)", () => {
     await db.insert(aiConnections).values({ ...row, orgId: otherOwner.orgId });
     expect(await resolveTally(otherOwner)).toEqual({ kind: "off", reason: "KEY_UNREADABLE" });
     await db.delete(aiConnections).where(eq(aiConnections.orgId, otherOwner.orgId));
-    // CannaTrace's key only for the live demo or a business CannaTrace lists on purpose.
+    // Leaf2Sale's key only for the live demo or a business Leaf2Sale lists on purpose.
     expect(await resolveTally({ orgId: demoOrg, isDemo: true })).toMatchObject({ kind: "platform" });
     process.env.TALLY_PLATFORM_ORGS = otherOwner.orgId;
     expect(await resolveTally(otherOwner)).toMatchObject({ kind: "platform" });

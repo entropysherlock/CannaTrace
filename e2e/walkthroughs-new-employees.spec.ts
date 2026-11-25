@@ -177,7 +177,7 @@ test("Hold and destroy waste", async ({ page }) => {
   await next(page);
 
   await onStep(page, "Destroy it when the time comes");
-  // Too early: CannaTrace refuses and says when it becomes allowed
+  // Too early: Leaf2Sale refuses and says when it becomes allowed
   await page.locator('form:has(input[name="reason"]) select[name="status"]').selectOption("DESTROYED");
   await page.locator('input[name="reason"]').fill("Mixed with cat litter");
   await page.getByRole("checkbox", { name: /mixed with at least 50%/ }).check();

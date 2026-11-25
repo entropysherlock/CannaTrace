@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requireSession } from "@/lib/session";
 
-export const metadata = { title: "Search · CannaTrace" };
+export const metadata = { title: "Search · Leaf2Sale" };
 
 type Hit = { href: string; title: string; sub: string };
 
@@ -70,7 +70,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       <PageHeader title="Search" subtitle="Packages, plants, harvests, products, orders, and customers across your business." />
       <form action="/search" role="search" className="mb-6 flex max-w-2xl gap-2">
         <label className="relative flex-1">
-          <span className="sr-only">Search CannaTrace</span>
+          <span className="sr-only">Search Leaf2Sale</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <input name="q" type="search" defaultValue={q} autoFocus placeholder="A tag, lot, product, order number, or customer" className={`${inputClass} pl-9`} />
         </label>

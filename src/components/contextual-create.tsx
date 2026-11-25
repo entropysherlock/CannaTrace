@@ -285,7 +285,7 @@ function CreateDialog({
         setConfirm(result.confirm ?? null);
         setError(result.existing || result.confirm ? null : (result.error ?? "Could not save. Nothing was changed."));
       } catch {
-        setError("Could not reach CannaTrace. Check the connection and try again. Nothing was changed.");
+        setError("Could not reach Leaf2Sale. Check the connection and try again. Nothing was changed.");
       }
     });
 

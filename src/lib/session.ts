@@ -24,7 +24,7 @@ export type SessionToken = {
   role: Role;
   name: string;
   /**
-   * Set while CannaTrace support is inside a customer's account: orgId/facilityId are the customer's,
+   * Set while Leaf2Sale support is inside a customer's account: orgId/facilityId are the customer's,
    * and these say where to send the support person back to and when the visit ends (epoch ms).
    */
   support?: { homeOrgId: string; homeFacilityId: string; until: number };
@@ -42,7 +42,7 @@ export type Session = SessionToken & {
   customRoleId: string | null;
   /** Signed in to the public live demo's sample business. */
   isDemo?: boolean;
-  /** CannaTrace support is visiting this customer's account. */
+  /** Leaf2Sale support is visiting this customer's account. */
   supportVisit?: { orgName: string; until: number };
   /** Facilities this person may work at; null or missing means every facility. */
   facilityIds?: string[] | null;
@@ -175,7 +175,7 @@ async function resolve(session: SessionToken): Promise<Session | null> {
 }
 
 /**
- * A support visit: the person is CannaTrace staff, still a support admin and still active, and the
+ * A support visit: the person is Leaf2Sale staff, still a support admin and still active, and the
  * visit has not run out. They act with an owner's permissions, under a name that says "support".
  */
 async function resolveSupport(session: SessionToken, visit: NonNullable<SessionToken["support"]>): Promise<Session | null> {
@@ -192,10 +192,10 @@ async function resolveSupport(session: SessionToken, visit: NonNullable<SessionT
   return {
     ...session,
     role: "OWNER",
-    name: `${user.name} (CannaTrace support)`,
+    name: `${user.name} (Leaf2Sale support)`,
     customRoleId: null,
     permissions: permissionsFor("OWNER"),
-    roleName: "CannaTrace support",
+    roleName: "Leaf2Sale support",
     facilityIds: null,
     isDemo: org.isDemo,
     supportVisit: { orgName: org.name, until: visit.until },

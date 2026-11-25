@@ -145,7 +145,7 @@ async function lockBatch(tx: Tx, actor: Actor, batchId: string) {
 /** Give individual tags to plants in a batch. They become vegetative plants tracked one by one. */
 export async function tagPlants(
   actor: Actor,
-  /** Give tags, or `generate` a count to have CannaTrace make new unique tags (PLT-000123). */
+  /** Give tags, or `generate` a count to have Leaf2Sale make new unique tags (PLT-000123). */
   input: { batchId: string; tags?: string[]; generate?: number; locationId?: string | null },
 ): Promise<Plant[]> {
   const given = (input.tags ?? []).map((tag) => normalizeTag(tag));

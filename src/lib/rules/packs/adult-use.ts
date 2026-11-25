@@ -6,7 +6,7 @@ import type { Rule, StatePack } from "../types";
  *
  * Kept deliberately narrow: per-sale or per-day purchase limits, the minimum age, and testing
  * before sale where the official text says so. Where a state counts products by an equivalency
- * CannaTrace can't calculate yet (THC in concentrates, edibles by package weight), a REFERENCE
+ * Leaf2Sale can't calculate yet (THC in concentrates, edibles by package weight), a REFERENCE
  * rule says so instead of guessing a number.
  */
 
@@ -53,7 +53,7 @@ export const AK = pack({
   state: "AK",
   name: "Alaska",
   regulator: { name: "Alcohol and Marijuana Control Office (AMCO)", url: "https://www.commerce.alaska.gov/web/amco" },
-  coverage: `Daily retail limits (3 AAC 306.355), minimum age (AS 17.38.020), and testing before sale (3 AAC 306.455). Alaska also caps combined THC at 5,600 mg a day across all products; CannaTrace applies that to edibles only. ${NOT_YET}`,
+  coverage: `Daily retail limits (3 AAC 306.355), minimum age (AS 17.38.020), and testing before sale (3 AAC 306.455). Alaska also caps combined THC at 5,600 mg a day across all products; Leaf2Sale applies that to edibles only. ${NOT_YET}`,
   limit: {
     period: "DAY",
     flowerGrams: OZ,
@@ -97,7 +97,7 @@ export const CT = pack({
   state: "CT",
   name: "Connecticut",
   regulator: { name: "Department of Consumer Protection (DCP)", url: "https://portal.ct.gov/cannabis" },
-  coverage: `Per-transaction limit set by DCP and minimum age. DCP counts other products by flower equivalents CannaTrace doesn't calculate yet, so only the flower number is enforced. Testing rules not yet verified. ${NOT_YET}`,
+  coverage: `Per-transaction limit set by DCP and minimum age. DCP counts other products by flower equivalents Leaf2Sale doesn't calculate yet, so only the flower number is enforced. Testing rules not yet verified. ${NOT_YET}`,
   limit: {
     period: "TRANSACTION",
     flowerGrams: g(0.5),
@@ -132,7 +132,7 @@ export const IL = pack({
   state: "IL",
   name: "Illinois",
   regulator: { name: "Department of Financial and Professional Regulation (IDFPR)", url: "https://idfpr.illinois.gov/profs/adultusecan.html" },
-  coverage: `Resident purchase limits as doubled by Public Act 104-0463 (June 12, 2026) and the ID check (410 ILCS 705/15-85). Non-residents get half; CannaTrace can't tell residents apart yet, so staff must check. Testing rules not yet verified. ${NOT_YET}`,
+  coverage: `Resident purchase limits as doubled by Public Act 104-0463 (June 12, 2026) and the ID check (410 ILCS 705/15-85). Non-residents get half; Leaf2Sale can't tell residents apart yet, so staff must check. Testing rules not yet verified. ${NOT_YET}`,
   limit: {
     period: "TRANSACTION",
     flowerGrams: 60,
@@ -199,7 +199,7 @@ export const MA = pack({
   name: "Massachusetts",
   regulator: { name: "Cannabis Control Commission (CCC)", url: "https://masscannabiscontrol.com" },
   trackingSystem: "Metrc",
-  coverage: `Daily limit raised to 2 ounces by H.5350 (Chapter 65 of the Acts of 2026) and CCC Administrative Order No. 6, minimum age, and testing (935 CMR 500.160). Concentrate is counted by THC content, which CannaTrace doesn't calculate yet. ${NOT_YET}`,
+  coverage: `Daily limit raised to 2 ounces by H.5350 (Chapter 65 of the Acts of 2026) and CCC Administrative Order No. 6, minimum age, and testing (935 CMR 500.160). Concentrate is counted by THC content, which Leaf2Sale doesn't calculate yet. ${NOT_YET}`,
   limit: {
     period: "DAY",
     flowerGrams: g(2),
@@ -218,7 +218,7 @@ export const MA = pack({
     {
       id: "ma-concentrate",
       title: "Concentrate counted by THC",
-      summary: "The 2-ounce limit equals 10 grams of active THC in concentrate (not product weight). Check concentrate THC by hand until CannaTrace calculates it.",
+      summary: "The 2-ounce limit equals 10 grams of active THC in concentrate (not product weight). Check concentrate THC by hand until Leaf2Sale calculates it.",
       citation: "CCC Administrative Order No. 6",
       url: "https://masscannabiscontrol.com/2026/04/administrative-order-relative-to-equivalency-and-conversion-standards-for-marijuana-products-april-19-2026/",
     },
@@ -341,7 +341,7 @@ export const OH = pack({
   state: "OH",
   name: "Ohio",
   regulator: { name: "Division of Cannabis Control (DCC)", url: "https://com.ohio.gov/divisions-and-programs/cannabis-control" },
-  coverage: `Daily adult-use limits (OAC 1301:18-8-08(A)(2), eff. Aug. 28, 2025) and minimum age (R.C. 3780.01). The 15,000 mg THC limit covers all non-plant products; CannaTrace applies it to edibles only. Testing rules not yet verified. ${NOT_YET}`,
+  coverage: `Daily adult-use limits (OAC 1301:18-8-08(A)(2), eff. Aug. 28, 2025) and minimum age (R.C. 3780.01). The 15,000 mg THC limit covers all non-plant products; Leaf2Sale applies it to edibles only. Testing rules not yet verified. ${NOT_YET}`,
   limit: {
     period: "DAY",
     flowerGrams: g(2.5),
@@ -355,7 +355,7 @@ export const OH = pack({
     {
       id: "oh-thc-products",
       title: "15,000 mg THC covers vapes and extracts too",
-      summary: "Everything that isn't plant material counts toward 15,000 mg of total THC a day, including vapes and extracts. Check those by hand until CannaTrace adds THC per unit for concentrates.",
+      summary: "Everything that isn't plant material counts toward 15,000 mg of total THC a day, including vapes and extracts. Check those by hand until Leaf2Sale adds THC per unit for concentrates.",
       citation: "OAC 1301:18-8-08(A)(2)(c)(ii)",
       url: "https://codes.ohio.gov/ohio-administrative-code/rule-1301:18-8-08",
     },
@@ -366,7 +366,7 @@ export const OR = pack({
   state: "OR",
   name: "Oregon",
   regulator: { name: "Oregon Liquor and Cannabis Commission (OLCC)", url: "https://www.oregon.gov/olcc/marijuana/" },
-  coverage: `Daily retail limits (OAR 845-025-2800(4)) and age check (OAR 845-025-2820(1)). Solid and liquid products are limited by package weight, which CannaTrace doesn't track. Testing rules not yet verified. ${NOT_YET}`,
+  coverage: `Daily retail limits (OAR 845-025-2800(4)) and age check (OAR 845-025-2820(1)). Solid and liquid products are limited by package weight, which Leaf2Sale doesn't track. Testing rules not yet verified. ${NOT_YET}`,
   limit: {
     period: "DAY",
     flowerGrams: g(2),
@@ -391,7 +391,7 @@ export const RI = pack({
   state: "RI",
   name: "Rhode Island",
   regulator: { name: "Cannabis Control Commission (CCC)", url: "https://ccc.ri.gov" },
-  coverage: `Purchase limit and minimum age (R.I. Gen. Laws § 21-28.11-22). Other products count through an equivalency table CannaTrace doesn't apply yet. Testing rules not yet verified. ${NOT_YET}`,
+  coverage: `Purchase limit and minimum age (R.I. Gen. Laws § 21-28.11-22). Other products count through an equivalency table Leaf2Sale doesn't apply yet. Testing rules not yet verified. ${NOT_YET}`,
   limit: {
     period: "TRANSACTION",
     flowerGrams: OZ,
@@ -421,7 +421,7 @@ export const WA = pack({
   state: "WA",
   name: "Washington",
   regulator: { name: "Liquor and Cannabis Board (LCB)", url: "https://lcb.wa.gov" },
-  coverage: `Per-transaction limits (RCW 69.50.360(3)), minimum age, and testing before sale (WAC 314-55-102). Infused products are limited by package weight, which CannaTrace doesn't track. ${NOT_YET}`,
+  coverage: `Per-transaction limits (RCW 69.50.360(3)), minimum age, and testing before sale (WAC 314-55-102). Infused products are limited by package weight, which Leaf2Sale doesn't track. ${NOT_YET}`,
   limit: {
     period: "TRANSACTION",
     flowerGrams: OZ,

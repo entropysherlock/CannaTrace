@@ -81,7 +81,7 @@ export const NM: StatePack = {
       kind: "REFERENCE",
       title: "Sales records kept 12 months",
       summary:
-        "Each sale records the employee's first name and number, date and time, products and quantities, prices, and excise tax. Retail records are kept at least 12 months. CannaTrace records all of this on every sale and never deletes it.",
+        "Each sale records the employee's first name and number, date and time, products and quantities, prices, and excise tax. Retail records are kept at least 12 months. Leaf2Sale records all of this on every sale and never deletes it.",
       source: src("16.8.2.40(L) NMAC"),
     },
   ],

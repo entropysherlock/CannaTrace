@@ -9,7 +9,7 @@ test("Tally plans a receiving from plain English, runs it after one Confirm, and
 
   const tag = `E2E-${Date.now().toString(36).toUpperCase()}`;
   await page.keyboard.press("Control+j");
-  const panel = page.getByRole("dialog", { name: "CannaTrace assistant" });
+  const panel = page.getByRole("dialog", { name: "Leaf2Sale assistant" });
   await panel.getByLabel("Message the assistant").fill(`receive ${tag} of gummies into Vault A`);
   await panel.getByLabel("Message the assistant").press("Enter");
 

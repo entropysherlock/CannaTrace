@@ -188,7 +188,7 @@ test("a budtender can use the register but not change the menu or store rules", 
   await expect(page.getByRole("link", { name: "Menu" })).toHaveCount(0);
   await page.goto("/pos/menu");
   await expect(page).toHaveURL(/\/dashboard/);
-  // Exit returns to the rest of CannaTrace
+  // Exit returns to the rest of Leaf2Sale
   await page.goto("/pos");
   await page.getByRole("link", { name: "Exit" }).click();
   await expect(page).toHaveURL(/\/dashboard/);

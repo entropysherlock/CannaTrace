@@ -16,7 +16,7 @@ export default async function AccountPage() {
       <div className="max-w-lg space-y-6">
         <Card title="Your phones">
           <p className="mb-3 text-sm text-slate-600">
-            Link your phone to take a photo of a lab certificate, manifest, or harvest sheet and send it straight to CannaTrace. A linked phone stays
+            Link your phone to take a photo of a lab certificate, manifest, or harvest sheet and send it straight to Leaf2Sale. A linked phone stays
             signed in, so there is nothing to type.
           </p>
           {session.support ? <p className="text-sm text-slate-600">Support visits can&apos;t link phones.</p> : <LinkPhoneCard />}

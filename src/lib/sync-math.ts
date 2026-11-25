@@ -173,13 +173,13 @@ export function explainError(code: string | null, system: SystemName): Explanati
     case "NOT_CONFIGURED":
       return {
         title: `${name} is not connected yet`,
-        meaning: `This facility is set to report to ${name}, but the keys CannaTrace needs to sign in have not been added.`,
+        meaning: `This facility is set to report to ${name}, but the keys Leaf2Sale needs to sign in have not been added.`,
         fix: "Ask whoever manages your hosting to add the keys listed in the README, then press Retry. Nothing has been lost; the record is waiting here.",
       };
     case "AUTH_FAILED":
       return {
         title: `${name} did not accept the sign-in`,
-        meaning: "The API key or password CannaTrace has on file was refused. Keys are often replaced when an employee leaves or a password changes.",
+        meaning: "The API key or password Leaf2Sale has on file was refused. Keys are often replaced when an employee leaves or a password changes.",
         fix: `Create a new API key in ${name}, update it in your hosting settings, then press Retry.`,
       };
     case "FORBIDDEN":
@@ -208,26 +208,26 @@ export function explainError(code: string | null, system: SystemName): Explanati
       };
     case "RATE_LIMITED":
       return {
-        title: `${name} asked CannaTrace to slow down`,
+        title: `${name} asked Leaf2Sale to slow down`,
         meaning: "Too many records were sent in a short time. This is temporary.",
-        fix: "Nothing to do. CannaTrace will try again on its own.",
+        fix: "Nothing to do. Leaf2Sale will try again on its own.",
       };
     case "SERVER_ERROR":
       return {
         title: `${name} is having problems`,
         meaning: "The state system returned an error on its side. Your record is fine.",
-        fix: "Nothing to do yet. CannaTrace will try again on its own. If this lasts more than a few hours, check the state system's status page.",
+        fix: "Nothing to do yet. Leaf2Sale will try again on its own. If this lasts more than a few hours, check the state system's status page.",
       };
     case "NETWORK":
       return {
         title: `Could not reach ${name}`,
         meaning: "The connection timed out or dropped before the state system answered.",
-        fix: "Nothing to do yet. CannaTrace will try again on its own.",
+        fix: "Nothing to do yet. Leaf2Sale will try again on its own.",
       };
     default:
       return {
         title: "Something unexpected went wrong",
-        meaning: "CannaTrace got a response it does not recognise. The details are shown below.",
+        meaning: "Leaf2Sale got a response it does not recognise. The details are shown below.",
         fix: "Press Retry once. If it fails again, enter the record in the state system by hand and mark it handled.",
       };
   }

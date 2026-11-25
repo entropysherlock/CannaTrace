@@ -48,7 +48,7 @@ async function log(actor: LabelActor, entityType: string, entityId: string, acti
 
 /**
  * Give a facility its starter templates: all of them the first time anyone opens labels there, and any
- * starter added in a later CannaTrace release (matched by name, so an edited or archived template is left alone).
+ * starter added in a later Leaf2Sale release (matched by name, so an edited or archived template is left alone).
  * Safe to call repeatedly.
  */
 export async function ensureStarterTemplates(actor: LabelActor, state: string) {
@@ -80,7 +80,7 @@ export async function ensureStarterTemplates(actor: LabelActor, state: string) {
         .onConflictDoNothing()
         .returning();
       if (!t) return; // Someone else created it at the same moment.
-      await tx.insert(labelTemplateVersions).values({ templateId: t.id, version: 1, widthMm: String(s.design.widthMm), heightMm: String(s.design.heightMm), elements: s.design.elements, note: "Starter template", userName: "CannaTrace" });
+      await tx.insert(labelTemplateVersions).values({ templateId: t.id, version: 1, widthMm: String(s.design.widthMm), heightMm: String(s.design.heightMm), elements: s.design.elements, note: "Starter template", userName: "Leaf2Sale" });
     });
   }
 }
@@ -490,7 +490,7 @@ export async function testPrint(actor: LabelActor, input: { widthMm: number; hei
   const pdf = await renderLabelsPdf({ widthMm: W, heightMm: H, elements }, [{ ref: "test", sourceId: "test", values: {} }], {
     offsetXMm: printer ? Number(printer.offsetXMm) : 0,
     offsetYMm: printer ? Number(printer.offsetYMm) : 0,
-    title: "CannaTrace test label",
+    title: "Leaf2Sale test label",
   });
   await log(actor, "printer", printer?.id ?? "none", "labels.test_print", { widthMm: W, heightMm: H });
   return pdf;
