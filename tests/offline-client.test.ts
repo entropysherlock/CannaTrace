@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildSale, checkIn, enqueue, loadQueue, nextLocalNumber, pendingCount, priceCart, saveSnapshot, loadSnapshot, stockLeft, syncQueue, type CartItem, type KeyValueStore } from "@/lib/offline-client";
+import { buildSale, checkIn, endOutage, enqueue, openOutageStart, sendOutages, startOutage, loadQueue, nextLocalNumber, pendingCount, priceCart, saveSnapshot, loadSnapshot, stockLeft, syncQueue, type CartItem, type KeyValueStore } from "@/lib/offline-client";
 import type { OfflineSale, OfflineSnapshot } from "@/lib/offline-types";
 
 const memory = (): KeyValueStore & { data: Map<string, string> } => {
@@ -165,5 +165,48 @@ describe("the queue on the device", () => {
     // A parked sale is never silently dropped or retried forever.
     s = await syncQueue(async () => { throw new Error("should not be called"); }, kv);
     expect(s.sent).toBe(0);
+  });
+});
+
+describe("offline register checks and outage log (APEX-23b)", () => {
+  const daily: OfflineSnapshot = { ...snap, settings: { ...snap.settings, dailyLimits: true } };
+  const base = { customerType: "ADULT_USE" as const, birthDate: "1990-05-05", idExpires: "2030-01-01", discount: null, cashTendered: "500", localNumber: "L-1", now: new Date("2026-11-20T18:00:00Z") };
+
+  it("blocks an under-21 customer and an over-limit cart at the register, before any money is taken", () => {
+    expect(checkIn(snap, { birthDate: "2010-01-01", idExpires: "2030-01-01", customerType: "ADULT_USE" }, new Date("2026-11-20T18:00:00Z"))).toMatch(/minimum age is 21/);
+    expect(() => buildSale(snap, { ...base, cart: cart("jar", 17) })).toThrow(/limit is 56.7 g/);
+  });
+
+  it("counts the same customer's earlier sale today toward the daily limit", () => {
+    const first = buildSale(daily, { ...base, cart: cart("jar", 10), idNumber: "NM123" });
+    const queue = [{ sale: first, state: "waiting" as const, attempts: 0 }];
+    expect(() => buildSale(daily, { ...base, cart: cart("jar", 10), idNumber: "NM123", queue })).toThrow(/already bought from this register today.*56.7 g/);
+    // A different customer, or the same one tomorrow, starts fresh.
+    expect(() => buildSale(daily, { ...base, cart: cart("jar", 10), idNumber: "OTHER", queue })).not.toThrow();
+    expect(() => buildSale(daily, { ...base, cart: cart("jar", 10), idNumber: "NM123", queue, now: new Date("2026-11-22T18:00:00Z") })).not.toThrow();
+  });
+
+  it("stamps each sale with how old the device's menu and test results were", () => {
+    expect(buildSale(snap, { ...base, cart: cart("papers", 1) }).snapshotSavedAt).toBe(snap.savedAt);
+  });
+
+  it("logs an outage when the connection drops and keeps it until the server has it", async () => {
+    const kv = memory();
+    startOutage(new Date("2026-11-20T10:00:00Z"), kv);
+    startOutage(new Date("2026-11-20T10:30:00Z"), kv); // a second call keeps the first start
+    expect(openOutageStart(kv)).toBe("2026-11-20T10:00:00.000Z");
+    const outage = endOutage(3, new Date("2026-11-20T11:00:00Z"), kv);
+    expect(outage).toEqual({ startedAt: "2026-11-20T10:00:00.000Z", endedAt: "2026-11-20T11:00:00.000Z", sales: 3 });
+    expect(openOutageStart(kv)).toBeNull();
+    const refuse = (async () => new Response("no", { status: 500 })) as typeof fetch;
+    expect(await sendOutages(refuse, kv)).toBe(0);
+    const bodies: string[] = [];
+    const accept = (async (_url: string, init?: RequestInit) => {
+      bodies.push(String(init?.body));
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    expect(await sendOutages(accept, kv)).toBe(1);
+    expect(JSON.parse(bodies[0])).toMatchObject({ sales: 3 });
+    expect(await sendOutages(accept, kv)).toBe(0);
   });
 });

@@ -118,6 +118,7 @@ export async function saveItemDetailsAction(_state: FormState, formData: FormDat
       pesticides: field(formData, "pesticides"),
       solvents: field(formData, "solvents"),
       mustRefrigerate: field(formData, "mustRefrigerate") === "yes",
+      returnable: field(formData, "returnable") === "yes",
       shelfLifeDays: field(formData, "shelfLifeDays"),
     });
     revalidatePath("/catalog");

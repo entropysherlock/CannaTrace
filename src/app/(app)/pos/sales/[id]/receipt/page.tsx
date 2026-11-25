@@ -19,7 +19,7 @@ import {
   sales,
 } from "@/db/schema";
 import { db } from "@/lib/db";
-import { getRetailSettings, happenedWithin, returnableLines, returnsForSale } from "@/lib/pos";
+import { getRetailSettings, happenedWithin, returnableLines, returnsForSale, tenderShares } from "@/lib/pos";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { NextCustomer } from "@/components/register/next-customer";
@@ -85,6 +85,16 @@ export default async function ReceiptPage({
     returnsForSale(sale.id),
     returnableLines(db, sale.id),
   ]);
+  // Refunds go back the way the customer paid (APEX-41). Older sales with no payment split keep both choices.
+  const tender = tenderShares(sale);
+  const paidExpected = !tender.known ? null : tender.debit.isZero() ? "CASH" : tender.cash.isZero() ? "CARD" : "SPLIT";
+  const allRefundOptions = [
+    { value: "CASH", label: "Cash from my open drawer" },
+    { value: "CARD", label: "To their card (do it on the card terminal)" },
+    { value: "SPLIT", label: "The way they paid: cash from my drawer and the rest to their card" },
+  ];
+  const refundOptions = paidExpected ? allRefundOptions.filter((o) => o.value === paidExpected) : allRefundOptions.filter((o) => o.value !== "SPLIT");
+  const refundDefault = paidExpected ?? (sale.paymentMethod === "CASH" ? "CASH" : "CARD");
   const canReturn = sale.status === "COMPLETED" && can(session, "pos.manage") && returnable.some((l) => new Decimal(l.returnable).gt(0));
   const canVoid =
     sale.status === "COMPLETED" &&
@@ -246,7 +256,7 @@ export default async function ReceiptPage({
                         {returns.map((r) => (
                           <li key={r.id} className="flex justify-between gap-3">
                             <span>
-                              {r.number} · {r.createdAt.toLocaleDateString("en-US", { timeZone: zone })} · {r.refundMethod === "CASH" ? "cash" : "card"} refund
+                              {r.number} · {r.createdAt.toLocaleDateString("en-US", { timeZone: zone })} · {r.refundMethod === "CASH" ? "cash" : r.refundMethod === "SPLIT" ? "cash and card" : "card"} refund
                               <span className="block text-xs text-slate-500">
                                 {r.disposition === "RESTOCK" ? "Back to stock" : "Written off"}: {r.reason}
                               </span>
@@ -291,9 +301,12 @@ export default async function ReceiptPage({
                     </select>
                   </Field>
                   <Field label="Refund">
-                    <select name="refundMethod" required defaultValue={sale.paymentMethod === "CASH" ? "CASH" : "CARD"} className={inputClass}>
-                      <option value="CASH">Cash from my open drawer</option>
-                      <option value="CARD">To their card (do it on the card terminal)</option>
+                    <select name="refundMethod" required defaultValue={refundDefault} className={inputClass}>
+                      {refundOptions.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
                     </select>
                   </Field>
                   <Field label="Reason" hint="Required. Shown in the audit trail.">

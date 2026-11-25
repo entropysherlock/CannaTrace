@@ -172,7 +172,7 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
   const unit = pkg.unit;
   const num = (value: string) => new Decimal(value).toString();
   const editable = pkg.status !== "DESTROYED" && pkg.status !== "FINISHED";
-  const [facility] = await db.select({ state: facilities.state }).from(facilities).where(eq(facilities.id, session.facilityId));
+  const [facility] = await db.select({ state: facilities.state, witness: facilities.wasteWitnessRequired }).from(facilities).where(eq(facilities.id, session.facilityId));
   const pack = packFor(facility?.state);
   const wasteRuleHere = wasteRule(pack);
   const waste = pack && wasteRuleHere ? { state: pack.name, holdHours: wasteRuleHere.holdHours, minMixPercent: wasteRuleHere.minMixPercent } : null;
@@ -389,6 +389,16 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                 <Field label="Reason" hint="Required. Shown in the audit trail.">
                   <input name="reason" required className={inputClass} />
                 </Field>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p>
+                    <strong>If destroying:</strong> waste is held at least {waste?.holdHours ?? 72} hours first and must be recorded on video. Keep the footage for at least 120 days.
+                  </p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <input name="videoCamera" aria-label="Camera that recorded it" placeholder="Camera name or number" className={inputClass} />
+                    <input name="videoRecordedAt" type="datetime-local" aria-label="Date and time recorded" className={inputClass} />
+                  </div>
+                  <input name="witnessName" aria-label="Second person who watched" placeholder={facility?.witness ? "Name of the second person who watched (required)" : "Second person who watched (optional)"} className={`${inputClass} mt-2`} />
+                </div>
                 {waste ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                     <p>

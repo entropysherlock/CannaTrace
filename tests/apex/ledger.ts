@@ -36,7 +36,7 @@ export function priceSale(lines: LedgerLine[], discountPct: bigint, rates: Rates
   return { subtotal, discount, excise, salesTax, total: taxable + excise + salesTax };
 }
 
-export type SaleRec = { key: string; fac: string; calc: SaleCalc; lines: LedgerLine[]; cashKept: bigint; debit: bigint; refunded: bigint; voided: boolean; drawer: string; offline: boolean };
+export type SaleRec = { key: string; fac: string; calc: SaleCalc; lines: LedgerLine[]; cashKept: bigint; debit: bigint; refunded: bigint; cashRefunded?: bigint; voided: boolean; drawer: string; offline: boolean };
 
 export class Ledger {
   plants = { tagged: 0, harvested: 0, destroyed: 0 };

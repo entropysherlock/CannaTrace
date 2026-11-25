@@ -234,6 +234,10 @@ async function recordOfflineSaleOnce(actor: Actor, input: OfflineSale): Promise<
       before,
     );
     if (limitProblem) notes.push(`Purchase limit: ${limitProblem}`);
+    // The register checks age, limits and test status on the device. When the copy it used was old, test status may have changed.
+    const copySaved = input.snapshotSavedAt ? new Date(input.snapshotSavedAt) : null;
+    // Sales queued before registers sent this date carry none; they are not flagged for that alone.
+    if (copySaved && !Number.isNaN(copySaved.getTime()) && soldAt.getTime() - copySaved.getTime() > 24 * 3_600_000) notes.push(`The register's menu and test results were ${Math.floor((soldAt.getTime() - copySaved.getTime()) / 3_600_000)} hours old when this was sold. Check that every product was still passing its lab test.`);
     if (settings.dailyLimits && !customerKey) notes.push("This store counts limits per customer per day, but this offline sale has no ID number, so earlier purchases that day could not be added up. Look for them by hand.");
 
     // The seller named on the sale, when they really are on this business's team.

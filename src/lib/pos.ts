@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import Decimal from "decimal.js";
-import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { inArray, and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 import {
   discountPresets,
   drawerSessions,
@@ -298,10 +298,10 @@ export async function drawerSummary(tx: Tx | typeof db, session: DrawerSession):
   const debitOf = (s: Sale) => new Decimal(s.debitAmount ?? (s.paymentMethod === "DEBIT" ? (s.total ?? 0) : 0));
   const cashKept = done.map((s) => new Decimal(s.total ?? 0).sub(debitOf(s)));
   const refunds = await tx
-    .select({ amount: saleReturns.amount })
+    .select({ amount: saleReturns.amount, cash: saleReturns.cashAmount })
     .from(saleReturns)
-    .where(and(eq(saleReturns.drawerSessionId, session.id), eq(saleReturns.refundMethod, "CASH")));
-  const cashRefunds = refunds.reduce((acc, r) => acc.add(r.amount), new Decimal(0));
+    .where(and(eq(saleReturns.drawerSessionId, session.id), inArray(saleReturns.refundMethod, ["CASH", "SPLIT"])));
+  const cashRefunds = refunds.reduce((acc, r) => acc.add(r.cash ?? r.amount), new Decimal(0));
   return {
     cashRefunds,
     refundCount: refunds.length,
@@ -486,6 +486,7 @@ export type CartRow = {
   unitPrice: string;
   limitCategory: LimitCategory;
   limitPerUnit: string | null;
+  returnable?: boolean;
 };
 
 export async function cartLines(tx: Tx | typeof db, saleId: string): Promise<CartRow[]> {
@@ -499,6 +500,7 @@ export async function cartLines(tx: Tx | typeof db, saleId: string): Promise<Car
       unitPrice: saleLines.unitPrice,
       limitCategory: items.limitCategory,
       limitPerUnit: items.limitPerUnit,
+      returnable: items.returnable,
     })
     .from(saleLines)
     .innerJoin(items, eq(items.id, saleLines.itemId))
@@ -523,7 +525,7 @@ export function saleTotals(
   const before = cartTotals(lines, options);
   // Rewards the shopper chose, cut down to what fits this cart right now (a cart that shrank uses fewer).
   const rewardsApplied =
-    program?.enabled && sale.rewardMemberId && (sale.rewardsUsed ?? 0) > 0 ? rewardsThatFit(sale.rewardsUsed ?? 0, before.subtotal.sub(before.promo).sub(before.discount), program) : 0;
+    program?.enabled && sale.rewardMemberId && (sale.rewardsUsed ?? 0) > 0 && !lines.some((l) => l.returnable) ? rewardsThatFit(sale.rewardsUsed ?? 0, before.subtotal.sub(before.promo).sub(before.discount), program) : 0;
   if (!rewardsApplied) return { ...before, rewardsApplied: 0 };
   return { ...cartTotals(lines, { ...options, rewardDiscount: new Decimal(program!.redeemDollars).mul(rewardsApplied) }), rewardsApplied };
 }
@@ -839,6 +841,9 @@ export async function setRewardsUsed(actor: Actor, input: { saleId: string; coun
       throw new InventoryError(`${member.firstName} has ${member.points} points: enough for ${Math.floor(member.points / program.redeemPoints)} reward${Math.floor(member.points / program.redeemPoints) === 1 ? "" : "s"}.`);
     if (count > 0) {
       const lines = await cartLines(tx, sale.id);
+      const takenBack = lines.find((l) => l.returnable);
+      if (takenBack)
+        throw new InventoryError(`Reward points can't pay for ${takenBack.itemName} because it can be returned. Take it out of the cart or don't use rewards on this sale.`);
       const settings = await getRetailSettings(tx, actor.facilityId);
       const promos = await cartPromos(tx, actor, lines);
       const before = saleTotals(lines, sale, settings, null, promos.total);
@@ -1068,7 +1073,15 @@ export function msAgo(ms: number): Date {
 // ---------- Returns ----------
 
 export const RETURN_DISPOSITIONS = ["RESTOCK", "DISPOSE"] as const;
-export const REFUND_METHODS = ["CASH", "CARD"] as const;
+export const REFUND_METHODS = ["CASH", "CARD", "SPLIT"] as const;
+
+/** How a sale was paid: the cash and debit shares of its total. Older sales without a saved debit amount are all one or the other. */
+export function tenderShares(sale: { paymentMethod: string | null; total: string | null; debitAmount: string | null }) {
+  const total = new Decimal(sale.total ?? 0);
+  const known = sale.debitAmount != null || sale.paymentMethod === "CASH" || sale.paymentMethod === "DEBIT";
+  const debit = new Decimal(sale.debitAmount ?? (sale.paymentMethod === "DEBIT" ? total : 0));
+  return { known, debit, cash: total.sub(debit) };
+}
 
 export type ReturnableLine = { saleLineId: string; itemName: string; unit: string; sold: string; returned: string; returnable: string; unitPrice: string; promoDiscount: string };
 
@@ -1111,7 +1124,7 @@ export async function returnSale(
 ): Promise<{ number: string; amount: string }> {
   const reason = input.reason.trim().slice(0, 300);
   if (!reason) throw new InventoryError("Say why it's being returned. It goes in the audit trail.");
-  if (!(REFUND_METHODS as readonly string[]).includes(input.refundMethod)) throw new InventoryError("Choose how the refund is given: cash or card.");
+  if (!(REFUND_METHODS as readonly string[]).includes(input.refundMethod)) throw new InventoryError("Choose how the refund is given: the way the customer paid.");
   if (!(RETURN_DISPOSITIONS as readonly string[]).includes(input.disposition)) throw new InventoryError("Say whether the product is sealed (back to stock) or opened or damaged (written off).");
   const wanted = input.lines
     .map((l) => ({ saleLineId: String(l.saleLineId), raw: String(l.quantity ?? "").trim() }))
@@ -1126,10 +1139,20 @@ export async function returnSale(
         .select({ refunded: sql<string>`coalesce(sum(${saleReturns.amount}), 0)` })
         .from(saleReturns)
         .where(eq(saleReturns.saleId, sale.id));
+      // A refund goes back the way the customer paid (APEX-41): cash sales to cash, debit sales to the card, split sales
+      // in the same cash and card shares they paid.
+      const tender = tenderShares(sale);
+      if (tender.known) {
+        const expected = tender.debit.isZero() ? "CASH" : tender.cash.isZero() ? "CARD" : "SPLIT";
+        if (input.refundMethod !== expected) {
+          const words = { CASH: "cash", CARD: "back to their card", SPLIT: "in the same cash and card shares they paid" }[expected];
+          throw new InventoryError(`This sale was paid ${expected === "SPLIT" ? "part cash and part debit" : expected === "CASH" ? "in cash" : "by debit"}, so the refund goes ${words}.`);
+        }
+      }
       let drawerId: string | null = null;
-      if (input.refundMethod === "CASH") {
+      if (input.refundMethod === "CASH" || input.refundMethod === "SPLIT") {
         const drawer = await lockOpenDrawer(tx, actor);
-        if (!drawer) throw new InventoryError("Open your cash drawer to give a cash refund, or refund it to their card.");
+        if (!drawer) throw new InventoryError("Open your cash drawer to give the cash part of this refund.");
         drawerId = drawer.id;
       }
 
@@ -1160,6 +1183,15 @@ export async function returnSale(
       // The last return gives back exactly what's left, so the pennies always add up to the sale total.
       const amount = everything ? remaining : Decimal.min(remaining, subtotal.isZero() ? new Decimal(0) : total.mul(returnedValue).div(subtotal).toDecimalPlaces(2, Decimal.ROUND_HALF_UP));
 
+      // Cash share of the refund. The last return gives back exactly the cash that is left, so cash and card never exceed what was paid.
+      let cashAmount = input.refundMethod === "CASH" ? amount : new Decimal(0);
+      if (input.refundMethod === "SPLIT") {
+        const earlier = await tx.select({ method: saleReturns.refundMethod, amount: saleReturns.amount, cash: saleReturns.cashAmount }).from(saleReturns).where(eq(saleReturns.saleId, sale.id));
+        const cashBack = earlier.reduce((acc, r) => acc.add(r.cash ?? (r.method === "CASH" ? r.amount : 0)), new Decimal(0));
+        const proportional = total.isZero() ? new Decimal(0) : amount.mul(tender.cash).div(total).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+        cashAmount = Decimal.min(everything ? tender.cash.sub(cashBack) : proportional, amount, Decimal.max(tender.cash.sub(cashBack), 0));
+      }
+
       const number = await nextNumber(tx, actor.facilityId, "R");
       const [ret] = await tx
         .insert(saleReturns)
@@ -1171,6 +1203,7 @@ export async function returnSale(
           refundMethod: input.refundMethod,
           drawerSessionId: drawerId,
           amount: amount.toFixed(2),
+          cashAmount: cashAmount.toFixed(2),
           disposition: input.disposition,
           reason,
           userId: actor.userId,
@@ -1224,6 +1257,7 @@ export async function returnSale(
                 newQuantity: new Decimal(after.quantity).sub(take).toString(),
                 reasonCode: "DAMAGE",
                 note: `Customer return ${number} not resellable: ${reason}`,
+                returnWriteOff: true,
               });
             }
           }

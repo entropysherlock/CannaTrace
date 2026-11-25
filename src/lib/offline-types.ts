@@ -53,6 +53,8 @@ export type OfflineSale = {
   idNumber?: string;
   lines: { itemId: string; name: string; quantity: string; unitPrice: string; limitCategory?: "NONE" | "FLOWER" | "CONCENTRATE" | "EDIBLE"; limitPerUnit?: string | null }[];
   discount: { name: string; percent: string } | null;
+  /** When the menu, limits and test results on the device were saved. The server flags a sale made from a copy more than a day old (APEX-23b). */
+  snapshotSavedAt?: string;
   /** The tax rates the customer was charged at. Older queued sales have none. */
   rates?: { exciseTaxPercent: string; salesTaxPercent: string; medicalTaxExempt: boolean };
   total: string;
@@ -61,3 +63,6 @@ export type OfflineSale = {
 };
 
 export type OfflineSyncResult = { saleId: string; number: string; flagged: boolean; duplicate: boolean };
+
+/** A stretch with no internet at the register. The state expects a licensee that loses track-and-trace access to tell the division and keep records. */
+export type OfflineOutage = { startedAt: string; endedAt: string; sales: number };

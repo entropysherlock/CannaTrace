@@ -167,7 +167,7 @@ describe.skipIf(!hasDb)("Apex II financial fixes", () => {
     const lineId = (await db.execute<{ id: string }>(sql`select id from order_lines where order_id = ${order.id}`)).rows[0].id;
     await allocateToOrder(A2, { orderId: order.id, lineId, tag: (await db.select().from(packages).where(eq(packages.id, p.id)))[0].tag });
     const saleLine = (await db.execute<{ id: string }>(sql`select id from sale_lines where sale_id = ${c.id}`)).rows[0].id;
-    await returnSale(A2, { saleId: c.id, lines: [{ saleLineId: saleLine, quantity: "3" }], refundMethod: "CARD", disposition: "RESTOCK", reason: "customer changed mind" });
+    await returnSale(A2, { saleId: c.id, lines: [{ saleLineId: saleLine, quantity: "3" }], refundMethod: "CASH", disposition: "RESTOCK", reason: "customer changed mind" });
     await packOrder(A2, { orderId: order.id });
     const shipped = await shipOrder(A2, { orderId: order.id, driverId: drv.id, vehicleId: veh.id, departAt: `${today}T10:00` });
     const inv = (await db.execute<{ total: string }>(sql`select total from invoices where number = ${shipped.invoiceNumber} and facility_id = ${A2.facilityId}`)).rows[0];

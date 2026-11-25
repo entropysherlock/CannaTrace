@@ -124,6 +124,10 @@ export const facilities = pgTable(
     licenseExpires: text("license_expires"),
     /** False when an owner has hidden it from the facility menu and Dashboard. Nothing is deleted. */
     active: boolean("active").notNull().default(true),
+    /** Waste and destruction needs the name of a second person who watched it (off unless the owner turns it on). */
+    wasteWitnessRequired: boolean("waste_witness_required").notNull().default(false),
+    /** Quantity changes larger than this percent of a package need a manager or owner. Null turns the check off. */
+    adjustApprovalPercent: integer("adjust_approval_percent").default(25),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("facilities_org_license_key").on(t.orgId, t.licenseNumber)],
@@ -512,6 +516,8 @@ export const items = pgTable(
     pesticides: text("pesticides"),
     solvents: text("solvents"),
     mustRefrigerate: boolean("must_refrigerate").notNull().default(false),
+    /** The store takes this item back. Reward points cannot pay for it, so a returned sale never keeps the reward value (APEX-40). Most stores do not take back opened product. */
+    returnable: boolean("returnable").notNull().default(false),
     /** Days from the date packaged to the expiration date printed on labels. */
     shelfLifeDays: integer("shelf_life_days"),
   },
@@ -582,6 +588,10 @@ export const inventoryTransactions = pgTable(
     toLocationId: text("to_location_id"),
     reasonCode: text("reason_code"),
     note: text("note"),
+    /** Destruction only: which camera recorded it and when, so the footage can be found and kept 120 days. */
+    videoCamera: text("video_camera"),
+    videoRecordedAt: timestamp("video_recorded_at", { withTimezone: true }),
+    witnessName: text("witness_name"),
     userId: text("user_id").notNull(),
     createdAt: createdAt(),
   },
@@ -1451,11 +1461,13 @@ export const saleReturns = pgTable(
       .notNull()
       .references(() => sales.id),
     number: text("number").notNull(),
-    /** CASH (from an open drawer) or CARD (refunded on the card terminal). */
+    /** CASH (from an open drawer), CARD (refunded on the card terminal), or SPLIT (cash and card, for a sale paid both ways). */
     refundMethod: text("refund_method").notNull(),
     /** The drawer the cash came out of, for cash refunds. */
     drawerSessionId: text("drawer_session_id").references(() => drawerSessions.id),
     amount: money("amount").notNull(),
+    /** How much of the refund came out of the drawer as cash (a SPLIT refund returns cash and card shares). Null on older returns: all of a CASH refund, none of a CARD one. */
+    cashAmount: money("cash_amount"),
     /** RESTOCK (sealed, back on the shelf) or DISPOSE (opened or damaged, written off). */
     disposition: text("disposition").notNull(),
     reason: text("reason").notNull(),
