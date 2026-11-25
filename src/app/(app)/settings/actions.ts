@@ -13,6 +13,16 @@ import { createSession, requirePermission, requireSession } from "@/lib/session"
 import { stateName } from "@/lib/states";
 import { loadSampleFacility } from "@/lib/demo/sample-facility";
 
+const actorOf = (session: { orgId: string; userId: string; name: string; facilityId: string; role: string; customRoleId?: string | null; facilityIds?: string[] | null }) => ({
+  orgId: session.orgId,
+  userId: session.userId,
+  userName: session.name,
+  facilityId: session.facilityId,
+  role: session.role,
+  customRoleId: session.customRoleId ?? null,
+  facilityIds: session.facilityIds ?? null,
+});
+
 export async function switchFacility(formData: FormData): Promise<void> {
   const session = await requireSession();
   const [facility] = await db
@@ -39,7 +49,7 @@ function facilityInput(formData: FormData) {
 export async function addFacilityAction(_: FormState, formData: FormData): Promise<FormState> {
   try {
     const session = await requirePermission("settings.manage");
-    const f = await addFacility({ orgId: session.orgId, userId: session.userId, userName: session.name, facilityId: session.facilityId }, facilityInput(formData));
+    const f = await addFacility(actorOf(session), facilityInput(formData));
     revalidatePath("/", "layout");
     return { ok: `Added ${f.name}. Switch to it from the facility menu at the top to start using it.` };
   } catch (e) {
@@ -51,7 +61,7 @@ export async function updateFacilityAction(_: FormState, formData: FormData): Pr
   try {
     const session = await requirePermission("settings.manage");
     const { stateChanged } = await updateFacility(
-      { orgId: session.orgId, userId: session.userId, userName: session.name, facilityId: session.facilityId },
+      actorOf(session),
       field(formData, "facilityId"),
       facilityInput(formData),
     );
@@ -65,7 +75,7 @@ export async function updateFacilityAction(_: FormState, formData: FormData): Pr
 export async function renameBusinessAction(_: FormState, formData: FormData): Promise<FormState> {
   try {
     const session = await requirePermission("settings.manage");
-    const name = await renameBusiness({ orgId: session.orgId, userId: session.userId, userName: session.name, facilityId: session.facilityId }, field(formData, "name"));
+    const name = await renameBusiness(actorOf(session), field(formData, "name"));
     revalidatePath("/", "layout");
     return { ok: `Saved. Your business is now called ${name}.` };
   } catch (e) {
@@ -73,12 +83,6 @@ export async function renameBusinessAction(_: FormState, formData: FormData): Pr
   }
 }
 
-const actorOf = (session: { orgId: string; userId: string; name: string; facilityId: string }) => ({
-  orgId: session.orgId,
-  userId: session.userId,
-  userName: session.name,
-  facilityId: session.facilityId,
-});
 
 const roomInput = (formData: FormData) => ({ area: field(formData, "area"), name: field(formData, "name") });
 

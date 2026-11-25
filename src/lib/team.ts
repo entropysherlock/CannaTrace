@@ -8,6 +8,7 @@ import { auditLogs, customRoles, facilities, invites, organizations, passwordRes
 import { db } from "./db";
 import { InventoryError } from "./inventory-math";
 import { OWNER_ONLY, ROLES, ROLE_LABELS, can, cleanPermissions, permissionsFor, type Permission, type Role } from "./rbac";
+import { allowedFacilities } from "./facility-access";
 import type { Session, SessionToken } from "./session";
 import { checkEmail, checkPassword } from "./setup";
 
@@ -22,6 +23,18 @@ export function isOwner(session: Pick<Session, "role" | "customRoleId">): boolea
 
 const hasOwnerOnly = (permissions: readonly Permission[]) => permissions.some((p) => OWNER_ONLY.includes(p));
 export const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+
+/**
+ * No-escalation rule (APEX-11): someone who is not an owner can only hand out, change, or take over access that is
+ * no more than their own, both in what people may do and in which facilities they may work at.
+ */
+const within = (wanted: readonly Permission[], own: readonly Permission[]) => wanted.every((p) => own.includes(p));
+const facilitiesWithin = (wanted: readonly string[] | null, own: readonly string[] | null) =>
+  own === null || (wanted !== null && wanted.every((id) => own.includes(id)));
+
+function ownFacilities(session: Session): string[] | null {
+  return allowedFacilities({ role: session.role, customRoleId: session.customRoleId, facilityIds: session.facilityIds });
+}
 
 function needTeamAccess(session: Session) {
   if (!can(session, "users.manage")) throw new InventoryError("Your role does not allow managing the team. Ask an owner.");
@@ -52,12 +65,16 @@ function checkCanGrant(session: Session, choice: RoleChoice) {
   if ((choice.role === "OWNER" && !choice.customRoleId) || hasOwnerOnly(choice.permissions)) {
     if (!isOwner(session)) throw new InventoryError(`Only an owner can give someone the ${choice.label} role.`);
   }
+  if (!isOwner(session) && !within(choice.permissions, session.permissions))
+    throw new InventoryError(`You can only give a role that does no more than yours does. ${choice.label} can do things your role cannot.`);
 }
 
 // ---------- Invites ----------
 
 export async function createInvite(session: Session, input: { email: string; roleChoice: string }): Promise<{ token: string; email: string; label: string }> {
   needTeamAccess(session);
+  // An invited person starts with every facility, so someone limited to some facilities cannot invite (APEX-11).
+  if (!isOwner(session) && ownFacilities(session) !== null) throw new InventoryError("Only someone who works at every facility can invite people. Ask an owner.");
   const email = checkEmail(input.email);
   return db.transaction(async (tx) => {
     const choice = await readRoleChoice(tx, session.orgId, input.roleChoice);
@@ -171,6 +188,11 @@ async function lockTarget(tx: Tx, session: Session, userId: string) {
   if ((target.user.role === "OWNER" && !target.user.customRoleId) || hasOwnerOnly(current)) {
     if (!isOwner(session)) throw new InventoryError("Only an owner can change an owner or another team manager.");
   }
+  if (!isOwner(session)) {
+    if (!within(current, session.permissions)) throw new InventoryError("That person's role can do things yours cannot, so only an owner can change it.");
+    const theirs = allowedFacilities({ role: target.user.role, customRoleId: target.user.customRoleId, facilityIds: target.user.facilityIds });
+    if (!facilitiesWithin(theirs, ownFacilities(session))) throw new InventoryError("That person works at facilities you do not, so only an owner can change them.");
+  }
   return target.user;
 }
 
@@ -203,6 +225,8 @@ export async function setUserFacilities(session: Session, userId: string, facili
       ? (await tx.select({ id: facilities.id }).from(facilities).where(eq(facilities.orgId, session.orgId))).map((f) => f.id).filter((id) => facilityIds.includes(id))
       : [];
     if (facilityIds.length && real.length === 0) throw new InventoryError("Choose at least one facility, or All facilities.");
+    if (!isOwner(session) && !facilitiesWithin(real.length ? real : null, ownFacilities(session)))
+      throw new InventoryError("You can only give access to facilities you work at yourself.");
     await tx.update(users).set({ facilityIds: real.length ? real : null }).where(eq(users.id, target.id));
     await log(tx, session, "User", target.id, "FACILITIES", { facilityIds: real.length ? real : "all" }, { facilityIds: target.facilityIds ?? "all" });
   });
@@ -232,6 +256,7 @@ export async function saveCustomRole(
   const permissions = cleanPermissions(input.permissions);
   if (permissions.length === 0) throw new InventoryError("Check at least one thing this role can do.");
   if (hasOwnerOnly(permissions) && !isOwner(session)) throw new InventoryError("Only an owner can build a role that manages the team or API keys.");
+  if (!isOwner(session) && !within(permissions, session.permissions)) throw new InventoryError("You can only build a role that does no more than yours does.");
   const description = input.description.trim().slice(0, 300);
 
   return db.transaction(async (tx) => {
@@ -244,6 +269,7 @@ export async function saveCustomRole(
       const [before] = await tx.select().from(customRoles).where(and(eq(customRoles.id, input.id), eq(customRoles.orgId, session.orgId))).for("update");
       if (!before) throw new InventoryError("That role no longer exists.");
       if (hasOwnerOnly(cleanPermissions(before.permissions)) && !isOwner(session)) throw new InventoryError("Only an owner can change this role.");
+      if (!isOwner(session) && !within(cleanPermissions(before.permissions), session.permissions)) throw new InventoryError("This role can do things yours cannot, so only an owner can change it.");
       if (session.customRoleId === before.id) throw new InventoryError("You cannot change the role you are using yourself. Ask an owner.");
       await tx.update(customRoles).set({ name, description, permissions }).where(eq(customRoles.id, before.id));
       await log(tx, session, "Role", before.id, "UPDATE", { name, permissions }, { name: before.name, permissions: before.permissions });
@@ -261,6 +287,7 @@ export async function deleteCustomRole(session: Session, roleId: string): Promis
     const [role] = await tx.select().from(customRoles).where(and(eq(customRoles.id, roleId), eq(customRoles.orgId, session.orgId))).for("update");
     if (!role) throw new InventoryError("That role no longer exists.");
     if (hasOwnerOnly(cleanPermissions(role.permissions)) && !isOwner(session)) throw new InventoryError("Only an owner can delete this role.");
+    if (!isOwner(session) && !within(cleanPermissions(role.permissions), session.permissions)) throw new InventoryError("This role can do things yours cannot, so only an owner can delete it.");
     const people = await tx.$count(users, eq(users.customRoleId, role.id));
     if (people) throw new InventoryError(`${people} ${people === 1 ? "person has" : "people have"} this role. Give them a different role first.`);
     // Open invites for this role stop working; used and cancelled ones keep their history.
