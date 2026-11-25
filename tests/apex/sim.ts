@@ -16,6 +16,7 @@ import { allocateToOrder, addOrderLine, confirmOrder, createCustomer, createDriv
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { recordOfflineSale } from "@/lib/offline-sales";
 import { addToCart, checkInCustomer, closeDrawer, completeSale, createDiscount, drawerSummary, openDrawer, returnSale, saveRetailSettings, setCartDiscount, setMenuItem, voidSale } from "@/lib/pos";
+import { buildExt, extDay, type ExtWorld } from "./ext";
 import { Ledger, U, centsToString, divRound, priceSale, units, unitsToString, type LedgerLine, type Rates } from "./ledger";
 import { rng, type Rng } from "./rng";
 
@@ -31,6 +32,7 @@ type World = {
   batches: { id: string; day: number; plantIds: string[]; strainIdx: number; stage: number; harvestId?: string; pkgs: string[] }[];
   pendingTransfer: { tag: string; grams: number }[]; distBulk: { id: string; tag: string; grams: number }[];
   findings: string[]; timings: Record<string, number[]>;
+  ext?: ExtWorld;
 };
 export type SimState = { world: World; ledger: Ledger };
 
@@ -464,6 +466,9 @@ export async function runSim(opts: SimOpts): Promise<{ state: SimState; finished
     await cultivationDay(w, L, r, day, opts.plantsPerBatch ?? 130);
     await wholesaleDay(w, L, r, day);
     for (let si = 0; si < w.stores.length; si++) await storeDay(w, L, r, si, day, opts.salesPerStoreDay);
+    // Manufacturing, promotions, rewards, labels and Tally run in their own organization with their own expectations.
+    w.ext ??= await buildExt(w.run);
+    await timed(w, "extensionDay", () => extDay(w.ext!, r, day, w.findings));
     const bad = await reconcile(w, L);
     mismatches.push(...bad.map((m) => `day ${day}: ${m}`));
     w.day++;
