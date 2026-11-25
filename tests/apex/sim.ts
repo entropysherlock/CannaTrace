@@ -352,11 +352,15 @@ async function storeDay(w: World, L: Ledger, r: Rng, si: number, day: number, pe
         const isLast = lineRows.length === 1 && retQty === s.lines[0].qty;
         const expected = L.refundFor(key, [{ itemId: first.item_id, qty: retQty }], isLast);
         const disposition = r.chance(0.5) ? "RESTOCK" : "DISPOSE";
-        const res = await returnSale(a, { saleId: key, lines: [{ saleLineId: first.id, quantity: String(retQty) }], refundMethod: "CASH", disposition, reason: "Apex return" }).catch((e) => ({ error: e as Error }));
+        // A refund goes back the way the customer paid (APEX-41).
+        const method = s.debit === 0n ? "CASH" : s.cashKept === 0n ? "CARD" : "SPLIT";
+        const cashLeft = s.cashKept - (s.cashRefunded ?? 0n);
+        const cashPart = method === "CASH" ? expected : method === "CARD" ? 0n : isLast ? cashLeft : (() => { const p = divRound(expected * s.cashKept, s.calc.total); return p < cashLeft ? p : cashLeft; })();
+        const res = await returnSale(a, { saleId: key, lines: [{ saleLineId: first.id, quantity: String(retQty) }], refundMethod: method, disposition, reason: "Apex return" }).catch((e) => ({ error: e as Error }));
         if ("error" in res) w.findings.push(`RETURN on ${key}: ${res.error.message}`);
         else {
           if (res.amount !== centsToString(expected)) w.findings.push(`RETURN ${res.number}: ledger refund ${centsToString(expected)} vs app ${res.amount}`);
-          s.refunded += expected; c.cashRefunds += expected; L.counters.returns++;
+          s.refunded += expected; s.cashRefunded = (s.cashRefunded ?? 0n) + cashPart; c.cashRefunds += cashPart; L.counters.returns++;
           // Sealed product goes back on the shelf; opened or damaged product is written off, so stock stays down.
           if (disposition === "RESTOCK") L.addStock(fac, first.item_id, retQty * U);
         }

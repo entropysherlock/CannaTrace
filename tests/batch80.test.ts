@@ -16,6 +16,7 @@ import {
   packages,
   passwordResets,
   payments,
+  saleReturns,
   sales,
   syncEvents,
   users,
@@ -246,24 +247,47 @@ describe.skipIf(!hasDb)("password reset, deactivation, daily limits, warnings, r
       expect(cashBefore.sub(cashAfter).toFixed(2)).toBe(half.amount);
 
       // The rest comes back opened: written off, and the refund is exactly what's left, to the penny.
-      const rest = await returnSale(actor, { saleId, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "CARD", disposition: "DISPOSE", reason: "opened, smelled off" });
+      const rest = await returnSale(actor, { saleId, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "CASH", disposition: "DISPOSE", reason: "opened, smelled off" });
       expect(new Decimal(half.amount).add(rest.amount).toFixed(2)).toBe(new Decimal(sold.total!).toFixed(2));
       expect(new Decimal((await db.select().from(packages).where(eq(packages.id, pkg.id)))[0].quantity).toString()).toBe(before.add(1).toString());
       const ledger = await db.select().from(inventoryTransactions).where(eq(inventoryTransactions.packageId, pkg.id));
       expect(ledger.some((t) => t.type === "ADJUST" && t.reasonCode === "DAMAGE" && t.note?.includes(rest.number))).toBe(true);
       expect((await returnableLines(db, saleId))[0].returnable).toBe("0");
-      await expect(returnSale(actor, { saleId, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "CARD", disposition: "RESTOCK", reason: "again" })).rejects.toThrow(/Only 0/);
+      await expect(returnSale(actor, { saleId, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "CASH", disposition: "RESTOCK", reason: "again" })).rejects.toThrow(/Only 0/);
       expect(await db.$count(syncEvents, and(eq(syncEvents.facilityId, actor.facilityId), eq(syncEvents.type, "RETAIL_SALE_RETURNED")))).toBe(2);
     });
 
+    it("refunds a split sale back the way it was paid: cash from the drawer and the rest to the card (APEX-41)", async () => {
+      const cart = await checkInCustomer(actor, { ...adult, idNumber: "RET-SPLIT" });
+      await addToCart(actor, { saleId: cart.id, itemId: jar, quantity: "2" });
+      const paid = await completeSale(actor, { saleId: cart.id, paymentMethod: "SPLIT", debitAmount: "30", cashTendered: "200" });
+      const [line] = await returnableLines(db, cart.id);
+      const total = new Decimal(paid.total);
+      const cashPaid = total.sub(30);
+      const [drawer] = await db.select().from(drawerSessions).where(and(eq(drawerSessions.facilityId, actor.facilityId), eq(drawerSessions.status, "OPEN")));
+      const cashBefore = (await drawerSummary(db, drawer)).expectedCash;
+      // Cash only or card only is refused on a split sale.
+      await expect(returnSale(actor, { saleId: cart.id, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "CASH", disposition: "RESTOCK", reason: "cash only" })).rejects.toThrow(/part cash and part debit/);
+      await expect(returnSale(actor, { saleId: cart.id, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "CARD", disposition: "RESTOCK", reason: "card only" })).rejects.toThrow(/part cash and part debit/);
+      const half = await returnSale(actor, { saleId: cart.id, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "SPLIT", disposition: "RESTOCK", reason: "half" });
+      const rest = await returnSale(actor, { saleId: cart.id, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "SPLIT", disposition: "RESTOCK", reason: "rest" });
+      expect(new Decimal(half.amount).add(rest.amount).toFixed(2)).toBe(total.toFixed(2));
+      const rows = await db.select().from(saleReturns).where(eq(saleReturns.saleId, cart.id));
+      const cashBack = rows.reduce((acc, r) => acc.add(r.cashAmount ?? 0), new Decimal(0));
+      // Exactly the cash that was paid comes out of the drawer, and no more, so the card side gets the debit share.
+      expect(cashBack.toFixed(2)).toBe(cashPaid.toFixed(2));
+      expect(cashBefore.sub((await drawerSummary(db, drawer)).expectedCash).toFixed(2)).toBe(cashPaid.toFixed(2));
+    });
+
     it("works after the shift closed: card refunds anytime, cash only from an open drawer", async () => {
-      const saleId = await sell("RET-0002", [[gummies, "3"]]);
+      const saleId = await sell("RET-0002", [[gummies, "3"]], "DEBIT");
       const [line] = await returnableLines(db, saleId);
       const [drawer] = await db.select().from(drawerSessions).where(and(eq(drawerSessions.facilityId, actor.facilityId), eq(drawerSessions.status, "OPEN")));
       const sum = await drawerSummary(db, drawer);
       await closeDrawer(actor, { countedCash: sum.expectedCash.toFixed(2) });
       await expect(voidSale(actor, { saleId, reason: "late" })).rejects.toThrow(/already been closed/);
-      await expect(returnSale(actor, { saleId, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "CASH", disposition: "RESTOCK", reason: "next day" })).rejects.toThrow(/Open your cash drawer/);
+      // A debit sale is refunded to the card, never in cash (APEX-41).
+      await expect(returnSale(actor, { saleId, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "CASH", disposition: "RESTOCK", reason: "next day" })).rejects.toThrow(/paid by debit.*back to their card/);
       await expect(returnSale(actor, { saleId, lines: [{ saleLineId: line.saleLineId, quantity: "1" }], refundMethod: "CARD", disposition: "RESTOCK", reason: "next day" })).resolves.toMatchObject({ number: expect.stringMatching(/^R-/) });
     });
   });

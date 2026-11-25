@@ -18,6 +18,7 @@ export type ItemDetailsInput = {
   pesticides?: string;
   solvents?: string;
   mustRefrigerate?: boolean;
+  returnable?: boolean;
   shelfLifeDays?: string;
 };
 
@@ -60,6 +61,7 @@ export function cleanItemDetails(input: ItemDetailsInput) {
     pesticides: words(input.pesticides, 500),
     solvents: words(input.solvents, 500),
     mustRefrigerate: Boolean(input.mustRefrigerate),
+    returnable: Boolean(input.returnable),
     shelfLifeDays: shelf === null ? null : Number(shelf),
   };
 }

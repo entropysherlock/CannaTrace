@@ -294,7 +294,7 @@ describe.skipIf(!hasDb)("Tally: create from plain English, multi-step jobs, and 
     expect(row.status).toBe("UNDONE");
 
     // An existing single action (adjust to zero) is undoable as well, refilling the package.
-    const zero = await confirm(owner, await propose("adjust_package", owner, { tag: tags[1], new_quantity: "0", reason_code: "DAMAGE" }));
+    const zero = await confirm(owner, await propose("adjust_package", owner, { tag: tags[1], new_quantity: "0", reason_code: "ENTRY_ERROR" }));
     expect((await get(tags[1])).status).toBe("FINISHED");
     await undo(owner, zero.changeId!);
     expect(await get(tags[1])).toMatchObject({ status: "ACTIVE" });

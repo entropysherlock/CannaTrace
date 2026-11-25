@@ -2,12 +2,17 @@ import { expect, test, type Page } from "@playwright/test";
 
 const run = `LBB${Date.now().toString(36).toUpperCase()}`;
 
-async function signIn(page: Page, email: string) {
+async function signIn(page: Page, email: string, facility?: string) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("demo1234");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
+  if (facility) {
+    await page.locator('select[name="facilityId"]').selectOption({ label: facility });
+    await page.getByRole("button", { name: "Switch" }).click();
+    await expect(page.getByText(facility.replace(" · ", " · license "))).toBeVisible();
+  }
 }
 
 async function receive(page: Page, tag: string) {
@@ -22,7 +27,8 @@ async function receive(page: Page, tag: string) {
 }
 
 test("a blocked label says what to fix, links to it, and can leave out the labels that can't print", async ({ page }) => {
-  await signIn(page, "inventory@demo.test");
+  // Emptying a package is a large adjustment, which takes a manager or owner (APEX-25).
+  await signIn(page, "manager@demo.test", "Rio Grande Grow & Lab · DEMO-CULT-0001");
   const good = await receive(page, `${run}-OK`);
   const empty = await receive(page, `${run}-EMPTY`);
   await page.locator("summary", { hasText: "Adjust quantity" }).click();

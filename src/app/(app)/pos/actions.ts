@@ -65,7 +65,7 @@ export async function returnSaleAction(_state: FormState, formData: FormData): P
     });
     refresh();
     revalidatePath("/inventory");
-    return { ok: `Return ${r.number} recorded. Refund $${r.amount} ${field(formData, "refundMethod") === "CASH" ? "in cash from your drawer" : "to their card on the card terminal"}.` };
+    return { ok: `Return ${r.number} recorded. Refund $${r.amount} ${{ CASH: "in cash from your drawer", SPLIT: "back the way they paid: the cash part from your drawer and the rest to their card on the card terminal", CARD: "to their card on the card terminal" }[field(formData, "refundMethod")] ?? ""}.` };
   } catch (error) {
     return toFormError(error);
   }

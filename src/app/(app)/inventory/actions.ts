@@ -84,6 +84,7 @@ export async function adjustAction(_state: FormState, formData: FormData): Promi
       newQuantity: field(formData, "newQuantity"),
       reasonCode: field(formData, "reasonCode"),
       note: field(formData, "note"),
+      approver: session.role === "OWNER" || session.role === "MANAGER",
     });
     revalidatePath(`/inventory/${packageId}`);
     return { ok: "Quantity adjusted and logged." };
@@ -153,7 +154,14 @@ export async function statusAction(_state: FormState, formData: FormData): Promi
     const status = field(formData, "status");
     const reason = field(formData, "reason");
     if (status === "DESTROYED") {
-      await destroyPackage(actorOf(session), { packageId, reason, mixedConfirmed: field(formData, "mixedConfirmed") === "yes" });
+      await destroyPackage(actorOf(session), {
+        packageId,
+        reason,
+        mixedConfirmed: field(formData, "mixedConfirmed") === "yes",
+        videoCamera: field(formData, "videoCamera"),
+        videoRecordedAt: field(formData, "videoRecordedAt"),
+        witnessName: field(formData, "witnessName"),
+      });
     } else {
       await setPackageStatus(actorOf(session), { packageId, status, reason });
     }

@@ -351,6 +351,20 @@
       "when": 1795576534076,
       "tag": "0049_apex_inherit_lab_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795632614086,
+      "tag": "0050_apex_waste_video_witness",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1795632732089,
+      "tag": "0051_apex_returnable_cash_refund",
+      "breakpoints": true
     }
   ]
 }

@@ -91,6 +91,13 @@ export default async function ItemDetailsPage({ params }: { params: Promise<{ id
                   <span className="block text-slate-600">Perishable edibles and topicals. Labels can then print &quot;Keep refrigerated.&quot;</span>
                 </span>
               </label>
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="returnable" value="yes" defaultChecked={item.returnable} className="mt-0.5 h-5 w-5 accent-brand-700" />
+                <span>
+                  <span className="font-semibold text-slate-800">Store takes this back</span>
+                  <span className="block text-slate-600">Leave off for most cannabis products. Reward points can&apos;t pay for a returnable item, so a returned sale never keeps the reward value.</span>
+                </span>
+              </label>
             </div>
           </Card>
           <Card title="What's in it and how to use it">

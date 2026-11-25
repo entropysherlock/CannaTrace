@@ -21,7 +21,7 @@ import { generateTags, tagOrGenerate } from "./ids";
 import { packFor, wasteRule } from "./rules";
 import { enqueueSyncEvent } from "./sync";
 import { InventoryError, MAX_QTY, applyDelta, assertWholeForUnit, normalizeTag, parseCost, parsePositiveQty, planSplit, statusWords, storeCost, weightedAverageCost } from "./inventory-math";
-import { facilityToday, facilityZone } from "./time";
+import { facilityToday, facilityZone, localTimeToDate } from "./time";
 import { roundQty } from "./units";
 
 export { InventoryError };
@@ -457,6 +457,10 @@ export async function adjustPackage(
     note?: string | null;
     /** Undo only: a package emptied by the change being undone may be refilled, back to this status. */
     reopenAs?: PackageStatus;
+    /** False when the person is not a manager or owner, so a large change is refused (APEX-25). Defaults to true for system callers. */
+    approver?: boolean;
+    /** A customer's opened or damaged return being written off the shelf. It never joined sellable stock, so the destruction rules do not apply to it. */
+    returnWriteOff?: boolean;
   },
 ): Promise<Package> {
   if (!ADJUST_REASONS.some((r) => r.code === input.reasonCode)) {
@@ -479,6 +483,21 @@ export async function adjustPackage(
     assertWholeForUnit(pkg.unit, target, "New quantity");
     const change = applyDelta(pkg.quantity, target.sub(pkg.quantity));
     if (change.delta.isZero()) throw new InventoryError("The new quantity is the same as the current one.");
+    // Writing product off as damaged waste is destruction, which has a hold period and a video record. Do not let a
+    // zero adjustment skip them (APEX-25).
+    if (!reopening && !input.returnWriteOff && change.after.isZero() && input.reasonCode === "DAMAGE") {
+      throw new InventoryError("Damaged product that is being written off is waste. Use Hold, quarantine, or destroy so the hold period and video record are kept.");
+    }
+    if (input.approver === false && !reopening) {
+      const [fac] = await tx.select({ percent: facilities.adjustApprovalPercent }).from(facilities).where(eq(facilities.id, actor.facilityId));
+      const limit = fac?.percent;
+      if (limit != null) {
+        const share = change.before.isZero() ? new Decimal(100) : change.delta.abs().div(change.before).mul(100);
+        if (share.gt(limit) || change.after.isZero()) {
+          throw new InventoryError(`This changes the package by more than ${limit}%. A manager or owner has to make this adjustment.`);
+        }
+      }
+    }
 
     const [updated] = await tx
       .update(packages)
@@ -867,7 +886,16 @@ async function setPackageStatusInTx(tx: Tx, actor: Actor, pkg: Package, status: 
 /** Record destruction of everything left in a package. Cannot be undone. */
 export async function destroyPackage(
   actor: Actor,
-  input: { packageId: string; reason: string; mixedConfirmed?: boolean },
+  input: {
+    packageId: string;
+    reason: string;
+    mixedConfirmed?: boolean;
+    /** Which camera recorded the destruction, and when. Required: the footage must be kept 120 days. */
+    videoCamera?: string | null;
+    videoRecordedAt?: string | Date | null;
+    /** Name of a second person who watched. Required only when the facility asks for it. */
+    witnessName?: string | null;
+  },
 ): Promise<Package> {
   const reason = input.reason.trim();
   if (!reason) throw new InventoryError("Say why and how the product was destroyed. It goes in the audit trail.");
@@ -876,6 +904,19 @@ export async function destroyPackage(
     assertEditable(pkg.status);
     assertNotAllocated(pkg);
     await checkWasteRule(tx, actor, pkg, Boolean(input.mixedConfirmed));
+    const videoCamera = input.videoCamera?.trim() ?? "";
+    if (!videoCamera) throw new InventoryError("Name the camera that recorded the destruction. Keep the footage for at least 120 days.");
+    const recordedAt =
+      input.videoRecordedAt instanceof Date
+        ? input.videoRecordedAt
+        : input.videoRecordedAt
+          ? (localTimeToDate(input.videoRecordedAt, await facilityZone(actor.facilityId)) ?? new Date(input.videoRecordedAt))
+          : null;
+    if (!recordedAt || Number.isNaN(recordedAt.getTime())) throw new InventoryError("Enter the date and time the destruction was recorded.");
+    if (recordedAt.getTime() > Date.now() + 5 * 60_000) throw new InventoryError("The recording time cannot be in the future.");
+    const witnessName = input.witnessName?.trim() || null;
+    const [fac] = await tx.select({ witness: facilities.wasteWitnessRequired }).from(facilities).where(eq(facilities.id, actor.facilityId));
+    if (fac?.witness && !witnessName) throw new InventoryError("This facility needs the name of a second person who watched the destruction.");
     const [updated] = await tx
       .update(packages)
       .set({ quantity: "0", status: "DESTROYED" })
@@ -891,6 +932,9 @@ export async function destroyPackage(
       quantityAfter: "0",
       unit: pkg.unit,
       note: reason,
+      videoCamera,
+      videoRecordedAt: recordedAt,
+      witnessName,
       userId: actor.userId,
     });
     await audit(tx, actor, {
@@ -899,7 +943,7 @@ export async function destroyPackage(
       action: "DESTROY",
       before: snapshot(pkg),
       after: snapshot(updated),
-      reason,
+      reason: `${reason} (video: ${videoCamera}, ${recordedAt.toISOString()}; keep 120 days${witnessName ? `; witness: ${witnessName}` : ""})`,
     });
     return updated;
   });
@@ -910,15 +954,17 @@ async function checkWasteRule(tx: Tx, actor: Actor, pkg: Package, mixedConfirmed
   const [facility] = await tx.select({ state: facilities.state }).from(facilities).where(eq(facilities.id, actor.facilityId));
   const pack = packFor(facility?.state);
   const rule = wasteRule(pack);
-  if (!pack || !rule) return;
+  // Every facility holds waste for at least 72 hours, even where the state pack has no waste rule (APEX-25).
+  const holdHours = rule?.holdHours ?? 72;
   const heldFor = pkg.heldSince && (pkg.status === "ON_HOLD" || pkg.status === "QUARANTINE") ? Date.now() - pkg.heldSince.getTime() : -1;
-  if (heldFor < rule.holdHours * 3_600_000) {
+  if (heldFor < holdHours * 3_600_000) {
     const when =
       heldFor < 0
         ? "Put it on hold or in quarantine first."
-        : `It can be destroyed after ${new Date(pkg.heldSince!.getTime() + rule.holdHours * 3_600_000).toLocaleString("en-US", { timeZone: await facilityZone(actor.facilityId, tx), dateStyle: "medium", timeStyle: "short" })}.`;
-    throw new InventoryError(`${pack.name} requires waste to be held for ${rule.holdHours} hours before it is destroyed. ${when}`);
+        : `It can be destroyed after ${new Date(pkg.heldSince!.getTime() + holdHours * 3_600_000).toLocaleString("en-US", { timeZone: await facilityZone(actor.facilityId, tx), dateStyle: "medium", timeStyle: "short" })}.`;
+    throw new InventoryError(`${pack?.name ?? "Waste rules"} require waste to be held for ${holdHours} hours before it is destroyed. ${when}`);
   }
+  if (!pack || !rule) return;
   if (!mixedConfirmed)
     throw new InventoryError(
       `${pack.name} requires waste to be made unusable by mixing it with at least ${rule.minMixPercent}% non-cannabis material. Confirm that this was done.`,

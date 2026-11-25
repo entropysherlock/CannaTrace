@@ -13,6 +13,10 @@ import {
   priceCart,
   saveSnapshot,
   stockLeft,
+  startOutage,
+  endOutage,
+  sendOutages,
+  openOutageStart,
   syncQueue,
   type CartItem,
   type QueuedSale,
@@ -70,6 +74,17 @@ export function OfflineRegister({ fresh }: { fresh: OfflineSnapshot | null }) {
     refresh();
   }, [refresh]);
 
+  // Keep an outage log: note when the connection drops, close it when it returns, and send it for the record.
+  useEffect(() => {
+    if (!mounted) return;
+    if (!online) {
+      startOutage();
+      return;
+    }
+    endOutage(loadQueue().length);
+    void sendOutages();
+  }, [online, mounted]);
+
   // Send waiting sales on arrival and whenever the connection comes back.
   useEffect(() => {
     if (online && loadQueue().length > 0) {
@@ -114,6 +129,13 @@ export function OfflineRegister({ fresh }: { fresh: OfflineSnapshot | null }) {
     </p>
   );
 
+  const outageNotice = online ? null : (
+    <p className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="outage-notice">
+      <strong>If the state track-and-trace system is also down for your store:</strong> tell the Cannabis Control Division right away, and keep a written record of what you sold during the outage. This device logs when it went offline
+      {openOutageStart() ? ` (since ${new Date(openOutageStart()!).toLocaleTimeString("en-US", { timeZone: snap?.timeZone })})` : ""}. Age, purchase limits and lab-test status are still checked on every sale here.
+    </p>
+  );
+
   if (!snap) {
     return (
       <div className="mx-auto max-w-2xl space-y-4 p-6">
@@ -154,6 +176,7 @@ export function OfflineRegister({ fresh }: { fresh: OfflineSnapshot | null }) {
         discount: discount ? { name: discount.name, percent: discount.percent } : null,
         cashTendered: cash,
         localNumber: nextLocalNumber(),
+        queue,
       });
       if (!enqueue(sale)) throw new Error("This device could not save the sale (its storage is full or blocked). Do not hand over the product. Write the sale down and free up space.");
       setReceipt(sale);
@@ -174,6 +197,7 @@ export function OfflineRegister({ fresh }: { fresh: OfflineSnapshot | null }) {
     return (
       <div className="mx-auto max-w-2xl space-y-4 p-6">
         {banner}
+        {outageNotice}
         <section className="rounded-xl bg-white p-6 text-center" data-testid="offline-receipt">
           <h1 className="font-display text-2xl font-bold">Sale saved: {receipt.localNumber}</h1>
           <p className="mt-2 text-4xl font-extrabold">{money(receipt.total)}</p>
@@ -198,6 +222,7 @@ export function OfflineRegister({ fresh }: { fresh: OfflineSnapshot | null }) {
     <div className="mx-auto grid max-w-6xl gap-4 overflow-y-auto p-4 lg:grid-cols-[1fr_380px]" style={{ maxHeight: "100%" }}>
       <div className="space-y-3 lg:col-span-2">
         {banner}
+        {outageNotice}
         {age >= 24 ? <p className="text-sm font-semibold text-amber-800">The menu on this device was saved {Math.floor(age / 24)} day(s) ago. Prices or stock may have changed. Connect when you can.</p> : null}
         {snap.receiptWarning ? <p className="text-sm text-slate-600">{snap.receiptWarning}</p> : null}
       </div>

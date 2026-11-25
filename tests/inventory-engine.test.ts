@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   auditLogs,
@@ -183,17 +183,48 @@ describe.skipIf(!hasDb)("inventory engine (database)", () => {
   });
 
   it("destroys a package for good, after New Mexico's 72-hour hold and with the waste mixed", async () => {
+    const video = { videoCamera: "Camera 3, back room", videoRecordedAt: new Date() };
     const pkg = await receive("12");
-    await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold", mixedConfirmed: true })).rejects.toThrow(/held for 72 hours.*on hold or in quarantine first/);
+    await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold", mixedConfirmed: true, ...video })).rejects.toThrow(/held for 72 hours.*on hold or in quarantine first/);
     await setPackageStatus(actor, { packageId: pkg.id, status: "QUARANTINE", reason: "Mold found" });
-    await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold", mixedConfirmed: true })).rejects.toThrow(/can be destroyed after/);
+    await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold", mixedConfirmed: true, ...video })).rejects.toThrow(/can be destroyed after/);
     // Three days pass
     await db.update(packages).set({ heldSince: new Date(Date.now() - 73 * 3_600_000) }).where(eq(packages.id, pkg.id));
-    await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold" })).rejects.toThrow(/at least 50% non-cannabis/);
-    await destroyPackage(actor, { packageId: pkg.id, reason: "Mold, rendered unusable", mixedConfirmed: true });
+    await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold", ...video })).rejects.toThrow(/at least 50% non-cannabis/);
+    // Every destruction needs the camera and the time it was recorded (APEX-25).
+    await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold", mixedConfirmed: true })).rejects.toThrow(/camera/);
+    await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold", mixedConfirmed: true, videoCamera: "Cam 3" })).rejects.toThrow(/date and time/);
+    await destroyPackage(actor, { packageId: pkg.id, reason: "Mold, rendered unusable", mixedConfirmed: true, ...video });
     expect(await qtyOf(pkg.id)).toMatchObject({ quantity: "0", status: "DESTROYED" });
+    const [logged] = await db.select().from(inventoryTransactions).where(and(eq(inventoryTransactions.packageId, pkg.id), eq(inventoryTransactions.type, "DESTROY")));
+    expect(logged.videoCamera).toBe("Camera 3, back room");
+    expect(logged.videoRecordedAt).toBeInstanceOf(Date);
     await expect(adjustPackage(actor, { packageId: pkg.id, newQuantity: "5", reasonCode: "ENTRY_ERROR" })).rejects.toThrow(/destroyed/);
     await expect(setPackageStatus(actor, { packageId: pkg.id, status: "ACTIVE", reason: "oops" })).rejects.toThrow(/destroyed/);
+  });
+
+  it("will not let a zero adjustment write off damaged product around the waste hold (APEX-25)", async () => {
+    const pkg = await receive("12");
+    await expect(adjustPackage(actor, { packageId: pkg.id, newQuantity: "0", reasonCode: "DAMAGE" })).rejects.toThrow(/waste/);
+    expect((await qtyOf(pkg.id)).quantity).toBe("12");
+  });
+
+  it("sends a large adjustment by a non-manager to a manager, and can ask for a witness (APEX-25)", async () => {
+    const pkg = await receive("100");
+    await expect(adjustPackage(actor, { packageId: pkg.id, newQuantity: "50", reasonCode: "COUNT_CORRECTION", approver: false })).rejects.toThrow(/manager or owner/);
+    await adjustPackage(actor, { packageId: pkg.id, newQuantity: "90", reasonCode: "COUNT_CORRECTION", approver: false });
+    await adjustPackage(actor, { packageId: pkg.id, newQuantity: "40", reasonCode: "COUNT_CORRECTION", approver: true });
+    expect((await qtyOf(pkg.id)).quantity).toBe("40");
+    await db.update(facilities).set({ wasteWitnessRequired: true }).where(eq(facilities.id, actor.facilityId));
+    try {
+      await setPackageStatus(actor, { packageId: pkg.id, status: "QUARANTINE", reason: "Mold" });
+      await db.update(packages).set({ heldSince: new Date(Date.now() - 73 * 3_600_000) }).where(eq(packages.id, pkg.id));
+      const video = { videoCamera: "Camera 1", videoRecordedAt: new Date(), mixedConfirmed: true };
+      await expect(destroyPackage(actor, { packageId: pkg.id, reason: "Mold", ...video })).rejects.toThrow(/second person/);
+      await destroyPackage(actor, { packageId: pkg.id, reason: "Mold", witnessName: "Sam Rivera", ...video });
+    } finally {
+      await db.update(facilities).set({ wasteWitnessRequired: false }).where(eq(facilities.id, actor.facilityId));
+    }
   });
 
   it("applies cycle count variances only where the count differs", async () => {

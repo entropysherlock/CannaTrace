@@ -101,6 +101,18 @@ describe.skipIf(!hasDb)("rewards program (database)", () => {
     expect(JSON.stringify(trail)).not.toMatch(/Dana|5055550102/);
   });
 
+  it("will not let reward points pay for an item the store takes back (APEX-40)", async () => {
+    await db.update(items).set({ returnable: true }).where(eq(items.id, jar));
+    try {
+      const s = await cart([[jar, "1"]]);
+      await attachRewardsMember(actor, { saleId: s, phone: "5055550102" });
+      await expect(setRewardsUsed(actor, { saleId: s, count: 1 })).rejects.toThrow(/can be returned/);
+      await detachRewardsMember(actor, { saleId: s });
+    } finally {
+      await db.update(items).set({ returnable: false }).where(eq(items.id, jar));
+    }
+  });
+
   it("spends rewards as dollars off before tax, and never lets a reward pay for most of a cart", async () => {
     const small = await cart([[papers, "4"]]); // $8: a $5 reward would be 62% of it
     expect(await attachRewardsMember(actor, { saleId: small, phone: "5055550102" })).toEqual({ firstName: "Dana", points: 105 });

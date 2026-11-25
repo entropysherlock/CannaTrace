@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import { cartTotals, checkInProblem, changeDue, limitProblem, limitUsage, type Limits } from "./pos-math";
-import type { OfflineMenuItem, OfflineSale, OfflineSnapshot } from "./offline-types";
+import type { OfflineMenuItem, OfflineOutage, OfflineSale, OfflineSnapshot } from "./offline-types";
 
 /**
  * Everything the offline register does on the device. Pure functions and a small storage layer, with nothing
@@ -128,6 +128,63 @@ export function priceCart(snap: OfflineSnapshot, cart: CartItem[], customerType:
   return { subtotal: totals.subtotal, discount: totals.discount, exciseTax: totals.exciseTax, salesTax: totals.salesTax, total: totals.total, exempt, usage, limits, problem };
 }
 
+/** With per-day limits, the same customer's earlier offline sales today (still waiting on this device) count toward the limit. */
+export function earlierQueuedProblem(snap: OfflineSnapshot, cart: CartItem[], customerType: "ADULT_USE" | "MEDICAL", idNumber: string, queue: QueuedSale[], now: Date): string | null {
+  if (!snap.settings.dailyLimits || !idNumber) return null;
+  const today = dayIn(now, snap.timeZone);
+  const before = queue
+    .filter((q) => q.sale.facilityId === snap.facilityId && q.sale.idNumber === idNumber && dayIn(new Date(q.sale.soldAt), snap.timeZone) === today)
+    .flatMap((q) => q.sale.lines.map((l) => ({ quantity: l.quantity, limitCategory: l.limitCategory ?? "NONE", limitPerUnit: l.limitPerUnit ?? null })));
+  if (!before.length) return null;
+  const mine = cart.map((c) => ({ quantity: c.quantity, limitCategory: c.item.limitCategory, limitPerUnit: c.item.limitPerUnit }));
+  const l = snap.limits[customerType];
+  const limits = { FLOWER: new Decimal(l.FLOWER), CONCENTRATE: new Decimal(l.CONCENTRATE), EDIBLE: new Decimal(l.EDIBLE) };
+  const usage = limitUsage([...mine, ...before]);
+  const problem = limitProblem(usage, limits);
+  return problem ? `This customer already bought from this register today. ${problem}` : null;
+}
+
+// ---------- Outage log ----------
+
+const OUTAGE_KEY = "ct-offline-outage";
+const OUTBOX_KEY = "ct-offline-outage-outbox";
+
+/** Note the moment the register lost its connection (kept if one is already open). */
+export function startOutage(now = new Date(), kv?: KeyValueStore | null): void {
+  if (read<string | null>(OUTAGE_KEY, null, kv)) return;
+  write(OUTAGE_KEY, now.toISOString(), kv);
+}
+
+/** The connection is back: close the open outage and keep it until the server has it. */
+export function endOutage(sales: number, now = new Date(), kv?: KeyValueStore | null): OfflineOutage | null {
+  const startedAt = read<string | null>(OUTAGE_KEY, null, kv);
+  if (!startedAt) return null;
+  kv?.removeItem(OUTAGE_KEY);
+  const outage = { startedAt, endedAt: now.toISOString(), sales };
+  write(OUTBOX_KEY, [...read<OfflineOutage[]>(OUTBOX_KEY, [], kv), outage], kv);
+  return outage;
+}
+
+export const openOutageStart = (kv?: KeyValueStore | null): string | null => read<string | null>(OUTAGE_KEY, null, kv);
+
+/** Send closed outages to Leaf2Sale for the record. Anything that cannot be sent stays for next time. */
+export async function sendOutages(fetcher: typeof fetch = fetch, kv?: KeyValueStore | null): Promise<number> {
+  const box = read<OfflineOutage[]>(OUTBOX_KEY, [], kv);
+  const left: OfflineOutage[] = [];
+  let sent = 0;
+  for (const outage of box) {
+    try {
+      const res = await fetcher("/api/offline/outage", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(outage) });
+      if (res.ok) sent++;
+      else left.push(outage);
+    } catch {
+      left.push(outage);
+    }
+  }
+  write(OUTBOX_KEY, left, kv);
+  return sent;
+}
+
 /** Turn a finished cart and cash payment into a queued sale. Throws a plain message when the cash does not cover it. */
 export function buildSale(
   snap: OfflineSnapshot,
@@ -141,6 +198,8 @@ export function buildSale(
     cashTendered: string;
     localNumber: string;
     now?: Date;
+    /** Sales already waiting on this device, so a customer's earlier sales today count toward the daily limit. */
+    queue?: QueuedSale[];
   },
 ): OfflineSale {
   if (input.cart.length === 0) throw new Error("The cart is empty.");
@@ -148,6 +207,8 @@ export function buildSale(
   if (priced.problem) throw new Error(priced.problem);
   const idNumber = (input.idNumber ?? "").trim();
   if (snap.settings.dailyLimits && !idNumber) throw new Error("This store counts purchase limits per customer per day. Enter the number from the customer's ID.");
+  const earlier = earlierQueuedProblem(snap, input.cart, input.customerType, idNumber, input.queue ?? [], input.now ?? new Date());
+  if (earlier) throw new Error(earlier);
   const tendered = new Decimal(input.cashTendered || 0);
   const change = changeDue(priced.total, tendered);
   return {
@@ -158,6 +219,7 @@ export function buildSale(
     sellerName: snap.userName,
     drawerId: snap.drawerId,
     soldAt: (input.now ?? new Date()).toISOString(),
+    snapshotSavedAt: snap.savedAt,
     customerType: input.customerType,
     birthDate: input.birthDate,
     idExpires: input.idExpires,
