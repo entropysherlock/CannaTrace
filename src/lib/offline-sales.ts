@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { discountPresets, drawerSessions, items, retailPrices, saleLines, sales, users } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError, audit, type Actor } from "./inventory";
+import { assertWholeForUnit } from "./inventory-math";
 import type { OfflineSale, OfflineSyncResult } from "./offline-types";
 import { nextNumber } from "./numbering";
 import { cartTotals, checkInProblem } from "./pos-math";
@@ -118,27 +119,35 @@ export async function recordOfflineSale(actor: Actor, input: OfflineSale): Promi
     const zone = await facilityZone(actor.facilityId, tx);
     const notes: string[] = [];
 
-    // Which drawer the cash went into: the one it was rung up on if that is still open, else the person syncing.
+    // Which drawer the cash went into: the one it was rung up on, open or already closed (APEX-14). The cash really
+    // sat in that drawer, so a closed drawer gets the sale and its expected cash is raised to match; only a sale with
+    // no drawer of its own lands in the drawer of the person syncing.
     let drawerId: string | null = null;
+    let lateIntoClosed: { id: string; before: string } | null = null;
     if (input.drawerId) {
       const [d] = await tx
-        .select({ id: drawerSessions.id })
+        .select({ id: drawerSessions.id, status: drawerSessions.status, expected: drawerSessions.expectedCash })
         .from(drawerSessions)
-        .where(and(eq(drawerSessions.id, String(input.drawerId)), eq(drawerSessions.orgId, actor.orgId), eq(drawerSessions.facilityId, actor.facilityId), eq(drawerSessions.status, "OPEN")))
+        .where(and(eq(drawerSessions.id, String(input.drawerId)), eq(drawerSessions.orgId, actor.orgId), eq(drawerSessions.facilityId, actor.facilityId)))
         .for("update");
-      drawerId = d?.id ?? null;
+      if (d) {
+        drawerId = d.id;
+        if (d.status === "CLOSED") {
+          lateIntoClosed = { id: d.id, before: d.expected ?? "0" };
+          notes.push("The drawer it was rung up on was already closed, so the sale was added to that drawer and its expected cash was raised by the sale total. Check that drawer's count.");
+        }
+      }
     }
     if (!drawerId) {
       const mine = await lockOpenDrawer(tx, actor);
       if (!mine) throw new InventoryError("Open your cash drawer, then sync again. The cash from this sale needs a drawer to count into.");
       drawerId = mine.id;
-      if (input.drawerId && input.drawerId !== mine.id) notes.push("The drawer it was rung up on is closed, so the cash was counted into the drawer that synced it. Check that drawer's count.");
     }
 
     // Items: each must still exist in this business; the price charged is what the customer paid.
     const ids = [...wanted.keys()];
     const found = await tx
-      .select({ id: items.id, name: items.name, active: items.active, limitCategory: items.limitCategory, limitPerUnit: items.limitPerUnit, menuPrice: retailPrices.price })
+      .select({ id: items.id, name: items.name, unit: items.unit, active: items.active, limitCategory: items.limitCategory, limitPerUnit: items.limitPerUnit, menuPrice: retailPrices.price })
       .from(items)
       .leftJoin(retailPrices, and(eq(retailPrices.itemId, items.id), eq(retailPrices.facilityId, actor.facilityId)))
       .where(and(eq(items.orgId, actor.orgId), inArray(items.id, ids)));
@@ -147,6 +156,8 @@ export async function recordOfflineSale(actor: Actor, input: OfflineSale): Promi
     const rows = ids.map((id) => {
       const item = byId.get(id)!;
       const w = wanted.get(id)!;
+      // Each-counted items (APEX-15) can only be sold in whole units, offline as well as at the register.
+      assertWholeForUnit(item.unit, w.quantity, `Quantity of ${item.name}`);
       if (!item.active || item.menuPrice === null) notes.push(`${item.name} is no longer on this store's menu.`);
       else if (!new Decimal(item.menuPrice).eq(w.price)) notes.push(`${item.name} was sold at $${w.price.toFixed(2)}; the menu price now is $${new Decimal(item.menuPrice).toFixed(2)}.`);
       // The limit class the register sold it under, else the one it has now.
@@ -250,6 +261,17 @@ export async function recordOfflineSale(actor: Actor, input: OfflineSale): Promi
     );
     for (const s of shortages) notes.push(`Not enough stock: ${s.itemName} was short by ${s.short.toString()}. Check the count and adjust inventory.`);
 
+    if (lateIntoClosed) {
+      const raised = new Decimal(lateIntoClosed.before).add(totals.total);
+      await tx.update(drawerSessions).set({ expectedCash: raised.toFixed(2) }).where(eq(drawerSessions.id, lateIntoClosed.id));
+      await audit(tx, actor, {
+        entityType: "Drawer",
+        entityId: lateIntoClosed.id,
+        action: "LATE_OFFLINE_SALE",
+        before: { expectedCash: lateIntoClosed.before },
+        after: { expectedCash: raised.toFixed(2), sale: number, total: totals.total.toFixed(2) },
+      });
+    }
     const reviewNote = notes.length ? notes.join(" ") : null;
     if (reviewNote) await tx.update(sales).set({ reviewNote }).where(eq(sales.id, sale.id));
     await audit(tx, actor, {

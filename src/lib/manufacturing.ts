@@ -20,7 +20,7 @@ import {
   returnToPackageInTx,
   type Actor,
 } from "./inventory";
-import { normalizeTag, parsePositiveQty } from "./inventory-math";
+import { normalizeTag, parsePositiveQty, storeCost } from "./inventory-math";
 import { inputCost, parseBatches, scaleRecipe, unitCost } from "./manufacturing-math";
 
 const store = (value: Decimal) => value.toFixed(4);
@@ -281,7 +281,7 @@ export async function completeRun(
         outputPackageId: output.id,
         inputCost: cost ? store(cost) : null,
         extraCost: store(extra),
-        costPerUnit: perUnit ? store(perUnit) : null,
+        costPerUnit: perUnit ? storeCost(perUnit) : null,
         lossNote: input.lossNote?.trim().slice(0, 500) || null,
         completedAt: new Date(),
       })

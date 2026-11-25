@@ -26,6 +26,8 @@ const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   },
 });
 const qty = (name: string) => numeric(name, { precision: 18, scale: 4 });
+/** Cost per unit keeps 8 decimals so tiny unit costs survive (APEX-16). */
+const cost = (name: string) => numeric(name, { precision: 18, scale: 8 });
 
 export const roleEnum = pgEnum("role", [
   "OWNER",
@@ -537,7 +539,7 @@ export const packages = pgTable(
     /** When the package last went on hold or into quarantine; cleared on release. Used for waste hold periods. */
     heldSince: timestamp("held_since", { withTimezone: true }),
     lotNumber: text("lot_number"),
-    costPerUnit: qty("cost_per_unit"),
+    costPerUnit: cost("cost_per_unit"),
     /** The vendor this package was bought from, when it was received from outside. */
     vendorId: text("vendor_id"),
     createdAt: createdAt(),
@@ -901,7 +903,7 @@ export const productionRuns = pgTable(
     outputPackageId: text("output_package_id").references(() => packages.id),
     inputCost: qty("input_cost"),
     extraCost: qty("extra_cost"),
-    costPerUnit: qty("cost_per_unit"),
+    costPerUnit: cost("cost_per_unit"),
     lossNote: text("loss_note"),
     status: runStatusEnum("status").notNull().default("IN_PROGRESS"),
     userId: text("user_id").notNull(),
@@ -931,7 +933,7 @@ export const productionInputs = pgTable(
     quantity: qty("quantity").notNull(),
     unit: unitEnum("unit").notNull(),
     // Cost per unit of the source package when it was consumed; null when the package had no cost.
-    costPerUnit: qty("cost_per_unit"),
+    costPerUnit: cost("cost_per_unit"),
     userName: text("user_name").notNull(),
     createdAt: createdAt(),
   },
@@ -1500,6 +1502,8 @@ export const saleLines = pgTable(
      */
     limitCategory: limitCategoryEnum("limit_category"),
     limitPerUnit: qty("limit_per_unit"),
+    /** The automatic-promotion dollars this line carried when the sale was completed, so a partial return refunds what that line actually cost. */
+    promoDiscount: money("promo_discount").notNull().default("0"),
   },
   (t) => [uniqueIndex("sale_lines_sale_item_key").on(t.saleId, t.itemId)],
 );

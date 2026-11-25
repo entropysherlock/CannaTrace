@@ -330,6 +330,13 @@
       "when": 1795574123005,
       "tag": "0046_apex_sales_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795575949608,
+      "tag": "0047_apex_line_promo_cost",
+      "breakpoints": true
     }
   ]
 }

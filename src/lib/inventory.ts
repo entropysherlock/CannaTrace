@@ -20,7 +20,7 @@ import { db, type Tx } from "./db";
 import { generateTags, tagOrGenerate } from "./ids";
 import { packFor, wasteRule } from "./rules";
 import { enqueueSyncEvent } from "./sync";
-import { InventoryError, MAX_QTY, applyDelta, assertWholeForUnit, normalizeTag, parsePositiveQty, planSplit, statusWords, weightedAverageCost } from "./inventory-math";
+import { InventoryError, MAX_QTY, applyDelta, assertWholeForUnit, normalizeTag, parseCost, parsePositiveQty, planSplit, statusWords, storeCost, weightedAverageCost } from "./inventory-math";
 import { facilityToday, facilityZone } from "./time";
 import { roundQty } from "./units";
 
@@ -135,7 +135,7 @@ export async function createPackageInTx(
   const tag = await tagOrGenerate(tx, actor.orgId, "PACKAGE", input.tag);
   const quantity = parsePositiveQty(input.quantity);
   const costText = input.costPerUnit == null ? "" : String(input.costPerUnit).trim();
-  const cost = costText === "" ? null : parsePositiveQty(costText, "Cost per unit");
+  const cost = costText === "" ? null : parseCost(costText, "Cost per unit");
 
   const [item] = await tx
     .select()
@@ -156,7 +156,7 @@ export async function createPackageInTx(
       unit: item.unit,
       locationId: input.locationId,
       lotNumber: input.lotNumber?.trim() || null,
-      costPerUnit: cost ? store(cost) : null,
+      costPerUnit: cost ? storeCost(cost) : null,
     })
     .onConflictDoNothing({ target: [packages.orgId, packages.tag] })
     .returning();
@@ -660,7 +660,7 @@ export async function mergePackages(
         unit: first.unit,
         locationId,
         lotNumber: first.lotNumber,
-        costPerUnit: cost ? store(cost) : null,
+        costPerUnit: cost ? storeCost(cost) : null,
       })
       .onConflictDoNothing({ target: [packages.orgId, packages.tag] })
       .returning();

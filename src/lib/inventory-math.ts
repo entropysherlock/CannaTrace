@@ -17,6 +17,23 @@ export function parsePositiveQty(input: unknown, what = "Quantity"): Decimal {
   return roundQty(q);
 }
 
+/** Costs are kept to 8 decimals so a few dollars spread over a very large output never rounds down to nothing (APEX-16). */
+export const COST_PLACES = 8;
+export const roundCost = (value: Decimal.Value): Decimal => new Decimal(value).toDecimalPlaces(COST_PLACES, Decimal.ROUND_HALF_UP);
+export const storeCost = (value: Decimal.Value): string => roundCost(value).toFixed(COST_PLACES);
+
+export function parseCost(input: unknown, what = "Cost per unit"): Decimal {
+  let c: Decimal;
+  try {
+    c = new Decimal(String(input).trim());
+  } catch {
+    throw new InventoryError(`${what} must be a number, for example 12.5.`);
+  }
+  if (!c.isFinite() || c.lte(0)) throw new InventoryError(`${what} must be greater than zero.`);
+  if (c.gt(MAX_QTY)) throw new InventoryError(`${what} is too large. Check the number and try again.`);
+  return roundCost(c);
+}
+
 /** Bigger than any real package; keeps typos like 1e30 from reaching the database. */
 export const MAX_QTY = new Decimal("1000000000000");
 
@@ -73,7 +90,7 @@ export function weightedAverageCost(
     totalCost = totalCost.add(new Decimal(source.quantity).mul(source.costPerUnit));
   }
   if (totalQty.isZero()) return null;
-  return roundQty(totalCost.div(totalQty));
+  return roundCost(totalCost.div(totalQty));
 }
 
 /** Tags are upper-case letters, digits, dashes, dots, or underscores: safe to print as a barcode and to scan. */
