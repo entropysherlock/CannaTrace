@@ -27,4 +27,8 @@ describe("zpl", () => {
     const rgba = new Uint8ClampedArray([0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 120, 120, 120, 255]);
     expect(Array.from(darkPixels(rgba, 4, 1))).toEqual([1, 0, 0, 1]);
   });
+  it("prints anti-aliased light-grey text edges but not near-white", () => {
+    const rgba = new Uint8ClampedArray([165, 165, 165, 255, 189, 189, 189, 255, 200, 200, 200, 255, 240, 240, 240, 255]);
+    expect(Array.from(darkPixels(rgba, 4, 1))).toEqual([1, 1, 0, 0]);
+  });
 });

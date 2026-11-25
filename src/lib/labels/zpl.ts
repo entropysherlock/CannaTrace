@@ -43,7 +43,11 @@ export function zplFromBitmap(dark: Uint8Array, width: number, height: number, c
   return `^XA^PW${width}^LL${height}^LH0,0^FO0,0^GFA,${total},${total},${rowBytes},${hex.join("")}^FS^PQ${n},0,1,N^XZ`;
 }
 
-/** Dark/light from RGBA pixels: anything darker than mid-grey, and not see-through, prints black. */
+/**
+ * Dark/light from RGBA pixels: anything darker than light grey, and not see-through, prints black.
+ * The cutoff sits above mid-grey on purpose: anti-aliased edges of thin small text land in the
+ * light-to-mid greys, and a 203 dpi thermal head drops them entirely, so labels print faded.
+ */
 export function darkPixels(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number): Uint8Array {
   const out = new Uint8Array(width * height);
   for (let i = 0; i < out.length; i++) {
@@ -52,7 +56,7 @@ export function darkPixels(rgba: Uint8ClampedArray | Uint8Array, width: number, 
     const b = rgba[i * 4 + 2];
     const a = rgba[i * 4 + 3];
     const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-    out[i] = a > 127 && luminance < 140 ? 1 : 0;
+    out[i] = a > 127 && luminance < 190 ? 1 : 0;
   }
   return out;
 }
