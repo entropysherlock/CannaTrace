@@ -67,7 +67,7 @@ test("grow from a batch of clones to a packaged, finished harvest", async ({ pag
   await expect(page.getByText("2 kg").first()).toBeVisible();
 
   // Harvest: waste, dry weight, package, finish
-  const wasteForm = page.locator('form:has(input[name="reason"])');
+  const wasteForm = page.locator('form:has(button:text("Log waste"))');
   await wasteForm.locator('input[name="weight"]').fill("100");
   await wasteForm.locator('input[name="reason"]').fill("Stems");
   await page.getByRole("button", { name: "Log waste" }).click();
