@@ -14,12 +14,12 @@ export async function POST(request: Request) {
     const outcome = await inFacilityZone(session.facilityId, () => confirmProposal(session, String(token ?? "")));
     // Let Tally Watch see the change before the page refreshes, so a finding this fixed is gone at once.
     // The change is already saved. If Watch can't refresh, say nothing went wrong rather than "nothing was changed".
-    await refreshWatch(session).catch((error) => console.error("watch refresh after confirm failed", error));
+    await refreshWatch(session).catch((error) => console.error("watch refresh after confirm failed", (error as Error)?.name));
     revalidatePath("/", "layout");
     return NextResponse.json({ ok: outcome.message, changeId: outcome.undoable ? outcome.changeId : null });
   } catch (error) {
     if (error instanceof InventoryError) return NextResponse.json({ error: error.message }, { status: 422 });
-    console.error("assistant confirm failed", error);
+    console.error("assistant confirm failed", (error as Error)?.name);
     return NextResponse.json({ error: "That did not go through. Nothing was changed." }, { status: 500 });
   }
 }

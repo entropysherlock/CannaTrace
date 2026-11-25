@@ -664,7 +664,10 @@ export async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, item
   const before = await cartLines(tx, sale.id);
   const existing = before.find((line) => line.itemId === item.id);
   if (newQuantity.lte(0)) {
-    if (existing) await tx.delete(saleLines).where(eq(saleLines.id, existing.id));
+    if (existing) {
+      await tx.delete(saleLines).where(eq(saleLines.id, existing.id));
+      await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "CART_LINE_REMOVED", before: { number: sale.number, item: item.name, quantity: existing.quantity, unitPrice: existing.unitPrice } });
+    }
     return item.name;
   }
   const pack = await storePack(tx, actor.facilityId);
@@ -677,6 +680,9 @@ export async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, item
   }
   if (existing) {
     await tx.update(saleLines).set({ quantity: store(newQuantity) }).where(eq(saleLines.id, existing.id));
+    // Taking quantity off a cart is the edit worth a record (it is how a ring-up gets quietly shortened); adding is not.
+    if (newQuantity.lt(new Decimal(existing.quantity)))
+      await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "CART_QUANTITY_REDUCED", before: { number: sale.number, item: item.name, quantity: existing.quantity }, after: { quantity: store(newQuantity) } });
   } else {
     await tx.insert(saleLines).values({ saleId: sale.id, itemId: item.id, quantity: store(newQuantity), unitPrice: item.price });
   }
@@ -752,6 +758,7 @@ export async function removeFromCart(actor: Actor, input: { lineId: string }): P
     if (!line) return;
     await lockSale(tx, actor, line.saleId, ["OPEN"], "changed");
     await tx.delete(saleLines).where(eq(saleLines.id, line.id));
+    await audit(tx, actor, { entityType: "Sale", entityId: line.saleId, action: "CART_LINE_REMOVED", before: { item: line.itemId, quantity: line.quantity, unitPrice: line.unitPrice } });
   });
 }
 
@@ -788,6 +795,7 @@ export async function attachRewardsMember(actor: Actor, input: { saleId: string;
     if (!found) return null;
     const member = await expireIfIdle(tx, actor, await lockMember(tx, actor.orgId, found.id), program);
     await tx.update(sales).set({ rewardMemberId: member.id, rewardsUsed: 0 }).where(eq(sales.id, sale.id));
+    await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "REWARDS_ATTACHED", after: { number: sale.number, memberId: member.id } });
     return { firstName: member.firstName, points: member.points };
   });
 }
@@ -803,6 +811,7 @@ export async function joinRewards(
     const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
     const member = await createMember(tx, actor, program, input);
     await tx.update(sales).set({ rewardMemberId: member.id, rewardsUsed: 0 }).where(eq(sales.id, sale.id));
+    await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "REWARDS_ATTACHED", after: { number: sale.number, memberId: member.id, joined: true } });
     return { firstName: member.firstName, points: member.points };
   });
 }
@@ -811,6 +820,8 @@ export async function detachRewardsMember(actor: Actor, input: { saleId: string 
   await db.transaction(async (tx) => {
     const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
     await tx.update(sales).set({ rewardMemberId: null, rewardsUsed: 0 }).where(eq(sales.id, sale.id));
+    if (sale.rewardMemberId)
+      await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "REWARDS_DETACHED", before: { number: sale.number, memberId: sale.rewardMemberId, rewardsUsed: sale.rewardsUsed } });
   });
 }
 

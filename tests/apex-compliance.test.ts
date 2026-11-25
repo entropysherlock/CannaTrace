@@ -8,7 +8,8 @@ import { addLabResult, receivePackage as receiveRaw, type Actor } from "@/lib/in
 import { recordOfflineSale } from "@/lib/offline-sales";
 import { allocateToOrder, addOrderLine, confirmOrder, createCustomer, createDriver, createOrder, createVehicle, packOrder, shipOrder, verifyCustomerLicense } from "@/lib/distribution";
 import { splitPackage } from "@/lib/inventory";
-import { addToCart, checkInCustomer, completeSale, getRetailSettings, openDrawer, saveRetailSettings, setMenuItem } from "@/lib/pos";
+import { addToCart, checkInCustomer, completeSale, getRetailSettings, openDrawer, removeFromCart, saveRetailSettings, setLineQuantity, setMenuItem } from "@/lib/pos";
+import { fakeAssistantOn } from "@/lib/ai/connection";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
@@ -111,5 +112,29 @@ describe.skipIf(!hasDb)("Apex II compliance", () => {
     expect(sale.number).toBeTruthy();
     const used = (await db.execute<{ n: number }>(sql`select count(*)::int n from sale_line_packages slp join sale_lines sl on sl.id = slp.sale_line_id where sl.item_id = ${it.id}`)).rows[0].n;
     expect(used).toBe(2);
+  });
+  it("APEX-29: the stand-in Tally model is off on a Vercel production deployment", () => {
+    const before = { fake: process.env.ASSISTANT_FAKE, vercel: process.env.VERCEL_ENV };
+    try {
+      process.env.ASSISTANT_FAKE = "1";
+      process.env.VERCEL_ENV = "production";
+      expect(fakeAssistantOn()).toBe(false);
+      process.env.VERCEL_ENV = "preview";
+      expect(fakeAssistantOn()).toBe(true);
+    } finally {
+      if (before.fake === undefined) delete process.env.ASSISTANT_FAKE; else process.env.ASSISTANT_FAKE = before.fake;
+      if (before.vercel === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = before.vercel;
+    }
+  });
+
+  it("APEX-30: removing or reducing cart lines, and attaching or detaching rewards, leave audit rows", async () => {
+    const c = await checkInCustomer(A, { ...idDates, idNumber: `DL3-${run}` });
+    await addToCart(A, { saleId: c.id, itemId: flower, quantity: "2" });
+    const [line] = (await db.execute<{ id: string }>(sql`select id from sale_lines where sale_id = ${c.id}`)).rows;
+    await setLineQuantity(A, { lineId: line.id, quantity: "1" });
+    await removeFromCart(A, { lineId: line.id });
+    const actions = (await db.execute<{ action: string }>(sql`select action from audit_logs where entity_id = ${c.id} order by created_at`)).rows.map((r) => r.action);
+    expect(actions).toContain("CART_QUANTITY_REDUCED");
+    expect(actions).toContain("CART_LINE_REMOVED");
   });
 });
