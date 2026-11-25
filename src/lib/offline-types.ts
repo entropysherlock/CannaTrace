@@ -49,6 +49,8 @@ export type OfflineSale = {
   customerType: "ADULT_USE" | "MEDICAL";
   birthDate: string;
   idExpires: string;
+  /** The number on the customer's ID, collected only when the store counts limits per customer per day. Removed from the device once the sale is sent. */
+  idNumber?: string;
   lines: { itemId: string; name: string; quantity: string; unitPrice: string; limitCategory?: "NONE" | "FLOWER" | "CONCENTRATE" | "EDIBLE"; limitPerUnit?: string | null }[];
   discount: { name: string; percent: string } | null;
   /** The tax rates the customer was charged at. Older queued sales have none. */

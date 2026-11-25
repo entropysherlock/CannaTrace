@@ -64,12 +64,18 @@ const UNSET = {
   labelWarning: null as string | null,
 };
 
+/** A state whose purchase limits are per day starts with per-customer daily limits ON, so the first sale is not unchecked (APEX-22). */
+async function stateCountsPerDay(tx: Tx | typeof db, facilityId: string): Promise<boolean> {
+  const [f] = await tx.select({ state: facilities.state }).from(facilities).where(eq(facilities.id, facilityId));
+  return (packFor(f?.state)?.rules ?? []).some((r) => r.kind === "PURCHASE_LIMIT" && r.period === "DAY");
+}
+
 export async function getRetailSettings(
   tx: Tx | typeof db,
   facilityId: string,
 ): Promise<Omit<RetailSettings, "facilityId" | "orgId"> & { saved: boolean }> {
   const [row] = await tx.select().from(retailSettings).where(eq(retailSettings.facilityId, facilityId));
-  return row ? { ...row, saved: true } : { ...UNSET, saved: false };
+  return row ? { ...row, saved: true } : { ...UNSET, dailyLimits: await stateCountsPerDay(tx, facilityId), saved: false };
 }
 
 export async function saveRetailSettings(
@@ -103,9 +109,11 @@ export async function saveRetailSettings(
     ...(input.labelWarning !== undefined ? { labelWarning: words(input.labelWarning, "The label warning") } : {}),
   };
   await db.transaction(async (tx) => {
+    const firstSave = values.dailyLimits === undefined && (await tx.$count(retailSettings, eq(retailSettings.facilityId, actor.facilityId))) === 0;
+    const insertValues = firstSave ? { ...values, dailyLimits: await stateCountsPerDay(tx, actor.facilityId) } : values;
     await tx
       .insert(retailSettings)
-      .values({ facilityId: actor.facilityId, orgId: actor.orgId, ...values })
+      .values({ facilityId: actor.facilityId, orgId: actor.orgId, ...insertValues })
       .onConflictDoUpdate({ target: retailSettings.facilityId, set: values });
     await audit(tx, actor, { entityType: "RetailSettings", entityId: actor.facilityId, action: "SAVE", after: values });
   });
@@ -586,7 +594,7 @@ export function customerKeyFor(orgId: string, idNumber: string): string {
 type LimitLine = Parameters<typeof limitUsage>[0][number];
 
 /** What this customer already bought today at completed sales anywhere in the business, for daily limits. */
-async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" | "customerKey" | "facilityId">): Promise<LimitLine[]> {
+export async function earlierToday(tx: Tx | typeof db, sale: Pick<Sale, "id" | "orgId" | "customerKey" | "facilityId">): Promise<LimitLine[]> {
   // Whenever the customer's ID number is known, today's earlier purchases count: a second cart is not a fresh limit.
   if (!sale.customerKey) return [];
   // "Today" is the store's own day, in its state's time zone.

@@ -7,7 +7,7 @@ import { assertWholeForUnit } from "./inventory-math";
 import type { OfflineSale, OfflineSyncResult } from "./offline-types";
 import { nextNumber } from "./numbering";
 import { cartTotals, checkInProblem } from "./pos-math";
-import { getRetailSettings, limitCheck, lockOpenDrawer, storePack, takeSaleStock } from "./pos";
+import { customerKeyFor, earlierToday, getRetailSettings, limitCheck, lockOpenDrawer, storePack, takeSaleStock } from "./pos";
 import { minimumAge, requiresLabBeforeRetail } from "./rules";
 import { facilityZone } from "./time";
 
@@ -208,14 +208,20 @@ export async function recordOfflineSale(actor: Actor, input: OfflineSale): Promi
       soldDay,
     );
     if (idProblem) notes.push(`ID check: ${idProblem}`);
+    // With a per-day limit, the customer's earlier purchases that day count too (APEX-23). The ID number comes
+    // from the register; without it the sale cannot be tied to the customer, so a manager must look.
+    const idNumber = typeof input.idNumber === "string" ? input.idNumber.trim().slice(0, 40) : "";
+    const customerKey = settings.dailyLimits && idNumber ? customerKeyFor(actor.orgId, idNumber) : null;
+    const before = customerKey ? await earlierToday(tx, { id: "", orgId: actor.orgId, facilityId: actor.facilityId, customerKey }) : [];
     const limitProblem = limitCheck(
       rows.map((r) => ({ quantity: r.quantity, limitCategory: r.checkCategory, limitPerUnit: r.checkPerUnit })),
       settings,
       pack,
       input.customerType,
+      before,
     );
     if (limitProblem) notes.push(`Purchase limit: ${limitProblem}`);
-    if (settings.dailyLimits) notes.push("This store counts limits per customer per day. That could not be checked offline; look for earlier purchases by this customer that day.");
+    if (settings.dailyLimits && !customerKey) notes.push("This store counts limits per customer per day, but this offline sale has no ID number, so earlier purchases that day could not be added up. Look for them by hand.");
 
     // The seller named on the sale, when they really are on this business's team.
     const [seller] = await tx.select({ id: users.id, name: users.name }).from(users).where(and(eq(users.id, String(input.sellerId)), eq(users.orgId, actor.orgId)));
@@ -229,6 +235,7 @@ export async function recordOfflineSale(actor: Actor, input: OfflineSale): Promi
         number,
         status: "COMPLETED",
         customerType: input.customerType,
+        customerKey,
         discountName: input.discount && discountPercent.gt(0) ? discountName : null,
         discountPercent: discountPercent.toString(),
         subtotal: totals.subtotal.toFixed(2),

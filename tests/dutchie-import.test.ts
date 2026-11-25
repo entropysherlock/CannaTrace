@@ -283,7 +283,7 @@ describe.skipIf(!hasDb)("importing a Dutchie report (database)", () => {
     expect(result.packages).toBe(4);
     const pkgs = await db.select({ tag: packages.tag, lot: packages.lotNumber, qty: packages.quantity, unit: packages.unit, cost: packages.costPerUnit }).from(packages).where(eq(packages.orgId, actor.orgId));
     expect(pkgs.map((p) => p.tag).sort()).toEqual(["1A40E0100000A1B000000101", "1A40E0100000A1B000000102", "DTC-0003", "DTC-0004"]);
-    expect(pkgs.find((p) => p.tag === "DTC-0003")).toMatchObject({ lot: "BD-1104", qty: "453.6000", unit: "G", cost: "1.1000" });
+    expect(pkgs.find((p) => p.tag === "DTC-0003")).toMatchObject({ lot: "BD-1104", qty: "453.6000", unit: "G", cost: "1.10000000" });
     const [jar] = await db.select().from(items).where(and(eq(items.orgId, actor.orgId), eq(items.name, "Blue Dream 3.5g")));
     expect(jar).toMatchObject({ sku: "BD-35", unit: "EACH", unitWeightGrams: "3.5000", strain: "Blue Dream" });
     const labs = await db.select().from(labResults).where(eq(labResults.orgId, actor.orgId));

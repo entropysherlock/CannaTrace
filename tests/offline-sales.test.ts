@@ -171,11 +171,12 @@ describe.skipIf(!hasDb)("offline sales (database)", () => {
     await expect(recordOfflineSale(actor, sale)).rejects.toThrow(/Open your cash drawer/);
     expect(await db.select().from(sales).where(eq(sales.offlineId, sale.offlineId))).toHaveLength(0);
     // Once a drawer is open again it goes in. The drawer it was rung up on is closed, so that is noted.
-    const next = (await openDrawer(actor, { openingCash: "100" })).id;
+    await openDrawer(actor, { openingCash: "100" });
     const r = await recordOfflineSale(actor, { ...sale, drawerId });
     const [s] = await db.select().from(sales).where(eq(sales.id, r.saleId));
-    expect(s.drawerSessionId).toBe(next);
-    expect(s.reviewNote).toMatch(/drawer it was rung up on is closed/);
+    // APEX-14: the cash was taken at the drawer the sale was rung up on, so it stays attributed there.
+    expect(s.drawerSessionId).toBe(drawerId);
+    expect(s.reviewNote).toMatch(/drawer it was rung up on was already closed/);
   });
 
   it("lists flagged sales for a manager, who can mark them reviewed once", async () => {

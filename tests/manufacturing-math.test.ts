@@ -32,8 +32,8 @@ describe("cost rollup", () => {
     expect(total).toBeNull();
     expect(unitCost(total, new Decimal(45), new Decimal(100))).toBeNull();
   });
-  it("rounds cost per unit to four places", () => {
-    expect(unitCost(new Decimal(100), new Decimal(0), new Decimal(3))!.toString()).toBe("33.3333");
+  it("keeps cost per unit to eight places (APEX-16)", () => {
+    expect(unitCost(new Decimal(100), new Decimal(0), new Decimal(3))!.toString()).toBe("33.33333333");
   });
 });
 

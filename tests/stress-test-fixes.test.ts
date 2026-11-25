@@ -187,6 +187,8 @@ describe.skipIf(!hasDb)("stress-test fixes (database)", () => {
     it("can't ship when the failure arrives after picking, and Watch flags failed product that already left", async () => {
       const good = await receivePackage(growActor, { tag: tag(), itemId: jar, quantity: "10", locationId: vault });
       const late = await receivePackage(growActor, { tag: tag(), itemId: jar, quantity: "10", locationId: vault });
+      // Both pass at first (a state that tests before retail sale needs that to ship to a retailer); one fails after picking.
+      for (const p of [good, late]) await addLabResult(growActor, { packageId: p.id, labName: "Lab", status: "PASS", thcPercent: "20" });
       const pick = async (pkgTag: string) => {
         const o = await createOrder(growActor, { customerId });
         await addOrderLine(growActor, { orderId: o.id, itemId: jar, quantity: "10", unitPrice: "10" });

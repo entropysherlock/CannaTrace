@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   auditLogs,
   customers,
@@ -519,6 +519,35 @@ function assertActive(pkg: Package, verb: string) {
 }
 
 /** Carve new packages out of one package. The source keeps whatever is left. */
+/**
+ * A package made by splitting or merging has no lab result of its own, and the register and shipping read the
+ * package's own latest result. Give each new package a copy of its parents' passing result so a split of a tested
+ * package stays sellable (APEX-27). Nothing is copied unless every parent passed.
+ */
+async function inheritLabResult(tx: Tx, actor: Actor, child: Package, parents: Package[]): Promise<void> {
+  const statuses = await Promise.all(parents.map((p) => latestLabStatus(tx, p.id)));
+  if (!statuses.length || !statuses.every((st) => st === "PASS")) return;
+  const [source] = await tx
+    .select()
+    .from(labResults)
+    .where(and(eq(labResults.packageId, parents[0].id), eq(labResults.status, "PASS")))
+    .orderBy(desc(labResults.createdAt))
+    .limit(1);
+  await tx.insert(labResults).values({
+    orgId: actor.orgId,
+    facilityId: actor.facilityId,
+    packageId: child.id,
+    labName: source?.labName ?? "Inherited result",
+    sampleDate: source?.sampleDate ?? null,
+    status: "PASS",
+    thcPercent: parents.length === 1 ? (source?.thcPercent ?? null) : null,
+    cbdPercent: parents.length === 1 ? (source?.cbdPercent ?? null) : null,
+    notes: `Inherited from ${parents.map((p) => p.tag).join(", ")} when this package was made by a split or merge.`,
+    coaFromResultId: parents.length === 1 ? (source?.id ?? null) : null,
+    userId: actor.userId,
+  });
+}
+
 export async function splitPackageInTx(
   tx: Tx,
   actor: Actor,
@@ -590,6 +619,7 @@ export async function splitPackageInTx(
       })),
     ]);
     await tx.insert(packageLineage).values(children.map((child) => ({ parentId: source.id, childId: child.id })));
+    for (const child of children) await inheritLabResult(tx, actor, child, [source]);
     await audit(tx, actor, {
       entityType: "Package",
       entityId: source.id,
@@ -689,6 +719,7 @@ export async function mergePackages(
       },
     ]);
     await tx.insert(packageLineage).values(sources.map((source) => ({ parentId: source.id, childId: merged.id })));
+    await inheritLabResult(tx, actor, merged, sources);
     for (const source of sources) {
       await audit(tx, actor, {
         entityType: "Package",
