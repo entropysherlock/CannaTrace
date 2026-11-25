@@ -49,8 +49,10 @@ export type OfflineSale = {
   customerType: "ADULT_USE" | "MEDICAL";
   birthDate: string;
   idExpires: string;
-  lines: { itemId: string; name: string; quantity: string; unitPrice: string }[];
+  lines: { itemId: string; name: string; quantity: string; unitPrice: string; limitCategory?: "NONE" | "FLOWER" | "CONCENTRATE" | "EDIBLE"; limitPerUnit?: string | null }[];
   discount: { name: string; percent: string } | null;
+  /** The tax rates the customer was charged at. Older queued sales have none. */
+  rates?: { exciseTaxPercent: string; salesTaxPercent: string; medicalTaxExempt: boolean };
   total: string;
   cashTendered: string;
   changeDue: string;

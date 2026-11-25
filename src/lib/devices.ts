@@ -100,7 +100,8 @@ export async function deviceSession(deviceToken: string | undefined): Promise<{ 
   if (!device) return null;
   if (device.createdAt.getTime() < Date.now() - DEVICE_DAYS * 86_400_000) return null;
   const [owner] = await db.select({ passwordChangedAt: users.passwordChangedAt }).from(users).where(eq(users.id, device.userId));
-  if (owner?.passwordChangedAt && owner.passwordChangedAt > device.createdAt) return null;
+  // A password change is stamped to the whole second, so compare to the second: a phone linked in that same second is not trusted.
+  if (owner?.passwordChangedAt && Math.floor(owner.passwordChangedAt.getTime() / 1000) >= Math.floor(device.createdAt.getTime() / 1000)) return null;
   const user = await sessionFor(device.userId);
   if (!user) return null;
   // Remember when it was last used, but not on every request.

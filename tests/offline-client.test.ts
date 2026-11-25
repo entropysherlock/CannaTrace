@@ -71,7 +71,9 @@ describe("offline register math", () => {
     const sale = buildSale(snap, { ...base, cashTendered: "10" });
     expect(sale).toMatchObject({ facilityId: "fac1", sellerId: "u1", drawerId: "d1", total: "4.87", cashTendered: "10.00", changeDue: "5.13", localNumber: "OFF-0001", soldAt: "2026-11-20T16:00:00.000Z" });
     expect(sale.offlineId).toMatch(/^[0-9a-f-]{36}$/);
-    expect(sale.lines).toEqual([{ itemId: "papers", name: "Papers", quantity: "2", unitPrice: "2.00" }]);
+    expect(sale.lines).toMatchObject([{ itemId: "papers", name: "Papers", quantity: "2", unitPrice: "2.00" }]);
+    // The sale carries the rates it was charged at, so tax is booked the way the customer paid it.
+    expect(sale.rates).toEqual({ exciseTaxPercent: snap.settings.exciseTaxPercent, salesTaxPercent: snap.settings.salesTaxPercent, medicalTaxExempt: snap.settings.medicalTaxExempt });
   });
 });
 

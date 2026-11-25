@@ -49,23 +49,33 @@ export async function startUpload(session: Session, input: { name: string; size:
   if (!Number.isFinite(size) || size > MAX_FILE_BYTES) throw new AttachmentError(`${name} is too large to attach.`);
   checkBeforeUpload(name, size);
   await deleteExpiredAttachments();
-  const today = await db.$count(tallyAttachments, and(eq(tallyAttachments.orgId, session.orgId), eq(tallyAttachments.userId, session.userId), gt(tallyAttachments.createdAt, new Date(Date.now() - 86_400_000))));
-  if (today >= uploadsPerDay()) throw new AttachmentError(`You've attached ${uploadsPerDay()} files in the last 24 hours, the most allowed. Try again later.`);
-  const [row] = await db
-    .insert(tallyAttachments)
-    .values({
-      orgId: session.orgId,
-      facilityId: session.facilityId,
-      userId: session.userId,
-      name,
-      kind: "PENDING",
-      size,
-      staging: Buffer.alloc(0),
-      source,
-      // Photos from a phone wait in the inbox for a week; a file attached to a Tally question goes after a day.
-      expiresAt: new Date(Date.now() + (source !== "chat" ? Math.max(retentionHours(), 168) : retentionHours()) * 3_600_000),
-    })
-    .returning({ id: tallyAttachments.id });
+  // The allowance counts uploads STARTED (kept in the audit log), not files still stored, so deleting a file
+  // does not hand the allowance back. The per-person lock stops two simultaneous uploads both slipping under it.
+  const row = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`upload:${session.orgId}:${session.userId}`}))`);
+    const [{ n }] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(auditLogs)
+      .where(and(eq(auditLogs.orgId, session.orgId), eq(auditLogs.userId, session.userId), eq(auditLogs.entityType, "TallyFile"), eq(auditLogs.action, "UPLOAD_START"), gt(auditLogs.createdAt, new Date(Date.now() - 86_400_000))));
+    if (n >= uploadsPerDay()) throw new AttachmentError(`You've attached ${uploadsPerDay()} files in the last 24 hours, the most allowed. Try again later.`);
+    const [made] = await tx
+      .insert(tallyAttachments)
+      .values({
+        orgId: session.orgId,
+        facilityId: session.facilityId,
+        userId: session.userId,
+        name,
+        kind: "PENDING",
+        size,
+        staging: Buffer.alloc(0),
+        source,
+        // Photos from a phone wait in the inbox for a week; a file attached to a Tally question goes after a day.
+        expiresAt: new Date(Date.now() + (source !== "chat" ? Math.max(retentionHours(), 168) : retentionHours()) * 3_600_000),
+      })
+      .returning({ id: tallyAttachments.id });
+    await tx.insert(auditLogs).values({ orgId: session.orgId, facilityId: session.facilityId, userId: session.userId, userName: session.name, entityType: "TallyFile", entityId: made.id, action: "UPLOAD_START", after: { sizeBytes: size, source } });
+    return made;
+  });
   return { id: row.id, chunkBytes: CHUNK_BYTES };
 }
 

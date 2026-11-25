@@ -50,7 +50,11 @@ export function apiRoute<P>(
 export const num = (value: Decimal.Value | null) => (value === null ? null : new Decimal(value).toString());
 
 export function pageParams(url: URL): { limit: number; offset: number } {
-  const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 100, 1), 500);
-  const offset = Math.max(Number(url.searchParams.get("offset")) || 0, 0);
-  return { limit, offset };
+  // Whole numbers only; anything else falls back to the default instead of reaching the database.
+  const whole = (name: string, fallback: number) => {
+    const raw = url.searchParams.get(name);
+    if (raw === null || !/^\d{1,9}$/.test(raw.trim())) return fallback;
+    return Number(raw.trim());
+  };
+  return { limit: Math.min(Math.max(whole("limit", 100), 1), 500), offset: whole("offset", 0) };
 }

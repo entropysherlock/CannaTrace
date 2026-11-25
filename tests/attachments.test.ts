@@ -186,8 +186,10 @@ describe.skipIf(!hasDb)("attachment storage and Tally (database)", () => {
     const [row] = await db.select().from(tallyAttachments).where(eq(tallyAttachments.id, id));
     expect(row.staging).toBeNull();
     expect(Buffer.from(row.payload!).includes("SECRET-TAG-123")).toBe(false);
-    const [entry] = await db.select().from(auditLogs).where(and(eq(auditLogs.entityType, "TallyFile"), eq(auditLogs.entityId, id)));
-    expect(entry.action).toBe("UPLOAD");
+    const entries = await db.select().from(auditLogs).where(and(eq(auditLogs.entityType, "TallyFile"), eq(auditLogs.entityId, id)));
+    // Starting an upload is logged too (it is what the daily allowance counts); the finished upload is the second entry.
+    expect(entries.map((e) => e.action).sort()).toEqual(["UPLOAD", "UPLOAD_START"]);
+    const entry = entries.find((e) => e.action === "UPLOAD")!;
     expect(JSON.stringify(entry.after)).not.toContain("SECRET-TAG-123");
     // A file that fails its checks isn't kept at all.
     const bad = Buffer.from("not an image");
