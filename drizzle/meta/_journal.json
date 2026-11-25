@@ -337,6 +337,13 @@
       "when": 1795575949608,
       "tag": "0047_apex_line_promo_cost",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795576208156,
+      "tag": "0048_apex_api_rate",
+      "breakpoints": true
     }
   ]
 }

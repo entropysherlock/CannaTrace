@@ -1,9 +1,10 @@
 import { asc, eq } from "drizzle-orm";
 import { itemCategories, items } from "@/db/schema";
-import { apiRoute, num } from "@/lib/api";
+import { apiRoute, num, pageParams } from "@/lib/api";
 import { db } from "@/lib/db";
 
-export const GET = apiRoute<Record<string, never>>({}, async (_request, { key }) => {
+export const GET = apiRoute<Record<string, never>>({}, async (request, { key }) => {
+  const { limit, offset } = pageParams(new URL(request.url));
   const rows = await db
     .select({
       id: items.id,
@@ -19,6 +20,8 @@ export const GET = apiRoute<Record<string, never>>({}, async (_request, { key })
     .from(items)
     .innerJoin(itemCategories, eq(itemCategories.id, items.categoryId))
     .where(eq(items.orgId, key.orgId))
-    .orderBy(asc(items.sku));
-  return { data: rows.map((r) => ({ ...r, limitPerUnit: num(r.limitPerUnit) })) };
+    .orderBy(asc(items.sku), asc(items.id))
+    .limit(limit + 1)
+    .offset(offset);
+  return { data: rows.slice(0, limit).map((r) => ({ ...r, limitPerUnit: num(r.limitPerUnit) })), nextOffset: rows.length > limit ? offset + limit : null };
 });

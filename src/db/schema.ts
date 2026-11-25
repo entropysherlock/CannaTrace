@@ -1585,6 +1585,17 @@ export const apiKeys = pgTable(
   (t) => [index("api_keys_org_idx").on(t.orgId)],
 );
 
+/** How many requests each API key made in each minute, so one key cannot flood the service (APEX-19). */
+export const apiRateWindows = pgTable(
+  "api_rate_windows",
+  {
+    keyId: text("key_id").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.keyId, t.windowStart] })],
+);
+
 export const webhooks = pgTable(
   "webhooks",
   {

@@ -13,6 +13,9 @@ import { homeFacility } from "@/lib/facility-access";
 import { createSession, destroySession } from "@/lib/session";
 import { clearSignInFailures, LOCKED_MESSAGE, recordSignInFailure, signInLocked } from "@/lib/sign-in-throttle";
 
+let decoy: Promise<string> | null = null;
+const decoyHash = () => (decoy ??= bcrypt.hash("not-a-real-password", 12));
+
 export async function signIn(_state: FormState, formData: FormData): Promise<FormState> {
   const email = field(formData, "email").toLowerCase();
   const password = field(formData, "password");
@@ -22,12 +25,13 @@ export async function signIn(_state: FormState, formData: FormData): Promise<For
   // Checked before the password, so a locked-out guesser learns nothing from right or wrong answers.
   if (await signInLocked(email, address)) return { error: LOCKED_MESSAGE };
   const [user] = await db.select().from(users).where(eq(users.email, email));
-  const valid = user?.active ? await bcrypt.compare(password, user.passwordHash) : false;
+  // Always do one password check, so an unknown or switched-off email takes as long as a wrong password (APEX-20).
+  const valid = await bcrypt.compare(password, user?.active ? user.passwordHash : await decoyHash()).then((ok) => Boolean(user?.active) && ok);
   if (!user || !valid) {
     await recordSignInFailure(email, address);
     return { error: "That email and password do not match an active account." };
   }
-  await clearSignInFailures(email);
+  await clearSignInFailures(email, address);
   // Invite-only: listed people, and the staff of a listed business, may sign in.
   if (!(await memberMaySignIn(user.email, user.orgId))) return { error: INVITE_ONLY_MESSAGE };
 
