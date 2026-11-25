@@ -15,6 +15,7 @@ import {
   reopenHarvest,
   harvestPlants,
   logHarvestWaste,
+  reverseHarvestWaste,
   movePlants,
   packageHarvestMany,
   recordDryWeight,
@@ -22,7 +23,7 @@ import {
   updateStrainTiming,
 } from "@/lib/cultivation";
 import { toCreateError, type CreateResult } from "@/lib/contextual-create";
-import { expandTags, parseTagList } from "@/lib/cultivation-math";
+import { expandTags, parseTagList, toGrams } from "@/lib/cultivation-math";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { InventoryError, type Actor } from "@/lib/inventory";
 import { requirePermission } from "@/lib/session";
@@ -200,6 +201,22 @@ export async function wasteAction(_state: FormState, formData: FormData): Promis
     });
     revalidatePath("/cultivation", "layout");
     return { ok: "Waste logged." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+/** Take back waste that was logged by mistake, so the weight returns to the harvest. The original entry stays in the log. */
+export async function reverseWasteAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const grams = toGrams(field(formData, "weight"), field(formData, "unit") || "G", "Waste weight");
+    await reverseHarvestWaste(await cultivationActor(), {
+      harvestId: field(formData, "harvestId"),
+      grams: grams.toString(),
+      reason: field(formData, "reason"),
+    });
+    revalidatePath("/cultivation", "layout");
+    return { ok: "Waste taken back." };
   } catch (error) {
     return toFormError(error);
   }

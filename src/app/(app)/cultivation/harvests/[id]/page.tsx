@@ -17,7 +17,7 @@ import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { unitLabel, type UnitCode } from "@/lib/units";
 import { quickItemAction, quickLocationAction } from "../../../quick-create-actions";
-import { dryWeightAction, finishHarvestAction, packageHarvestAction, reopenHarvestAction, wasteAction } from "../../actions";
+import { dryWeightAction, finishHarvestAction, packageHarvestAction, reopenHarvestAction, reverseWasteAction, wasteAction } from "../../actions";
 import { itemCategoryNames } from "@/lib/quick-create-data";
 import { facilityZone } from "@/lib/time";
 
@@ -121,6 +121,20 @@ export default async function HarvestPage({ params }: { params: Promise<{ id: st
                 </Field>
                 <Field label="What it was" hint="For example stems, fan leaves, or mold.">
                   <input name="reason" required className={inputClass} />
+                </Field>
+              </ActionForm>
+            </Card>
+          ) : null}
+          {canWrite && waste.length > 0 ? (
+            <Card title="Take back waste">
+              <ActionForm action={reverseWasteAction} submitLabel="Take back waste">
+                {hidden}
+                <p className="text-xs text-slate-600">Logged by mistake? This returns the weight to the harvest. The original entry stays in the log, with a matching take-back line.</p>
+                <Field label="Weight to take back">
+                  <WeightInput name="weight" unitName="unit" required remember="waste" />
+                </Field>
+                <Field label="Why" hint="Saved in the audit trail.">
+                  <input name="reason" required maxLength={300} className={inputClass} />
                 </Field>
               </ActionForm>
             </Card>
