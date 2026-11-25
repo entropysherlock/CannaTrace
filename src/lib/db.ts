@@ -14,6 +14,15 @@ const pool =
 
 if (process.env.NODE_ENV !== "production") globalForDb.pool = pool;
 
+// A connection the database drops while it sits idle (a restart, a failover, a pooler timeout) is reported on the
+// pool as an "error" event. With nobody listening Node treats that as an uncaught exception and ends the process,
+// so log it and let the pool open a fresh connection on the next query.
+if (pool.listenerCount("error") === 0) {
+  pool.on("error", (error) => {
+    console.error("[db] an idle database connection was lost; the pool will reconnect:", error.message);
+  });
+}
+
 const base = drizzle(pool, { schema });
 
 export type Db = typeof base;

@@ -1428,6 +1428,11 @@ export const sales = pgTable(
     uniqueIndex("sales_facility_offline_key").on(t.facilityId, t.offlineId),
     index("sales_session_idx").on(t.drawerSessionId, t.status),
     index("sales_customer_day_idx").on(t.orgId, t.customerKey, t.completedAt),
+    // Dashboards, reports and the daily check read sales by store and date; without these they scan every sale ever made (Apex: ~3 s at one million sales).
+    index("sales_facility_completed_idx").on(t.facilityId, t.completedAt),
+    index("sales_org_completed_idx").on(t.orgId, t.completedAt),
+    // The manager review queue and its badge look only at the few offline sales with a note.
+    index("sales_review_idx").on(t.facilityId, t.reviewedAt).where(sql`${t.reviewNote} is not null`),
   ],
 );
 

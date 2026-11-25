@@ -153,7 +153,15 @@ export async function recordOfflineSale(actor: Actor, input: OfflineSale): Promi
       const c = claimed.get(id);
       const limitCategory = c?.limitCategory ?? item.limitCategory;
       const limitPerUnit = c?.limitCategory ? (limitCategory === "NONE" ? null : c.limitPerUnit ?? item.limitPerUnit) : item.limitPerUnit;
-      return { itemId: id, name: item.name, quantity: w.quantity, price: w.price, limitCategory, limitPerUnit };
+      // A register can be wrong or tampered with, so the limit CHECK never trusts a looser class than the server's own:
+      // it uses the item's current class unless that is NONE and the register reported a real one.
+      const useClaim = c?.limitCategory && c.limitCategory !== item.limitCategory;
+      if (useClaim) notes.push(`${item.name} was sold as a ${c!.limitCategory} item but is a ${item.limitCategory} item now; check the purchase limit by hand.`);
+      const checkWithClaim = useClaim && item.limitCategory === "NONE";
+      return {
+        itemId: id, name: item.name, quantity: w.quantity, price: w.price, limitCategory, limitPerUnit,
+        checkCategory: checkWithClaim ? limitCategory : item.limitCategory, checkPerUnit: checkWithClaim ? limitPerUnit : item.limitPerUnit,
+      };
     });
 
     // Discount: honoured as given, but a manager should see one that is not on the current list.
@@ -190,7 +198,7 @@ export async function recordOfflineSale(actor: Actor, input: OfflineSale): Promi
     );
     if (idProblem) notes.push(`ID check: ${idProblem}`);
     const limitProblem = limitCheck(
-      rows.map((r) => ({ quantity: r.quantity, limitCategory: r.limitCategory, limitPerUnit: r.limitPerUnit })),
+      rows.map((r) => ({ quantity: r.quantity, limitCategory: r.checkCategory, limitPerUnit: r.checkPerUnit })),
       settings,
       pack,
       input.customerType,

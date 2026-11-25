@@ -323,6 +323,13 @@
       "when": 1795552442709,
       "tag": "0045_printer_dpi",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1795574123005,
+      "tag": "0046_apex_sales_indexes",
+      "breakpoints": true
     }
   ]
 }

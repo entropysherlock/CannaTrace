@@ -1,0 +1,81 @@
+{
+  "run": {
+    "seed": 20260101,
+    "startSha": "b4e8cad43625dd8dbe5183dddd4153e4d6cd9565",
+    "branch": "qa/apex-simulation",
+    "database": "isolated embedded PostgreSQL (never production)",
+    "simulatedDays": 365,
+    "clock": "logical business days; database timestamps are real wall-clock time"
+  },
+  "scope": {
+    "executed": [
+      "plants->harvest->dry weight->waste->packaging",
+      "lab pass/fail with failed-lab transfer block and retest release",
+      "internal transfer under manifest (cultivation->distribution)",
+      "wholesale orders, invoices, payments",
+      "3 retail stores: check-in, cart, discounts, taxes, cash/debit/split payments, offline sales, returns, voids, drawer open/close with injected variances",
+      "mid-year tax-rate change"
+    ],
+    "notSimulated": [
+      "manufacturing runs (covered only by the existing engine tests)",
+      "rewards program and automatic promotions at scale",
+      "labels/printing",
+      "Tally AI during the year (probed separately)",
+      "state reporting (NMS2S) - not validated",
+      "50 employees exist, but permission differences were not exercised by the simulator"
+    ]
+  },
+  "volumes": {
+    "retailSalesRecorded": 102930,
+    "completedSales": 102410,
+    "voidedSales": 520,
+    "offlineSales": 4170,
+    "returns": 2018,
+    "plantsTagged": 5070,
+    "plantsHarvested": 5013,
+    "plantsDestroyed": 57,
+    "harvests": 39,
+    "packagesInDatabase": 28776,
+    "packageCreationsInLedger": 28485,
+    "drawersClosed": 2190,
+    "transfers": 38,
+    "wholesaleInvoices": 88,
+    "auditRows": 562124,
+    "inventoryTransactions": 297724
+  },
+  "referenceLedger": {
+    "design": "separate integer-cent / integer-ten-thousandths BigInt ledger; shares no calculation code with CannaTrace; never adjusted to match the app",
+    "dailyChecks": "per store: sale count, subtotal, discounts, excise, sales tax, total, refunds; every day",
+    "periodicChecks": "stock on hand by facility and item; plants tagged; harvest wet/dry/waste/packaged weights; drawer expected cash and variance at every close; wholesale invoice totals"
+  },
+  "results": {
+    "dailyReconciliationMismatches": 0,
+    "finalReconciliationMismatches": [],
+    "inlineFindings": [],
+    "invariantViolations": [],
+    "transferOutUnits": "3057880000",
+    "transferInUnits": "3057880000",
+    "unitsNote": "ten-thousandths of a gram: 3057880000 = 305,788 g",
+    "wholesaleBilledCents": "52357000",
+    "wholesalePaidCents": "45279121",
+    "failedLabTransfersBlocked": 35,
+    "retailTotalsDollars": {
+      "subtotal": "18602233.34",
+      "discounts": "343013.04",
+      "excise": "2376543.08",
+      "salesTax": "1272425.96",
+      "total": "21908189.34",
+      "refunds": "135887.03"
+    }
+  },
+  "invariants": [
+    "no negative package quantity",
+    "package quantity equals the sum of its movements",
+    "each completed sale line is fully sourced from packages",
+    "sale total = subtotal - discount + excise + sales tax",
+    "no duplicate sale numbers",
+    "every package and completed sale has an audit entry",
+    "no drawer left open"
+  ],
+  "limits": "Passing means no discrepancy was found in what was simulated. It does not prove the untested areas."
+}
