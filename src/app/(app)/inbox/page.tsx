@@ -38,7 +38,7 @@ export default async function InboxPage() {
       {rows.length === 0 ? (
         <Card>
           <p className="text-sm text-slate-600" data-testid="inbox-empty">
-            Nothing here yet. Link your phone under Your account, open CannaTrace on it, and tap Take a photo.
+            Nothing here yet. Link your phone under Your account, open Leaf2Sale on it, and tap Take a photo.
           </p>
         </Card>
       ) : (

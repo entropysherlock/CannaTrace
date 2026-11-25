@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
 import { LEGAL, type LegalSection } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "Terms of Service · CannaTrace", description: "The rules for using CannaTrace, in plain language." };
+export const metadata: Metadata = { title: "Terms of Service · Leaf2Sale", description: "The rules for using Leaf2Sale, in plain language." };
 
 const SECTIONS: LegalSection[] = [
   {
-    heading: "What CannaTrace is",
+    heading: "What Leaf2Sale is",
     paragraphs: [
-      "CannaTrace is software for licensed cannabis businesses: plants, inventory, labels, sales, reports and Tally, an AI helper. It is a tool for keeping your own records. It is not legal advice and it is not a government system.",
-      "New Mexico requires licensees to use NMS2S. CannaTrace does not replace it. NMS2S stays your official record, and you are responsible for entering and reporting to it as the law requires.",
+      "Leaf2Sale is software for licensed cannabis businesses: plants, inventory, labels, sales, reports and Tally, an AI helper. It is a tool for keeping your own records. It is not legal advice and it is not a government system.",
+      "New Mexico requires licensees to use NMS2S. Leaf2Sale does not replace it. NMS2S stays your official record, and you are responsible for entering and reporting to it as the law requires.",
     ],
   },
   {
@@ -37,7 +37,7 @@ const SECTIONS: LegalSection[] = [
   {
     heading: "Your data",
     paragraphs: [
-      "Your business records are yours. We store and process them only to run CannaTrace for you, as described in the Privacy Policy and the Data Agreement. You can download your data as spreadsheets at any time, including after you stop.",
+      "Your business records are yours. We store and process them only to run Leaf2Sale for you, as described in the Privacy Policy and the Data Agreement. You can download your data as spreadsheets at any time, including after you stop.",
       "You give us permission to host, copy, back up and display your data as needed to provide the service, and to use anonymous, combined statistics that do not identify you or your customers to keep the service working and improve it.",
     ],
   },
@@ -63,7 +63,7 @@ const SECTIONS: LegalSection[] = [
   {
     heading: "What you must not do",
     items: [
-      "Use CannaTrace for anything unlawful, or to hide, falsify or misreport records.",
+      "Use Leaf2Sale for anything unlawful, or to hide, falsify or misreport records.",
       "Try to get into other businesses' data, probe or attack the service, or overload it.",
       "Copy, resell or reverse engineer the software, or share your access with people outside your business.",
       "Put in data you have no right to use.",
@@ -72,7 +72,7 @@ const SECTIONS: LegalSection[] = [
   {
     heading: "Availability and backups",
     paragraphs: [
-      "We work to keep CannaTrace running and your data safe, and we take regular backups. But software goes down, and we do not promise it will always be available or error-free. Keep your own records you are required to keep, and keep NMS2S up to date.",
+      "We work to keep Leaf2Sale running and your data safe, and we take regular backups. But software goes down, and we do not promise it will always be available or error-free. Keep your own records you are required to keep, and keep NMS2S up to date.",
     ],
   },
   {
@@ -84,15 +84,15 @@ const SECTIONS: LegalSection[] = [
   {
     heading: "Our responsibility",
     paragraphs: [
-      "CannaTrace is provided as is, without warranties of any kind, to the extent the law allows. To the extent the law allows, we are not liable for indirect or consequential losses, lost profits, fines, license actions or lost data, and our total liability for any claim is limited to the amount you paid us in the 12 months before it. Some places do not allow these limits, so they apply only as far as the law permits.",
+      "Leaf2Sale is provided as is, without warranties of any kind, to the extent the law allows. To the extent the law allows, we are not liable for indirect or consequential losses, lost profits, fines, license actions or lost data, and our total liability for any claim is limited to the amount you paid us in the 12 months before it. Some places do not allow these limits, so they apply only as far as the law permits.",
       "You agree to cover claims brought against us because of your data, your breach of these terms, or your violation of law.",
     ],
   },
   {
     heading: "Changes and disputes",
     paragraphs: [
-      "We may update these terms. We will post the new version here and tell account owners about material changes before they apply. Using CannaTrace after that means you accept them.",
-      `These terms are governed by the laws of the State of New Mexico. Disputes go to the state or federal courts located in Bernalillo County, New Mexico. If we form a company to run CannaTrace, these terms pass to that company, and we will tell you. ${LEGAL.operator} is based in ${LEGAL.place}.`,
+      "We may update these terms. We will post the new version here and tell account owners about material changes before they apply. Using Leaf2Sale after that means you accept them.",
+      `These terms are governed by the laws of the State of New Mexico. Disputes go to the state or federal courts located in Bernalillo County, New Mexico. If we form a company to run Leaf2Sale, these terms pass to that company, and we will tell you. ${LEGAL.operator} is based in ${LEGAL.place}.`,
     ],
   },
 ];
@@ -102,7 +102,7 @@ export default function TermsPage() {
     <LegalPage
       current="/terms"
       title="Terms of Service"
-      intro="These terms are the agreement between you and CannaTrace when you use the website, the app, or Tally. Please read them. If you do not agree, do not use CannaTrace."
+      intro="These terms are the agreement between you and Leaf2Sale when you use the website, the app, or Tally. Please read them. If you do not agree, do not use Leaf2Sale."
       sections={SECTIONS}
     />
   );

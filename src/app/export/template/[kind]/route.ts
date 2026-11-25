@@ -5,6 +5,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ kin
   const template = TEMPLATES[kind as ImportKind];
   if (!template) return new Response("Unknown template.", { status: 404 });
   return new Response(template, {
-    headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="cannatrace-${kind}-template.csv"` },
+    headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="leaf2sale-${kind}-template.csv"` },
   });
 }

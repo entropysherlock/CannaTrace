@@ -2,19 +2,19 @@ import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal-page";
 import { LEGAL, type LegalSection } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "Data Agreement · CannaTrace", description: "How CannaTrace handles a business's data on its behalf." };
+export const metadata: Metadata = { title: "Data Agreement · Leaf2Sale", description: "How Leaf2Sale handles a business's data on its behalf." };
 
 const SECTIONS: LegalSection[] = [
   {
     heading: "Roles",
     paragraphs: [
-      "The business using CannaTrace (\"you\") controls its data: you decide what to enter and why. CannaTrace (\"we\") handles that data on your behalf to provide the service. This agreement sits alongside the Terms of Service and Privacy Policy and applies whenever we handle personal information for you, such as staff details and rewards members.",
+      "The business using Leaf2Sale (\"you\") controls its data: you decide what to enter and why. Leaf2Sale (\"we\") handles that data on your behalf to provide the service. This agreement sits alongside the Terms of Service and Privacy Policy and applies whenever we handle personal information for you, such as staff details and rewards members.",
     ],
   },
   {
     heading: "What we will do",
     items: [
-      "Use your data only to provide, secure and support CannaTrace for you, and as you instruct through the app or in writing.",
+      "Use your data only to provide, secure and support Leaf2Sale for you, and as you instruct through the app or in writing.",
       "Keep it confidential, and limit access to people who need it to run the service and who are bound to keep it private.",
       "Keep your data separate from other businesses' data and show it only to people you have given access.",
       "Use reasonable safeguards: encrypted connections, hashed passwords, permission levels set by your owner, an audit trail, and encrypted backups.",
@@ -23,7 +23,7 @@ const SECTIONS: LegalSection[] = [
   },
   {
     heading: "Outside services",
-    paragraphs: ["You agree we may use the following services to run CannaTrace, and we will make sure each is bound to protect the data. We will tell account owners before adding a new one that handles your stored data."],
+    paragraphs: ["You agree we may use the following services to run Leaf2Sale, and we will make sure each is bound to protect the data. We will tell account owners before adding a new one that handles your stored data."],
     items: LEGAL.providers.map((p) => `${p.name}: ${p.does}.`),
   },
   {
@@ -43,7 +43,7 @@ const SECTIONS: LegalSection[] = [
     items: [
       "Have the right to collect the data you enter, and tell the people you collect it from what you do with it. For rewards, use the sign-up agreement at the register honestly and only for the program.",
       "Keep your staff list and permissions up to date, and use strong passwords.",
-      "Keep any records the law requires you to keep. CannaTrace is not a substitute for NMS2S or your license records.",
+      "Keep any records the law requires you to keep. Leaf2Sale is not a substitute for NMS2S or your license records.",
     ],
   },
   {
@@ -71,7 +71,7 @@ export default function DataAgreementPage() {
     <LegalPage
       current="/data-agreement"
       title="Data Agreement"
-      intro="This agreement explains how CannaTrace handles a business's data, including personal information about its staff and its rewards members, on the business's behalf."
+      intro="This agreement explains how Leaf2Sale handles a business's data, including personal information about its staff and its rewards members, on the business's behalf."
       sections={SECTIONS}
     />
   );

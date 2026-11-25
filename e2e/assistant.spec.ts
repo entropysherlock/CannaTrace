@@ -9,7 +9,7 @@ test("the assistant answers from live data and only changes things after Confirm
 
   // Open with the keyboard shortcut and ask a suggested question
   await page.keyboard.press("Control+j");
-  const panel = page.getByRole("dialog", { name: "CannaTrace assistant" });
+  const panel = page.getByRole("dialog", { name: "Leaf2Sale assistant" });
   await expect(panel.getByText(/what can I help with/)).toBeVisible();
   await panel.getByRole("button", { name: "Give me a quick rundown of where things stand" }).click();
   await expect(panel.getByRole("cell", { name: "Packages in stock" })).toBeVisible();

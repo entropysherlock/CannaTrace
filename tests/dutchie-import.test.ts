@@ -324,14 +324,14 @@ describe.skipIf(!hasDb)("importing a Dutchie report (database)", () => {
     expect(failed.status).toBe("FAIL");
   });
 
-  it("names the clashing lines when only some package IDs are already in CannaTrace", async () => {
+  it("names the clashing lines when only some package IDs are already in Leaf2Sale", async () => {
     const table = await readReport("store.csv", Buffer.from(readFileSync("tests/fixtures/multi-store-inventory.csv")));
     const preview = await previewImport("dutchie", actor, table, "Rio Grande Retail");
     expect(preview.problems).toEqual([]);
     const both = [table[0], table[1], table[7]]; // MS-PKG-0001 (imported above) and MS-PKG-0007 (new)
     both[1][1] = both[2][1] = "Rio Grande Retail";
     const clash = await previewImport("dutchie", actor, both, "Rio Grande Retail");
-    expect(clash.problems[0]).toMatch(/1 package ID is already in CannaTrace/);
+    expect(clash.problems[0]).toMatch(/1 package ID is already in Leaf2Sale/);
     expect(clash.problems[1]).toMatch(/MS-PKG-0001 is already in use/);
   });
 
@@ -356,7 +356,7 @@ describe.skipIf(!hasDb)("importing a Dutchie report (database)", () => {
     expect(log.after).toMatchObject({ store: "Durango Ave", facilityId: actor.facilityId, packages: 1 });
   });
 
-  it("saves nothing when a package is already in CannaTrace", async () => {
+  it("saves nothing when a package is already in Leaf2Sale", async () => {
     const before = await db.$count(packages, eq(packages.orgId, actor.orgId));
     await expect(importDutchie(actor, report(), "Sandia Store")).rejects.toThrow(/Nothing was imported[\s\S]*already imported/);
     expect(await db.$count(packages, eq(packages.orgId, actor.orgId))).toBe(before);

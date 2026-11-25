@@ -286,7 +286,7 @@ export function AssistantPanel({
       <aside
         ref={panelRef}
         role="dialog"
-        aria-label="Tally, the CannaTrace assistant"
+        aria-label="Tally, the Leaf2Sale assistant"
         aria-hidden={!open}
         inert={!open}
         data-no-global-drop
@@ -314,7 +314,7 @@ export function AssistantPanel({
             <p className="flex items-center gap-2 font-semibold text-slate-900">
               Tally <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">Claude</span>
             </p>
-            <p className="text-xs text-slate-500">Your CannaTrace assistant · answers from live data</p>
+            <p className="text-xs text-slate-500">Your Leaf2Sale assistant · answers from live data</p>
           </div>
           {turns.length ? (
             <button

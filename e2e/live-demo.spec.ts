@@ -41,7 +41,7 @@ test("someone signed in to a real business is not moved into the demo", async ({
 test("the Watch the Video Tour button plays the product tour video", async ({ page, request }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Watch the Video Tour" }).first().click();
-  const player = page.getByRole("dialog", { name: "CannaTrace product tour" });
+  const player = page.getByRole("dialog", { name: "Leaf2Sale product tour" });
   await expect(player).toBeVisible();
   const video = page.locator("dialog video");
   await expect(video).toHaveAttribute("src", "/tour/cannatrace-tour.mp4");

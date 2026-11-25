@@ -20,7 +20,7 @@ export const DEMO_BUSINESS_NAME = "Desert Bloom Cannabis Co. (sample)";
 export const DEMO_ASSISTANT_DAILY_LIMIT = Number(process.env.DEMO_ASSISTANT_DAILY_LIMIT ?? 150);
 
 export function liveDemoEnabled(): boolean {
-  // Off while CannaTrace is invite-only; LIVE_DEMO=on turns it back on (see lib/access.ts).
+  // Off while Leaf2Sale is invite-only; LIVE_DEMO=on turns it back on (see lib/access.ts).
   return liveDemoOn();
 }
 

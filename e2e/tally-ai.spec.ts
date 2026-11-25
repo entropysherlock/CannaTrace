@@ -49,7 +49,7 @@ test("an owner connects the business's Claude account, sets limits, and the team
   const team = await browser.newPage();
   await signIn(team, "sales@demo.test");
   await team.keyboard.press("Control+j");
-  const panel = team.getByRole("dialog", { name: "CannaTrace assistant" });
+  const panel = team.getByRole("dialog", { name: "Leaf2Sale assistant" });
   await panel.getByRole("button", { name: "Give me a quick rundown of where things stand" }).click();
   await expect(panel.getByRole("cell", { name: "Packages in stock" })).toBeVisible();
   await panel.getByLabel("Message the assistant").fill("and again?");

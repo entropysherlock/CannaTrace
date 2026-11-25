@@ -33,7 +33,7 @@ test("link a phone with a QR code, send a photo from it, and unlink it", async (
   await expect(phone.getByTestId("linked-note")).toBeVisible();
   await expect(phone.getByTestId("take-photo")).toBeVisible();
   // From inside the app, the camera is one tap away
-  await phone.getByRole("link", { name: "Open CannaTrace" }).click();
+  await phone.getByRole("link", { name: "Open Leaf2Sale" }).click();
   await expect(phone).toHaveURL(/\/dashboard/);
   await phone.getByTestId("camera-link").click();
   await expect(phone.getByTestId("take-photo")).toBeVisible();

@@ -24,7 +24,7 @@ test("a card payment is recorded with its last 4 digits and approval number, and
   await page.getByRole("button", { name: /Pay/ }).click();
   const pay = page.getByRole("dialog", { name: /Take payment/ });
 
-  // Cash needs no card details; debit says plainly that CannaTrace does not charge the card
+  // Cash needs no card details; debit says plainly that Leaf2Sale does not charge the card
   await expect(pay.getByTestId("card-details")).toHaveCount(0);
   await pay.getByRole("radio", { name: "Debit" }).click();
   const details = pay.getByTestId("card-details");
@@ -47,7 +47,7 @@ test("a card payment is recorded with its last 4 digits and approval number, and
   const report = page.getByTestId("card-payments");
   await expect(report).toContainText("ending 4242");
   await expect(report).toContainText("AP-7731");
-  await expect(report).toContainText("not charged by CannaTrace");
+  await expect(report).toContainText("not charged by Leaf2Sale");
 
   // Leave things as the other tests expect: manager back at the grow
   await page.goto("/dashboard");

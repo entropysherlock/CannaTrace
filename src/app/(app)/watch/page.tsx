@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/session";
 import { describeSchedule, cronFor } from "@/lib/job-runs";
 import { FRESH_MINUTES, openFindings, sweepIfStaleBriefly } from "@/lib/watch";
 
-export const metadata = { title: "Tally Watch · CannaTrace" };
+export const metadata = { title: "Tally Watch · Leaf2Sale" };
 
 /** Everything Tally Watch has found at this facility, with one-click fixes. */
 export default async function WatchPage() {

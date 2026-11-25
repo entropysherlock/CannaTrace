@@ -11,7 +11,7 @@ import { requirePagePermission } from "@/lib/session";
 import { facilityZone } from "@/lib/time";
 import { rewardsSettingsAction } from "../actions";
 
-export const metadata = { title: "Rewards · CannaTrace" };
+export const metadata = { title: "Rewards · Leaf2Sale" };
 
 export default async function RewardsPage({ searchParams }: { searchParams: Promise<{ q?: string; deleted?: string }> }) {
   const session = await requirePagePermission("pos.manage");

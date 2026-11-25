@@ -72,10 +72,10 @@ describe.skipIf(!hasDb)("receiving a shipment (database)", () => {
 
   const counted = { [`${run}-B`]: { quantity: "45", reason: "5 jars crushed" }, [`${run}-C`]: { quantity: "0", reason: "Not on the truck" } };
 
-  it("checks without saving, and names products that aren't in CannaTrace", async () => {
+  it("checks without saving, and names products that aren't in Leaf2Sale", async () => {
     const table = [...manifest(run), [`${run}-D`, "Mystery Tincture", "10", ""]];
     const check = await receiveShipment(actor, { manifestNumber: "M-1", table, locationId: room, received: counted, commit: false });
-    expect(check.problems).toEqual([expect.stringMatching(/1 product isn't in CannaTrace yet \(Mystery Tincture\)/)]);
+    expect(check.problems).toEqual([expect.stringMatching(/1 product isn't in Leaf2Sale yet \(Mystery Tincture\)/)]);
     expect(await db.$count(packages, eq(packages.facilityId, actor.facilityId))).toBe(0);
   });
 
@@ -118,11 +118,11 @@ describe.skipIf(!hasDb)("receiving a shipment (database)", () => {
     expect(await db.$count(packages, and(eq(packages.facilityId, actor.facilityId), eq(packages.lotNumber, "DH-2")))).toBe(1);
   });
 
-  it("refuses tags that are already in CannaTrace and saves nothing", async () => {
+  it("refuses tags that are already in Leaf2Sale and saves nothing", async () => {
     const before = await db.$count(packages, eq(packages.facilityId, actor.facilityId));
     const reuse = await receiveShipment(actor, { manifestNumber: "M-3", table: manifest(run), locationId: room, received: counted, commit: true });
     expect(reuse.received).toBe(false);
-    expect(reuse.problems).toEqual([expect.stringMatching(/-A is already in CannaTrace/), expect.stringMatching(/-B is already in CannaTrace/)]);
+    expect(reuse.problems).toEqual([expect.stringMatching(/-A is already in Leaf2Sale/), expect.stringMatching(/-B is already in Leaf2Sale/)]);
     expect(await db.$count(packages, eq(packages.facilityId, actor.facilityId))).toBe(before);
   });
 });

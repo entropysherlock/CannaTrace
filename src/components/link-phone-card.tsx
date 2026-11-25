@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { makePairingAction } from "@/app/(app)/account/actions";
 
-/** Shows a QR code for linking a phone. Scanning it with the phone's camera opens CannaTrace there. */
+/** Shows a QR code for linking a phone. Scanning it with the phone's camera opens Leaf2Sale there. */
 export function LinkPhoneCard() {
   const [link, setLink] = useState<{ url: string; svg: string; minutes: number } | null>(null);
   const [error, setError] = useState<string | null>(null);

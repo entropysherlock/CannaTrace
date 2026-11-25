@@ -2,7 +2,7 @@ import Decimal from "decimal.js";
 import type { UnitCode } from "@/lib/units";
 
 /**
- * Reading an inventory export from another system so a business can switch to CannaTrace:
+ * Reading an inventory export from another system so a business can switch to Leaf2Sale:
  * - Dutchie POS: Backoffice → Reports → Current Inventory, exported to Excel or CSV.
  * - Flourish: Inventory → All Packages, exported to Excel.
  * - NMS2S (New Mexico's state system): the Inventory table of an inventory room, with the columns its
@@ -211,7 +211,7 @@ export function num(raw: string | undefined): Decimal | null {
 export type ImportStatus = "ACTIVE" | "ON_HOLD" | "QUARANTINE";
 
 /**
- * A status cell from another system, as CannaTrace sees it. Held or damaged stock comes in on hold;
+ * A status cell from another system, as Leaf2Sale sees it. Held or damaged stock comes in on hold;
  * quarantined or recalled stock comes in quarantined; destroyed or sold stock is left out (null).
  */
 export function statusFor(cell: string): ImportStatus | null {
@@ -338,7 +338,7 @@ function countNms2s(countCell: string, weightCell: string, perUnitCell: string):
   const count = num(countCell);
   const weight = amountWithUnit(weightCell);
   if (countCell && !count) return { problem: "Unit/Package Count is not a number." };
-  if (weightCell && !weight) return { problem: `"${weightCell}" isn't an amount CannaTrace understands (like 500.00 g).` };
+  if (weightCell && !weight) return { problem: `"${weightCell}" isn't an amount Leaf2Sale understands (like 500.00 g).` };
   if (count && count.gt(0)) {
     const perUnit = amountWithUnit(perUnitCell);
     // Amount per unit in milligrams is an edible's dose, not its weight.
@@ -549,7 +549,7 @@ export function planImport(source: Source, table: string[][], options: { store?:
       `${n(quarantined)} package${quarantined === 1 ? " comes" : "s come"} in quarantined (recalled, quarantined, or failed a lab test${failed ? `: ${n(failed)} failed` : ""}). They can't be sold until someone releases them.`,
     );
   if (cols.room === undefined) warnings.push(`There's no room column, so everything goes into a new room called "${IMPORT_ROOM}". You can move packages afterwards.`);
-  if (cols.tag === undefined && cols.externalTag === undefined) warnings.push("There's no package ID column, so every package gets a new CannaTrace ID (PKG-…).");
+  if (cols.tag === undefined && cols.externalTag === undefined) warnings.push("There's no package ID column, so every package gets a new Leaf2Sale ID (PKG-…).");
   if (pendingLab) warnings.push(`${pendingLab.toLocaleString("en-US")} package${pendingLab === 1 ? " has" : "s have"} THC or CBD numbers. They're saved as pending lab results: confirm each with its certificate before it can go on a retail label.`);
   return { matched, rows, problems, warnings, stores, store: chosen ?? null, locationAmbiguous };
 }

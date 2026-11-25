@@ -1,5 +1,5 @@
 /**
- * Project Apex simulator. Drives the REAL CannaTrace business functions against a real PostgreSQL database and
+ * Project Apex simulator. Drives the REAL Leaf2Sale business functions against a real PostgreSQL database and
  * checks every day against the independent reference ledger (ledger.ts). Not mocked: cultivation, inventory,
  * wholesale orders, register, returns, voids, drawers and offline sync all run through the production code.
  * "Simulated clock" means logical business days: database timestamps are real wall-clock time.

@@ -1,6 +1,6 @@
 /**
  * Project Apex: adversarial and security scenarios against the real code and a real database.
- * Each test states the property that must hold; a failure is a defect in CannaTrace, not in the test.
+ * Each test states the property that must hold; a failure is a defect in Leaf2Sale, not in the test.
  */
 import Decimal from "decimal.js";
 import { and, eq, sql } from "drizzle-orm";

@@ -38,13 +38,13 @@ test("the Dashboard shows the business at a glance, for one facility or all, ove
 
   // A suggested question opens Tally already asking it
   await page.getByTestId("tally-dock").getByRole("button", { name: "What's running low in inventory?" }).click();
-  await expect(page.getByRole("dialog", { name: "CannaTrace assistant" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Leaf2Sale assistant" })).toBeVisible();
 });
 
 test("the top bar searches the business, rings the Tally Watch bell, and opens walkthroughs", async ({ page }) => {
   await signIn(page);
-  await page.getByLabel("Search CannaTrace").fill("CT-0000");
-  await page.getByLabel("Search CannaTrace").press("Enter");
+  await page.getByLabel("Search Leaf2Sale").fill("CT-0000");
+  await page.getByLabel("Search Leaf2Sale").press("Enter");
   await expect(page).toHaveURL(/\/search\?q=CT-0000/);
   await expect(page.getByTestId("search-results")).toContainText("Packages");
 

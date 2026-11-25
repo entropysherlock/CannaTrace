@@ -95,7 +95,7 @@ export default async function DrawerReportPage({ params }: { params: Promise<{ i
         {cardSales.length > 0 ? (
           <div data-testid="card-payments">
             <h2 className="mb-1 mt-6 font-semibold">Card payments this shift</h2>
-            <p className="mb-2 text-slate-600">Recorded here, not charged by CannaTrace. Match them to your card terminal&apos;s batch report.</p>
+            <p className="mb-2 text-slate-600">Recorded here, not charged by Leaf2Sale. Match them to your card terminal&apos;s batch report.</p>
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="border-b-2 border-slate-400">

@@ -20,7 +20,7 @@ import {
   promotionToggleAction,
 } from "../actions";
 
-export const metadata = { title: "Promotions · CannaTrace" };
+export const metadata = { title: "Promotions · Leaf2Sale" };
 
 export default async function PromotionsPage() {
   const session = await requirePagePermission("pos.manage");

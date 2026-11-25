@@ -244,24 +244,24 @@ async function apply(actor: Actor, plan: Plan, source: Source): Promise<DutchieR
     }
   }
 
-  // Package IDs that are already in CannaTrace
+  // Package IDs that are already in Leaf2Sale
   const taken = new Set<string>();
   for (const part of chunks([...seenTags])) {
     for (const row of await db.select({ tag: packages.tag }).from(packages).where(and(eq(packages.orgId, actor.orgId), inArray(packages.tag, part)))) taken.add(row.tag);
   }
   if (taken.size) {
-    if (taken.size === seenTags.size) problems.unshift(`This file was already imported: all ${seenTags.size.toLocaleString("en-US")} of its package IDs are already in CannaTrace.`);
+    if (taken.size === seenTags.size) problems.unshift(`This file was already imported: all ${seenTags.size.toLocaleString("en-US")} of its package IDs are already in Leaf2Sale.`);
     else {
       const clashes = ready.filter((x) => taken.has(x.tag));
       problems.push(
-        `${clashes.length.toLocaleString("en-US")} package ID${clashes.length === 1 ? " is" : "s are"} already in CannaTrace. Every package needs its own ID:`,
+        `${clashes.length.toLocaleString("en-US")} package ID${clashes.length === 1 ? " is" : "s are"} already in Leaf2Sale. Every package needs its own ID:`,
         ...clashes.slice(0, 20).map((x) => `${x.label}: tag ${x.tag} is already in use.`),
       );
     }
   }
   if (problems.length) return result;
 
-  // New CannaTrace IDs for rows without one
+  // New Leaf2Sale IDs for rows without one
   const blanks = ready.filter((x) => !x.tag);
   const fresh: string[] = [];
   for (const part of chunks(blanks, 2000)) fresh.push(...(await generateTags(db, actor.orgId, "PACKAGE", part.length)));

@@ -7,7 +7,7 @@ import { lookupInvite } from "@/lib/team";
 import { acceptInviteAction } from "./actions";
 
 export const instant = false;
-export const metadata = { title: "Join your team on CannaTrace", robots: { index: false } };
+export const metadata = { title: "Join your team on Leaf2Sale", robots: { index: false } };
 
 const PROBLEMS = {
   missing: "This invite link is not valid. Check that you copied the whole link.",
@@ -33,7 +33,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
             </p>
             {signedIn ? (
               <p role="note" data-testid="signed-in-note" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                <strong>{signedIn.name}</strong> is signed in on this browser. A browser holds one CannaTrace sign-in at a time, so joining here
+                <strong>{signedIn.name}</strong> is signed in on this browser. A browser holds one Leaf2Sale sign-in at a time, so joining here
                 signs them out. To keep both signed in, open this link in a private window or another browser.
               </p>
             ) : null}

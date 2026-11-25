@@ -1,4 +1,4 @@
-# CannaTrace
+# Leaf2Sale
 
 An original seed-to-sale inventory and compliance app for licensed cannabis operators. Built to be fast on a phone on a warehouse floor, with a permanent audit trail behind every change.
 
@@ -32,7 +32,7 @@ A new deployment starts empty. The first visitor is sent to **/setup** to enter 
 ## Accounts, teams, and roles
 
 - **Sign up (/signup):** any business can create its own account. It becomes the owner of a separate business; nobody sees another business's data. New sign-ups are limited to `SIGNUPS_PER_HOUR` (default 20) across the site, and one account per email.
-- **Invites (Team page):** an owner creates a one-time link for a person and a role, then sends it by text or email. The link works once, expires in 7 days, and can be cancelled. Only a hash of it is stored, so a lost link means making a new invite. CannaTrace does not send email itself yet.
+- **Invites (Team page):** an owner creates a one-time link for a person and a role, then sends it by text or email. The link works once, expires in 7 days, and can be cancelled. Only a hash of it is stored, so a lost link means making a new invite. Leaf2Sale does not send email itself yet.
 - **Roles:** seven built-in roles, plus roles you build by ticking exactly what they allow. Changes apply on the person's next click. Only an owner can hand out team management, API keys, or the Owner role, and a business always keeps at least one active owner.
 
 Before the register can sell, a manager must enter the store's real purchase limits and tax rates under **Register → Menu and store rules**. The register stays locked until then.
@@ -49,7 +49,7 @@ Each state is a rule pack in `src/lib/rules/packs/`: plain data where every rule
 
 ## The assistant (Claude)
 
-Every page has an **Ask CannaTrace** button (or press Ctrl+J). People ask in plain English and Claude answers from the business's live data: inventory, sales, orders, unpaid invoices, plants, production, state reporting, and the audit trail.
+Every page has an **Ask Leaf2Sale** button (or press Ctrl+J). People ask in plain English and Claude answers from the business's live data: inventory, sales, orders, unpaid invoices, plants, production, state reporting, and the audit trail.
 
 - **Turn it on:** create an API key at console.anthropic.com, add it in Vercel as `ANTHROPIC_API_KEY`, and redeploy. Set a monthly spending limit in the Anthropic Console. Optional: `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`).
 - **It only sees what the person can see:** their own business and facility, and only the tools their role allows.
@@ -190,12 +190,12 @@ For real use, also set up backups and uptime monitoring: see [docs/hosting-and-b
 - [x] Plain-English explanation and next step for every kind of error, plus the state system's own message
 - [x] Records a system cannot take automatically are listed for hand entry, with who marked them done
 - [x] State reporting page, Send now button, dashboard warning, and a scheduled route for automatic sending
-- [x] Practice mode (default): records are marked sent and nothing leaves CannaTrace
+- [x] Practice mode (default): records are marked sent and nothing leaves Leaf2Sale
 - [x] Metrc: sign-in with vendor and user keys, and package adjustments. **Not tested against a live Metrc account.**
 - [ ] Metrc: every other record type (they are listed for hand entry for now)
 - [ ] NMS2S (New Mexico): waiting on the state to publish the API software needs
 - [ ] BioTrack: not built; New Mexico stopped using it in September 2026
-- [ ] Pulling records back from the state to compare against CannaTrace
+- [ ] Pulling records back from the state to compare against Leaf2Sale
 
 ### Connecting a state system
 Set these in your hosting settings (never in the code):
@@ -203,11 +203,11 @@ Set these in your hosting settings (never in the code):
 | Setting | What it is |
 | --- | --- |
 | `METRC_API_URL` | Your state's Metrc address, for example `https://api-mi.metrc.com` |
-| `METRC_VENDOR_KEY` | CannaTrace's software key. Metrc issues it only after you apply and pass their integrator review |
+| `METRC_VENDOR_KEY` | Leaf2Sale's software key. Metrc issues it only after you apply and pass their integrator review |
 | `METRC_USER_KEY` | The key a user at the licensed business creates in Metrc |
 | `CRON_SECRET` | Any long random string. Call `/api/sync/run` with `Authorization: Bearer <CRON_SECRET>` every few minutes to send automatically |
 
-Metrc adjustment reasons must match the names on your state's list in Metrc. CannaTrace sends its own reason names, so a state may reject them until they are matched.
+Metrc adjustment reasons must match the names on your state's list in Metrc. Leaf2Sale sends its own reason names, so a state may reject them until they are matched.
 
 ### Phase 8: Reporting and integrations
 - [x] Reports: inventory value at cost by category, inventory age, retail sales by day, wholesale owed and overdue, harvest and production yields, state reporting health
@@ -221,7 +221,7 @@ Metrc adjustment reasons must match the names on your state's list in Metrc. Can
 ### Using the API and webhooks
 Owners create keys and webhooks under **Integrations**, which also documents every endpoint. Send keys as `Authorization: Bearer ct_...`.
 
-To check a webhook came from CannaTrace, read the `CannaTrace-Signature` header (`t=<seconds>,v1=<hex>`), compute HMAC-SHA256 of `"<t>.<raw body>"` with the webhook's secret, compare, and reject anything older than five minutes. `verifySignature` in `src/lib/integrations.ts` does exactly this.
+To check a webhook came from Leaf2Sale, read the `CannaTrace-Signature` header (`t=<seconds>,v1=<hex>`), compute HMAC-SHA256 of `"<t>.<raw body>"` with the webhook's secret, compare, and reject anything older than five minutes. `verifySignature` in `src/lib/integrations.ts` does exactly this.
 
 ### Sending on a schedule
 State reports and webhooks are sent by calling `GET /api/sync/run` with `Authorization: Bearer <CRON_SECRET>`. On Vercel, set `CRON_SECRET` and add a cron job for that path; Vercel sends the header for you. Vercel's free plan only allows a daily cron, so use a paid plan or an outside scheduler for every few minutes. Without a schedule, records wait until someone presses **Send now** on State reporting.
@@ -234,9 +234,9 @@ State reports and webhooks are sent by calling `GET /api/sync/run` with `Authori
 - Locations cannot be renamed or removed yet.
 - Harvests can only be packaged into items tracked by weight. Pre-packaged units (jars, pre-rolls) come in Phase 4.
 - Bulk plant actions handle up to 500 plants at a time.
-- Tax rates and purchase limits are whatever each store enters under Menu and store rules. CannaTrace ships with none and does not look them up.
+- Tax rates and purchase limits are whatever each store enters under Menu and store rules. Leaf2Sale ships with none and does not look them up.
 - Both taxes are charged on the discounted subtotal. If your state taxes differently (for example tax on tax), the totals will not match.
-- Receipt warning text is whatever the store enters under Store rules; CannaTrace doesn't supply receipt wording. Label templates can use the store's label warning field, and New Mexico product labels are checked for the state's required warning.
+- Receipt warning text is whatever the store enters under Store rules; Leaf2Sale doesn't supply receipt wording. Label templates can use the store's label warning field, and New Mexico product labels are checked for the state's required warning.
 - The printed manifest is an internal document. It does not replace the manifest issued by the state track-and-trace system.
 - License verification records that a person checked the state lookup; it does not query the state automatically.
 - Cost per unit shows as unknown if any input package has no cost on record, rather than showing a partial figure.

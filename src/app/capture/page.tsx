@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { currentSession } from "@/lib/session";
 
 export const instant = false;
-export const metadata = { title: "Take a photo | CannaTrace", robots: { index: false } };
+export const metadata = { title: "Take a photo | Leaf2Sale", robots: { index: false } };
 
 /** The phone's home screen: open it, take a photo, done. A linked phone signs itself back in. */
 export default async function CapturePage({ searchParams }: { searchParams: Promise<{ linked?: string }> }) {

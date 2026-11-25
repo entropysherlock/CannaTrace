@@ -477,7 +477,7 @@ export function WalkthroughProvider({
               </button>
             </div>
             <p className="mb-4 text-sm text-slate-600">
-              Pick a job. CannaTrace highlights each step, page to page, using
+              Pick a job. Leaf2Sale highlights each step, page to page, using
               your real data. Nothing is saved unless you save it.
             </p>
             <ul className="space-y-2">

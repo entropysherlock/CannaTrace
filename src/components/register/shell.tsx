@@ -79,7 +79,7 @@ function useOfflineReady() {
   }, []);
 }
 
-/** The register runs full-window, like a dedicated terminal. Everything else in CannaTrace is one tap away. */
+/** The register runs full-window, like a dedicated terminal. Everything else in Leaf2Sale is one tap away. */
 export function RegisterShell({ info, children }: { info: ShellInfo; children: ReactNode }) {
   const muted = useSyncExternalStore(subscribeMuted, isMuted, () => false);
   const full = useSyncExternalStore(

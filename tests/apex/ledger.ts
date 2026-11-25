@@ -1,5 +1,5 @@
 /**
- * The Apex reference ledger. It is written separately from CannaTrace and shares no calculation code with it:
+ * The Apex reference ledger. It is written separately from Leaf2Sale and shares no calculation code with it:
  * money is whole cents and quantities are whole ten-thousandths (BigInt), so there is no floating point and no
  * Decimal library. The ledger only ever records what SHOULD have happened; it is never adjusted to match the app.
  */

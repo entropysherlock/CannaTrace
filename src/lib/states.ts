@@ -1,6 +1,6 @@
 import { PACKS } from "./rules";
 
-/** Every US state plus DC. CannaTrace doesn't decide which allow cannabis; the business picks its own. */
+/** Every US state plus DC. Leaf2Sale doesn't decide which allow cannabis; the business picks its own. */
 export const US_STATES: { code: string; name: string }[] = [
   ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"], ["CA", "California"], ["CO", "Colorado"],
   ["CT", "Connecticut"], ["DE", "Delaware"], ["DC", "District of Columbia"], ["FL", "Florida"], ["GA", "Georgia"],
@@ -16,9 +16,9 @@ export const US_STATES: { code: string; name: string }[] = [
 
 export const isStateCode = (code: string) => US_STATES.some((s) => s.code === code);
 export const stateName = (code: string) => US_STATES.find((s) => s.code === code)?.name ?? code;
-/** Whether CannaTrace has a verified rule pack for the state (purchase limits, ages, testing, waste). */
+/** Whether Leaf2Sale has a verified rule pack for the state (purchase limits, ages, testing, waste). */
 export const hasRulePack = (code: string) => Boolean(PACKS[code]);
 
-/** The states CannaTrace sells in: adult-use is legal there and the state's rules are built in. */
+/** The states Leaf2Sale sells in: adult-use is legal there and the state's rules are built in. */
 export const SUPPORTED_STATES = US_STATES.filter((s) => hasRulePack(s.code));
 export const isSupportedState = (code: string) => SUPPORTED_STATES.some((s) => s.code === code);

@@ -15,7 +15,7 @@ import { processQueue } from "@/lib/sync";
 
 /**
  * Fill a new facility in an existing business with a complete, realistic operation so the owner can
- * try every part of CannaTrace without touching their real facilities. Everything is made through
+ * try every part of Leaf2Sale without touching their real facilities. Everything is made through
  * the same functions people use, so it follows the same rules and is in the audit trail.
  * Records are marked "sample" (tags start SMP-, SKUs start SMP-) so they're easy to tell apart.
  */

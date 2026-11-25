@@ -12,7 +12,7 @@ async function signIn(page: Page, email: string, password = "demo1234") {
   await expect(page).toHaveURL(/\/dashboard/);
 }
 
-test("CannaTrace support opens a customer's account, sees it as they do, and every visit is logged", async ({ page, browser }) => {
+test("Leaf2Sale support opens a customer's account, sees it as they do, and every visit is logged", async ({ page, browser }) => {
   // A customer signs up
   const customer = await browser.newPage();
   await customer.goto("/signup");
@@ -45,7 +45,7 @@ test("CannaTrace support opens a customer's account, sees it as they do, and eve
   await facility.getByRole("button", { name: "Open" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
   const banner = page.getByRole("note", { name: "Support view" });
-  await expect(banner).toContainText(`you are inside ${BUSINESS} as CannaTrace support`);
+  await expect(banner).toContainText(`you are inside ${BUSINESS} as Leaf2Sale support`);
   await expect(page.getByText("Canyon Road Store · license")).toBeVisible();
   await expect(page.getByRole("link", { name: "Support Console" })).toHaveCount(0);
 
@@ -53,7 +53,7 @@ test("CannaTrace support opens a customer's account, sees it as they do, and eve
   await page.goto("/settings/facilities");
   await expect(page.getByRole("heading", { name: "Facilities" })).toBeVisible();
   await page.goto("/audit");
-  await expect(page.getByRole("region", { name: "Audit trail entries" }).getByText("Olivia Owner (CannaTrace support)").first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "Audit trail entries" }).getByText("Olivia Owner (Leaf2Sale support)").first()).toBeVisible();
   await expect(page.getByText("Helping set up their first facility").first()).toBeVisible();
 
   // Leave: back in support's own account and console
@@ -65,11 +65,11 @@ test("CannaTrace support opens a customer's account, sees it as they do, and eve
 
   // The customer sees the visit in their own audit trail
   await customer.goto("/audit");
-  await expect(customer.getByRole("region", { name: "Audit trail entries" }).getByText("Olivia Owner (CannaTrace support)").first()).toBeVisible();
+  await expect(customer.getByRole("region", { name: "Audit trail entries" }).getByText("Olivia Owner (Leaf2Sale support)").first()).toBeVisible();
   await customer.close();
 });
 
-test("people who are not CannaTrace support cannot reach the console", async ({ page }) => {
+test("people who are not Leaf2Sale support cannot reach the console", async ({ page }) => {
   await signIn(page, "manager@demo.test");
   await expect(page.getByRole("link", { name: "Support Console" })).toHaveCount(0);
   await page.goto("/support");
@@ -110,12 +110,12 @@ test("support sets up a new business for a customer, and the owner joins from th
   await owner.close();
 });
 
-test("CannaTrace staff see 'Founder' in the header, never 'Owner'; a shop's own owner still sees 'Owner'", async ({ page, browser }) => {
+test("Leaf2Sale staff see 'Founder' in the header, never 'Owner'; a shop's own owner still sees 'Owner'", async ({ page, browser }) => {
   await signIn(page, "owner@demo.test");
   await expect(page.getByText("Founder", { exact: true }).filter({ visible: true }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Support Console" }).first()).toBeVisible();
 
-  // A shop owner who is not CannaTrace staff
+  // A shop owner who is not Leaf2Sale staff
   const shop = await browser.newPage();
   await shop.goto("/signup");
   const biz = `Founder Label Co ${run}`;

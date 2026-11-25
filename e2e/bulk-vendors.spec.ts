@@ -42,7 +42,7 @@ test("vendors have destinations, and orders ship to a chosen destination", async
 test("Tally bulk-edits items with one confirmation card", async ({ page }) => {
   await signIn(page, "owner@demo.test");
   await page.keyboard.press("Control+j");
-  const panel = page.getByRole("dialog", { name: "CannaTrace assistant" });
+  const panel = page.getByRole("dialog", { name: "Leaf2Sale assistant" });
   await panel.getByLabel("Message the assistant").fill(`change category of Pre-roll to Joints ${run}`);
   await panel.getByLabel("Message the assistant").press("Enter");
   const card = panel.locator("div", { hasText: /Change \d+ items?/ }).filter({ has: page.getByRole("button", { name: "Confirm" }) }).last();

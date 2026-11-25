@@ -84,8 +84,8 @@ export async function renderLabelsPdf(
   opts: { copies?: number; offsetXMm?: number; offsetYMm?: number; title?: string } = {},
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  doc.setTitle(opts.title ?? "CannaTrace labels");
-  doc.setCreator("CannaTrace SmartLabel");
+  doc.setTitle(opts.title ?? "Leaf2Sale labels");
+  doc.setCreator("Leaf2Sale SmartLabel");
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const images = new Map<string, PDFImage>();

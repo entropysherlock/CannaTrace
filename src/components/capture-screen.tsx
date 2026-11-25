@@ -56,7 +56,7 @@ export function CaptureScreen({ person, store, justLinked }: { person: string; s
           <p className="truncate text-xs text-slate-600">{store}</p>
         </div>
         <Link href="/dashboard" className="ml-auto rounded-lg px-3 py-2 text-sm font-semibold text-brand-800 hover:bg-white">
-          Open CannaTrace
+          Open Leaf2Sale
         </Link>
       </header>
 

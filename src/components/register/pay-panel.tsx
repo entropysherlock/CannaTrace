@@ -172,7 +172,7 @@ export function PayPanel({
             {method !== "CASH" ? (
               <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200" data-testid="card-details">
                 <p className="text-sm text-slate-600">
-                  CannaTrace records the card payment; it does not charge the card. Optional: add what the terminal shows, so this sale matches its batch report.
+                  Leaf2Sale records the card payment; it does not charge the card. Optional: add what the terminal shows, so this sale matches its batch report.
                 </p>
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <label className="block text-sm font-semibold text-slate-700">

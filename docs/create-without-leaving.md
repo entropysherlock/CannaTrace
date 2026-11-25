@@ -1,6 +1,6 @@
 # Create Without Leaving
 
-**Goal:** an employee can finish a normal CannaTrace job without leaving the page just to create a missing prerequisite.
+**Goal:** an employee can finish a normal Leaf2Sale job without leaving the page just to create a missing prerequisite.
 
 ## The pattern
 

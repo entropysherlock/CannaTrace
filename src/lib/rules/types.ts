@@ -47,7 +47,7 @@ export type Rule = Base &
     | { kind: "MANIFEST" }
     /** Inventory must be physically counted at least this often. */
     | { kind: "RECONCILIATION"; everyDays: number; licenseTypes: string[] }
-    /** Shown for reference; CannaTrace does not enforce these automatically yet. */
+    /** Shown for reference; Leaf2Sale does not enforce these automatically yet. */
     | { kind: "REFERENCE" }
   );
 
@@ -65,7 +65,7 @@ export type StatePack = {
 
 export type RuleKind = Rule["kind"];
 
-/** How CannaTrace applies a rule, for the rules page. */
+/** How Leaf2Sale applies a rule, for the rules page. */
 export const ENFORCEMENT: Record<RuleKind, string> = {
   PURCHASE_LIMIT: "Enforced at the register",
   MIN_AGE: "Enforced at check-in",

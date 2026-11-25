@@ -33,8 +33,8 @@ function clean(input: FacilityInput, keepState?: string) {
   if (!licenseNumber) throw new InventoryError("Enter the facility's state license number.");
   if (!(licenseTypeEnum.enumValues as readonly string[]).includes(input.licenseType)) throw new InventoryError("Choose a license type.");
   const state = input.state.trim().toUpperCase();
-  // A facility may keep a state it already had; new choices must be a state CannaTrace supports.
-  if (!isSupportedState(state) && state !== keepState) throw new InventoryError("Choose one of the listed states. CannaTrace only supports states with legal adult-use sales and built-in rules.");
+  // A facility may keep a state it already had; new choices must be a state Leaf2Sale supports.
+  if (!isSupportedState(state) && state !== keepState) throw new InventoryError("Choose one of the listed states. Leaf2Sale only supports states with legal adult-use sales and built-in rules.");
   return { name, licenseNumber, licenseType: input.licenseType as (typeof licenseTypeEnum.enumValues)[number], state };
 }
 
@@ -53,7 +53,7 @@ export async function addFacility(actor: FacilityActor, input: FacilityInput) {
   }
 }
 
-/** Changing the state switches which state's rules CannaTrace enforces at that facility from then on. */
+/** Changing the state switches which state's rules Leaf2Sale enforces at that facility from then on. */
 export async function updateFacility(actor: FacilityActor, facilityId: string, input: FacilityInput) {
   assertFacilityAccess(actor, facilityId);
   const [before] = await db.select().from(facilities).where(and(eq(facilities.id, facilityId), eq(facilities.orgId, actor.orgId)));

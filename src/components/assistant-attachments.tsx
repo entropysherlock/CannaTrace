@@ -231,7 +231,7 @@ export function AttachButton({ disabled, onFiles, retentionHours }: { disabled: 
             </button>
           ))}
           <p className="mt-1 border-t border-slate-100 px-3 pb-1 pt-2 text-[11px] leading-snug text-slate-500">
-            Files are sent to Anthropic&apos;s Claude to be read, on your business&apos;s Claude account. CannaTrace deletes them after {retentionHours} hour{retentionHours === 1 ? "" : "s"}. You can also drag files here or paste a screenshot.
+            Files are sent to Anthropic&apos;s Claude to be read, on your business&apos;s Claude account. Leaf2Sale deletes them after {retentionHours} hour{retentionHours === 1 ? "" : "s"}. You can also drag files here or paste a screenshot.
           </p>
         </div>
       ) : null}

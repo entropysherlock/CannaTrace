@@ -59,7 +59,7 @@ export async function disconnectAction(_: FormState, formData: FormData): Promis
     if (field(formData, "confirm").toLowerCase() !== "disconnect") return { error: 'Type "disconnect" to confirm.' };
     await disconnect(await manager());
     refresh();
-    return { ok: "Disconnected. The key was removed from CannaTrace. Delete it in the Claude Console too if you no longer need it." };
+    return { ok: "Disconnected. The key was removed from Leaf2Sale. Delete it in the Claude Console too if you no longer need it." };
   } catch (error) {
     return toFormError(error);
   }

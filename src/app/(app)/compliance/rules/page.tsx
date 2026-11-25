@@ -60,7 +60,7 @@ export default async function StateRulesPage() {
         title="State rules"
         subtitle={
           pack
-            ? `${pack.name} rules CannaTrace checks for this facility, with where each one comes from.`
+            ? `${pack.name} rules Leaf2Sale checks for this facility, with where each one comes from.`
             : `Rules for ${state || "this facility's state"}.`
         }
         action={
@@ -133,7 +133,7 @@ export default async function StateRulesPage() {
               </dl>
             ) : (
               <p className="text-sm text-slate-700">
-                CannaTrace has rule packs for{" "}
+                Leaf2Sale has rule packs for{" "}
                 {Object.values(PACKS)
                   .map((p) => p.name)
                   .join(", ")}{" "}
@@ -232,7 +232,7 @@ export default async function StateRulesPage() {
                 </li>
               ))}
             </ul>
-            <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900 mt-3"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>CannaTrace is not a lawyer. Rules change; check anything important
+            <p className="flex gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs font-medium leading-relaxed text-brand-900 mt-3"><Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>Leaf2Sale is not a lawyer. Rules change; check anything important
               with your regulator. Tell us if a rule looks out of date.</span></p>
           </Card>
         ) : null}

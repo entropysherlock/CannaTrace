@@ -84,14 +84,14 @@ export function TopBarRight({
     <div className="flex items-center gap-1 sm:gap-2">
       <form action="/search" role="search" className="relative hidden lg:block">
         <label htmlFor="top-search" className="sr-only">
-          Search CannaTrace
+          Search Leaf2Sale
         </label>
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
         <input
           id="top-search"
           name="q"
           type="search"
-          placeholder="Search CannaTrace…"
+          placeholder="Search Leaf2Sale…"
           className="min-h-10 w-64 rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 hover:border-brand-400 xl:w-80"
         />
       </form>

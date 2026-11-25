@@ -11,7 +11,7 @@ export const CA: StatePack = {
   trackingSystem: "Metrc (California Cannabis Track-and-Trace)",
   reviewed: CHECKED,
   coverage:
-    "Adult-use and medicinal daily purchase limits, customer ages, testing before retail sale, and track-and-trace timing, from Title 4, Division 19 of the California Code of Regulations (DCC regulations as of April 1, 2025). Limits are per day: the register enforces them on each sale, but does not yet add up repeat visits by the same customer on one day. Concentrate inside edibles and other products also counts toward the 8 g limit; CannaTrace counts it only for items set up as concentrate. Not yet included: waste handling (§17223), reconciliation timing, packaging and labeling.",
+    "Adult-use and medicinal daily purchase limits, customer ages, testing before retail sale, and track-and-trace timing, from Title 4, Division 19 of the California Code of Regulations (DCC regulations as of April 1, 2025). Limits are per day: the register enforces them on each sale, but does not yet add up repeat visits by the same customer on one day. Concentrate inside edibles and other products also counts toward the 8 g limit; Leaf2Sale counts it only for items set up as concentrate. Not yet included: waste handling (§17223), reconciliation timing, packaging and labeling.",
   rules: [
     {
       id: "ca-adult-limit",

@@ -80,7 +80,7 @@ export async function createInvite(session: Session, input: { email: string; rol
     const choice = await readRoleChoice(tx, session.orgId, input.roleChoice);
     checkCanGrant(session, choice);
     if ((await tx.$count(users, eq(users.email, email))) > 0)
-      throw new InventoryError("Someone already has a CannaTrace account with that email.");
+      throw new InventoryError("Someone already has a Leaf2Sale account with that email.");
     // One open invite per person: a new one replaces the old link.
     await tx
       .update(invites)

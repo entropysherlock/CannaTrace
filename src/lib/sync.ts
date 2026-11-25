@@ -31,7 +31,7 @@ export type Adapter = {
 
 const mockAdapter: Adapter = {
   supported: ["*"],
-  status: () => ({ ready: true, note: "Practice mode. Records are marked as sent but nothing leaves CannaTrace." }),
+  status: () => ({ ready: true, note: "Practice mode. Records are marked as sent but nothing leaves Leaf2Sale." }),
   async send(event) {
     return { outcome: "SENT", externalId: `PRACTICE-${event.seq}` };
   },
@@ -48,7 +48,7 @@ const METRC_UNITS: Record<string, string> = {
   EACH: "Each",
 };
 
-/** The Metrc request for an event, or null when CannaTrace does not send that kind of record to Metrc yet. */
+/** The Metrc request for an event, or null when Leaf2Sale does not send that kind of record to Metrc yet. */
 export function metrcRequest(
   event: Pick<SyncEvent, "type" | "payload" | "createdAt">,
   /** The facility's time zone: Metrc wants the date the change happened there. */
@@ -94,7 +94,7 @@ const metrcAdapter: Adapter = {
       return { outcome: "ERROR", code: "NOT_CONFIGURED", retryable: false, detail: "METRC_API_URL, METRC_VENDOR_KEY, or METRC_USER_KEY is not set." };
     }
     const request = metrcRequest(event, await facilityZone(event.facilityId));
-    if (!request) return { outcome: "MANUAL", detail: "CannaTrace does not send this kind of record to Metrc yet. Enter it in Metrc by hand." };
+    if (!request) return { outcome: "MANUAL", detail: "Leaf2Sale does not send this kind of record to Metrc yet. Enter it in Metrc by hand." };
     try {
       const response = await fetch(`${base.replace(/\/$/, "")}${request.path}?licenseNumber=${encodeURIComponent(licenseNumber)}`, {
         method: request.method,
@@ -133,7 +133,7 @@ export const ADAPTERS: Record<SystemName, Adapter> = {
     "Automatic sending to BioTrack is not built. New Mexico stopped using BioTrack in September 2026. Enter these records in BioTrack by hand.",
   ),
   NMS2S: manualAdapter(
-    "CannaTrace has asked New Mexico's Cannabis Control Division for NMS2S integrator access. Until the state approves it, enter these records in NMS2S by hand.",
+    "Leaf2Sale has asked New Mexico's Cannabis Control Division for NMS2S integrator access. Until the state approves it, enter these records in NMS2S by hand.",
   ),
 };
 

@@ -7,12 +7,12 @@ import { liveDemoOn } from "@/lib/access";
 import { FEATURES, FOUNDING, PRICES, facilitiesLabel, usd } from "@/lib/pricing";
 
 export const metadata: Metadata = {
-  title: "Pricing · CannaTrace",
+  title: "Pricing · Leaf2Sale",
   description: `${usd(PRICES[0].price)} a month for 1 facility, ${usd(PRICES[1].price)} for 2, every feature included. Founding customers get ${FOUNDING.freeDays} days free and ${usd(PRICES[0].price - PRICES[0].founderPrice)} off every month for life.`,
 };
 
-const FOUNDER_LINK = mailto("CannaTrace founding customer");
-const DEMO_LINK = mailto("CannaTrace demo request");
+const FOUNDER_LINK = mailto("Leaf2Sale founding customer");
+const DEMO_LINK = mailto("Leaf2Sale demo request");
 
 const QUESTIONS: [string, string][] = [
   [
@@ -25,11 +25,11 @@ const QUESTIONS: [string, string][] = [
   ],
   [
     "Does it replace NMS2S?",
-    "No. New Mexico requires every licensee to use NMS2S. CannaTrace runs your day-to-day work alongside it: labels, plants, inventory, sales, and Tally.",
+    "No. New Mexico requires every licensee to use NMS2S. Leaf2Sale runs your day-to-day work alongside it: labels, plants, inventory, sales, and Tally.",
   ],
   [
     "Can my store take card payments?",
-    "Yes, in the way most cannabis stores already do. You run the card on your own card terminal or processor, then record it at the register as a debit or split payment, with the last 4 digits and approval number if you like. CannaTrace does not charge cards or connect to a processor, so there is no extra processing fee from us.",
+    "Yes, in the way most cannabis stores already do. You run the card on your own card terminal or processor, then record it at the register as a debit or split payment, with the last 4 digits and approval number if you like. Leaf2Sale does not charge cards or connect to a processor, so there is no extra processing fee from us.",
   ],
   [
     "What does Tally cost?",
@@ -43,7 +43,7 @@ export default function PricingPage() {
     <div className="min-h-screen bg-white text-slate-900">
       <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3">
-          <Link href="/" aria-label="CannaTrace home">
+          <Link href="/" aria-label="Leaf2Sale home">
             <Logo size="lg" />
           </Link>
           <div className="flex items-center gap-4">
@@ -101,7 +101,7 @@ export default function PricingPage() {
                 Founding customers: {usd(p.founderPrice)}/month for life, after {FOUNDING.freeDays} days free
               </p>
               <a
-                href={mailto(`CannaTrace for ${facilitiesLabel(p.facilities)}`)}
+                href={mailto(`Leaf2Sale for ${facilitiesLabel(p.facilities)}`)}
                 className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-700 px-5 text-sm font-bold text-white shadow-sm hover:bg-brand-800"
               >
                 Get started
@@ -149,7 +149,7 @@ export default function PricingPage() {
           </div>
           <p className="mt-6 text-sm text-brand-200">
             Questions?{" "}
-            <a href={mailto("CannaTrace question")} className="font-semibold text-white underline hover:no-underline">
+            <a href={mailto("Leaf2Sale question")} className="font-semibold text-white underline hover:no-underline">
               Contact us
             </a>
           </p>

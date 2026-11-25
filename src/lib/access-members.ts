@@ -6,7 +6,7 @@ import { db } from "./db";
 type Reader = Pick<typeof db, "select">;
 
 /**
- * Invite-only covers businesses, not just people. A business is in when CannaTrace support approved it (setting
+ * Invite-only covers businesses, not just people. A business is in when Leaf2Sale support approved it (setting
  * it up in the Support Console does this) or it has an active member on the server's access list; everyone it
  * invites is then in too. So a new customer's owner can bring on their budtenders and managers, while strangers,
  * old accounts and the demo business stay locked out, and only listed people can start a new business.

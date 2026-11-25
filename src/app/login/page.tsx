@@ -41,13 +41,13 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </p>
         {signupsOpen() ? (
           <p className="mt-5 text-center text-sm text-slate-600">
-            New to CannaTrace?{" "}
+            New to Leaf2Sale?{" "}
             <Link href="/signup" className="font-semibold text-brand-700 hover:underline">
               Create a business account
             </Link>
           </p>
         ) : (
-          <p className="mt-5 text-center text-sm text-slate-600">CannaTrace is invite-only right now.</p>
+          <p className="mt-5 text-center text-sm text-slate-600">Leaf2Sale is invite-only right now.</p>
         )}
         <p className="mt-4 flex justify-center gap-4 text-xs text-slate-500">
           <Link href="/terms" className="hover:text-brand-700">

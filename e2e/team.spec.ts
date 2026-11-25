@@ -109,13 +109,13 @@ test("a new business signs up, builds a role, invites someone, and they join wit
   await later.close();
 });
 
-test("the CannaTrace logo opens the homepage, which offers a way back to the dashboard", async ({ page }) => {
+test("the Leaf2Sale logo opens the homepage, which offers a way back to the dashboard", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill("owner@demo.test");
   await page.getByLabel("Password").fill("demo1234");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
-  await page.getByTitle("CannaTrace home").filter({ visible: true }).first().click();
+  await page.getByTitle("Leaf2Sale home").filter({ visible: true }).first().click();
   await expect(page.getByRole("heading", { name: /From seed to sale/i })).toBeVisible();
   await expect(page.getByRole("link", { name: "Sign in" })).toHaveCount(0);
   await page.getByRole("link", { name: "Go to dashboard" }).first().click();

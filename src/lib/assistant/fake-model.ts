@@ -33,7 +33,7 @@ export const fakeModel: Model = async ({ messages }, onText) => {
     if (body.startsWith("A confirmation card")) return say("I've prepared that. Review it below and press **Confirm**.");
     const data = JSON.parse(body || "{}");
     if (data.quantity_or_status_differences)
-      return say(`Compared ${data.file}: ${data.matching} match, ${data.quantity_or_status_differences.count} differ, ${data.in_file_not_in_cannatrace.count} not in CannaTrace. Nothing was changed.`);
+      return say(`Compared ${data.file}: ${data.matching} match, ${data.quantity_or_status_differences.count} differ, ${data.in_file_not_in_cannatrace.count} not in Leaf2Sale. Nothing was changed.`);
     if (Array.isArray(data.findings)) {
       const lines = data.findings.filter((f: { severity: string }) => f.severity !== "info").map((f: { message: string }) => `- ${f.message}`);
       return say(`Checked ${data.labels} label(s) with ${data.template}. ${data.can_print ? "They can print." : `They can't print yet (${data.blocking} blocking).`}\n\n${lines.join("\n")}`);

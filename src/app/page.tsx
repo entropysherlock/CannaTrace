@@ -32,11 +32,11 @@ import { FOUNDING, PRICES, facilitiesLabel, priceSentence, usd } from "@/lib/pri
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "CannaTrace · Seed-to-Sale Operations Platform",
-  description: "CannaTrace helps cannabis operators manage cultivation, inventory, compliance, manufacturing, distribution, and retail operations in one integrated platform.",
+  title: "Leaf2Sale · Seed-to-Sale Operations Platform",
+  description: "Leaf2Sale helps cannabis operators manage cultivation, inventory, compliance, manufacturing, distribution, and retail operations in one integrated platform.",
 };
 
-const DEMO_LINK = mailto("CannaTrace demo request");
+const DEMO_LINK = mailto("Leaf2Sale demo request");
 
 // Reads the sign-in cookie, so the buttons can say "Go to dashboard" for people already signed in.
 export const instant = false;
@@ -67,7 +67,7 @@ function Phone({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-/* ---------- The tablet in "See CannaTrace in Action" ---------- */
+/* ---------- The tablet in "See Leaf2Sale in Action" ---------- */
 
 /* ---------- The tour: one real screen per part of the app ---------- */
 
@@ -80,7 +80,7 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     text: "Start batches, tag plants, move them through veg and flower, and record harvests without spreadsheets.",
     points: ["Plant batches, tags, phases, and rooms", "Harvests with wet and dry weight, waste, and packaging", "Tasks for the crew, with due dates", "IDs made for you, or scan your own tags"],
     src: "/site/cultivation.webp",
-    alt: "The CannaTrace Cultivation page with plant batches, phase counts, and open tasks",
+    alt: "The Leaf2Sale Cultivation page with plant batches, phase counts, and open tasks",
   },
   {
     id: "inventory",
@@ -90,7 +90,7 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     text: "Every package with its tag, item, quantity, room, and status. Scan a tag to find it in a second.",
     points: ["Receive deliveries, move, split, merge, and adjust", "Lab results, holds, and quarantine", "Cycle counts that fix the numbers and keep the history", "Rooms, vaults, and racks"],
     src: "/site/inventory.webp",
-    alt: "The CannaTrace Inventory page listing packages with tags, rooms, quantities, and statuses",
+    alt: "The Leaf2Sale Inventory page listing packages with tags, rooms, quantities, and statuses",
   },
   {
     id: "manufacturing",
@@ -100,7 +100,7 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     text: "Turn bulk flower and inputs into finished products, and see what each unit really costs.",
     points: ["Recipes with inputs and expected output", "Runs that use up inputs and make new packages", "Yield and cost per unit, worked out for you", "Every input traced to every output"],
     src: "/site/manufacturing.webp",
-    alt: "The CannaTrace Manufacturing overview with runs in progress, yield, and cost per unit",
+    alt: "The Leaf2Sale Manufacturing overview with runs in progress, yield, and cost per unit",
   },
   {
     id: "distribution",
@@ -110,17 +110,17 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     text: "Take orders from licensed buyers, pick and pack the right packages, ship with a manifest, and get paid.",
     points: ["Orders, picking, and packing", "Buyer licenses checked before anything ships", "Drivers, vehicles, and manifests", "Price lists, invoices, and what's owed"],
     src: "/site/distribution.webp",
-    alt: "The CannaTrace Distribution page with wholesale orders and invoices",
+    alt: "The Leaf2Sale Distribution page with wholesale orders and invoices",
   },
   {
     id: "retail",
     icon: Store,
     kicker: "Register",
     title: "A register that knows the rules",
-    text: "Scan the ID, ring up the sale, and let CannaTrace keep every purchase inside the state's limits.",
+    text: "Scan the ID, ring up the sale, and let Leaf2Sale keep every purchase inside the state's limits.",
     points: ["ID scan checks age and expiry", "Purchase limits shown as you add products", "Discounts, cannabis excise and sales tax", "Held carts, cash drawer, and a customer screen"],
     src: "/site/register.webp",
-    alt: "The CannaTrace register with products, a cart, purchase limits, a veteran discount, and taxes",
+    alt: "The Leaf2Sale register with products, a cart, purchase limits, a veteran discount, and taxes",
   },
   {
     id: "labels",
@@ -130,17 +130,17 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     text: "Pick the packages, pick a template, and print. SmartLabel AI checks each label before it prints.",
     points: ["Package, product, plant, batch, and transfer labels", "Templates you can change", "Works with your label printers", "A history of every print job"],
     src: "/site/labels.webp",
-    alt: "The CannaTrace SmartLabel AI page choosing packages and a label template",
+    alt: "The Leaf2Sale SmartLabel AI page choosing packages and a label template",
   },
   {
     id: "compliance",
     icon: ShieldCheck,
     kicker: "Compliance",
     title: "Your state's rules, built in",
-    text: "CannaTrace scores how well you're following your state's rules and tells you what to fix, with a link to fix it.",
+    text: "Leaf2Sale scores how well you're following your state's rules and tells you what to fix, with a link to fix it.",
     points: ["New Mexico rules in depth, plus 22 more adult-use states", "A compliance score and a to-fix list", "Purchase limits, ages, testing, and waste rules", "Every rule linked to the regulation"],
     src: "/site/rules.webp",
-    alt: "The CannaTrace State rules page with a compliance score and New Mexico rules in effect",
+    alt: "The Leaf2Sale State rules page with a compliance score and New Mexico rules in effect",
   },
   {
     id: "reporting",
@@ -150,17 +150,17 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     text: "Every change that the state needs to hear about is queued, sent, and tracked, so nothing slips through.",
     points: ["See what's waiting, sent, or failed", "Records to enter by hand are listed for you", "New Mexico NMS2S connection: state access requested", "Practice mode to try it with nothing sent"],
     src: "/site/compliance.webp",
-    alt: "The CannaTrace State reporting page with recent records marked sent",
+    alt: "The Leaf2Sale State reporting page with recent records marked sent",
   },
   {
     id: "tally",
     icon: Sparkles,
     kicker: "Tally, the built-in assistant",
     title: "Ask your business anything",
-    text: "Tally answers from your live data, right inside CannaTrace. When it suggests a change, nothing happens until you press Confirm, and every change can be undone.",
+    text: "Tally answers from your live data, right inside Leaf2Sale. When it suggests a change, nothing happens until you press Confirm, and every change can be undone.",
     points: ["Plain-English questions, answers from your data", "Drop in a file and ask about it", "Changes wait for your Confirm", "One-click Undo"],
     src: "/site/tally.webp",
-    alt: "Tally, the CannaTrace assistant, answering a question with a table from live data",
+    alt: "Tally, the Leaf2Sale assistant, answering a question with a table from live data",
   },
   {
     id: "watch",
@@ -170,7 +170,7 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     text: "Tally Watch checks your business on its own and lists what needs a look, each with a fix ready to approve.",
     points: ["Failed lab tests that are still sellable", "Packages missing labels", "Differences with the state system", "Overdue balances and expiring licenses"],
     src: "/site/watch.webp",
-    alt: "The CannaTrace Tally Watch page with an item to fix and a Prepare the labels button",
+    alt: "The Leaf2Sale Tally Watch page with an item to fix and a Prepare the labels button",
   },
   {
     id: "reports",
@@ -180,7 +180,7 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     text: "Inventory value, sales by day, wholesale owed, and reporting health, always up to date.",
     points: ["Inventory value by category and age", "Retail sales by day, with taxes and discounts", "Wholesale invoiced, paid, and overdue", "Export to a spreadsheet"],
     src: "/site/reports.webp",
-    alt: "The CannaTrace Reports page with inventory value, retail sales by day, and wholesale totals",
+    alt: "The Leaf2Sale Reports page with inventory value, retail sales by day, and wholesale totals",
   },
   {
     id: "walkthroughs",
@@ -190,7 +190,7 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     text: "Guided walkthroughs highlight each step on the real screen, so a new budtender or trimmer can do it right the first time.",
     points: ["Receive a delivery, start a grow, harvest, and more", "Each step highlighted on the screen", "Pick up where you left off", "No training videos to watch"],
     src: "/site/walkthrough.webp",
-    alt: "A CannaTrace guided walkthrough highlighting the package tag field on the Receive package page",
+    alt: "A Leaf2Sale guided walkthrough highlighting the package tag field on the Receive package page",
   },
   {
     id: "audit",
@@ -200,16 +200,16 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     text: "Every change is recorded with the person, the time, and what changed, ready for an audit.",
     points: ["Every sale, move, adjustment, and edit", "The person and the exact time", "Changes made through Tally are marked", "Undos are recorded too"],
     src: "/site/audit.webp",
-    alt: "The CannaTrace Audit trail listing each change with the person and time",
+    alt: "The Leaf2Sale Audit trail listing each change with the person and time",
   },
 ];
 
 const FAQ: [string, string][] = [
-  ["Is this real software?", "Yes. Every screen on this page is a real screenshot of CannaTrace, filled with sample data for a made-up business. You can sign up, or open the sample business and click around yourself."],
-  ["Which states does CannaTrace work in?", "CannaTrace is made in New Mexico, and New Mexico's rules are built in the deepest: purchase limits, ages, lab testing, waste, manifests, and recalls. Colorado, California, and Michigan have detailed rules too, and 19 more adult-use states have their purchase limits, minimum age, and testing rules, each linked to the regulation."],
-  ["Does it connect to NMS2S or Metrc?", "New Mexico uses NMS2S, which replaced BioTrack in September 2026. CannaTrace has asked the Cannabis Control Division for integrator access; a live connection turns on once the state approves it. In Metrc states, a live connection also needs state approval first. Until then, CannaTrace keeps a queue of everything the state needs and lists exactly what to enter by hand, and you keep using NMS2S as the state requires."],
-  ["Can I bring my data from another system?", "Yes. CannaTrace imports from NMS2S, Dutchie, and Flourish exports, including large inventories. For founding customers, we do the move for you."],
-  ["Do I need special hardware?", "No. CannaTrace runs in the web browser on computers, tablets, and phones. It works with ordinary USB or Bluetooth barcode scanners and label printers."],
+  ["Is this real software?", "Yes. Every screen on this page is a real screenshot of Leaf2Sale, filled with sample data for a made-up business. You can sign up, or open the sample business and click around yourself."],
+  ["Which states does Leaf2Sale work in?", "Leaf2Sale is made in New Mexico, and New Mexico's rules are built in the deepest: purchase limits, ages, lab testing, waste, manifests, and recalls. Colorado, California, and Michigan have detailed rules too, and 19 more adult-use states have their purchase limits, minimum age, and testing rules, each linked to the regulation."],
+  ["Does it connect to NMS2S or Metrc?", "New Mexico uses NMS2S, which replaced BioTrack in September 2026. Leaf2Sale has asked the Cannabis Control Division for integrator access; a live connection turns on once the state approves it. In Metrc states, a live connection also needs state approval first. Until then, Leaf2Sale keeps a queue of everything the state needs and lists exactly what to enter by hand, and you keep using NMS2S as the state requires."],
+  ["Can I bring my data from another system?", "Yes. Leaf2Sale imports from NMS2S, Dutchie, and Flourish exports, including large inventories. For founding customers, we do the move for you."],
+  ["Do I need special hardware?", "No. Leaf2Sale runs in the web browser on computers, tablets, and phones. It works with ordinary USB or Bluetooth barcode scanners and label printers."],
   ["Who can see what?", "Each person gets a role, like owner, manager, cultivation, sales, or budtender, and only sees and changes what that role allows. Every change is in the audit trail."],
   ["How much does it cost?", priceSentence()],
 ];
@@ -274,7 +274,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     <div className="bg-white text-slate-900">
       <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-3">
-          <Link href="/" aria-label="CannaTrace home">
+          <Link href="/" aria-label="Leaf2Sale home">
             <Logo size="lg" />
           </Link>
           <nav className="hidden items-center gap-7 lg:flex">
@@ -308,7 +308,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               label="Resources"
               items={[
                 ["Take the tour", "#tour"],
-                ["Why CannaTrace", "#benefits"],
+                ["Why Leaf2Sale", "#benefits"],
                 ["See it in action", "#demo"],
                 ["Questions", "#faq"],
                 [signedIn ? "Go to dashboard" : "Sign in", signedIn ? "/dashboard" : "/login"],
@@ -348,7 +348,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               <span className="text-brand-700">Fully Tracked</span>.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-slate-700">
-              CannaTrace helps cannabis operators manage cultivation, inventory, compliance, manufacturing, distribution, and retail operations — all in one integrated platform.
+              Leaf2Sale helps cannabis operators manage cultivation, inventory, compliance, manufacturing, distribution, and retail operations — all in one integrated platform.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href={cta.href} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-7 py-3.5 text-base font-bold text-white shadow-sm hover:bg-brand-800">
@@ -372,8 +372,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </ul>
           </div>
           <figure>
-            <Screen src="/site/command-center.webp" alt="The CannaTrace Dashboard with plants, packages, sales, the operations flow, charts, and the Tally assistant" priority />
-            <figcaption className="mt-2 text-center text-xs text-slate-500">The real CannaTrace Dashboard, shown with sample data.</figcaption>
+            <Screen src="/site/command-center.webp" alt="The Leaf2Sale Dashboard with plants, packages, sales, the operations flow, charts, and the Tally assistant" priority />
+            <figcaption className="mt-2 text-center text-xs text-slate-500">The real Leaf2Sale Dashboard, shown with sample data.</figcaption>
           </figure>
         </div>
       </section>
@@ -432,7 +432,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               <h2 className="mt-1 text-2xl font-extrabold leading-tight text-slate-950">Built for growers, producers, distributors, and retailers.</h2>
             </div>
             <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-              <Image src="/mascot.webp" alt="The CannaTrace mascot, a friendly towel holding a tablet showing the CannaTrace dashboard" width={140} height={127} className="h-28 w-auto shrink-0" />
+              <Image src="/mascot.webp" alt="The Leaf2Sale mascot, a friendly towel holding a tablet showing the Leaf2Sale dashboard" width={140} height={127} className="h-28 w-auto shrink-0" />
               <p className="relative rounded-2xl bg-brand-50 px-4 py-3 text-sm font-medium text-brand-950">
                 Every plant, package, and sale, tracked in one place. Need a hand? Ask me anything inside the app.
               </p>
@@ -454,7 +454,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         <div className="mx-auto max-w-7xl px-5">
           <p className="text-center text-xs font-bold uppercase tracking-wider text-brand-700">Take the tour</p>
           <h2 id="tour-heading" className="mt-1 text-center text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
-            See every part of CannaTrace
+            See every part of Leaf2Sale
           </h2>
           <p className="mx-auto mt-2 max-w-2xl text-center text-slate-600">Real screens from the app, filled with sample data for a made-up grow and store in New Mexico.</p>
           <nav aria-label="Tour" className="mt-6 flex flex-wrap justify-center gap-2">
@@ -495,7 +495,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Phones, tablets, and computers</p>
             <h2 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">Take it into the grow room</h2>
             <p className="mt-3 text-lg text-slate-700">
-              CannaTrace works in the web browser on any device. Check the numbers from your phone, scan tags on a tablet in the vault, and run the register on a
+              Leaf2Sale works in the web browser on any device. Check the numbers from your phone, scan tags on a tablet in the vault, and run the register on a
               laptop. Nothing to install.
             </p>
             <ul className="mt-5 space-y-2 text-sm text-slate-800">
@@ -507,9 +507,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </ul>
           </div>
           <div className="grid grid-cols-3 gap-3 sm:gap-6">
-            <Phone src="/site/phone-dashboard.webp" alt="The CannaTrace Dashboard on a phone" />
-            <Phone src="/site/phone-inventory.webp" alt="CannaTrace inventory on a phone" />
-            <Phone src="/site/phone-register.webp" alt="The CannaTrace register on a phone" />
+            <Phone src="/site/phone-dashboard.webp" alt="The Leaf2Sale Dashboard on a phone" />
+            <Phone src="/site/phone-inventory.webp" alt="Leaf2Sale inventory on a phone" />
+            <Phone src="/site/phone-register.webp" alt="The Leaf2Sale register on a phone" />
           </div>
         </div>
       </section>
@@ -521,13 +521,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <p className="text-xs font-bold uppercase tracking-wider text-brand-200">Switching is easy</p>
             <h2 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">Bring your inventory with you</h2>
             <p className="mt-3 text-lg text-brand-100">
-              Export from your current system and drop the file into CannaTrace. It reads the file, shows you what it found, and asks before importing anything.
+              Export from your current system and drop the file into Leaf2Sale. It reads the file, shows you what it found, and asks before importing anything.
             </p>
           </div>
           <ol className="space-y-4">
             {[
               ["Export", "Download your inventory from NMS2S, Dutchie, or Flourish."],
-              ["Check", "CannaTrace shows what it found and anything to fix, store by store."],
+              ["Check", "Leaf2Sale shows what it found and anything to fix, store by store."],
               ["Import", "Thousands of packages come over in one go, ready to sell."],
             ].map(([title, text], n) => (
               <li key={title} className="flex gap-4">
@@ -598,7 +598,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <DemoVideoPoster />
           </div>
           <div className="relative">
-            <h2 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">See CannaTrace in Action</h2>
+            <h2 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">See Leaf2Sale in Action</h2>
             <p className="mt-3 max-w-lg text-lg text-slate-700">
               A one-minute tour: the Dashboard, plants, inventory, manufacturing, wholesale, the register, labels, state rules, Tally, and reports.
             </p>
@@ -637,7 +637,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       <section className="px-5 pb-16">
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">Ready to see it with your own data?</h2>
-          <p className="mt-3 text-lg text-slate-700">Book a demo and we&apos;ll walk you through CannaTrace and answer your questions.</p>
+          <p className="mt-3 text-lg text-slate-700">Book a demo and we&apos;ll walk you through Leaf2Sale and answer your questions.</p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <a href={DEMO_LINK} className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-7 py-3.5 text-base font-bold text-white shadow-sm hover:bg-brand-800">
               Book a Demo <ArrowRight className="h-5 w-5" aria-hidden="true" />
@@ -661,7 +661,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <p className="font-bold text-slate-950">Contact us</p>
             <p className="mt-1 text-slate-600">Questions, pricing, or a demo? Email us and we&apos;ll get back to you.</p>
             <a
-              href={mailto("CannaTrace question")}
+              href={mailto("Leaf2Sale question")}
               className="mt-3 inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-brand-800"
             >
               Contact us

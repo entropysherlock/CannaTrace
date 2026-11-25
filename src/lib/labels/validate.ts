@@ -15,7 +15,7 @@ export type ValidationResult = {
   issues: LabelIssue[];
   blocked: boolean;
   pack: LabelRulePack | null;
-  /** Rules CannaTrace checked automatically, and ones a person still has to confirm. */
+  /** Rules Leaf2Sale checked automatically, and ones a person still has to confirm. */
   checkedRules: number;
   manualRules: number;
 };
@@ -38,7 +38,7 @@ export function checkDesign(design: LabelDesign, kind: LabelKind): LabelIssue[] 
     for (const key of placeholders(source)) {
       const def = fieldDef(key);
       if (!def) {
-        issues.push({ code: "UNKNOWN_FIELD", severity: "block", category: "LAYOUT", elementId: el.id, message: `{{${key}}} is not a field CannaTrace knows.`, fix: "Pick a field from the list instead of typing it." });
+        issues.push({ code: "UNKNOWN_FIELD", severity: "block", category: "LAYOUT", elementId: el.id, message: `{{${key}}} is not a field Leaf2Sale knows.`, fix: "Pick a field from the list instead of typing it." });
       } else if (!def.kinds.includes(kind)) {
         issues.push({ code: "WRONG_FIELD", severity: "block", category: "LAYOUT", elementId: el.id, message: `"${def.label}" isn't available on this label type.`, fix: "Remove it or use a template made for that record type." });
       }
@@ -86,7 +86,7 @@ export function checkRecord(design: LabelDesign, kind: LabelKind, record: LabelR
       const itemFix = key === "package.expires"
         ? `The expiration date comes from the shelf life on ${itemName}. Open the item, enter its shelf life (days), save, then print again.`
         : `"${def?.label ?? key}" is set on ${itemName}, not on the package. Open the item, fill it in, save, then print again.`;
-      const labMsg = key.startsWith("lab.") && v["_lab.status"] !== "PASS" ? " There is no passed lab result for it, and CannaTrace never prints potency from an unpassed test." : "";
+      const labMsg = key.startsWith("lab.") && v["_lab.status"] !== "PASS" ? " There is no passed lab result for it, and Leaf2Sale never prints potency from an unpassed test." : "";
       issues.push({
         code: "MISSING",
         severity: critical ? "block" : "warn",
@@ -164,7 +164,7 @@ export function checkJurisdiction(
   }
   const pack = labelPackFor(state);
   if (!pack) {
-    issues.push({ code: "STATE_UNSUPPORTED", severity: "warn", category: "JURISDICTION", message: `CannaTrace has no verified label rules for ${state.toUpperCase()} yet. Nothing was checked against ${state.toUpperCase()} law.`, fix: "Have your compliance lead review this label before using it for sale." });
+    issues.push({ code: "STATE_UNSUPPORTED", severity: "warn", category: "JURISDICTION", message: `Leaf2Sale has no verified label rules for ${state.toUpperCase()} yet. Nothing was checked against ${state.toUpperCase()} law.`, fix: "Have your compliance lead review this label before using it for sale." });
     return { issues, pack: null, checked: 0, manual: 0 };
   }
   if (!pack.appliesTo.includes(kind)) {
@@ -213,7 +213,7 @@ export function checkJurisdiction(
             ...base,
             code: `RULE_${rule.id}`,
             severity: "info",
-            message: `${rule.title} isn't printed for ${who}. It may be on the page your QR code opens; CannaTrace can't check that page.`,
+            message: `${rule.title} isn't printed for ${who}. It may be on the page your QR code opens; Leaf2Sale can't check that page.`,
           });
         } else {
           issues.push({
@@ -244,7 +244,7 @@ export function checkJurisdiction(
       if (els.length === 0) {
         if (rule.qrAllowed && hasQr) {
           manual++;
-          issues.push({ ...base, code: `RULE_${rule.id}`, severity: "info", message: `${rule.title} isn't printed. It may be on the page your QR code opens; CannaTrace can't check that page.` });
+          issues.push({ ...base, code: `RULE_${rule.id}`, severity: "info", message: `${rule.title} isn't printed. It may be on the page your QR code opens; Leaf2Sale can't check that page.` });
         } else {
           issues.push({ ...base, code: `RULE_${rule.id}`, severity: "block", message: `Missing: ${rule.title}.`, fix: `Add a text element showing {{${c.field}}}.` });
         }
@@ -263,7 +263,7 @@ export function checkJurisdiction(
       if (!match) {
         if (rule.qrAllowed && hasQr) {
           manual++;
-          issues.push({ ...base, code: `RULE_${rule.id}`, severity: "info", message: `${rule.title} isn't printed. It may be on the page your QR code opens; CannaTrace can't check that page.` });
+          issues.push({ ...base, code: `RULE_${rule.id}`, severity: "info", message: `${rule.title} isn't printed. It may be on the page your QR code opens; Leaf2Sale can't check that page.` });
         } else {
           issues.push({ ...base, code: `RULE_${rule.id}`, severity: "block", message: `Missing or reworded: ${rule.title}. It must read exactly: "${c.text}"`, fix: "Add a text element with this exact wording." });
         }
@@ -279,7 +279,7 @@ export function checkJurisdiction(
       } else if (!logos.some((el) => Math.min(el.w, el.h) >= c.minMm - 0.01)) {
         issues.push({ ...base, code: `RULE_${rule.id}_SIZE`, severity: "block", elementId: logos[0].id, message: `${rule.title}: it's smaller than ${c.minMm} mm on a side.`, fix: `Make it at least ${c.minMm} × ${c.minMm} mm.` });
       } else {
-        issues.push({ ...base, code: `RULE_${rule.id}_ART`, severity: "info", message: "CannaTrace checked the logo's size, not that the uploaded image is the official artwork." });
+        issues.push({ ...base, code: `RULE_${rule.id}_ART`, severity: "info", message: "Leaf2Sale checked the logo's size, not that the uploaded image is the official artwork." });
       }
     }
   }

@@ -15,7 +15,7 @@ export function LegalPage({ title, intro, sections, current }: { title: string; 
     <div className="min-h-screen bg-white text-slate-900">
       <header className="border-b border-slate-100">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-3">
-          <Link href="/" aria-label="CannaTrace home">
+          <Link href="/" aria-label="Leaf2Sale home">
             <Logo size="lg" />
           </Link>
           <Link href="/login" className="text-[15px] font-medium text-slate-800 hover:text-brand-700">
@@ -52,7 +52,7 @@ export function LegalPage({ title, intro, sections, current }: { title: string; 
         <section className="mt-10 border-t border-slate-200 pt-6 text-sm text-slate-600">
           <p>
             Questions?{" "}
-            <a href={mailto(`CannaTrace ${title}`)} className="font-semibold text-brand-700 hover:underline">
+            <a href={mailto(`Leaf2Sale ${title}`)} className="font-semibold text-brand-700 hover:underline">
               Email us
             </a>
             .

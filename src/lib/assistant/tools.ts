@@ -331,7 +331,7 @@ export const TOOLS: Tool[] = [
     label: "Checking state rules",
     permission: "compliance.view",
     description:
-      "This facility's compliance check against its state's rules: a score out of 100, open issues with how to fix them, and every rule in effect with its legal citation and how CannaTrace enforces it. Use for 'are we compliant', 'what are the rules', purchase limits, waste, lab testing, or manifest questions.",
+      "This facility's compliance check against its state's rules: a score out of 100, open issues with how to fix them, and every rule in effect with its legal citation and how Leaf2Sale enforces it. Use for 'are we compliant', 'what are the rules', purchase limits, waste, lab testing, or manifest questions.",
     schema: obj({}),
     run: async (s) => {
       const result = await scanFacility(s.orgId, s.facilityId);

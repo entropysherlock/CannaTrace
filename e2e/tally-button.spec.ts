@@ -27,7 +27,7 @@ test("Tally's floating button is on every tab, even after visiting the Dashboard
   await expect(launcher).toBeHidden();
   await nav.getByRole("link", { name: "Inventory", exact: true }).click();
   await launcher.click();
-  await expect(page.getByRole("dialog", { name: "CannaTrace assistant" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Leaf2Sale assistant" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(launcher).toBeVisible();
 });

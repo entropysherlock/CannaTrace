@@ -121,7 +121,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         find: { kind: "harvest", status: ["DRYING"], none: "a harvest that's still drying" },
         target: [{ card: "Package from this harvest" }],
         title: "Make packages",
-        body: "Pick the item, how much goes in each package, and how many packages to make: ten jars of the same size is one save. Leave the tag blank and CannaTrace makes a unique ID for each. Strain and harvest come along automatically.",
+        body: "Pick the item, how much goes in each package, and how many packages to make: ten jars of the same size is one save. Leave the tag blank and Leaf2Sale makes a unique ID for each. Strain and harvest come along automatically.",
       },
       {
         path: HARVEST,
@@ -184,7 +184,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         find: { kind: "batch", status: ["ACTIVE"], none: "an active plant batch" },
         target: [{ card: "Tag plants" }],
         title: "Tag the plants",
-        body: "Give each plant its own ID. Leave tags blank and CannaTrace numbers them for you (PLT-000123).",
+        body: "Give each plant its own ID. Leave tags blank and Leaf2Sale numbers them for you (PLT-000123).",
       },
       {
         path: /^\/cultivation\/plants$/,
@@ -237,7 +237,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         find: { kind: "run", status: ["IN_PROGRESS"], none: "a production run in progress" },
         target: [{ card: "Complete the run" }],
         title: "Complete the run",
-        body: "Enter how much you actually made and where it goes. CannaTrace works out yield and cost per unit and makes the output package.",
+        body: "Enter how much you actually made and where it goes. Leaf2Sale works out yield and cost per unit and makes the output package.",
       },
       {
         path: RUN,
@@ -286,7 +286,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         find: { kind: "order", status: ["CONFIRMED"], none: "an order waiting to be picked" },
         target: [{ card: "Pick packages" }],
         title: "Pick packages",
-        body: "Press \"Pick everything, oldest first\" to fill every line at once, or open \"Or scan one package\" to scan them yourself. CannaTrace checks each is the right item, has enough, and passed its lab test.",
+        body: "Press \"Pick everything, oldest first\" to fill every line at once, or open \"Or scan one package\" to scan them yourself. Leaf2Sale checks each is the right item, has enough, and passed its lab test.",
         advance: "next",
       },
       {
@@ -324,7 +324,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         go: "/inventory/receive",
         target: [{ field: "tag" }],
         title: "Scan the tag",
-        body: "Scan the package's tag with a barcode scanner or the camera. No tag? Leave it blank and CannaTrace makes one.",
+        body: "Scan the package's tag with a barcode scanner or the camera. No tag? Leave it blank and Leaf2Sale makes one.",
       },
       {
         path: /^\/inventory\/receive$/,
@@ -378,7 +378,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         go: "/pos",
         target: [{ text: "Start sale" }, { text: "No scanner?" }],
         title: "Check their ID",
-        body: "Scan the barcode on the back of the customer's ID. CannaTrace checks their age and that the ID hasn't expired. No scanner? Type the dates from the ID. When it says OK to serve, press Start sale.",
+        body: "Scan the barcode on the back of the customer's ID. Leaf2Sale checks their age and that the ID hasn't expired. No scanner? Type the dates from the ID. When it says OK to serve, press Start sale.",
         // Starting the sale opens the cart, which moves this on; tapping "No scanner?" must not.
         advance: "next",
       },
@@ -387,7 +387,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         find: { kind: "sale", status: ["OPEN"], none: "an open sale" },
         target: [{ text: "Pay" }],
         title: "Ring up and take payment",
-        body: "Scan each product's barcode, or tap it on the menu. The bars under the cart show how close they are to today's limits, and CannaTrace stops you before they go over. Then press Pay (or F2), choose cash, debit, or split, and press Complete sale. For cash, type what they handed you and CannaTrace shows the change. For debit, run it on the card terminal first.",
+        body: "Scan each product's barcode, or tap it on the menu. The bars under the cart show how close they are to today's limits, and Leaf2Sale stops you before they go over. Then press Pay (or F2), choose cash, debit, or split, and press Complete sale. For cash, type what they handed you and Leaf2Sale shows the change. For debit, run it on the card terminal first.",
         advance: "click",
       },
       {
@@ -463,7 +463,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
   {
     id: "count-a-room",
     title: "Count a room",
-    summary: "Count every package in one location, and CannaTrace corrects the differences.",
+    summary: "Count every package in one location, and Leaf2Sale corrects the differences.",
     minutes: 3,
     permission: "inventory.adjust",
     steps: [
@@ -531,7 +531,7 @@ export const WALKTHROUGHS: Walkthrough[] = [
         path: PACKAGE,
         find: { kind: "package", status: ["ON_HOLD", "ACTIVE"] },
         title: "Wait out the hold period",
-        body: "New Mexico requires waste to sit on hold for 72 hours before it's destroyed, and other states have their own rule. CannaTrace won't let you destroy it early and tells you the exact time it's allowed. Keep it in the quarantine area until then.",
+        body: "New Mexico requires waste to sit on hold for 72 hours before it's destroyed, and other states have their own rule. Leaf2Sale won't let you destroy it early and tells you the exact time it's allowed. Keep it in the quarantine area until then.",
         advance: "next",
       },
       {

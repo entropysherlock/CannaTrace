@@ -72,7 +72,7 @@ export default async function CompliancePage() {
 
       {practice ? (
         <p role="status" className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-950" data-testid="practice-notice">
-          Practice mode: nothing is sent to the state. Records are marked done here so you can try CannaTrace, but you still need to report everything in
+          Practice mode: nothing is sent to the state. Records are marked done here so you can try Leaf2Sale, but you still need to report everything in
           your state system yourself.
         </p>
       ) : null}
@@ -199,7 +199,7 @@ export default async function CompliancePage() {
               </p>
               {job.failing || job.late ? (
                 <p className="mt-1 font-medium text-red-700" role="status">
-                  {job.failing ? "The last automatic run didn't finish." : "Automatic sending hasn't run on time."} Use Send now, and let CannaTrace support know.
+                  {job.failing ? "The last automatic run didn't finish." : "Automatic sending hasn't run on time."} Use Send now, and let Leaf2Sale support know.
                 </p>
               ) : null}
             </div>

@@ -77,7 +77,7 @@ export default async function CatalogPage() {
               <Field label="Name">
                 <input name="name" required className={inputClass} />
               </Field>
-              <Field label="SKU (blank to generate)" hint="Leave blank and CannaTrace makes one from the category, like FLO-0007. You can change it later on the item's page.">
+              <Field label="SKU (blank to generate)" hint="Leave blank and Leaf2Sale makes one from the category, like FLO-0007. You can change it later on the item's page.">
                 <input name="sku" autoCapitalize="characters" placeholder="Blank = generated" className={inputClass} />
               </Field>
               <CreatableSelect

@@ -2,7 +2,7 @@ import { stateName, SUPPORTED_STATES } from "@/lib/states";
 import { inputClass } from "./ui";
 
 /**
- * Only states where adult-use cannabis is legal and CannaTrace has verified state rules.
+ * Only states where adult-use cannabis is legal and Leaf2Sale has verified state rules.
  * A facility already set to another state keeps it listed so its form still works.
  */
 export function StateSelect({ name = "state", defaultValue }: { name?: string; defaultValue?: string }) {

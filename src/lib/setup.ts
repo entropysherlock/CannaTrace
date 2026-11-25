@@ -63,7 +63,7 @@ export async function createBusiness(
   const licenseNumber = text(input.licenseNumber, "Enter the facility's state license number.", 60).toUpperCase();
   if (!(licenseTypeEnum.enumValues as readonly string[]).includes(input.licenseType)) throw new InventoryError("Choose the license type.");
   const state = input.state.trim().toUpperCase();
-  if (!isSupportedState(state)) throw new InventoryError("Choose one of the listed states. CannaTrace supports states with legal adult-use sales and built-in rules.");
+  if (!isSupportedState(state)) throw new InventoryError("Choose one of the listed states. Leaf2Sale supports states with legal adult-use sales and built-in rules.");
   const ownerName = text(input.ownerName, "Enter your name.", 100);
   const email = checkEmail(input.email);
   if (input.password.length < MIN_PASSWORD)
