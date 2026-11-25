@@ -654,6 +654,8 @@ export async function restoreDryWeight(actor: Actor, input: { harvestId: string;
 /** Take back waste logged against a harvest: the weight returns to the harvest, and a negative waste line keeps the log honest. */
 export async function reverseHarvestWaste(actor: Actor, input: { harvestId: string; grams: string; reason: string }): Promise<void> {
   const grams = new Decimal(input.grams);
+  if (!grams.isFinite() || grams.lte(0)) throw new InventoryError("Enter how much waste to take back.");
+  if (!input.reason.trim()) throw new InventoryError("Say why the waste is being taken back. It goes in the audit trail.");
   await db.transaction(async (tx) => {
     const harvest = await lockHarvest(tx, actor, input.harvestId);
     if (grams.gt(harvest.wasteWeight)) throw new InventoryError(`Harvest ${harvest.name} only has ${new Decimal(harvest.wasteWeight).toString()} g of waste logged.`);
