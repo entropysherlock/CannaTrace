@@ -45,7 +45,7 @@ export async function revokeApiKey(actor: Actor, input: { keyId: string }): Prom
     const [gone] = await tx
       .update(apiKeys)
       .set({ revokedAt: new Date() })
-      .where(and(eq(apiKeys.id, input.keyId), eq(apiKeys.orgId, actor.orgId), isNull(apiKeys.revokedAt)))
+      .where(and(eq(apiKeys.id, input.keyId), eq(apiKeys.orgId, actor.orgId), eq(apiKeys.facilityId, actor.facilityId), isNull(apiKeys.revokedAt)))
       .returning({ id: apiKeys.id, name: apiKeys.name, prefix: apiKeys.prefix });
     if (gone) await logAdminAction(tx, actor, { entityType: "ApiKey", entityId: gone.id, action: "REVOKE", before: { name: gone.name, prefix: gone.prefix } });
   });
@@ -150,7 +150,7 @@ export async function setWebhookActive(actor: Actor, input: { webhookId: string;
     const [changed] = await tx
       .update(webhooks)
       .set({ active: input.active })
-      .where(and(eq(webhooks.id, input.webhookId), eq(webhooks.orgId, actor.orgId)))
+      .where(and(eq(webhooks.id, input.webhookId), eq(webhooks.orgId, actor.orgId), eq(webhooks.facilityId, actor.facilityId)))
       .returning({ id: webhooks.id, url: webhooks.url });
     if (changed) await logAdminAction(tx, actor, { entityType: "Webhook", entityId: changed.id, action: input.active ? "TURN_ON" : "TURN_OFF", after: { url: changed.url } });
   });
