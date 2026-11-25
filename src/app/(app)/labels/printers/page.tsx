@@ -1,5 +1,6 @@
 import { ActionForm } from "@/components/action-form";
 import { Card, Field, inputClass, PageHeader } from "@/components/ui";
+import { DarknessTest } from "@/components/labels/darkness-test";
 import { STOCK_SIZES } from "@/lib/labels/defaults";
 import { listJobs, listPrinters, PRINTER_ADAPTERS } from "@/lib/labels/service";
 import { can } from "@/lib/rbac";
@@ -147,6 +148,13 @@ export default async function PrintersPage() {
           ) : (
             <p className="text-sm text-slate-600">Ask a manager to add printers.</p>
           )}
+        </Card>
+
+        <Card title="Labels faded? Print a darkness test">
+          <DarknessTest
+            printers={printers.filter((p) => p.adapter === "ZPL").map((p) => ({ name: p.name, dpi: p.dpi }))}
+            defaultName={printers.find((p) => p.isDefault && p.adapter === "ZPL")?.name ?? ""}
+          />
         </Card>
 
         <Card title="Printing diagnostics">
