@@ -4,7 +4,7 @@ import { Play, X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 
 /** The narrated product tour. */
-export const TOUR_VIDEO = "/tour/cannatrace-tour.mp4";
+export const TOUR_VIDEO = "/tour/leaf2sale-tour.mp4";
 export const TOUR_POSTER = "/tour/poster.jpg";
 
 const OPEN_EVENT = "cannatrace:open-tour";

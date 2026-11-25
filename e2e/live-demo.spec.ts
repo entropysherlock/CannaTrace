@@ -44,9 +44,9 @@ test("the Watch the Video Tour button plays the product tour video", async ({ pa
   const player = page.getByRole("dialog", { name: "Leaf2Sale product tour" });
   await expect(player).toBeVisible();
   const video = page.locator("dialog video");
-  await expect(video).toHaveAttribute("src", "/tour/cannatrace-tour.mp4");
+  await expect(video).toHaveAttribute("src", "/tour/leaf2sale-tour.mp4");
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 15_000 }).toBeGreaterThan(0);
-  expect((await request.head("/tour/cannatrace-tour.mp4")).headers()["content-type"]).toContain("video/mp4");
+  expect((await request.head("/tour/leaf2sale-tour.mp4")).headers()["content-type"]).toContain("video/mp4");
   await page.getByRole("button", { name: "Close video" }).click();
   await expect(player).toBeHidden();
   expect(await video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
