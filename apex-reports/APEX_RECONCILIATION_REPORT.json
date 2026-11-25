@@ -5,7 +5,8 @@
     "branch": "qa/apex-simulation",
     "database": "isolated embedded PostgreSQL (never production)",
     "simulatedDays": 365,
-    "clock": "logical business days; database timestamps are real wall-clock time"
+    "clock": "logical business days; database timestamps are real wall-clock time",
+    "phase": "Apex II rerun after all fixes (fresh database)"
   },
   "scope": {
     "executed": [
@@ -14,15 +15,20 @@
       "internal transfer under manifest (cultivation->distribution)",
       "wholesale orders, invoices, payments",
       "3 retail stores: check-in, cart, discounts, taxes, cash/debit/split payments, offline sales, returns, voids, drawer open/close with injected variances",
-      "mid-year tax-rate change"
+      "mid-year tax-rate change",
+      "manufacturing runs with 8-decimal unit cost (daily, own business)",
+      "automatic promotions on real sales with one-unit-at-a-time returns",
+      "rewards: join, earn and take back points",
+      "label record, render and validation for each new package",
+      "Tally propose/confirm with wrong-user, tampered, cross-business and replay attacks (stand-in model)"
     ],
     "notSimulated": [
-      "manufacturing runs (covered only by the existing engine tests)",
-      "rewards program and automatic promotions at scale",
-      "labels/printing",
-      "Tally AI during the year (probed separately)",
       "state reporting (NMS2S) - not validated",
-      "50 employees exist, but permission differences were not exercised by the simulator"
+      "50 employees exist, but permission differences were not exercised by the simulator",
+      "rewards redemption (points are earned and taken back, not spent)",
+      "label printing to a device",
+      "Tally with a live model",
+      "splits and merges at scale"
     ]
   },
   "volumes": {
@@ -66,6 +72,16 @@
       "salesTax": "1272425.96",
       "total": "21908189.34",
       "refunds": "135887.03"
+    },
+    "extension": {
+      "days": 365,
+      "productionRuns": 365,
+      "promoSalesWithReturns": 365,
+      "rewardMembers": 365,
+      "labelsRenderedAndValidated": 365,
+      "tallyConfirmedMoves": 365,
+      "findings": 0,
+      "note": "each label was blocked only by the state logo not being uploaded, which is business setup"
     }
   },
   "invariants": [
