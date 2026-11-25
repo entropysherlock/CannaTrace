@@ -48,6 +48,10 @@ export function PlantBulkFields({
         <option value="DESTROY">Destroy</option>
       </select>
 
+      {action === "FLOWERING" || action === "VEGETATIVE" ? (
+        <CreatableSelect name="locationId" label="New room (optional)" placeholder="Stay in the same room" options={options} create={addMoveRoom} deniedHint={deniedHint} />
+      ) : null}
+
       {action === "MOVE" ? (
         <CreatableSelect name="locationId" label="Move to" required placeholder="Choose a room" options={options} create={addMoveRoom} deniedHint={deniedHint} />
       ) : null}

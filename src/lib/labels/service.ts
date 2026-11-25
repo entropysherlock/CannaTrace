@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { noteAudit } from "@/lib/audit-recorder";
 import { auditLogs, labelTemplates, labelTemplateVersions, printJobs, printerProfiles } from "@/db/schema";
@@ -446,6 +446,27 @@ export async function markJob(actor: LabelActor, jobId: string, status: "PRINTED
     .set({ status, completedAt: status === "PRINTED" ? new Date() : job.completedAt, error: status === "FAILED" ? note?.slice(0, 500) || "Marked as failed" : status === "PRINTED" ? null : job.error })
     .where(eq(printJobs.id, job.id));
   await log(actor, "print_job", job.id, `labels.marked_${status.toLowerCase()}`, { labels: job.labelCount }, note);
+}
+
+/** How many open jobs had their PDF opened over a day ago and were never confirmed. */
+export function countStaleJobs(jobs: { job: { status: string; createdAt: Date } }[], hours = 24): number {
+  const cutoff = Date.now() - hours * 60 * 60 * 1000;
+  return jobs.filter((j) => j.job.status === "RENDERED" && j.job.createdAt.getTime() < cutoff).length;
+}
+
+/**
+ * Close out jobs whose PDF was opened but never confirmed, once they are old enough that nobody is still at the printer.
+ * They are cancelled, not marked printed, so the history never claims labels were printed when nobody said so.
+ */
+export async function clearStaleJobs(actor: LabelActor, olderThanHours = 24): Promise<number> {
+  const cutoff = new Date(Date.now() - olderThanHours * 60 * 60 * 1000);
+  const rows = await db
+    .update(printJobs)
+    .set({ status: "CANCELLED" })
+    .where(and(eq(printJobs.orgId, actor.orgId), eq(printJobs.facilityId, actor.facilityId), eq(printJobs.status, "RENDERED"), lt(printJobs.createdAt, cutoff)))
+    .returning({ id: printJobs.id });
+  if (rows.length) await log(actor, "print_job", rows[0].id, "labels.cleared_unconfirmed", { jobs: rows.length }, "Cleared: PDF opened but never confirmed");
+  return rows.length;
 }
 
 /** Start a new job for the same records with the same template version. Inventory is not touched. */

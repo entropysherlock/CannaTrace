@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { actorOf } from "@/lib/labels/http";
-import { LabelError, savePrinter } from "@/lib/labels/service";
+import { LabelError, clearStaleJobs, savePrinter } from "@/lib/labels/service";
 import { requirePermission } from "@/lib/session";
 
 export async function savePrinterAction(_: FormState, formData: FormData): Promise<FormState> {
@@ -24,4 +24,11 @@ export async function savePrinterAction(_: FormState, formData: FormData): Promi
     if (e instanceof LabelError) return { error: e.message };
     return toFormError(e);
   }
+}
+
+/** Cancel print-queue entries that were opened but never confirmed and are over a day old. */
+export async function clearStaleJobsAction(): Promise<void> {
+  const session = await requirePermission("labels.print");
+  await clearStaleJobs(actorOf(session));
+  revalidatePath("/labels");
 }

@@ -5,11 +5,12 @@ import { Card, PageHeader } from "@/components/ui";
 import { plants } from "@/db/schema";
 import { db } from "@/lib/db";
 import { labelCandidates } from "@/lib/labels/data";
-import { listJobs, listPrinters, listTemplates } from "@/lib/labels/service";
+import { countStaleJobs, listJobs, listPrinters, listTemplates } from "@/lib/labels/service";
 import { LABEL_KINDS, type LabelKind } from "@/lib/labels/types";
 import { can } from "@/lib/rbac";
 import { requirePagePermission } from "@/lib/session";
 import { prepareLabels, sizeLabel } from "./shared";
+import { clearStaleJobsAction } from "./actions";
 import { facilityZone } from "@/lib/time";
 
 export const instant = false;
@@ -50,6 +51,7 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
   if (wanted && !LABEL_KINDS.some((k) => k.kind === sp.kind)) kind = wanted.kind;
   const archivedTemplates = allTemplates.filter((t) => t.archived).map((t) => ({ id: t.id, name: t.name, kind: t.kind }));
   const open = jobs.filter((j) => j.job.status === "QUEUED" || j.job.status === "RENDERED" || j.job.status === "FAILED");
+  const stale = countStaleJobs(open);
 
   return (
     <div className="space-y-6">
@@ -70,6 +72,12 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
         canManage={can(session, "labels.manage")}
       />
       <Card title={`Print queue (${open.length})`}>
+        {stale > 0 ? (
+          <form action={clearStaleJobsAction} className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+            <span>{stale} job{stale === 1 ? " was" : "s were"} opened over a day ago and never confirmed.</span>
+            <button type="submit" className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-semibold hover:border-amber-500">Clear them</button>
+          </form>
+        ) : null}
         {open.length === 0 ? (
           <p className="text-sm text-slate-600">Nothing waiting. Jobs you start show here until someone confirms they printed.</p>
         ) : (

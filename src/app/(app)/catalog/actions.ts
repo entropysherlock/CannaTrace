@@ -8,7 +8,7 @@ import { createLocation } from "@/lib/facilities";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { generateSku, normalizeSku } from "@/lib/ids";
 import { renameItem, saveItemDetails } from "@/lib/item-details";
-import { createCategory } from "@/lib/quick-item";
+import { createCategory, findItemByName } from "@/lib/quick-item";
 import { requirePermission } from "@/lib/session";
 
 export async function addCategory(_state: FormState, formData: FormData): Promise<FormState> {
@@ -30,6 +30,8 @@ export async function addItem(_state: FormState, formData: FormData): Promise<Fo
     const unit = field(formData, "unit") as (typeof unitEnum.enumValues)[number];
     const categoryId = field(formData, "categoryId");
     if (!name) return { error: "Enter a name." };
+    const twin = await findItemByName(session.orgId, name);
+    if (twin) return { error: `You already have an item called ${twin.name}.` };
     const givenSku = typedSku ? normalizeSku(typedSku) : null;
     if (!unitEnum.enumValues.includes(unit)) return { error: "Choose a unit of measure." };
     const [category] = await db

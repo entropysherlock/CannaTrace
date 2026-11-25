@@ -80,3 +80,19 @@ describe("the Manufacturing overview numbers", () => {
     expect(suggestRunName(["run-20261118-01", "RUN-20261118-02"], late)).toBe("RUN-20261118-03");
   });
 });
+
+describe("over-yield guard", () => {
+  it("refuses a probable typo, wants a note above 120%, and leaves normal yields alone", async () => {
+    const { checkYield } = await import("../src/lib/manufacturing");
+    const D = (await import("decimal.js")).default;
+    expect(() => checkYield(new D(2200), 100)).toThrow(/extra digit/);
+    expect(() => checkYield(new D(150), 100)).toThrow(/Add a note/);
+    expect(() => checkYield(new D(150), 100, "Rehydrated, weighed wet")).not.toThrow();
+    expect(() => checkYield(new D(96), 100)).not.toThrow();
+  });
+  it("keeps absurd yields out of the average", () => {
+    const now = new Date();
+    const run = (actual: string) => ({ status: "COMPLETED" as const, plannedOutput: "100", actualOutput: actual, inputCost: null, extraCost: null, completedAt: now });
+    expect(summarizeRuns([run("100"), run("2200")], now).averageYield?.toString()).toBe("100");
+  });
+});

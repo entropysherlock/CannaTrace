@@ -21,7 +21,7 @@ import {
   type Actor,
 } from "./inventory";
 import { normalizeTag, parsePositiveQty, storeCost } from "./inventory-math";
-import { inputCost, parseBatches, scaleRecipe, unitCost } from "./manufacturing-math";
+import { MAX_YIELD_PERCENT, NOTE_YIELD_PERCENT, inputCost, parseBatches, scaleRecipe, unitCost, yieldPercent } from "./manufacturing-math";
 
 const store = (value: Decimal) => value.toFixed(4);
 
@@ -210,6 +210,21 @@ export async function removeRunInput(actor: Actor, input: { inputId: string }): 
   });
 }
 
+/**
+ * Guard against typos at Finish. Far above plan (over 1000%) is almost certainly extra zeros, so it is
+ * refused; moderately above plan (over 120%) is allowed only with a note saying why.
+ */
+export function checkYield(actual: Decimal, planned: Decimal.Value, note?: string | null): void {
+  const pct = yieldPercent(actual, planned);
+  if (pct === null) return;
+  if (pct.gt(MAX_YIELD_PERCENT)) {
+    throw new InventoryError(`That is ${pct.toString()}% of the planned output. Check for an extra digit. If it is real, change the recipe's output so the plan matches.`);
+  }
+  if (pct.gt(NOTE_YIELD_PERCENT) && !note?.trim()) {
+    throw new InventoryError(`That is ${pct.toString()}% of the planned output. Add a note saying why it came out above plan.`);
+  }
+}
+
 /** Finish a run: create the output package, link it to its inputs, and work out the cost per unit. */
 export async function completeRun(
   actor: Actor,
@@ -228,6 +243,7 @@ export async function completeRun(
 
   return db.transaction(async (tx) => {
     const run = await lockOpenRun(tx, actor, input.runId);
+    checkYield(actual, run.plannedOutput, input.lossNote);
     const [lines, inputs] = await Promise.all([
       tx
         .select({ itemId: bomLines.itemId, itemName: items.name })
