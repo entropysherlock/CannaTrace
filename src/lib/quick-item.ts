@@ -7,6 +7,11 @@ import type { Actor } from "./inventory";
 
 type Unit = (typeof unitEnum.enumValues)[number];
 
+/** An item name with case and every space ignored, so "3.5 g Jar" and "3.5g jar" count as the same item. */
+export function nameKey(value: unknown) {
+  return sql`lower(regexp_replace(${value}, '\\s+', '', 'g'))`;
+}
+
 /** A category with this name, ignoring letter case and extra spaces. */
 export async function findCategoryByName(orgId: string, name: string): Promise<{ id: string; name: string } | null> {
   const clean = name.trim().replace(/\s+/g, " ");
@@ -40,7 +45,7 @@ export async function findItemByName(orgId: string, name: string): Promise<{ id:
   const [row] = await db
     .select({ id: items.id, name: items.name, unit: items.unit })
     .from(items)
-    .where(and(eq(items.orgId, orgId), eq(items.active, true), sql`lower(btrim(${items.name})) = lower(${clean})`));
+    .where(and(eq(items.orgId, orgId), eq(items.active, true), sql`${nameKey(items.name)} = ${nameKey(clean)}`));
   return row ?? null;
 }
 
@@ -61,7 +66,7 @@ export async function quickAddItem(
     const [dupe] = await tx
       .select({ id: items.id })
       .from(items)
-      .where(and(eq(items.orgId, actor.orgId), sql`lower(btrim(${items.name})) = lower(${name})`, eq(items.active, true)));
+      .where(and(eq(items.orgId, actor.orgId), sql`${nameKey(items.name)} = ${nameKey(name)}`, eq(items.active, true)));
     if (dupe) throw new InventoryError(`You already have an item called ${name}. Pick it from the list.`);
     // "edibles" uses the existing "Edibles" category rather than making a near-twin.
     const findCategory = () =>

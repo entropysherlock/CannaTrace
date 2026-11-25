@@ -88,7 +88,7 @@ export function RunGuide({ runId, unit, planned, rooms, toGo, inputCount, packag
           ) : null}
           <ActionForm action={completeRunAction} submitLabel="Complete run">
             {hidden}
-            <Field label={`How much was made (${unit})`} hint={`The plan was ${planned}.`}>
+            <Field label={`How much was made (${unit})`} hint={`The plan was ${planned}. Above 120% of plan needs a note (under "Labor cost or a note").`}>
               <input name="actualQuantity" inputMode="decimal" required className={inputClass} />
             </Field>
             <Field label="Put away to">

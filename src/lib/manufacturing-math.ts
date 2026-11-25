@@ -44,6 +44,10 @@ export function unitCost(total: Decimal | null, extra: Decimal, output: Decimal)
   return roundCost(total.add(extra).div(output));
 }
 
+/** Above this a finished run is refused as a probable typo; above NOTE_YIELD_PERCENT it needs a note. */
+export const MAX_YIELD_PERCENT = 1000;
+export const NOTE_YIELD_PERCENT = 120;
+
 /** Actual output as a percentage of planned output, to one decimal place. */
 export function yieldPercent(actual: Decimal.Value, planned: Decimal.Value): Decimal | null {
   const plan = new Decimal(planned);
@@ -86,7 +90,7 @@ export function summarizeRuns(runs: RunSummaryInput[], now = new Date()) {
   const yields = done
     .filter((r) => r.completedAt! >= since90)
     .map((r) => yieldPercent(r.actualOutput!, r.plannedOutput))
-    .filter((y): y is Decimal => y !== null);
+    .filter((y): y is Decimal => y !== null && y.lte(MAX_YIELD_PERCENT));
   const costed = thisMonth.filter((r) => r.inputCost !== null);
   return {
     inProgress: runs.filter((r) => r.status === "IN_PROGRESS").length,

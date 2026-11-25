@@ -143,7 +143,7 @@ export async function plantBulkAction(_state: FormState, formData: FormData): Pr
     if (plantIds.length === 0) throw new InventoryError("Check at least one plant first.");
     const action = field(formData, "bulkAction");
     if (action === "FLOWERING" || action === "VEGETATIVE") {
-      const changed = await changePlantPhase(actor, { plantIds, phase: action });
+      const changed = await changePlantPhase(actor, { plantIds, phase: action, locationId: field(formData, "locationId") });
       message = `${plural(changed, "plant")} moved to ${action.toLowerCase()}.`;
     } else if (action === "MOVE") {
       const moved = await movePlants(actor, { plantIds, locationId: field(formData, "locationId") });

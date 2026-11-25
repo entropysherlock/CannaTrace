@@ -299,17 +299,20 @@ async function auditPlants(tx: Tx, actor: Actor, rows: Plant[], action: string, 
   }
 }
 
-export async function changePlantPhase(actor: Actor, input: { plantIds: string[]; phase: string; restoreChangedAt?: Date | null }): Promise<number> {
+export async function changePlantPhase(actor: Actor, input: { plantIds: string[]; phase: string; restoreChangedAt?: Date | null; locationId?: string | null }): Promise<number> {
   if (!["VEGETATIVE", "FLOWERING"].includes(input.phase)) throw new InventoryError("Choose a growth phase.");
   const phase = input.phase as "VEGETATIVE" | "FLOWERING";
   return db.transaction(async (tx) => {
     const rows = (await lockPlants(tx, actor, input.plantIds)).filter((p) => p.phase !== phase);
     if (rows.length === 0) throw new InventoryError(`The selected plants are already ${phase.toLowerCase()}.`);
+    // Flipping to flower usually means a new room too; doing both in one step keeps the record whole.
+    const roomId = input.locationId || null;
+    if (roomId) await assertLocation(tx, actor, roomId);
     await tx
       .update(plants)
-      .set({ phase, phaseChangedAt: input.restoreChangedAt ?? new Date() })
+      .set({ phase, phaseChangedAt: input.restoreChangedAt ?? new Date(), ...(roomId ? { locationId: roomId } : {}) })
       .where(inArray(plants.id, rows.map((p) => p.id)));
-    await auditPlants(tx, actor, rows, "PHASE_CHANGE", { phase });
+    await auditPlants(tx, actor, rows, "PHASE_CHANGE", roomId ? { phase, locationId: roomId } : { phase });
     return rows.length;
   });
 }
