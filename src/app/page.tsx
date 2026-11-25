@@ -51,7 +51,7 @@ function Screen({ src, alt, priority = false, className = "" }: { src: string; a
         <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-        <span className="ml-3 truncate rounded-md bg-white px-3 py-0.5 text-[11px] text-slate-500 ring-1 ring-slate-200">canna-trace.vercel.app</span>
+        <span className="ml-3 truncate rounded-md bg-white px-3 py-0.5 text-[11px] text-slate-500 ring-1 ring-slate-200">leaf2sale.com</span>
       </div>
       <Image src={src} alt={alt} width={2000} height={1250} priority={priority} sizes="(min-width: 1024px) 60vw, 100vw" className="h-auto w-full" />
     </div>
