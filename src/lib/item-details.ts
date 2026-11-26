@@ -1,10 +1,11 @@
 import "server-only";
 import Decimal from "decimal.js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { auditLogs, items } from "@/db/schema";
 import { db } from "./db";
 import { normalizeSku } from "./ids";
 import { InventoryError } from "./inventory-math";
+import { nameKey } from "./quick-item";
 
 /** What a product label needs to know about an item, beyond its name and SKU. All optional. */
 export type ItemDetailsInput = {
@@ -109,6 +110,14 @@ export async function renameItem(actor: Actor, itemId: string, input: { name: st
     if (sku !== before.sku) {
       const [taken] = await tx.select({ id: items.id }).from(items).where(and(eq(items.orgId, actor.orgId), eq(items.sku, sku)));
       if (taken) throw new InventoryError(`SKU ${sku} is already used by another item.`);
+    }
+    // No two active items may share a name (capitals and spaces ignored), the same rule as adding one.
+    if (before.active) {
+      const [twin] = await tx
+        .select({ name: items.name })
+        .from(items)
+        .where(and(eq(items.orgId, actor.orgId), eq(items.active, true), ne(items.id, itemId), sql`${nameKey(items.name)} = ${nameKey(name)}`));
+      if (twin) throw new InventoryError(`You already have an item called ${twin.name}.`);
     }
     await tx.update(items).set({ name, sku }).where(eq(items.id, itemId));
     await tx.insert(auditLogs).values({

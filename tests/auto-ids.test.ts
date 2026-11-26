@@ -92,6 +92,17 @@ describe.skipIf(!hasDb)("generated plant tags, package tags, and SKUs (database)
     expect(p.tag).toMatch(/^PKG-\d{6}$/);
   });
 
+  it("never allows two items with the same name: rename and CSV import both refuse", async () => {
+    const a = await quickAddItem(actor, { name: "Dupe Guard Gummies", unit: "EACH", category: "Edibles" });
+    const b = await quickAddItem(actor, { name: "Dupe Guard Chews", unit: "EACH", category: "Edibles" });
+    // Capitals and spaces do not make a different name.
+    await expect(renameItem(actor, b.id, { name: "dupe  guard gummies", sku: (await db.select({ sku: items.sku }).from(items).where(eq(items.id, b.id)))[0].sku })).rejects.toThrow(/already have an item called Dupe Guard Gummies/);
+    await expect(importCsv(actor, "items", "name,category,unit\nDUPE GUARD GUMMIES,Edibles,EACH")).rejects.toThrow(/already have an item called Dupe Guard Gummies/);
+    await expect(importCsv(actor, "items", "name,category,unit\nNew Twin,Edibles,EACH\nnew twin,Edibles,EACH")).rejects.toThrow(/appears more than once/);
+    expect(await db.$count(items, and(eq(items.orgId, actor.orgId), eq(items.name, "New Twin")))).toBe(0);
+    expect(a.id).not.toBe(b.id);
+  });
+
   it("prints generated tags as scannable barcodes on every starter label", async () => {
     const pkg = await receivePackage(actor, { tag: "", itemId: flowerItem, quantity: "28", locationId: room });
     const records = await loadLabelRecords(actor, "PACKAGE", [pkg.id]);
