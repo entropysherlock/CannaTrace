@@ -2,7 +2,7 @@
 
 import { Gift, X } from "lucide-react";
 import { useRef, useState } from "react";
-import { terminalRewardsFind, terminalRewardsJoin, terminalRewardsRemove, terminalRewardsUse, type TerminalResult } from "@/app/(app)/pos/terminal-actions";
+import { terminalRewardsFind, terminalRewardsJoin, terminalRewardsLinkId, terminalRewardsRemove, terminalRewardsUse, type TerminalResult } from "@/app/(app)/pos/terminal-actions";
 
 export type RewardsView = {
   member: { firstName: string; phone: string; points: number } | null;
@@ -15,6 +15,10 @@ export type RewardsView = {
   /** The most this shopper could use on this cart now (their points and the cap). */
   available: number;
   earnPreview: number;
+  /** This cart has an ID scan and the business recognizes shoppers by it. */
+  idLookup: boolean;
+  /** The shopper on the cart already has an ID linked. */
+  idLinked: boolean;
 };
 
 const money = (n: number) => `$${n % 1 === 0 ? n.toFixed(0) : n.toFixed(2)}`;
@@ -84,6 +88,19 @@ export function RewardsPanel({
             <X className="h-4 w-4" aria-hidden="true" /> Remove
           </button>
         </div>
+        {view.idLookup && !view.idLinked ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-2">
+            <p className="min-w-0 flex-1 text-xs text-slate-700">Ask {m.firstName} if their ID scan can find their rewards next time.</p>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => act(() => terminalRewardsLinkId(saleId))}
+              className="h-8 rounded-lg bg-brand-700 px-3 text-xs font-semibold text-white disabled:bg-slate-300"
+            >
+              They agreed: link ID
+            </button>
+          </div>
+        ) : null}
         {choices.length || view.used ? (
           <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Rewards to use">
             {[0, ...choices].map((count) => {
@@ -182,7 +199,7 @@ export function RewardsPanel({
           </div>
           <label className="flex items-start gap-2 text-sm text-slate-800">
             <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-5 w-5 accent-brand-700" />
-            The shopper agreed to join rewards (their phone number and first name are saved to earn points).
+            The shopper agreed to join rewards (their phone number and first name are saved to earn points{view.idLookup ? ", and their ID scan can find their account next time" : ""}).
           </label>
           <p className="text-xs text-slate-500">
             <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-700 underline">

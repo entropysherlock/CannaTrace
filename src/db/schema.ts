@@ -1293,6 +1293,8 @@ export const rewardSettings = pgTable("reward_settings", {
   expireMonths: integer("expire_months").notNull().default(12),
   /** The most of a cart (after other discounts) that rewards may pay for. */
   maxSharePercent: integer("max_share_percent").notNull().default(50),
+  /** Recognize a shopper from their scanned ID at check-in (a one-way fingerprint of the ID number, never the number). */
+  idLookup: boolean("id_lookup").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -1310,12 +1312,17 @@ export const rewardMembers = pgTable(
     /** Month and day only, "MM-DD", for the birthday bonus. Never the year. */
     birthday: text("birthday"),
     points: integer("points").notNull().default(0),
+    /** One-way fingerprint of the shopper's ID number (same key as the daily-limit key), set only with their agreement. */
+    idKey: text("id_key"),
     /** When the shopper agreed to join, and the budtender who asked. */
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
     joinedBy: text("joined_by").notNull(),
     lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("reward_members_org_phone_key").on(t.orgId, t.phone)],
+  (t) => [
+    uniqueIndex("reward_members_org_phone_key").on(t.orgId, t.phone),
+    uniqueIndex("reward_members_org_id_key").on(t.orgId, t.idKey).where(sql`${t.idKey} is not null`),
+  ],
 );
 
 /** What each promotion took off each completed sale, for the Promotions results. Kept even if the promotion is later deleted. */

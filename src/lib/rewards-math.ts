@@ -18,6 +18,8 @@ export type RewardProgram = {
   birthdayBonus: number;
   expireMonths: number;
   maxSharePercent: number;
+  /** Find a shopper from their scanned ID at check-in. */
+  idLookup: boolean;
 };
 
 /** What a new business starts with: the industry standard of 1 point per $1 and 100 points = $5 off. */
@@ -30,6 +32,7 @@ export const DEFAULT_PROGRAM: RewardProgram = {
   birthdayBonus: 50,
   expireMonths: 12,
   maxSharePercent: 50,
+  idLookup: false,
 };
 
 /** Hard ceiling on the share of a cart rewards may cover, whatever a store sets: a reward must never make cannabis free. */
@@ -163,6 +166,7 @@ export function cleanProgram(input: Record<string, unknown>, fail: (message: str
     birthdayBonus: whole("birthdayBonus", "Birthday bonus", 0, 10000),
     expireMonths: whole("expireMonths", "Points expire after (months)", 0, 60),
     maxSharePercent: whole("maxSharePercent", "Most of a cart rewards can pay for (%)", 1, MAX_SHARE_CEILING),
+    idLookup: input.idLookup === true || input.idLookup === "on" || input.idLookup === "true",
   };
 }
 

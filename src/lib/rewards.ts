@@ -38,6 +38,7 @@ export async function getProgram(reader: Reader, orgId: string): Promise<RewardP
     birthdayBonus: row.birthdayBonus,
     expireMonths: row.expireMonths,
     maxSharePercent: row.maxSharePercent,
+    idLookup: row.idLookup,
     saved: true,
   };
 }
@@ -98,12 +99,19 @@ export async function findMemberByPhone(reader: Reader, orgId: string, phone: st
   return member ?? null;
 }
 
+/** The shopper whose ID fingerprint this is (see customerKeyFor), if they agreed to be recognized by it. */
+export async function findMemberByIdKey(reader: Reader, orgId: string, idKey: string): Promise<Member | null> {
+  const [member] = await reader.select().from(rewardMembers).where(and(eq(rewardMembers.orgId, orgId), eq(rewardMembers.idKey, idKey)));
+  return member ?? null;
+}
+
 /** Sign a shopper up. Asked at the counter, with their agreement; gets the sign-up bonus. */
 export async function createMember(
   tx: Tx,
   actor: Actor,
   program: RewardProgram,
   input: { phone: unknown; firstName: unknown; birthday?: unknown; agreed: unknown },
+  idKey?: string | null,
 ): Promise<Member> {
   const phone = normalizePhone(input.phone);
   if (!phone) throw new InventoryError("Type a 10-digit phone number, for example 505 555 0142.");
@@ -116,10 +124,10 @@ export async function createMember(
   if (await findMemberByPhone(tx, actor.orgId, phone)) throw new InventoryError("That phone number is already in the rewards program. Look it up instead.");
   const [member] = await tx
     .insert(rewardMembers)
-    .values({ orgId: actor.orgId, phone, firstName, birthday: birthday === "none" ? null : birthday, joinedBy: actor.userName })
+    .values({ orgId: actor.orgId, phone, firstName, birthday: birthday === "none" ? null : birthday, idKey: idKey ?? null, joinedBy: actor.userName })
     .returning();
   // No name or phone in the audit trail: it outlives the shopper if they later ask to be removed.
-  await audit(tx, actor, { entityType: "RewardsMember", entityId: member.id, action: "JOIN", after: { birthday: Boolean(member.birthday), agreed: true } });
+  await audit(tx, actor, { entityType: "RewardsMember", entityId: member.id, action: "JOIN", after: { birthday: Boolean(member.birthday), agreed: true, idLinked: Boolean(idKey) } });
   return post(tx, actor, member, { kind: "SIGNUP", points: program.signupBonus });
 }
 

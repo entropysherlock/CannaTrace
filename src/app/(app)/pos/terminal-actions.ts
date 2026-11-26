@@ -13,6 +13,7 @@ import {
   completeSale,
   detachRewardsMember,
   joinRewards,
+  linkIdToRewardsMember,
   openDrawer,
   setCartDiscount,
   setLineQuantity,
@@ -103,6 +104,14 @@ export async function terminalRewardsJoin(input: { saleId: string; phone: string
   return run(async (actor) => {
     const joined = await joinRewards(actor, input);
     return { ok: `${joined.firstName} joined rewards with ${joined.points} welcome points` };
+  });
+}
+
+/** With the shopper's agreement, link this cart's ID scan to their rewards account. */
+export async function terminalRewardsLinkId(saleId: string): Promise<TerminalResult> {
+  return run(async (actor) => {
+    await linkIdToRewardsMember(actor, { saleId });
+    return { ok: "Linked. Next time their ID scan finds their rewards." };
   });
 }
 
