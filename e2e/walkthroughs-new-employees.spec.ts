@@ -32,12 +32,15 @@ async function onStep(page: Page, title: string, highlighted = true) {
   const bubble = page.getByTestId("walk-bubble");
   await expect(bubble).toContainText(title);
   // On top of everything, including the full-screen register: what's under the bubble's middle is the bubble.
-  expect(
-    await bubble.evaluate((el) => {
-      const r = el.getBoundingClientRect();
-      return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
-    }),
-  ).toBe(true);
+  // The bubble glides to its spot after the page changes, so wait for it to settle rather than check once.
+  await expect
+    .poll(() =>
+      bubble.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+      }),
+    )
+    .toBe(true);
   if (highlighted) {
     await expect(page.getByTestId("walk-spotlight")).toBeVisible();
     await expect(bubble).not.toContainText("isn't on this page");
