@@ -247,5 +247,5 @@ State reports and webhooks are sent by calling `GET /api/sync/run` with `Authori
 1. **Deploy** with a hosted Postgres and set `AUTH_SECRET`, `DATABASE_URL`, and `CRON_SECRET`, then complete /setup.
 2. **Have a lawyer and the state rules checked**: tax rates, purchase limits, label and receipt wording, manifests, and record retention all depend on the state and city.
 3. **State reporting**: Metrc requires applying as an integrator and getting a vendor key. New Mexico (NMS2S) has not published the API software needs, so records there are entered by hand for now.
-4. **Security review**: there is no password reset, two-factor sign-in, or API rate limiting yet.
+4. **Security review**: password reset, sign-in throttling, per-key API rate limits, per-business Tally usage limits, hashed API keys and invite links, and an audit trail the database refuses to edit are built. Two-factor sign-in is not built yet, and a full Content-Security-Policy still needs nonce work. Have someone independent review it before a real business depends on it.
 5. **Pilot** with one friendly operator before selling to anyone else.
