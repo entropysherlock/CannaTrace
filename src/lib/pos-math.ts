@@ -190,7 +190,9 @@ function aamvaDate(raw: string | undefined, canadian: boolean): string | null {
  * Read the barcode on the back of a US or Canadian driver's license or state ID (the AAMVA PDF417
  * format that ID scanners output). Returns null when the text is not an ID barcode or lacks the dates.
  */
-export function parseIdBarcode(raw: string): IdScan | null {
+export function parseIdBarcode(input: string): IdScan | null {
+  // Caps Lock flips the case of what a keyboard-mode scanner types; the format is uppercase, so put it back.
+  const raw = !/ANSI|AAMVA/.test(input) && /ansi |aamva/.test(input) ? input.toUpperCase() : input;
   if (!/ANSI|AAMVA/.test(raw) || !raw.includes("DBB")) return null;
   // Dates are found by pattern, so this works even when a scanner drops the line breaks.
   const canadian = /DCGCAN/.test(raw);
