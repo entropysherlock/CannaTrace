@@ -321,23 +321,6 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
             </Fold>
           ) : null}
 
-          {canWrite ? (
-            <Fold title="Harvest name and date" icon={Sprout}>
-              <ActionForm action={harvestInfoAction} submitLabel="Save harvest info">
-                {hidden}
-                <p className="text-xs text-slate-600">
-                  For packages with no harvest record behind them, such as ones received from another business. If this package came from a harvest here, labels use that harvest first.
-                </p>
-                <Field label="Harvest name (optional)">
-                  <input name="harvestName" defaultValue={pkg.harvestName ?? ""} maxLength={80} className={inputClass} />
-                </Field>
-                <Field label="Harvest date (optional)">
-                  <input name="harvestDate" type="date" defaultValue={pkg.harvestDate ?? ""} className={inputClass} />
-                </Field>
-              </ActionForm>
-            </Fold>
-          ) : null}
-
           {editable && canAdjust ? (
             <Fold title="Adjust quantity" icon={Scale}>
               <ActionForm action={adjustAction} submitLabel="Save adjustment">
@@ -518,6 +501,23 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                 ) : null}
               </ActionForm>
               </DocumentDrop>
+            </Fold>
+          ) : null}
+
+          {canWrite ? (
+            <Fold title="Harvest name and date" icon={Sprout}>
+              <ActionForm action={harvestInfoAction} submitLabel="Save harvest info">
+                {hidden}
+                <p className="text-xs text-slate-600">
+                  For packages with no harvest record behind them, such as ones received from another business. If this package came from a harvest here, labels use that harvest first.
+                </p>
+                <Field label="Harvest name (optional)">
+                  <input name="harvestName" defaultValue={pkg.harvestName ?? ""} maxLength={80} className={inputClass} />
+                </Field>
+                <Field label="Harvest date (optional)">
+                  <input name="harvestDate" type="date" defaultValue={pkg.harvestDate ?? ""} className={inputClass} />
+                </Field>
+              </ActionForm>
             </Fold>
           ) : null}
         </div>
