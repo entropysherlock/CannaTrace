@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   auditLogs,
@@ -11,9 +11,11 @@ import {
   organizations,
   packageLineage,
   packages,
+  retailPrices,
   users,
 } from "@/db/schema";
 import { db, pool } from "@/lib/db";
+import { findNameTwins, mergeItems } from "@/lib/merge-items";
 import {
   InventoryError,
   addLabResult,
@@ -38,6 +40,7 @@ const tag = () => `${run}-${String(++n).padStart(4, "0")}`;
 
 let actor: Actor;
 let otherFacilityActor: Actor;
+const otherOrgActor = (): Actor => ({ ...actor, orgId: "no-such-org" });
 let flower: string;
 let jars: string;
 let rackA: string;
@@ -249,6 +252,59 @@ describe.skipIf(!hasDb)("inventory engine (database)", () => {
       expect(logged.videoCamera).toBe("Camera 2, loading dock");
     }
     expect((await qtyOf(early.id)).status).toBe("QUARANTINE");
+  });
+
+  it("merges items: packages and prices move over, the others are retired, and mismatched units are refused", async () => {
+    const [cat] = await db.select({ id: items.categoryId }).from(items).where(eq(items.id, flower));
+    const [keep, twin, loud, oddUnit] = await db
+      .insert(items)
+      .values([
+        { orgId: actor.orgId, name: `Merge ${run} Keep`, sku: `${run}-K`, categoryId: cat.id, unit: "G" },
+        { orgId: actor.orgId, name: `merge ${run}   keep`, sku: `${run}-T`, categoryId: cat.id, unit: "G" },
+        { orgId: actor.orgId, name: `Merge ${run} Other`, sku: `${run}-L`, categoryId: cat.id, unit: "G" },
+        { orgId: actor.orgId, name: `Merge ${run} Each`, sku: `${run}-U`, categoryId: cat.id, unit: "EACH" },
+      ])
+      .returning();
+    const onTwin = await receive("5", { itemId: twin.id });
+    const onLoud = await receive("7", { itemId: loud.id });
+    await db.update(items).set({ active: false }).where(eq(items.id, twin.id)); // retired before the merge, as a duplicate often already is
+    await db.insert(retailPrices).values([
+      { facilityId: actor.facilityId, itemId: keep.id, price: "10.00" },
+      { facilityId: actor.facilityId, itemId: twin.id, price: "99.00" },
+    ]);
+    // Retired items are not counted as twins, so a name match among live items is the only thing offered for merging.
+    expect(await findNameTwins(actor.orgId, keep.id)).toEqual([]);
+    await expect(mergeItems(actor, { keepId: keep.id, mergeIds: [] })).rejects.toThrow(/at least one/);
+    await expect(mergeItems(actor, { keepId: keep.id, mergeIds: [twin.id, oddUnit.id] })).rejects.toThrow(/can't be merged.*Nothing was changed/);
+    expect((await db.select().from(packages).where(eq(packages.id, onTwin.id)))[0].itemId).toBe(twin.id);
+    await expect(mergeItems(otherOrgActor(), { keepId: keep.id, mergeIds: [twin.id] })).rejects.toThrow(/no longer exists/);
+
+    const result = await mergeItems(actor, { keepId: keep.id, mergeIds: [twin.id, loud.id] });
+    expect(result.merged).toBe(2);
+    expect(result.moved.packages).toBe(2);
+    for (const p of [onTwin, onLoud]) expect((await db.select().from(packages).where(eq(packages.id, p.id)))[0].itemId).toBe(keep.id);
+    const prices = await db.select().from(retailPrices).where(inArray(retailPrices.itemId, [keep.id, twin.id]));
+    expect(prices).toHaveLength(1);
+    expect(prices[0]).toMatchObject({ itemId: keep.id, price: "10.0000" }); // the kept item's own price wins
+    const after = await db.select({ id: items.id, active: items.active }).from(items).where(inArray(items.id, [keep.id, twin.id, loud.id]));
+    expect(Object.fromEntries(after.map((i) => [i.id, i.active]))).toEqual({ [keep.id]: true, [twin.id]: false, [loud.id]: false });
+    const trail = await db.select().from(auditLogs).where(and(eq(auditLogs.entityId, twin.id), eq(auditLogs.action, "MERGE")));
+    expect(trail).toHaveLength(1);
+  });
+
+  it("finds live items that share a name, ignoring case and spaces", async () => {
+    const [cat] = await db.select({ id: items.categoryId }).from(items).where(eq(items.id, flower));
+    const [a, b] = await db
+      .insert(items)
+      .values([
+        { orgId: actor.orgId, name: `Dup ${run} Jar`, sku: `${run}-D1`, categoryId: cat.id, unit: "EACH" },
+        { orgId: actor.orgId, name: `dup${run}   JAR`, sku: `${run}-D2`, categoryId: cat.id, unit: "EACH" },
+      ])
+      .returning();
+    expect((await findNameTwins(actor.orgId, a.id)).map((t) => t.sku)).toEqual([`${run}-D2`]);
+    await mergeItems(actor, { keepId: a.id, mergeIds: (await findNameTwins(actor.orgId, a.id)).map((t) => t.id) });
+    expect(await findNameTwins(actor.orgId, a.id)).toEqual([]);
+    expect((await db.select().from(items).where(eq(items.id, b.id)))[0].active).toBe(false);
   });
 
   it("applies cycle count variances only where the count differs", async () => {

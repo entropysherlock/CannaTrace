@@ -8,6 +8,7 @@ import { createLocation } from "@/lib/facilities";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { generateSku, normalizeSku } from "@/lib/ids";
 import { renameItem, saveItemDetails } from "@/lib/item-details";
+import { findNameTwins, mergeItems } from "@/lib/merge-items";
 import { createCategory, findItemByName } from "@/lib/quick-item";
 import { requirePermission } from "@/lib/session";
 
@@ -68,10 +69,31 @@ export async function addItem(_state: FormState, formData: FormData): Promise<Fo
   }
 }
 
+/** Fold items that share a name into the one being kept. */
+export async function mergeItemsAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const session = await requirePermission("catalog.manage");
+    const keepId = field(formData, "keepId");
+    const actor = { orgId: session.orgId, userId: session.userId, userName: session.name, facilityId: session.facilityId };
+    const twins = await findNameTwins(session.orgId, keepId);
+    const r = await mergeItems(actor, { keepId, mergeIds: twins.map((t) => t.id) });
+    revalidatePath("/catalog", "layout");
+    revalidatePath("/inventory", "layout");
+    return { ok: `Merged ${r.merged} duplicate item${r.merged === 1 ? "" : "s"} into this one. ${r.moved.packages ?? 0} package${(r.moved.packages ?? 0) === 1 ? "" : "s"} moved.` };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
 export async function setItemActive(formData: FormData): Promise<void> {
   const session = await requirePermission("catalog.manage");
   const id = field(formData, "itemId");
   const active = field(formData, "active") === "true";
+  if (active) {
+    const twins = await findNameTwins(session.orgId, id);
+    // Bringing back an item that shares a name with a live one would make a duplicate, so leave it retired.
+    if (twins.length) return;
+  }
   await db.transaction(async (tx) => {
     const [item] = await tx
       .update(items)
