@@ -27,6 +27,7 @@ import { SITE_URL } from "@/lib/site";
 import Image from "next/image";
 import Link from "next/link";
 import { DemoVideoButton, DemoVideoPlayer, DemoVideoPoster } from "@/components/demo-video";
+import { TallyVideo } from "@/components/tally-video";
 import { LeafMark, Logo } from "@/components/logo";
 import { liveDemoOn, signupsOpen } from "@/lib/access";
 import { mailto } from "@/lib/contact";
@@ -331,6 +332,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <NavMenu
               label="Resources"
               items={[
+                ["Meet Tally", "#meet-tally"],
                 ["Take the tour", "#tour"],
                 ["Why Leaf2Sale", "#benefits"],
                 ["See it in action", "#demo"],
@@ -470,6 +472,34 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               ))}
             </ul>
           </div>
+        </div>
+      </section>
+
+      {/* Meet Tally */}
+      <section id="meet-tally" className="scroll-mt-20 bg-gradient-to-br from-[#06210f] via-[#0b2e1f] to-[#064e3b] px-5 py-16 text-white" aria-labelledby="meet-tally-heading">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-14">
+          <div>
+            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-300">
+              <Sparkles className="h-4 w-4" aria-hidden="true" /> Meet Tally
+            </p>
+            <h2 id="meet-tally-heading" className="mt-2 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">
+              Ask. Approve. Undo.
+            </h2>
+            <p className="mt-3 text-lg text-brand-50/90">
+              Tally is the assistant built into Leaf2Sale. Ask in plain English and it answers from your live data. When it suggests a change, nothing happens until you press Confirm, and every change can be undone.
+            </p>
+            <ul className="mt-5 space-y-2 text-sm text-brand-50">
+              {["Answers about inventory, sales, plants, orders, and state reporting", "Receives packages, starts runs, builds orders, closes out harvests", "Tally Watch checks your business on its own, with fixes ready to approve", "Every change is recorded in the audit trail, and Undo is one click"].map((x) => (
+                <li key={x} className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-300" strokeWidth={3} aria-hidden="true" /> {x}
+                </li>
+              ))}
+            </ul>
+            <a href="#tally" className="mt-6 inline-flex items-center gap-2 font-bold text-brand-200 hover:text-white">
+              See Tally on a real screen <ArrowRight className="h-5 w-5" aria-hidden="true" />
+            </a>
+          </div>
+          <TallyVideo />
         </div>
       </section>
 
