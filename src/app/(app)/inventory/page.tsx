@@ -72,6 +72,7 @@ export default async function InventoryPage({
     .offset((page - 1) * PAGE_SIZE);
   const canWrite = can(session, "inventory.write");
   const canPrint = can(session, "labels.print");
+  const canDestroy = can(session, "inventory.adjust");
   const bulk = canWrite || canPrint;
   const rooms = bulk
     ? await db
@@ -136,7 +137,7 @@ export default async function InventoryPage({
         </p>
       ) : (
         // The list scrolls inside its own box, so a big inventory doesn't stretch the page.
-        <Wrap bulk={bulk} side={<PackageBulkFields locations={rooms} canWrite={canWrite} canPrint={canPrint} />}>
+        <Wrap bulk={bulk} side={<PackageBulkFields locations={rooms} canWrite={canWrite} canPrint={canPrint} canDestroy={canDestroy} />}>
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <ScrollBox label="Packages" size="lg">
         <ul className="divide-y divide-slate-100">

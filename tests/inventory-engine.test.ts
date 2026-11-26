@@ -19,6 +19,7 @@ import {
   addLabResult,
   adjustPackage,
   destroyPackage,
+  destroyPackages,
   mergePackages,
   movePackage,
   receivePackage,
@@ -225,6 +226,29 @@ describe.skipIf(!hasDb)("inventory engine (database)", () => {
     } finally {
       await db.update(facilities).set({ wasteWitnessRequired: false }).where(eq(facilities.id, actor.facilityId));
     }
+  });
+
+  it("destroys many held packages at once, all or nothing, one record for the lot", async () => {
+    const video = { videoCamera: "Camera 2, loading dock", videoRecordedAt: new Date(), mixedConfirmed: true };
+    const ready = [await receive("4"), await receive("6")];
+    const early = await receive("3");
+    for (const p of [...ready, early]) await setPackageStatus(actor, { packageId: p.id, status: "QUARANTINE", reason: "Failed visual check" });
+    for (const p of ready) await db.update(packages).set({ heldSince: new Date(Date.now() - 73 * 3_600_000) }).where(eq(packages.id, p.id));
+    const ids = ready.map((p) => p.id);
+    // One package still inside its hold stops the whole batch and is named.
+    await expect(destroyPackages(actor, { packageIds: [...ids, early.id], reason: "Mold", ...video })).rejects.toThrow(new RegExp(`${early.tag}.*can be destroyed after.*Nothing was changed`));
+    expect((await qtyOf(ready[0].id)).status).toBe("QUARANTINE");
+    await expect(destroyPackages(actor, { packageIds: ids, reason: "Mold", ...video, mixedConfirmed: false })).rejects.toThrow(/mixed/);
+    await expect(destroyPackages(actor, { packageIds: ids, reason: "Mold", ...video, videoCamera: "" })).rejects.toThrow(/camera/);
+    await expect(destroyPackages(actor, { packageIds: ids, reason: "", ...video })).rejects.toThrow(/Say why/);
+    await expect(destroyPackages(actor, { packageIds: [], reason: "Mold", ...video })).rejects.toThrow(/at least one/);
+    expect(await destroyPackages(actor, { packageIds: ids, reason: "Mold, mixed with soil", ...video })).toEqual({ destroyed: 2 });
+    for (const p of ready) {
+      expect(await qtyOf(p.id)).toMatchObject({ quantity: "0", status: "DESTROYED" });
+      const [logged] = await db.select().from(inventoryTransactions).where(and(eq(inventoryTransactions.packageId, p.id), eq(inventoryTransactions.type, "DESTROY")));
+      expect(logged.videoCamera).toBe("Camera 2, loading dock");
+    }
+    expect((await qtyOf(early.id)).status).toBe("QUARANTINE");
   });
 
   it("applies cycle count variances only where the count differs", async () => {

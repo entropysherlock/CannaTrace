@@ -12,6 +12,7 @@ import {
   addLabResult,
   adjustPackage,
   destroyPackage,
+  destroyPackages,
   mergePackages,
   movePackage,
   movePackages,
@@ -318,6 +319,18 @@ export async function packageBulkAction(_state: FormState, formData: FormData): 
       const r = await setPackagesStatus(actor, { packageIds: ids, status: action, reason: field(formData, "reason") });
       const words = action === "ACTIVE" ? "released" : action === "ON_HOLD" ? "put on hold" : "put in quarantine";
       message = `${plural(r.changed)} ${words}.${r.already ? ` ${plural(r.already)} ${r.already === 1 ? "was" : "were"} already ${action === "ACTIVE" ? "active" : action === "ON_HOLD" ? "on hold" : "in quarantine"}.` : ""}`;
+    } else if (action === "DESTROYED") {
+      // Destroying is a bigger step than a hold, so it needs the adjust permission the single-package form needs.
+      const adjuster = await requirePermission("inventory.adjust");
+      const r = await destroyPackages(actorOf(adjuster), {
+        packageIds: ids,
+        reason: field(formData, "reason"),
+        mixedConfirmed: field(formData, "mixedConfirmed") === "yes",
+        videoCamera: field(formData, "videoCamera"),
+        videoRecordedAt: field(formData, "videoRecordedAt"),
+        witnessName: field(formData, "witnessName"),
+      });
+      message = `${plural(r.destroyed)} destroyed. Each one has its own record with the camera and time.`;
     } else {
       return { error: "Choose what to do with the checked packages." };
     }

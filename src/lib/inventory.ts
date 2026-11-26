@@ -923,69 +923,106 @@ async function setPackageStatusInTx(tx: Tx, actor: Actor, pkg: Package, status: 
   return changeStatus(tx, actor, pkg, status, reason);
 }
 
-/** Record destruction of everything left in a package. Cannot be undone. */
-export async function destroyPackage(
-  actor: Actor,
-  input: {
-    packageId: string;
-    reason: string;
-    mixedConfirmed?: boolean;
-    /** Which camera recorded the destruction, and when. Required: the footage must be kept 120 days. */
-    videoCamera?: string | null;
-    videoRecordedAt?: string | Date | null;
-    /** Name of a second person who watched. Required only when the facility asks for it. */
-    witnessName?: string | null;
-  },
-): Promise<Package> {
+type DestroyInput = {
+  reason: string;
+  mixedConfirmed?: boolean;
+  /** Which camera recorded the destruction, and when. Required: the footage must be kept 120 days. */
+  videoCamera?: string | null;
+  videoRecordedAt?: string | Date | null;
+  /** Name of a second person who watched. Required only when the facility asks for it. */
+  witnessName?: string | null;
+};
+
+/** Checks the parts of a destruction record that are the same for every package, once, before any package is touched. */
+async function checkDestroyRecord(tx: Tx, actor: Actor, input: DestroyInput) {
   const reason = input.reason.trim();
   if (!reason) throw new InventoryError("Say why and how the product was destroyed. It goes in the audit trail.");
+  const videoCamera = input.videoCamera?.trim() ?? "";
+  if (!videoCamera) throw new InventoryError("Name the camera that recorded the destruction. Keep the footage for at least 120 days.");
+  const recordedAt =
+    input.videoRecordedAt instanceof Date
+      ? input.videoRecordedAt
+      : input.videoRecordedAt
+        ? (localTimeToDate(input.videoRecordedAt, await facilityZone(actor.facilityId)) ?? new Date(input.videoRecordedAt))
+        : null;
+  if (!recordedAt || Number.isNaN(recordedAt.getTime())) throw new InventoryError("Enter the date and time the destruction was recorded.");
+  if (recordedAt.getTime() > Date.now() + 5 * 60_000) throw new InventoryError("The recording time cannot be in the future.");
+  const witnessName = input.witnessName?.trim() || null;
+  const [fac] = await tx.select({ witness: facilities.wasteWitnessRequired }).from(facilities).where(eq(facilities.id, actor.facilityId));
+  if (fac?.witness && !witnessName) throw new InventoryError("This facility needs the name of a second person who watched the destruction.");
+  return { reason, videoCamera, recordedAt, witnessName };
+}
+
+/** Destroy one locked package: the hold period, mixing, and video record are all checked here. */
+async function destroyPackageInTx(
+  tx: Tx,
+  actor: Actor,
+  pkg: Package,
+  getRecord: () => Promise<Awaited<ReturnType<typeof checkDestroyRecord>>>,
+  mixedConfirmed: boolean,
+): Promise<Package> {
+  assertEditable(pkg.status);
+  assertNotAllocated(pkg);
+  await checkWasteRule(tx, actor, pkg, mixedConfirmed);
+  // The hold period and mixing come first, so a package that is not ready is named before any paperwork is questioned.
+  const { reason, videoCamera, recordedAt, witnessName } = await getRecord();
+  const [updated] = await tx
+    .update(packages)
+    .set({ quantity: "0", status: "DESTROYED" })
+    .where(eq(packages.id, pkg.id))
+    .returning();
+  await tx.insert(inventoryTransactions).values({
+    orgId: actor.orgId,
+    facilityId: actor.facilityId,
+    packageId: pkg.id,
+    type: "DESTROY",
+    quantityDelta: store(new Decimal(pkg.quantity).neg()),
+    quantityBefore: pkg.quantity,
+    quantityAfter: "0",
+    unit: pkg.unit,
+    note: reason,
+    videoCamera,
+    videoRecordedAt: recordedAt,
+    witnessName,
+    userId: actor.userId,
+  });
+  await audit(tx, actor, {
+    entityType: "Package",
+    entityId: pkg.id,
+    action: "DESTROY",
+    before: snapshot(pkg),
+    after: snapshot(updated),
+    reason: `${reason} (video: ${videoCamera}, ${recordedAt.toISOString()}; keep 120 days${witnessName ? `; witness: ${witnessName}` : ""})`,
+  });
+  return updated;
+}
+
+/** Record destruction of everything left in a package. Cannot be undone. */
+export async function destroyPackage(actor: Actor, input: DestroyInput & { packageId: string }): Promise<Package> {
+  if (!input.reason.trim()) throw new InventoryError("Say why and how the product was destroyed. It goes in the audit trail.");
   return db.transaction(async (tx) => {
     const pkg = await lockPackage(tx, actor, input.packageId);
-    assertEditable(pkg.status);
-    assertNotAllocated(pkg);
-    await checkWasteRule(tx, actor, pkg, Boolean(input.mixedConfirmed));
-    const videoCamera = input.videoCamera?.trim() ?? "";
-    if (!videoCamera) throw new InventoryError("Name the camera that recorded the destruction. Keep the footage for at least 120 days.");
-    const recordedAt =
-      input.videoRecordedAt instanceof Date
-        ? input.videoRecordedAt
-        : input.videoRecordedAt
-          ? (localTimeToDate(input.videoRecordedAt, await facilityZone(actor.facilityId)) ?? new Date(input.videoRecordedAt))
-          : null;
-    if (!recordedAt || Number.isNaN(recordedAt.getTime())) throw new InventoryError("Enter the date and time the destruction was recorded.");
-    if (recordedAt.getTime() > Date.now() + 5 * 60_000) throw new InventoryError("The recording time cannot be in the future.");
-    const witnessName = input.witnessName?.trim() || null;
-    const [fac] = await tx.select({ witness: facilities.wasteWitnessRequired }).from(facilities).where(eq(facilities.id, actor.facilityId));
-    if (fac?.witness && !witnessName) throw new InventoryError("This facility needs the name of a second person who watched the destruction.");
-    const [updated] = await tx
-      .update(packages)
-      .set({ quantity: "0", status: "DESTROYED" })
-      .where(eq(packages.id, pkg.id))
-      .returning();
-    await tx.insert(inventoryTransactions).values({
-      orgId: actor.orgId,
-      facilityId: actor.facilityId,
-      packageId: pkg.id,
-      type: "DESTROY",
-      quantityDelta: store(new Decimal(pkg.quantity).neg()),
-      quantityBefore: pkg.quantity,
-      quantityAfter: "0",
-      unit: pkg.unit,
-      note: reason,
-      videoCamera,
-      videoRecordedAt: recordedAt,
-      witnessName,
-      userId: actor.userId,
+    return destroyPackageInTx(tx, actor, pkg, () => checkDestroyRecord(tx, actor, input), Boolean(input.mixedConfirmed));
+  });
+}
+
+/**
+ * Destroy many packages in one go, with one reason, one camera and time, and one witness for all of them.
+ * All or nothing: every package must have finished its hold and be confirmed mixed, or none are destroyed,
+ * and the message names the first one that stopped it. Each package still gets its own record and audit entry.
+ */
+export async function destroyPackages(actor: Actor, input: DestroyInput & { packageIds: string[] }): Promise<{ destroyed: number }> {
+  const ids = bulkIds(input.packageIds);
+  if (!input.reason.trim()) throw new InventoryError("Say why and how the product was destroyed. It goes in the audit trail.");
+  if (!input.mixedConfirmed) throw new InventoryError("Confirm that all of it was mixed with non-cannabis material before it was destroyed.");
+  return db.transaction(async (tx) => {
+    let record: ReturnType<typeof checkDestroyRecord> | undefined;
+    const getRecord = () => (record ??= checkDestroyRecord(tx, actor, input));
+    const done = await forEachPackage(tx, actor, ids, async (pkg) => {
+      await destroyPackageInTx(tx, actor, pkg, getRecord, true);
+      return true;
     });
-    await audit(tx, actor, {
-      entityType: "Package",
-      entityId: pkg.id,
-      action: "DESTROY",
-      before: snapshot(pkg),
-      after: snapshot(updated),
-      reason: `${reason} (video: ${videoCamera}, ${recordedAt.toISOString()}; keep 120 days${witnessName ? `; witness: ${witnessName}` : ""})`,
-    });
-    return updated;
+    return { destroyed: done.length };
   });
 }
 
