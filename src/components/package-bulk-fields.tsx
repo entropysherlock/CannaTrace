@@ -6,7 +6,7 @@ import { Field, inputClass } from "./ui";
 type Option = { id: string; name: string };
 
 /** Picks what to do with the checked packages and shows only the boxes that action needs. */
-export function PackageBulkFields({ locations, canWrite, canPrint }: { locations: Option[]; canWrite: boolean; canPrint: boolean }) {
+export function PackageBulkFields({ locations, canWrite, canPrint, canDestroy = false }: { locations: Option[]; canWrite: boolean; canPrint: boolean; canDestroy?: boolean }) {
   const [action, setAction] = useState("");
   const status = action === "ON_HOLD" || action === "QUARANTINE" || action === "ACTIVE";
   return (
@@ -39,6 +39,7 @@ export function PackageBulkFields({ locations, canWrite, canPrint }: { locations
             <option value="ACTIVE">Release (make active again)</option>
           </>
         ) : null}
+        {canDestroy ? <option value="DESTROYED">Destroy (held 72 hours or more)</option> : null}
         {canPrint ? <option value="LABELS">Print labels</option> : null}
       </select>
 
@@ -66,6 +67,30 @@ export function PackageBulkFields({ locations, canWrite, canPrint }: { locations
         <Field label="Reason" hint="Required. Saved in the audit trail for each package.">
           <input name="reason" required maxLength={300} className={inputClass} />
         </Field>
+      ) : null}
+
+      {action === "DESTROYED" ? (
+        <>
+          <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            Destroying cannot be undone. Every checked package must have been on hold or in quarantine long enough. One record below covers all of them.
+          </p>
+          <Field label="Why and how" hint="Required. Saved in the audit trail for each package.">
+            <input name="reason" required maxLength={300} className={inputClass} />
+          </Field>
+          <label className="flex items-start gap-2 text-sm text-slate-800">
+            <input type="checkbox" name="mixedConfirmed" value="yes" required className="mt-1" />
+            <span>All of it was mixed with non-cannabis material so it is unusable.</span>
+          </label>
+          <Field label="Camera that recorded it" hint="Keep the footage for at least 120 days.">
+            <input name="videoCamera" required maxLength={120} className={inputClass} />
+          </Field>
+          <Field label="Date and time recorded">
+            <input type="datetime-local" name="videoRecordedAt" required className={inputClass} />
+          </Field>
+          <Field label="Second person who watched" hint="Required if this facility asks for a witness.">
+            <input name="witnessName" maxLength={120} className={inputClass} />
+          </Field>
+        </>
       ) : null}
 
       {action === "LABELS" ? <p className="text-sm text-slate-600">Opens SmartLabel with the checked packages chosen, up to 1,000 at a time.</p> : null}
