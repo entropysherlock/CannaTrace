@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { terminalCheckIn, terminalOpenDrawer } from "@/app/(app)/pos/terminal-actions";
 import { IdCamera } from "./id-camera";
+import { IdScanBox } from "./id-scan-box";
 import { ageOn, checkInProblem, parseIdBarcode, type CustomerType, type IdScan } from "@/lib/pos-math";
 import { beep } from "./feedback";
 import { money } from "./pay-panel";
@@ -233,7 +234,8 @@ function CheckIn({ view }: { view: HomeView }) {
         <div className="mt-6 flex flex-1 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-brand-200 bg-brand-50/50 px-6 py-10 text-center">
           <IdCard className="h-16 w-16 text-brand-600" aria-hidden="true" />
           <p className="mt-3 font-display text-2xl font-bold">Scan the barcode on the back of the ID</p>
-          <p className="mt-1 max-w-md text-slate-600">Any USB or Bluetooth 2D scanner works, or use this device&apos;s camera. The age and expiry are checked automatically.</p>
+          <p className="mt-1 max-w-md text-slate-600">Click the box below and scan with any USB or Bluetooth 2D scanner, or use this device&apos;s camera. The age and expiry are checked automatically.</p>
+          <IdScanBox onText={onScan} />
           <button type="button" onClick={() => setCamera(true)} className="mt-4 inline-flex h-14 items-center gap-2 rounded-2xl bg-brand-700 px-6 text-lg font-bold text-white hover:bg-brand-800" data-testid="scan-id-camera">
             <Camera className="h-6 w-6" aria-hidden="true" /> Scan ID with camera
           </button>
