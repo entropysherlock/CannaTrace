@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Field, inputClass } from "./ui";
 
 type Option = { id: string; name: string };
@@ -8,9 +8,17 @@ type Option = { id: string; name: string };
 /** Picks what to do with the checked packages and shows only the boxes that action needs. */
 export function PackageBulkFields({ locations, canWrite, canPrint, canDestroy = false }: { locations: Option[]; canWrite: boolean; canPrint: boolean; canDestroy?: boolean }) {
   const [action, setAction] = useState("");
+  const panel = useRef<HTMLDivElement>(null);
+  // The form clears itself after every apply; clear the chosen action with it so the boxes and warning don't linger under an empty menu.
+  useEffect(() => {
+    const form = panel.current?.closest("form");
+    const reset = () => setAction("");
+    form?.addEventListener("reset", reset);
+    return () => form?.removeEventListener("reset", reset);
+  }, []);
   const status = action === "ON_HOLD" || action === "QUARANTINE" || action === "ACTIVE";
   return (
-    <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm" data-testid="package-bulk">
+    <div ref={panel} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm" data-testid="package-bulk">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-base font-semibold text-slate-900">With the checked packages</p>
         <button
