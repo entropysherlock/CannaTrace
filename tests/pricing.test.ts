@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FEATURES, FOUNDING, PRICES, priceSentence } from "../src/lib/pricing";
+import { FEATURES, FOUNDING, PRICES, SHOW_FOUNDING_OFFER, priceSentence } from "../src/lib/pricing";
 
 describe("pricing", () => {
   it("is $299 a month for 1 facility and $499 for 2, with founders $100 off for life", () => {
@@ -17,7 +17,10 @@ describe("pricing", () => {
   });
   it("states the same prices everywhere they're written out", () => {
     expect(priceSentence()).toBe(
-      "$299 a month for 1 facility, or $499 a month for 2 facilities, with every feature and unlimited team members. Founding customers pay $100 less every month, for life.",
+      "$299 a month for 1 facility, or $499 a month for 2 facilities, with every feature and unlimited team members.",
     );
+  });
+  it("keeps the founding offer off the public pages for now", () => {
+    expect(SHOW_FOUNDING_OFFER).toBe(false);
   });
 });

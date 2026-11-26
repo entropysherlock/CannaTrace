@@ -28,7 +28,7 @@ const QUESTIONS: [string, string][] = [
   ],
   [
     "Can I move my data over from Dutchie, Flourish, or NMS2S?",
-    "Yes. Leaf2Sale imports from NMS2S, Dutchie, and Flourish exports, and shows every package before anything is saved. Founding customers get the move done for them.",
+    "Yes. Leaf2Sale imports from NMS2S, Dutchie, and Flourish exports, and shows every package before anything is saved.",
   ],
   [
     "What does it cost?",
