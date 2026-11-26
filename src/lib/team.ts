@@ -242,6 +242,17 @@ export async function setUserActive(session: Session, userId: string, active: bo
   });
 }
 
+/** For a teammate who lost their phone and their recovery codes: switches their two-step sign-in off so they can sign in with the password and set it up again. */
+export async function resetTwoFactor(session: Session, userId: string): Promise<void> {
+  needTeamAccess(session);
+  await db.transaction(async (tx) => {
+    const target = await lockTarget(tx, session, userId);
+    if (!target.totpEnabledAt) throw new InventoryError(`${target.name} does not have two-step sign-in on.`);
+    await tx.update(users).set({ totpSecret: null, totpEnabledAt: null, totpLastStep: null, recoveryCodeHashes: null }).where(eq(users.id, target.id));
+    await log(tx, session, "User", target.id, "TWO_FACTOR_RESET", { by: session.name });
+  });
+}
+
 // ---------- Custom roles ----------
 
 export async function saveCustomRole(

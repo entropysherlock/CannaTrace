@@ -1,14 +1,16 @@
 import { ActionForm } from "@/components/action-form";
 import { LinkPhoneCard } from "@/components/link-phone-card";
+import { TwoFactorCard } from "@/components/two-factor-card";
 import { Card, Field, inputClass, PageHeader } from "@/components/ui";
 import { listDevices } from "@/lib/devices";
 import { requireSession } from "@/lib/session";
+import { twoFactorStatus } from "@/lib/two-factor";
 import { facilityZone } from "@/lib/time";
 import { changePasswordAction, revokePhoneAction } from "./actions";
 
 export default async function AccountPage() {
   const session = await requireSession();
-  const [phones, zone] = await Promise.all([listDevices(session), facilityZone(session.facilityId)]);
+  const [phones, zone, twoFactor] = await Promise.all([listDevices(session), facilityZone(session.facilityId), twoFactorStatus(session)]);
   const when = (d: Date | null) => (d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: zone }) : "never");
   return (
     <>
@@ -38,6 +40,15 @@ export default async function AccountPage() {
               ))}
             </ul>
           ) : null}
+        </Card>
+        <Card title="Two-step sign-in">
+          {session.support ? (
+            <p className="text-sm text-slate-600">Support visits can&apos;t change a customer&apos;s sign-in.</p>
+          ) : session.isDemo ? (
+            <p className="text-sm text-slate-600">Everyone shares the live demo account, so two-step sign-in is off here. Create your own account to use it.</p>
+          ) : (
+            <TwoFactorCard enabled={twoFactor.enabled} since={twoFactor.since?.toISOString() ?? null} recoveryLeft={twoFactor.recoveryLeft} ready={twoFactor.ready} />
+          )}
         </Card>
         <Card title="Change your password">
           {session.support ? (

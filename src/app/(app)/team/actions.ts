@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { field, toFormError, type FormState } from "@/lib/form";
 import { requirePermission } from "@/lib/session";
-import { changeUserRole, createInvite, createPasswordReset, deleteCustomRole, revokeInvite, saveCustomRole, setUserActive, setUserFacilities } from "@/lib/team";
+import { changeUserRole, createInvite, createPasswordReset, deleteCustomRole, revokeInvite, resetTwoFactor, saveCustomRole, setUserActive, setUserFacilities } from "@/lib/team";
 
 export type InviteState = (FormState & { link?: string }) | null;
 
@@ -110,4 +110,14 @@ export async function deleteRoleAction(_state: FormState, formData: FormData): P
     return toFormError(error);
   }
   redirect("/team#roles");
+}
+
+export async function resetTwoFactorAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await resetTwoFactor(await requirePermission("users.manage"), field(formData, "userId"));
+    revalidatePath("/team");
+    return { ok: "Two-step sign-in is off for them. They can sign in with their password and set it up again." };
+  } catch (error) {
+    return toFormError(error);
+  }
 }

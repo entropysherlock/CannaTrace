@@ -10,7 +10,7 @@ import { OWNER_ONLY, ROLES, ROLE_LABELS, cleanPermissions, permissionsFor } from
 import { requirePagePermission } from "@/lib/session";
 import { isOwner } from "@/lib/team";
 import { ResetLinkButton } from "@/components/reset-link-button";
-import { changeRoleAction, inviteAction, resetLinkAction, revokeInviteAction, setActiveAction, setFacilitiesAction } from "./actions";
+import { changeRoleAction, inviteAction, resetLinkAction, resetTwoFactorAction, revokeInviteAction, setActiveAction, setFacilitiesAction } from "./actions";
 import { facilityZone } from "@/lib/time";
 
 const BUILT_IN_HINTS: Record<string, string> = {
@@ -40,6 +40,7 @@ export default async function TeamPage() {
         active: users.active,
         customName: customRoles.name,
         facilityIds: users.facilityIds,
+        twoStep: users.totpEnabledAt,
       })
       .from(users)
       .leftJoin(customRoles, eq(customRoles.id, users.customRoleId))
@@ -125,6 +126,11 @@ export default async function TeamPage() {
                           <input type="hidden" name="userId" value={p.id} />
                           <input type="hidden" name="active" value={p.active ? "false" : "true"} />
                         </ActionForm>
+                        {p.twoStep ? (
+                          <ActionForm action={resetTwoFactorAction} submitLabel="Reset two-step" quiet className="flex items-start">
+                            <input type="hidden" name="userId" value={p.id} />
+                          </ActionForm>
+                        ) : null}
                         {p.active ? <ResetLinkButton userId={p.id} name={p.name} action={resetLinkAction} /> : null}
                         {sites.length > 1 && !(p.role === "OWNER" && !p.customRoleId) ? (
                           <details className="w-full basis-full">
