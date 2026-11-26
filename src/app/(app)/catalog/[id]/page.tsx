@@ -8,7 +8,8 @@ import { db } from "@/lib/db";
 import { requirePagePermission } from "@/lib/session";
 import { trim } from "@/lib/labels/quantities";
 import { unitLabel } from "@/lib/units";
-import { renameItemAction, saveItemDetailsAction } from "../actions";
+import { findNameTwins } from "@/lib/merge-items";
+import { mergeItemsAction, renameItemAction, saveItemDetailsAction } from "../actions";
 
 const num = (v: string | number | null) => (v === null ? "" : trim(v, 3));
 const textareaClass = `${inputClass} py-2`;
@@ -24,6 +25,7 @@ export default async function ItemDetailsPage({ params }: { params: Promise<{ id
   if (!row) notFound();
   const { item, category } = row;
   const counted = item.unit === "EACH";
+  const twins = item.active ? await findNameTwins(session.orgId, item.id) : [];
 
   return (
     <>
@@ -48,6 +50,19 @@ export default async function ItemDetailsPage({ params }: { params: Promise<{ id
           </ActionForm>
         </Card>
       </div>
+      {twins.length ? (
+        <div className="mb-5 max-w-2xl" data-testid="merge-twins">
+          <Card title="Duplicate items">
+            <p className="mb-3 text-sm text-slate-700">
+              {twins.length === 1 ? "Another item has" : `${twins.length} other items have`} the same name as this one: {twins.map((t) => `${t.name} (${t.sku})`).join(", ")}. Merging moves their packages,
+              sales, orders, recipes and prices onto this item and retires them. It cannot be undone.
+            </p>
+            <ActionForm action={mergeItemsAction} submitLabel={`Merge ${twins.length} into this item`}>
+              <input type="hidden" name="keepId" value={item.id} />
+            </ActionForm>
+          </Card>
+        </div>
+      ) : null}
       <ActionForm action={saveItemDetailsAction} submitLabel="Save label details">
         <input type="hidden" name="itemId" value={item.id} />
         <div className="grid gap-5 lg:grid-cols-2">
