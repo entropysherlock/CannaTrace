@@ -6,6 +6,7 @@ import { parseDate } from "./distribution-math";
 import { generateSku, normalizeSku } from "./ids";
 import { InventoryError, audit, createPackageInTx, type Actor } from "./inventory";
 import { normalizeTag, parsePositiveQty } from "./inventory-math";
+import { nameKey } from "./quick-item";
 
 export const IMPORT_KINDS = {
   items: { label: "Items", required: ["name", "category", "unit"], optional: ["sku", "strain"] },
@@ -64,7 +65,18 @@ export async function importCsv(actor: Actor, kind: ImportKind, text: string): P
 
       if (kind === "items") {
         const categoryIds = new Map<string, string>();
+        const namesInFile = new Set<string>();
         await each(async (row) => {
+          // No duplicate items: not against what the business already has, and not twice in the same file.
+          const fileKey = need(row, "name").toLowerCase().replace(/\s+/g, "");
+          if (namesInFile.has(fileKey)) throw new RowError(`${need(row, "name")} appears more than once in this file`);
+          namesInFile.add(fileKey);
+          const [twin] = await tx
+            .select({ name: items.name })
+            .from(items)
+            .where(and(eq(items.orgId, actor.orgId), eq(items.active, true), sql`${nameKey(items.name)} = ${nameKey(need(row, "name"))}`))
+            .limit(1);
+          if (twin) throw new RowError(`you already have an item called ${twin.name}`);
           const unit = need(row, "unit").toUpperCase();
           if (!(unitEnum.enumValues as readonly string[]).includes(unit)) throw new RowError(`unit must be one of ${unitEnum.enumValues.join(", ")}`);
           const categoryName = need(row, "category");
