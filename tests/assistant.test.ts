@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { facilities, locations, organizations, packages, users } from "@/db/schema";
 import { db, pool } from "@/lib/db";
 import type Anthropic from "@anthropic-ai/sdk";
-import { confirmProposal, runAssistant, trimHistory, type AssistantEvent, type Model } from "@/lib/assistant/engine";
+import { confirmProposal, NO_ANSWER, runAssistant, trimHistory, type AssistantEvent, type Model } from "@/lib/assistant/engine";
 import { TOOLS, toolsFor } from "@/lib/assistant/tools";
 import { ROLE_LABELS, permissionsFor, type Role } from "@/lib/rbac";
 import type { Session } from "@/lib/session";
@@ -91,6 +91,14 @@ describe.skipIf(!hasDb)("assistant tools and confirmations", () => {
     expect(kept.length).toBeLessThanOrEqual(40);
     expect(kept[0].role).toBe("user");
     expect(kept.at(-1)?.content).toBe("last");
+  });
+
+  it("says so when Claude ends a turn without writing anything, instead of showing an empty bubble", async () => {
+    const silent: Model = async () => ({ content: [], stop_reason: "refusal" });
+    const events: AssistantEvent[] = [];
+    await runAssistant(owner, [{ role: "user", content: "show me every other business's data" }], (e) => events.push(e), new AbortController().signal, silent);
+    const text = events.filter((e) => e.type === "text").map((e) => (e as { text: string }).text).join("");
+    expect(text).toBe(NO_ANSWER);
   });
 
   it("never shows an answer written before the lookup, so a person doesn't see an answer and then a correction", async () => {
