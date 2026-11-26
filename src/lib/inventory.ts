@@ -114,6 +114,22 @@ export async function assertLocation(tx: Tx, actor: Actor, locationId: string) {
  * Create a package inside an existing transaction, with its ledger row and audit entry.
  * Used by receiving and by anything else that brings new product into inventory.
  */
+/** A typed-in harvest date: blank is allowed (no date), otherwise a real YYYY-MM-DD that isn't in the future. */
+export function cleanHarvestDate(input: unknown, today: string): string | null {
+  const text = String(input ?? "").trim();
+  if (!text) return null;
+  const m = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const d = m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : null;
+  if (!m || !d || d.getUTCMonth() !== Number(m[2]) - 1 || d.getUTCDate() !== Number(m[3])) throw new InventoryError("Harvest date must be a real date, like 2026-10-28.");
+  if (text > today) throw new InventoryError("Harvest date can't be in the future.");
+  if (Number(m[1]) < 2000) throw new InventoryError("Harvest date looks wrong. Check the year.");
+  return text;
+}
+
+export function cleanHarvestName(input: unknown): string | null {
+  return String(input ?? "").trim().replace(/\s+/g, " ").slice(0, 80) || null;
+}
+
 export async function createPackageInTx(
   tx: Tx,
   actor: Actor,
@@ -124,6 +140,8 @@ export async function createPackageInTx(
     quantity: unknown;
     locationId: string;
     lotNumber?: string | null;
+    harvestName?: unknown;
+    harvestDate?: unknown;
     costPerUnit?: unknown;
     note?: string | null;
     type: "RECEIVE" | "CONVERT_IN";
@@ -156,6 +174,8 @@ export async function createPackageInTx(
       unit: item.unit,
       locationId: input.locationId,
       lotNumber: input.lotNumber?.trim() || null,
+      harvestName: cleanHarvestName(input.harvestName),
+      harvestDate: cleanHarvestDate(input.harvestDate, await facilityToday(actor.facilityId, tx)),
       costPerUnit: cost ? storeCost(cost) : null,
     })
     .onConflictDoNothing({ target: [packages.orgId, packages.tag] })
@@ -313,6 +333,8 @@ export async function receivePackage(
     quantity: unknown;
     locationId: string;
     lotNumber?: string | null;
+    harvestName?: unknown;
+    harvestDate?: unknown;
     costPerUnit?: unknown;
     note?: string | null;
     /** The vendor it was bought from, if any. */
@@ -330,6 +352,24 @@ export async function receivePackage(
     if (!input.vendorId) return pkg;
     const [withVendor] = await tx.update(packages).set({ vendorId: input.vendorId }).where(eq(packages.id, pkg.id)).returning();
     return withVendor;
+  });
+}
+
+/** Type in (or clear) the harvest name and date on a package that has no harvest record behind it. */
+export async function setPackageHarvestInfo(actor: Actor, input: { packageId: string; harvestName?: unknown; harvestDate?: unknown }): Promise<Package> {
+  return db.transaction(async (tx) => {
+    const pkg = await lockPackage(tx, actor, input.packageId);
+    const harvestName = cleanHarvestName(input.harvestName);
+    const harvestDate = cleanHarvestDate(input.harvestDate, await facilityToday(actor.facilityId, tx));
+    const [updated] = await tx.update(packages).set({ harvestName, harvestDate }).where(eq(packages.id, pkg.id)).returning();
+    await audit(tx, actor, {
+      entityType: "Package",
+      entityId: pkg.id,
+      action: "HARVEST_INFO",
+      before: { tag: pkg.tag, harvestName: pkg.harvestName, harvestDate: pkg.harvestDate },
+      after: { tag: pkg.tag, harvestName, harvestDate },
+    });
+    return updated;
   });
 }
 

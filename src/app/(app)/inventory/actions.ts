@@ -15,6 +15,7 @@ import {
   mergePackages,
   movePackage,
   movePackages,
+  setPackageHarvestInfo,
   setPackagesStatus,
   receivePackage,
   recordCycleCount,
@@ -47,6 +48,8 @@ export async function receiveAction(_state: FormState, formData: FormData): Prom
       quantity: field(formData, "quantity"),
       locationId: field(formData, "locationId"),
       lotNumber: field(formData, "lotNumber"),
+      harvestName: field(formData, "harvestName"),
+      harvestDate: field(formData, "harvestDate"),
       costPerUnit: field(formData, "costPerUnit"),
       note: field(formData, "note"),
       vendorId: field(formData, "vendorId") || null,
@@ -57,6 +60,18 @@ export async function receiveAction(_state: FormState, formData: FormData): Prom
   }
   revalidatePath("/inventory");
   redirect(`/inventory/${packageId}`);
+}
+
+export async function harvestInfoAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const session = await requirePermission("inventory.write");
+    const packageId = field(formData, "packageId");
+    await setPackageHarvestInfo(actorOf(session), { packageId, harvestName: field(formData, "harvestName"), harvestDate: field(formData, "harvestDate") });
+    revalidatePath(`/inventory/${packageId}`);
+    return { ok: "Harvest info saved. Labels will use it." };
+  } catch (error) {
+    return toFormError(error);
+  }
 }
 
 export async function moveAction(_state: FormState, formData: FormData): Promise<FormState> {

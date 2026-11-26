@@ -545,6 +545,10 @@ export const packages = pgTable(
     /** When the package last went on hold or into quarantine; cleared on release. Used for waste hold periods. */
     heldSince: timestamp("held_since", { withTimezone: true }),
     lotNumber: text("lot_number"),
+    /** Typed in for packages with no harvest record behind them (received from outside, or imported). A real harvest record always wins on labels. */
+    harvestName: text("harvest_name"),
+    /** YYYY-MM-DD. */
+    harvestDate: text("harvest_date"),
     costPerUnit: cost("cost_per_unit"),
     /** The vendor this package was bought from, when it was received from outside. */
     vendorId: text("vendor_id"),
