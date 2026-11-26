@@ -153,6 +153,14 @@ export const users = pgTable(
     facilityIds: text("facility_ids").array(),
     /** Where they were last working, so signing in returns them there. */
     lastFacilityId: text("last_facility_id"),
+    /** Two-step sign-in: the authenticator secret, encrypted. Set while setting up; counts only once totpEnabledAt is set. */
+    totpSecret: text("totp_secret"),
+    /** When two-step sign-in was switched on. Null means it is off (or setup was never finished). */
+    totpEnabledAt: timestamp("totp_enabled_at", { withTimezone: true }),
+    /** The newest 30-second step already accepted, so the same code cannot be used twice. */
+    totpLastStep: integer("totp_last_step"),
+    /** Hashes of the unused recovery codes (each works once). Never the codes themselves. */
+    recoveryCodeHashes: text("recovery_code_hashes").array(),
     createdAt: createdAt(),
   },
   (t) => [index("users_org_idx").on(t.orgId)],

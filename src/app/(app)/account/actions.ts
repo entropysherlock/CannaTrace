@@ -7,6 +7,7 @@ import { createPairing, revokeDevice } from "@/lib/devices";
 import { toFormError, type FormState } from "@/lib/form";
 import { createSession, requireSession } from "@/lib/session";
 import { changeOwnPassword } from "@/lib/team";
+import { beginSetup, confirmSetup, newRecoveryCodes, turnOff } from "@/lib/two-factor";
 
 export async function changePasswordAction(_state: FormState, formData: FormData): Promise<FormState> {
   try {
@@ -45,5 +46,54 @@ export async function revokePhoneAction(_state: FormState, formData: FormData): 
     return { ok: "Phone unlinked." };
   } catch (error) {
     return toFormError(error);
+  }
+}
+
+// ---------- Two-step sign-in ----------
+
+type TwoFactorResult = { error?: string; svg?: string; key?: string; recoveryCodes?: string[]; done?: boolean };
+const failed = (error: unknown): TwoFactorResult => {
+  const f = toFormError(error);
+  return { error: f && "error" in f && f.error ? f.error : "Something went wrong." };
+};
+
+/** Step 1 of turning on two-step sign-in: a QR code for the authenticator app, and the same secret as text. */
+export async function beginTwoFactorAction(): Promise<TwoFactorResult> {
+  try {
+    const { otpauth, key } = await beginSetup(await requireSession());
+    return { svg: await QRCode.toString(otpauth, { type: "svg", margin: 1, width: 192, errorCorrectionLevel: "M" }), key };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+/** Step 2: the first code from the app. If it is right, two-step is on and the recovery codes come back (shown once). */
+export async function confirmTwoFactorAction(code: string): Promise<TwoFactorResult> {
+  try {
+    const { recoveryCodes } = await confirmSetup(await requireSession(), code);
+    revalidatePath("/account");
+    return { recoveryCodes };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+export async function turnOffTwoFactorAction(password: string, code: string): Promise<TwoFactorResult> {
+  try {
+    await turnOff(await requireSession(), { password, code });
+    revalidatePath("/account");
+    return { done: true };
+  } catch (error) {
+    return failed(error);
+  }
+}
+
+export async function newRecoveryCodesAction(password: string, code: string): Promise<TwoFactorResult> {
+  try {
+    const { recoveryCodes } = await newRecoveryCodes(await requireSession(), { password, code });
+    revalidatePath("/account");
+    return { recoveryCodes };
+  } catch (error) {
+    return failed(error);
   }
 }

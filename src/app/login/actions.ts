@@ -3,14 +3,13 @@
 import bcrypt from "bcryptjs";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
-import { facilities, users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { users } from "@/db/schema";
 import { db } from "@/lib/db";
 import { field, type FormState } from "@/lib/form";
-import { INVITE_ONLY_MESSAGE } from "@/lib/access";
-import { memberMaySignIn } from "@/lib/access-members";
-import { homeFacility } from "@/lib/facility-access";
-import { createSession, destroySession } from "@/lib/session";
+import { completeSignIn } from "@/lib/sign-in";
+import { destroySession } from "@/lib/session";
+import { startPending } from "@/lib/two-factor";
 import { clearSignInFailures, LOCKED_MESSAGE, recordSignInFailure, signInLocked } from "@/lib/sign-in-throttle";
 
 let decoy: Promise<string> | null = null;
@@ -31,22 +30,15 @@ export async function signIn(_state: FormState, formData: FormData): Promise<For
     await recordSignInFailure(email, address);
     return { error: "That email and password do not match an active account." };
   }
+  // Two-step sign-in: the password was right, so ask for the code. Nothing is signed in yet. The failure count is
+  // NOT cleared here, or someone who knows the password could reset it and keep guessing codes.
+  if (user.totpEnabledAt) {
+    await startPending(user.id);
+    redirect("/login/verify");
+  }
   await clearSignInFailures(email, address);
-  // Invite-only: listed people, and the staff of a listed business, may sign in.
-  if (!(await memberMaySignIn(user.email, user.orgId))) return { error: INVITE_ONLY_MESSAGE };
-
-  // Back to where they last worked, if they still may; otherwise the first facility they may use.
-  const ordered = await db.select({ id: facilities.id }).from(facilities).where(eq(facilities.orgId, user.orgId)).orderBy(asc(facilities.createdAt));
-  const facility = homeFacility(ordered, user, user.lastFacilityId);
-  if (!facility) return { error: "Your organization has no facility yet. Ask the owner to add one." };
-
-  await createSession({
-    userId: user.id,
-    orgId: user.orgId,
-    facilityId: facility.id,
-    role: user.role,
-    name: user.name,
-  });
+  const refused = await completeSignIn(user);
+  if (refused) return refused;
   redirect("/dashboard");
 }
 
