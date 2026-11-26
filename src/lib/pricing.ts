@@ -17,6 +17,9 @@ export const PRICES: Price[] = [
   { facilities: 2, price: 499, founderPrice: 399 },
 ];
 
+/** Founding offer is paused: flip to true to bring it back on the landing, pricing, and state pages. */
+export const SHOW_FOUNDING_OFFER = false;
+
 export const FOUNDING = {
   spots: 5,
   freeDays: 60,
@@ -44,5 +47,5 @@ export const facilitiesLabel = (n: number) => `${n} ${n === 1 ? "facility" : "fa
 export function priceSentence(): string {
   const [one, two] = PRICES;
   const off = one.price - one.founderPrice;
-  return `${usd(one.price)} a month for ${facilitiesLabel(one.facilities)}, or ${usd(two.price)} a month for ${facilitiesLabel(two.facilities)}, with every feature and unlimited team members. Founding customers pay ${usd(off)} less every month, for life.`;
+  return `${usd(one.price)} a month for ${facilitiesLabel(one.facilities)}, or ${usd(two.price)} a month for ${facilitiesLabel(two.facilities)}, with every feature and unlimited team members.${SHOW_FOUNDING_OFFER ? ` Founding customers pay ${usd(off)} less every month, for life.` : ""}`;
 }

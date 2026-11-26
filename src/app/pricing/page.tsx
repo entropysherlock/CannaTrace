@@ -5,11 +5,11 @@ import { Logo } from "@/components/logo";
 import { JsonLd, faqSchema } from "@/components/json-ld";
 import { mailto } from "@/lib/contact";
 import { liveDemoOn } from "@/lib/access";
-import { FEATURES, FOUNDING, PRICES, facilitiesLabel, usd } from "@/lib/pricing";
+import { FEATURES, FOUNDING, PRICES, SHOW_FOUNDING_OFFER, facilitiesLabel, usd } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Pricing · Leaf2Sale",
-  description: `${usd(PRICES[0].price)} a month for 1 facility, ${usd(PRICES[1].price)} for 2, every feature included. Founding customers get ${FOUNDING.freeDays} days free and ${usd(PRICES[0].price - PRICES[0].founderPrice)} off every month for life.`,
+  description: `${usd(PRICES[0].price)} a month for 1 facility, ${usd(PRICES[1].price)} for 2, every feature included.${SHOW_FOUNDING_OFFER ? ` Founding customers get ${FOUNDING.freeDays} days free and ${usd(PRICES[0].price - PRICES[0].founderPrice)} off every month for life.` : ""}`,
   alternates: { canonical: "/pricing" },
 };
 
@@ -23,7 +23,7 @@ const QUESTIONS: [string, string][] = [
   ],
   [
     "What does switching cost?",
-    "Nothing. Upload your NMS2S, Dutchie, or Flourish inventory and see every package before anything is saved. Founding customers get it done for them.",
+    "Nothing. Upload your NMS2S, Dutchie, or Flourish inventory and see every package before anything is saved.",
   ],
   [
     "Does it replace NMS2S?",
@@ -70,6 +70,7 @@ export default function PricingPage() {
           <p className="mt-4 text-lg text-slate-600">One plan with every feature. You pay by how many facilities you run.</p>
         </div>
 
+        {SHOW_FOUNDING_OFFER && (
         <section aria-labelledby="founding" className="mx-auto mt-10 max-w-3xl rounded-2xl border-2 border-amber-300 bg-amber-50 p-6 sm:p-8" data-testid="founding-offer">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -91,6 +92,7 @@ export default function PricingPage() {
             </a>
           </div>
         </section>
+        )}
 
         <section aria-label="Prices" className="mx-auto mt-10 grid max-w-3xl gap-6 sm:grid-cols-2">
           {PRICES.map((p) => (
@@ -100,9 +102,11 @@ export default function PricingPage() {
                 <span className="text-5xl font-extrabold tracking-tight text-slate-950">{usd(p.price)}</span>
                 <span className="text-slate-600"> /month</span>
               </p>
-              <p className="mt-2 text-sm font-semibold text-amber-800">
-                Founding customers: {usd(p.founderPrice)}/month for life, after {FOUNDING.freeDays} days free
-              </p>
+              {SHOW_FOUNDING_OFFER && (
+                <p className="mt-2 text-sm font-semibold text-amber-800">
+                  Founding customers: {usd(p.founderPrice)}/month for life, after {FOUNDING.freeDays} days free
+                </p>
+              )}
               <a
                 href={mailto(`Leaf2Sale for ${facilitiesLabel(p.facilities)}`)}
                 className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-700 px-5 text-sm font-bold text-white shadow-sm hover:bg-brand-800"

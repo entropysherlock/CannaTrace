@@ -31,7 +31,7 @@ import { TallyVideo } from "@/components/tally-video";
 import { LeafMark, Logo } from "@/components/logo";
 import { liveDemoOn, signupsOpen } from "@/lib/access";
 import { mailto } from "@/lib/contact";
-import { FOUNDING, PRICES, facilitiesLabel, priceSentence, usd } from "@/lib/pricing";
+import { FOUNDING, PRICES, SHOW_FOUNDING_OFFER, facilitiesLabel, priceSentence, usd } from "@/lib/pricing";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -213,7 +213,7 @@ const FAQ: [string, string][] = [
   ["Is this real software?", "Yes. Every screen on this page is a real screenshot of Leaf2Sale, filled with sample data for a made-up business. You can sign up, or open the sample business and click around yourself."],
   ["Which states does Leaf2Sale work in?", "Leaf2Sale is made in New Mexico, and New Mexico's rules are built in the deepest: purchase limits, ages, lab testing, waste, manifests, and recalls. Colorado, California, and Michigan have detailed rules too, and 19 more adult-use states have their purchase limits, minimum age, and testing rules, each linked to the regulation."],
   ["Does it connect to NMS2S or Metrc?", "New Mexico uses NMS2S, which replaced BioTrack in September 2026. Leaf2Sale has asked the Cannabis Control Division for integrator access; a live connection turns on once the state approves it. In Metrc states, a live connection also needs state approval first. Until then, Leaf2Sale keeps a queue of everything the state needs and lists exactly what to enter by hand, and you keep using NMS2S as the state requires."],
-  ["Can I bring my data from another system?", "Yes. Leaf2Sale imports from NMS2S, Dutchie, and Flourish exports, including large inventories. For founding customers, we do the move for you."],
+  ["Can I bring my data from another system?", "Yes. Leaf2Sale imports from NMS2S, Dutchie, and Flourish exports, including large inventories."],
   ["Do I need special hardware?", "No. Leaf2Sale runs in the web browser on computers, tablets, and phones. It works with ordinary USB or Bluetooth barcode scanners and label printers."],
   ["Who can see what?", "Each person gets a role, like owner, manager, cultivation, sales, or budtender, and only sees and changes what that role allows. Every change is in the audit trail."],
   ["How much does it cost?", priceSentence()],
@@ -410,7 +410,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           {[
             ["13", "parts of the business in one app"],
             ["23", "states' rules built in"],
-            [String(FOUNDING.freeDays), "days free for founding customers"],
+            SHOW_FOUNDING_OFFER ? [String(FOUNDING.freeDays), "days free for founding customers"] : [usd(PRICES[0].price), "a month, every feature included"],
             ["$0", "extra for more team members"],
           ].map(([n, label]) => (
             <li key={label}>
@@ -611,12 +611,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                   {usd(plan.price)}
                   <span className="text-base font-semibold text-slate-500">/month</span>
                 </p>
-                <p className="mt-1 text-sm font-semibold text-brand-700">Founding customers: {usd(plan.founderPrice)}/month for life</p>
+                {SHOW_FOUNDING_OFFER && <p className="mt-1 text-sm font-semibold text-brand-700">Founding customers: {usd(plan.founderPrice)}/month for life</p>}
               </div>
             ))}
           </div>
           <p className="mt-4 text-sm text-slate-600">
-            The first {FOUNDING.spots} founding customers also get {FOUNDING.freeDays} days free and we bring their inventory over for them.{" "}
+            {SHOW_FOUNDING_OFFER && <>The first {FOUNDING.spots} founding customers also get {FOUNDING.freeDays} days free and we bring their inventory over for them.{" "}</>}
             <Link href="/pricing" className="font-semibold text-brand-700 underline hover:no-underline">
               See full pricing
             </Link>
