@@ -9,6 +9,7 @@ import {
   packages,
   retailPrices,
   retailSettings,
+  rewardMembers,
   orderAllocations,
   saleLinePackages,
   saleLines,
@@ -29,7 +30,7 @@ import { assertWholeForUnit, parsePositiveQty } from "./inventory-math";
 import { nextNumber } from "./numbering";
 import { combinedCap, effectiveLimits, minimumAge, packFor, requiresLabBeforeRetail, type StatePack } from "./rules";
 import { facilityToday, facilityZone } from "./time";
-import { createMember, expireIfIdle, findMemberByPhone, getProgram, lockMember, reverseSaleRewards, settleSaleRewards, takeBackForReturn } from "./rewards";
+import { createMember, expireIfIdle, findMemberByIdKey, findMemberByPhone, getProgram, lockMember, reverseSaleRewards, settleSaleRewards, takeBackForReturn } from "./rewards";
 import { normalizePhone, rewardsThatFit, type RewardProgram } from "./rewards-math";
 import {
   cartTotals,
@@ -439,7 +440,23 @@ export async function checkInInTx(
     })
     .returning();
   await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "CHECK_IN", after: { number, customerType, idChecked: true, dailyLimits: Boolean(customerKey) } });
-  return sale;
+  return (await attachRewardsFromId(tx, actor, sale)) ?? sale;
+}
+
+/**
+ * When the business recognizes shoppers by their ID scan, put a returning shopper's rewards account on the new
+ * cart. Matches only the one-way fingerprint of the ID number, and only for a shopper who agreed to it when they joined.
+ */
+async function attachRewardsFromId(tx: Tx, actor: Actor, sale: Sale): Promise<Sale | null> {
+  if (!sale.customerKey) return null;
+  const program = await getProgram(tx, actor.orgId);
+  if (!program.enabled || !program.idLookup) return null;
+  const found = await findMemberByIdKey(tx, actor.orgId, sale.customerKey);
+  if (!found) return null;
+  const member = await expireIfIdle(tx, actor, await lockMember(tx, actor.orgId, found.id), program);
+  const [updated] = await tx.update(sales).set({ rewardMemberId: member.id, rewardsUsed: 0 }).where(eq(sales.id, sale.id)).returning();
+  await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "REWARDS_ATTACHED", after: { number: sale.number, memberId: member.id, byIdScan: true } });
+  return updated;
 }
 
 async function lockSale(tx: Tx, actor: Actor, saleId: string, allowed: Sale["status"][], verb: string): Promise<Sale> {
@@ -811,10 +828,28 @@ export async function joinRewards(
     const program = await getProgram(tx, actor.orgId);
     if (!program.enabled) throw new InventoryError("The rewards program is off. A manager can turn it on in Menu and store rules.");
     const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
-    const member = await createMember(tx, actor, program, input);
+    // Recognize them by this ID next time, when the business has that on and no one else already holds this ID.
+    const idKey = program.idLookup && sale.customerKey && !(await findMemberByIdKey(tx, actor.orgId, sale.customerKey)) ? sale.customerKey : null;
+    const member = await createMember(tx, actor, program, input, idKey);
     await tx.update(sales).set({ rewardMemberId: member.id, rewardsUsed: 0 }).where(eq(sales.id, sale.id));
-    await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "REWARDS_ATTACHED", after: { number: sale.number, memberId: member.id, joined: true } });
+    await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "REWARDS_ATTACHED", after: { number: sale.number, memberId: member.id, joined: true, idLinked: Boolean(idKey) } });
     return { firstName: member.firstName, points: member.points };
+  });
+}
+
+/** With the shopper's agreement, remember this cart's ID for the shopper on it, so their next ID scan finds their account. */
+export async function linkIdToRewardsMember(actor: Actor, input: { saleId: string }): Promise<void> {
+  await db.transaction(async (tx) => {
+    const program = await getProgram(tx, actor.orgId);
+    if (!program.enabled || !program.idLookup) throw new InventoryError("Finding shoppers by their ID scan is off. A manager can turn it on in Menu and store rules.");
+    const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
+    if (!sale.customerKey) throw new InventoryError("This cart was started without an ID scan, so there's no ID to link.");
+    if (!sale.rewardMemberId) throw new InventoryError("Add the shopper's rewards account to the cart first.");
+    const member = await lockMember(tx, actor.orgId, sale.rewardMemberId);
+    if (member.idKey) throw new InventoryError("This shopper's ID is already linked.");
+    if (await findMemberByIdKey(tx, actor.orgId, sale.customerKey)) throw new InventoryError("This ID is already linked to a different rewards account.");
+    await tx.update(rewardMembers).set({ idKey: sale.customerKey }).where(eq(rewardMembers.id, member.id));
+    await audit(tx, actor, { entityType: "RewardsMember", entityId: member.id, action: "ID_LINKED", after: { agreed: true } });
   });
 }
 

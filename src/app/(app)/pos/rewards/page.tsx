@@ -91,6 +91,12 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
                 <Field label="Birthday bonus (points)" hint="Once a year, on their first purchase in their birthday month.">
                   <input autoComplete="off" name="birthdayBonus" inputMode="numeric" required defaultValue={program.birthdayBonus} className={inputClass} />
                 </Field>
+                <Field label="Find shoppers by their ID scan" hint="When on, a returning shopper's rewards account opens when their ID is scanned. Only shoppers who agree are linked, and only a one-way fingerprint of the ID number is kept, never the number or a copy of the ID.">
+                  <label className="flex items-center gap-2 text-sm text-slate-800">
+                    <input type="checkbox" name="idLookup" defaultChecked={program.idLookup} className="h-5 w-5 accent-brand-700" />
+                    Recognize shoppers by their ID scan
+                  </label>
+                </Field>
                 <Field label="Points expire after (months)" hint="With no purchases. 0 means never.">
                   <input autoComplete="off" name="expireMonths" inputMode="numeric" required defaultValue={program.expireMonths} className={inputClass} />
                 </Field>

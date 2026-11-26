@@ -139,6 +139,8 @@ export default async function CartPage({ params, searchParams }: { params: Promi
           applied: member ? totals.rewardsApplied : 0,
           available: member ? rewardsAvailable(member.points, afterDiscount, program) : 0,
           earnPreview: member ? pointsFor(totals.taxable, program.pointsPerDollar) : 0,
+          idLookup: program.idLookup && Boolean(sale.customerKey),
+          idLinked: Boolean(member?.idKey),
         }
       : null,
     quickCash: quickCashAmounts(totals.total),
