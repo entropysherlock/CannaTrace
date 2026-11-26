@@ -159,6 +159,10 @@ async function withAttachments(session: Session, history: ChatMessage[]): Promis
   });
 }
 
+/** Shown when Claude ends a turn without writing anything, for example when it declines a request. */
+export const NO_ANSWER =
+  "I can't help with that one. I can only look at and change this business's own Leaf2Sale data, and I can't share passwords or other businesses' information. If you meant something else, ask it another way, or press the new chat button (the circular arrow) to start fresh.";
+
 export type RunUsage = { inputTokens: number; outputTokens: number };
 
 /**
@@ -178,17 +182,28 @@ export async function runAssistant(
   const messages = await withAttachments(session, trimHistory(history));
   const definitions: Anthropic.Tool[] = tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.schema as Anthropic.Tool.InputSchema }));
 
+  // Whether the person has seen any answer text yet. A reply that ends with none (Claude declined, or wrote
+  // nothing) would otherwise show an empty bubble, and the same request in the history can keep doing it.
+  let shown = false;
+  const show = (event: AssistantEvent) => {
+    if (event.type === "text" && event.text.trim()) shown = true;
+    if (event.type === "discard") shown = false;
+    emit(event);
+  };
   for (let step = 0; step < MAX_STEPS; step++) {
     emit({ type: "step" });
-    const reply = await model({ system, messages, tools: definitions }, (text) => emit({ type: "text", text }), signal);
+    const reply = await model({ system, messages, tools: definitions }, (text) => show({ type: "text", text }), signal);
     usage.inputTokens += reply.usage?.input_tokens ?? 0;
     usage.outputTokens += reply.usage?.output_tokens ?? 0;
     messages.push({ role: "assistant", content: reply.content });
     const calls = reply.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    if (reply.stop_reason !== "tool_use" || calls.length === 0) return usage;
+    if (reply.stop_reason !== "tool_use" || calls.length === 0) {
+      if (!shown && !reply.content.some((b) => b.type === "text" && b.text.trim())) emit({ type: "text", text: NO_ANSWER });
+      return usage;
+    }
     // Text written before a lookup is a guess or narration. Only the answer written after the
     // results arrive is shown, so a person never sees an answer followed by a correction.
-    if (reply.content.some((b) => b.type === "text" && b.text.trim())) emit({ type: "discard" });
+    if (reply.content.some((b) => b.type === "text" && b.text.trim())) show({ type: "discard" });
 
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const call of calls) {
