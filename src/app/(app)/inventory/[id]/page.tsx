@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, ne, or } from "drizzle-orm";
 import Link from "next/link";
 import { LabelLink } from "@/components/labels/label-link";
 import { notFound } from "next/navigation";
-import { ArrowRightLeft, FlaskConical, MapPin, Merge, Scale, ShieldAlert, Split, type LucideIcon } from "lucide-react";
+import { ArrowRightLeft, FlaskConical, MapPin, Merge, Sprout, Scale, ShieldAlert, Split, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { ActionForm } from "@/components/action-form";
 import { ScanInput } from "@/components/scan-input";
@@ -27,7 +27,7 @@ import { can } from "@/lib/rbac";
 import { packFor, wasteRule } from "@/lib/rules";
 import { requirePagePermission } from "@/lib/session";
 import { formatQty, unitLabel } from "@/lib/units";
-import { adjustAction, labResultAction, mergeAction, moveAction, splitAction, statusAction } from "../actions";
+import { adjustAction, harvestInfoAction, labResultAction, mergeAction, moveAction, splitAction, statusAction } from "../actions";
 import { facilityZone } from "@/lib/time";
 import { DocumentDrop } from "@/components/document-drop";
 import { listDevices } from "@/lib/devices";
@@ -86,6 +86,8 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
       heldSince: packages.heldSince,
       locationId: packages.locationId,
       lotNumber: packages.lotNumber,
+      harvestName: packages.harvestName,
+      harvestDate: packages.harvestDate,
       costPerUnit: packages.costPerUnit,
       createdAt: packages.createdAt,
       itemName: items.name,
@@ -261,6 +263,10 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
               <dd className="text-right text-slate-900">{pkg.sku}</dd>
               <dt className="text-slate-600">Lot</dt>
               <dd className="text-right text-slate-900">{pkg.lotNumber ?? "None"}</dd>
+              <dt className="text-slate-600">Harvest</dt>
+              <dd className="text-right text-slate-900">{pkg.harvestName ?? "Not set"}</dd>
+              <dt className="text-slate-600">Harvest date</dt>
+              <dd className="text-right text-slate-900">{pkg.harvestDate ?? "Not set"}</dd>
               <dt className="text-slate-600">Cost per {unitLabel(unit)}</dt>
               <dd className="text-right text-slate-900">{pkg.costPerUnit ? `$${new Decimal(pkg.costPerUnit).toFixed(2)}` : "Not set"}</dd>
               <dt className="text-slate-600">Created</dt>
@@ -495,6 +501,23 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
                 ) : null}
               </ActionForm>
               </DocumentDrop>
+            </Fold>
+          ) : null}
+
+          {canWrite ? (
+            <Fold title="Harvest name and date" icon={Sprout}>
+              <ActionForm action={harvestInfoAction} submitLabel="Save harvest info">
+                {hidden}
+                <p className="text-xs text-slate-600">
+                  For packages with no harvest record behind them, such as ones received from another business. If this package came from a harvest here, labels use that harvest first.
+                </p>
+                <Field label="Harvest name (optional)">
+                  <input name="harvestName" defaultValue={pkg.harvestName ?? ""} maxLength={80} className={inputClass} />
+                </Field>
+                <Field label="Harvest date (optional)">
+                  <input name="harvestDate" type="date" defaultValue={pkg.harvestDate ?? ""} className={inputClass} />
+                </Field>
+              </ActionForm>
             </Fold>
           ) : null}
         </div>

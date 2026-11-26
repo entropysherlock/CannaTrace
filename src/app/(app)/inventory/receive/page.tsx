@@ -111,6 +111,12 @@ export default async function ReceivePage() {
             <Field label="Lot number (optional)">
               <input name="lotNumber" className={inputClass} />
             </Field>
+            <Field label="Harvest name (optional)">
+              <input name="harvestName" maxLength={80} className={inputClass} />
+            </Field>
+            <Field label="Harvest date (optional)">
+              <input name="harvestDate" type="date" className={inputClass} />
+            </Field>
             <Field label="Cost per unit (optional)">
               <input name="costPerUnit" inputMode="decimal" className={inputClass} />
             </Field>
