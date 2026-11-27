@@ -3,6 +3,7 @@ import Link from "next/link";
 const TABS = [
   { href: "/manufacturing", label: "Production runs" },
   { href: "/manufacturing/recipes", label: "Recipes" },
+  { href: "/manufacturing/planning", label: "Planning" },
   { href: "/manufacturing/equipment", label: "Equipment" },
 ];
 
