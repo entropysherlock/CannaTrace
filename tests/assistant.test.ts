@@ -48,6 +48,17 @@ describe.skipIf(!hasDb)("assistant tools and confirmations", () => {
     expect(await (tool("find_packages") as { run: Fn }).run(stranger, {})).toEqual([]);
   });
 
+  it("looks up customer license dates stored as text, including search and org isolation", async () => {
+    const run = (tool("customers") as { run: Fn }).run;
+    const all = (await run(owner, {})) as { name: string; license_number: string; license_expires: string }[];
+    expect(all.length).toBeGreaterThan(0);
+    const first = all[0];
+    expect(first.license_expires).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const found = (await run(owner, { search: first.license_number })) as typeof all;
+    expect(found).toContainEqual(first);
+    expect(await run({ ...owner, orgId: "00000000-0000-0000-0000-000000000000" }, {})).toEqual([]);
+  });
+
   it("proposes a move, and only the same person can confirm it", async () => {
     const [pkg] = await db.select().from(packages).where(and(eq(packages.facilityId, owner.facilityId), eq(packages.status, "ACTIVE"))).limit(1);
     const [dest] = await db
