@@ -1967,3 +1967,64 @@ export const quickbooksLinks = pgTable(
   },
   (t) => [uniqueIndex("quickbooks_links_key").on(t.orgId, t.kind, t.localId)],
 );
+
+/** Production equipment at a facility: extractors, presses, dryers, scales. */
+export const equipment = pgTable(
+  "equipment",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    name: text("name").notNull(),
+    kind: text("kind").notNull(),
+    serialNumber: text("serial_number"),
+    locationId: text("location_id").references(() => locations.id),
+    /** ACTIVE, DOWN (out of service), or RETIRED. */
+    status: text("status").notNull().default("ACTIVE"),
+    maintenanceEveryDays: integer("maintenance_every_days"),
+    calibrationEveryDays: integer("calibration_every_days"),
+    lastMaintainedOn: text("last_maintained_on"),
+    lastCalibratedOn: text("last_calibrated_on"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("equipment_facility_name_key").on(t.facilityId, t.name), index("equipment_scope_idx").on(t.orgId, t.facilityId, t.status)],
+);
+
+/** Maintenance, calibration, repairs and notes for a piece of equipment, newest first when read. */
+export const equipmentLogs = pgTable(
+  "equipment_logs",
+  {
+    id: id(),
+    equipmentId: text("equipment_id")
+      .notNull()
+      .references(() => equipment.id),
+    /** MAINTENANCE, CALIBRATION, REPAIR, or NOTE. */
+    kind: text("kind").notNull(),
+    doneOn: text("done_on").notNull(),
+    note: text("note"),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("equipment_logs_equipment_idx").on(t.equipmentId, t.doneOn)],
+);
+
+/** Which equipment a production run used. */
+export const productionRunEquipment = pgTable(
+  "production_run_equipment",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => productionRuns.id),
+    equipmentId: text("equipment_id")
+      .notNull()
+      .references(() => equipment.id),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.runId, t.equipmentId] })],
+);
