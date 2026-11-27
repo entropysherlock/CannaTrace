@@ -1,6 +1,7 @@
 import { Logo } from "@/components/logo";
 
 export const metadata = { title: "Connection problem · Leaf2Sale", robots: { index: false } };
+export const instant = false;
 
 export default async function ConnectionProblem({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
   const { m } = await searchParams;
