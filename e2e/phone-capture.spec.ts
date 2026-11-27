@@ -15,8 +15,8 @@ test("link a phone with a QR code, send a photo from it, and unlink it", async (
   await desktop.getByRole("button", { name: "Switch" }).click();
   await expect(desktop.getByText("Sandia Storefront · license DEMO-RET-0002")).toBeVisible();
 
-  // The camera is one tap from anywhere in the app
-  await expect(desktop.getByTestId("camera-link")).toHaveAttribute("href", "/capture");
+  // Laptops, desktops and tablets don't show the camera; only phones do
+  await expect(desktop.getByTestId("camera-link")).toBeHidden();
   await desktop.goto("/account");
   await desktop.getByTestId("show-qr").click();
   await expect(desktop.getByTestId("qr").locator("svg")).toBeVisible();
@@ -32,9 +32,10 @@ test("link a phone with a QR code, send a photo from it, and unlink it", async (
   await expect(phone).toHaveURL(/\/capture\?linked=1/);
   await expect(phone.getByTestId("linked-note")).toBeVisible();
   await expect(phone.getByTestId("take-photo")).toBeVisible();
-  // From inside the app, the camera is one tap away
+  // From inside the app on a phone, the camera is one tap away
   await phone.getByRole("link", { name: "Open Leaf2Sale" }).click();
   await expect(phone).toHaveURL(/\/dashboard/);
+  await expect(phone.getByTestId("camera-link")).toHaveAttribute("href", "/capture");
   await phone.getByTestId("camera-link").click();
   await expect(phone.getByTestId("take-photo")).toBeVisible();
 
