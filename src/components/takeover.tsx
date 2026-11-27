@@ -11,6 +11,10 @@ type Saved = { goal: string; history: { action: Action; result: string }[]; runn
 type Phase = "idle" | "thinking" | "acting" | "stopped";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Fast mode: the cursor pauses are only for show, so cut them to a quarter. Waits for the page keep a floor. */
+let fastMode = false;
+const SPEED_KEY = "leaf2sale-takeover-fast";
+const pause = (ms: number, floor = 0) => sleep(fastMode ? Math.max(floor, Math.round(ms * 0.25)) : ms);
 
 function labelOf(el: HTMLElement): string {
   const input = el as HTMLInputElement;
@@ -70,6 +74,7 @@ function setNative(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElemen
 export function Takeover() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [fast, setFast] = useState(false);
   const [goal, setGoal] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [log, setLog] = useState<string[]>([]);
@@ -88,27 +93,27 @@ export function Takeover() {
 
   const moveTo = useCallback(async (el: HTMLElement) => {
     el.scrollIntoView({ block: "center", behavior: "smooth" });
-    await sleep(350);
+    await pause(350, 80);
     const r = el.getBoundingClientRect();
     setCursor((c) => ({ x: r.left + Math.min(r.width / 2, 40), y: r.top + r.height / 2, ripple: c?.ripple ?? 0 }));
-    await sleep(750);
+    await pause(750, 120);
   }, []);
 
   const perform = useCallback(
     async (action: Action): Promise<string> => {
       const find = (i: number) => document.querySelector<HTMLElement>(`[data-tk="${i}"]`);
       if (action.type === "wait") {
-        await sleep(1200);
+        await pause(1200, 600);
         return "waited";
       }
       if (action.type === "scroll") {
         window.scrollBy({ top: (action.direction === "up" ? -1 : 1) * window.innerHeight * 0.7, behavior: "smooth" });
-        await sleep(600);
+        await pause(600, 200);
         return "scrolled";
       }
       if (action.type === "navigate") {
         router.push(action.path);
-        await sleep(1500);
+        await pause(1500, 700);
         return `went to ${action.path}`;
       }
       if (action.type !== "click" && action.type !== "type" && action.type !== "select") return "ok";
@@ -117,12 +122,12 @@ export function Takeover() {
       await moveTo(el);
       if (action.type === "click") {
         setCursor((c) => (c ? { ...c, ripple: c.ripple + 1 } : c));
-        await sleep(220);
+        await pause(220, 40);
         // Pick-lists (like the strain search) choose on mouse-down, so send the whole press like a real mouse does.
         for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
         const form = el.closest("form");
         el.click();
-        await sleep(350);
+        await pause(350, 120);
         // The browser's own "Please fill out this field" bubble can't be seen from the page, so say what it complains about.
         const bad = form ? Array.from(form.querySelectorAll<HTMLInputElement>(":invalid")).find((f) => f.validationMessage && visible(f)) : undefined;
         const note = bad ? ` BUT the form refused: "${labelOf(bad).slice(0, 40)}" says "${bad.validationMessage.slice(0, 80)}"` : "";
@@ -134,7 +139,7 @@ export function Takeover() {
         const opt = Array.from(sel.options).find((o) => o.text.toLowerCase() === want) ?? Array.from(sel.options).find((o) => o.text.toLowerCase().includes(want) || o.value.toLowerCase() === want);
         if (!opt) return `no option like "${action.value}"`;
         setCursor((c) => (c ? { ...c, ripple: c.ripple + 1 } : c));
-        await sleep(300);
+        await pause(300, 40);
         setNative(sel, opt.value);
         sel.dispatchEvent(new Event("change", { bubbles: true }));
         return `picked "${opt.text}"`;
@@ -150,12 +155,12 @@ export function Takeover() {
         typed += ch;
         setNative(box, typed);
         box.dispatchEvent(new Event("input", { bubbles: true }));
-        await sleep(45);
+        await pause(45, 6);
       }
       box.dispatchEvent(new Event("change", { bubbles: true }));
       // A search-and-pick box only counts once a suggestion is chosen, so pick the one that matches what was typed.
       if (box.getAttribute("role") === "combobox" && typed) {
-        await sleep(350);
+        await pause(350, 150);
         const want = typed.trim().toLowerCase();
         const list = document.getElementById(box.getAttribute("aria-controls") ?? "");
         const entries = Array.from((list ?? document).querySelectorAll<HTMLElement>("[role=option]"));
@@ -195,7 +200,7 @@ export function Takeover() {
             return;
           }
           setPhase("thinking");
-          await sleep(500); // let the page settle
+          await pause(500, 250); // let the page settle
           const elements = snapshot(state.goal);
           const popup = openPopup();
           abort.current = new AbortController();
@@ -241,7 +246,7 @@ export function Takeover() {
           state = { ...state, history: [...state.history, { action: checked.action, result }] };
           setLog((l) => [...l.slice(-8), result]);
           save({ ...state, running: true });
-          await sleep(700);
+          await pause(700, 150);
         }
       } finally {
         busy.current = false;
@@ -254,6 +259,22 @@ export function Takeover() {
     },
     [finish, perform],
   );
+
+  // Remember the speed choice, including across full page loads mid-run.
+  useEffect(() => {
+    try {
+      fastMode = localStorage.getItem(SPEED_KEY) === "1";
+    } catch {}
+    queueMicrotask(() => setFast(fastMode));
+  }, []);
+
+  const toggleFast = (on: boolean) => {
+    fastMode = on;
+    setFast(on);
+    try {
+      localStorage.setItem(SPEED_KEY, on ? "1" : "0");
+    } catch {}
+  };
 
   // Pick up where we left off after a full page load.
   useEffect(() => {
@@ -339,6 +360,10 @@ export function Takeover() {
                   </button>
                 ) : null}
               </div>
+              <label className="mt-2 flex items-center gap-2 text-xs font-medium text-slate-700">
+                <input type="checkbox" checked={fast} onChange={(e) => toggleFast(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300" />
+                Fast: shorter cursor pauses
+              </label>
               <p className="mt-2 text-xs text-slate-500">I&apos;ll move the cursor and click and type for you. I stop and hand back anything that deletes, disconnects or moves money. Press Esc to stop me anytime.</p>
             </>
           )}
