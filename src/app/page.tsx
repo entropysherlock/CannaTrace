@@ -216,6 +216,7 @@ const FAQ: [string, string][] = [
   ["Can I bring my data from another system?", "Yes. Leaf2Sale imports from NMS2S, Dutchie, and Flourish exports, including large inventories."],
   ["Do I need special hardware?", "No. Leaf2Sale runs in the web browser on computers, tablets, and phones. It works with ordinary USB or Bluetooth barcode scanners and label printers."],
   ["Who can see what?", "Each person gets a role, like owner, manager, cultivation, sales, or budtender, and only sees and changes what that role allows. Every change is in the audit trail."],
+  ["Can I use Claude or another AI app with Leaf2Sale?", "Yes. An owner presses Connect to Claude in Settings, then Approve. Claude can then answer questions about that facility's inventory, sales, orders, and state reporting. The owner chooses whether it can only read or also make changes. Changes are previewed first, recorded in the audit trail under the connection, and can be undone. Other AI apps that support custom connectors can use the same address."],
   ["How much does it cost?", priceSentence()],
 ];
 
@@ -483,6 +484,54 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </a>
           </div>
           <TallyVideo />
+        </div>
+      </section>
+
+      {/* Connect an AI app */}
+      <section id="ask-claude" className="scroll-mt-20 bg-white px-5 py-16" aria-labelledby="ask-claude-heading">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
+          <figure className="order-2 lg:order-1">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:p-6" role="img" aria-label="An example conversation: an owner asks an AI app what is on hold, then has it adjust a package, with a preview first and an undo">
+              <div className="space-y-3 text-sm">
+                <p className="ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-brand-700 px-4 py-2.5 text-white">What&apos;s on hold, and what should I look at first?</p>
+                <div className="max-w-[90%] rounded-2xl rounded-bl-sm border border-slate-200 bg-white px-4 py-3 text-slate-800">
+                  <p>179 packages are on hold. 1 is on hold on the sales floor and 178 are in quarantine, mostly waiting on lab results.</p>
+                  <p className="mt-2 font-semibold">Look at these first:</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                    <li>Blue Mesa 3.5 g Jar: 180 on the sales floor, lab result still pending</li>
+                    <li>Blue Mesa 1 g Single: passed its lab test and is ready to release</li>
+                  </ul>
+                </div>
+                <p className="ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-brand-700 px-4 py-2.5 text-white">Adjust PKG-000156 down 1 g for drying, then undo it.</p>
+                <div className="max-w-[90%] rounded-2xl rounded-bl-sm border border-slate-200 bg-white px-4 py-3 text-slate-800">
+                  <p>
+                    <span className="font-semibold">Preview:</span> Bulk Desert Haze Flower, 250 g to 249 g, reason drying. It will be reported to the state.
+                  </p>
+                  <p className="mt-2">Done, and then undone. The package is back at 250 g, and both steps are in the audit trail under this connection.</p>
+                </div>
+              </div>
+            </div>
+            <figcaption className="mt-2 text-center text-xs text-slate-500">An example conversation with sample data.</figcaption>
+          </figure>
+          <div className="order-1 lg:order-2">
+            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-700">
+              <Sparkles className="h-4 w-4" aria-hidden="true" /> Connect your AI app
+            </p>
+            <h2 id="ask-claude-heading" className="mt-2 text-3xl font-extrabold leading-tight tracking-tight text-slate-950 sm:text-4xl">
+              Owners can ask Claude, too.
+            </h2>
+            <p className="mt-3 text-lg text-slate-700">
+              Tally helps your team on the floor. Connect Claude to Leaf2Sale and owners and managers can ask bigger questions across the business, then have it make changes. You choose whether it can only read or also change things.
+            </p>
+            <ul className="mt-5 space-y-2 text-sm text-slate-800">
+              {["Connect in a minute: press Connect to Claude, then Approve", "Read only, or read and change, for one facility at a time", "Changes are previewed first, recorded in the audit trail, and can be undone", "Remove it any time in Settings, under Integrations"].map((x) => (
+                <li key={x} className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" strokeWidth={3} aria-hidden="true" /> {x}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-sm text-slate-600">Works with Claude today. Other AI apps that support custom connectors can use the same address.</p>
+          </div>
         </div>
       </section>
 
