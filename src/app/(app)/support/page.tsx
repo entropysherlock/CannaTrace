@@ -57,7 +57,8 @@ const ago = (d: Date | null, now: number): string => {
   return days < 60 ? `${days} days ago` : `${Math.round(days / 30)} months ago`;
 };
 /** A facility that is sample, practice, or test data inside a real business. */
-const isPracticeFacility = (f: Facility) => /^(demo|sample|practice|test)/i.test(f.licenseNumber) || /\b(demo|sample|practice|test)\b/i.test(f.name);
+
+import { isPracticeFacility } from "@/lib/facility-practice";
 
 export default async function SupportConsolePage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const session = await requireSession();

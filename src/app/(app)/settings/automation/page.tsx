@@ -45,7 +45,7 @@ export default async function AutomationPage() {
       </Card>
       <Card title="What may run on its own">
         <p className="mb-4 text-sm text-slate-600">
-          <strong>Off:</strong> never. <strong>Ask me:</strong> it prepares the work and waits for a person to approve. <strong>Auto:</strong> it just does it and logs it below. Anything that changes stock, messages customers or runs production can only be Ask me for now.
+          <strong>Off:</strong> never. <strong>Ask me:</strong> it prepares the work and waits for a person to approve. <strong>Auto:</strong> it just does it and logs it below. Anything that changes stock or messages customers can only be Ask me for now, and production can be Auto only in practice facilities.
         </p>
         <ul className="divide-y divide-slate-100">
           {AUTOMATION_KINDS.map((k) => {
