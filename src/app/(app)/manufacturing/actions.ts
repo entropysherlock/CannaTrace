@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { field, toFormError, type FormState } from "@/lib/form";
 import type { Actor } from "@/lib/inventory";
-import { addRunInput, cancelRun, completeRun, createRecipe, removeRunInput, setRecipeActive, startRun } from "@/lib/manufacturing";
+import { addRunInput, cancelRun, completeRun, createRecipe, removeRunInput, setRecipeActive, startChain, startRun } from "@/lib/manufacturing";
 import { requirePermission } from "@/lib/session";
 
 async function maker(): Promise<Actor> {
@@ -103,6 +103,16 @@ export async function cancelRunAction(_state: FormState, formData: FormData): Pr
     await cancelRun(await maker(), { runId: field(formData, "runId") });
     revalidatePath("/manufacturing", "layout");
     return null;
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function startChainAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { runIds } = await startChain(await maker(), { recipeId: field(formData, "recipeId"), batches: field(formData, "batches"), baseName: field(formData, "baseName") });
+    revalidatePath("/manufacturing", "layout");
+    return { ok: `Started ${runIds.length} run${runIds.length === 1 ? "" : "s"}, earliest stage first. Find them under Runs.` };
   } catch (error) {
     return toFormError(error);
   }
