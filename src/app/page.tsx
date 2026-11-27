@@ -2,14 +2,18 @@ import {
   ArrowRight,
   BarChart3,
   Boxes,
+  Calculator,
   Check,
   ChevronDown,
+  ClipboardList,
   Eye,
   Factory,
   FileCheck,
+  FlaskConical,
   GraduationCap,
   History,
   MapPin,
+  MousePointerClick,
   Play,
   ShieldCheck,
   Sparkles,
@@ -93,7 +97,7 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     kicker: "Inventory",
     title: "Know exactly what's on the shelf",
     text: "Every package with its tag, item, quantity, room, and status. Scan a tag to find it in a second.",
-    points: ["Receive deliveries, move, split, merge, and adjust", "Lab results, holds, and quarantine", "Cycle counts that fix the numbers and keep the history", "Rooms, vaults, and racks"],
+    points: ["Receive deliveries, move, split, merge, and adjust", "Purchase orders, received in one click", "Lab results, holds, and quarantine", "Cycle counts that fix the numbers and keep the history", "Rooms, vaults, and racks"],
     src: "/site/inventory.webp",
     alt: "The Leaf2Sale Inventory page listing packages with tags, rooms, quantities, and statuses",
   },
@@ -113,7 +117,7 @@ const TOUR: { id: string; icon: LucideIcon; kicker: string; title: string; text:
     kicker: "Distribution",
     title: "Wholesale from order to invoice",
     text: "Take orders from licensed buyers, pick and pack the right packages, ship with a manifest, and get paid.",
-    points: ["Orders, picking, and packing", "Buyer licenses checked before anything ships", "Drivers, vehicles, and manifests", "Price lists, invoices, and what's owed"],
+    points: ["Orders, picking, and packing", "Buyer licenses checked before anything ships", "Drivers, vehicles, and manifests", "Invoices and payments sent to QuickBooks Online"],
     src: "/site/distribution.webp",
     alt: "The Leaf2Sale Distribution page with wholesale orders and invoices",
   },
@@ -214,6 +218,7 @@ const FAQ: [string, string][] = [
   ["Which states does Leaf2Sale work in?", "Leaf2Sale is made in New Mexico, and New Mexico's rules are built in the deepest: purchase limits, ages, lab testing, waste, manifests, and recalls. Colorado, California, and Michigan have detailed rules too, and 19 more adult-use states have their purchase limits, minimum age, and testing rules, each linked to the regulation."],
   ["Does it connect to NMS2S or Metrc?", "New Mexico uses NMS2S, which replaced BioTrack in September 2026. Leaf2Sale has asked the Cannabis Control Division for integrator access; a live connection turns on once the state approves it. In Metrc states, a live connection also needs state approval first. Until then, Leaf2Sale keeps a queue of everything the state needs and lists exactly what to enter by hand, and you keep using NMS2S as the state requires."],
   ["Can I bring my data from another system?", "Yes. Leaf2Sale imports from NMS2S, Dutchie, and Flourish exports, including large inventories."],
+  ["Does it work with QuickBooks?", "Yes, QuickBooks Online. An owner connects it once in Settings with their Intuit sign-in. Each invoice goes over line by line with the products shipped, buyers are matched or created, payments are applied to the right invoice, and you choose which income account each product category posts to. It sends from Leaf2Sale to QuickBooks once a day, or whenever you press Send now."],
   ["Do I need special hardware?", "No. Leaf2Sale runs in the web browser on computers, tablets, and phones. It works with ordinary USB or Bluetooth barcode scanners and label printers."],
   ["Who can see what?", "Each person gets a role, like owner, manager, cultivation, sales, or budtender, and only sees and changes what that role allows. Every change is in the audit trail."],
   ["Can I use Claude or another AI app with Leaf2Sale?", "Yes. An owner presses Connect to Claude in Settings, then Approve. Claude can then answer questions about that facility's inventory, sales, orders, and state reporting. The owner chooses whether it can only read or also make changes. Changes are previewed first, recorded in the audit trail under the connection, and can be undone. Other AI apps that support custom connectors can use the same address."],
@@ -221,6 +226,33 @@ const FAQ: [string, string][] = [
 ];
 
 /* ---------- Page ---------- */
+
+const NEW_FEATURES: { icon: LucideIcon; title: string; text: string; points: string[] }[] = [
+  {
+    icon: MousePointerClick,
+    title: "Take over mode",
+    text: "Tell Leaf2Sale what to do and watch it work the screens like a person would, with a cursor you can follow.",
+    points: ["Start a grow, receive a package, record a payment", "Clicks, types, and picks from lists on your real screens", "Hands anything risky back to you, like deleting or money moving", "Stop it any time"],
+  },
+  {
+    icon: Calculator,
+    title: "QuickBooks Online",
+    text: "Invoices and the payments taken against them go into your books, so nobody types them twice.",
+    points: ["One-click connect with your Intuit sign-in", "Itemized lines: every product shipped, with quantity and price", "Each category's sales post to the income account you choose", "Sends daily, or press Send now; never sends the same record twice"],
+  },
+  {
+    icon: ClipboardList,
+    title: "Purchase orders",
+    text: "Order from your vendors, then receive against the PO when it arrives.",
+    points: ["Start a PO, or import one from a spreadsheet", "Receive the whole PO in one click, or line by line", "Vendor and cost carried onto every package", "Always shows what's still due"],
+  },
+  {
+    icon: FlaskConical,
+    title: "Lab results, faster",
+    text: "Record one test for a whole lot, or snap a photo of the COA and let Leaf2Sale fill in the form.",
+    points: ["One result for up to 200 packages at once", "COA photo from your phone fills in lab, potency, and pass or fail", "A fail quarantines the product, and anything made from it", "Tally and your AI app can record results too"],
+  },
+];
 
 const MODULES: { icon: LucideIcon; title: string; text: string }[] = [
   { icon: Sprout, title: "Cultivation", text: "Track plants, batches, and growth from clone to harvest." },
@@ -333,6 +365,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <NavMenu
               label="Resources"
               items={[
+                ["What's new", "#whats-new"],
                 ["Meet Tally", "#meet-tally"],
                 ["Take the tour", "#tour"],
                 ["Why Leaf2Sale", "#benefits"],
@@ -531,6 +564,35 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               ))}
             </ul>
             <p className="mt-4 text-sm text-slate-600">Works with Claude today. Other AI apps that support custom connectors can use the same address.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* What's new */}
+      <section id="whats-new" className="scroll-mt-20 bg-brand-50/60 px-5 py-16" aria-labelledby="whats-new-heading">
+        <div className="mx-auto max-w-7xl">
+          <p className="text-center text-xs font-bold uppercase tracking-wider text-brand-700">What&apos;s new</p>
+          <h2 id="whats-new-heading" className="mt-1 text-center text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
+            Less typing, fewer clicks
+          </h2>
+          <p className="mx-auto mt-2 max-w-2xl text-center text-slate-600">The newest parts of Leaf2Sale: fewer double entries, fewer trips between screens.</p>
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {NEW_FEATURES.map(({ icon: Icon, title, text, points }) => (
+              <div key={title} className="flex flex-col rounded-2xl border border-brand-100 bg-white p-5 shadow-sm">
+                <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-600 text-white">
+                  <Icon className="h-6 w-6" aria-hidden="true" />
+                </span>
+                <h3 className="mt-4 text-lg font-bold text-slate-950">{title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600">{text}</p>
+                <ul className="mt-3 space-y-1.5 text-sm text-slate-800">
+                  {points.map((x) => (
+                    <li key={x} className="flex items-start gap-2">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" strokeWidth={3} aria-hidden="true" /> {x}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
       </section>
