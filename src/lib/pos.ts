@@ -598,6 +598,21 @@ export async function sellableByItem(tx: Tx | typeof db, actor: Pick<Actor, "org
   return new Map(rows.map((r) => [r.itemId, new Decimal(gate ? r.passed : r.total)]));
 }
 
+/** Items with stock that exists but can't be sold yet because the state wants a passing lab result first. Lets the register say why a tile is greyed out. */
+export async function waitingOnLabByItem(tx: Tx | typeof db, actor: Pick<Actor, "orgId" | "facilityId">, pack: StatePack | null): Promise<Set<string>> {
+  if (!requiresLabBeforeRetail(pack)) return new Set();
+  const rows = await tx
+    .select({
+      itemId: packages.itemId,
+      total: sql<string>`coalesce(sum(${packages.quantity}), 0)`,
+      passed: sql<string>`coalesce(sum(${packages.quantity}) filter (where ${passedLab}), 0)`,
+    })
+    .from(packages)
+    .where(and(eq(packages.orgId, actor.orgId), eq(packages.facilityId, actor.facilityId), eq(packages.status, "ACTIVE"), notFailedLab))
+    .groupBy(packages.itemId);
+  return new Set(rows.filter((r) => new Decimal(r.total).gt(r.passed)).map((r) => r.itemId));
+}
+
 /**
  * For daily limits: a keyed one-way fingerprint of a customer's ID number. The same ID gives the same
  * key at this business (and a different one at any other), and the number can't be worked back out.

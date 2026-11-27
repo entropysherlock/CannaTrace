@@ -60,7 +60,7 @@ test("the top bar searches the business, rings the Tally Watch bell, and opens w
 
   // The account menu has sign out
   await page.getByLabel("Your account").click();
-  await expect(page.getByRole("link", { name: "Password and phones" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Account and security" })).toBeVisible();
 });
 
 test("the young-plants tile opens the batch list, and the inventory list scrolls in its own box", async ({ page }) => {

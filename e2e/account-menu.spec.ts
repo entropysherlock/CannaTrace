@@ -7,7 +7,7 @@ test("the account menu closes when you click anywhere else, or press Escape", as
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
 
-  const link = page.getByRole("link", { name: "Password and phones" });
+  const link = page.getByRole("link", { name: "Account and security" });
   await page.getByLabel("Your account").click();
   await expect(link).toBeVisible();
   // A click on the page, away from the menu
