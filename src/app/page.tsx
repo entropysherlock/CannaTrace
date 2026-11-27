@@ -404,23 +404,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
       </section>
 
-      {/* Quick facts */}
-      <section aria-label="At a glance" className="border-y border-slate-100 bg-white">
-        <ul className="mx-auto grid max-w-7xl gap-6 px-5 py-8 text-center sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["13", "parts of the business in one app"],
-            ["23", "states' rules built in"],
-            SHOW_FOUNDING_OFFER ? [String(FOUNDING.freeDays), "days free for founding customers"] : [usd(PRICES[0].price), "a month, every feature included"],
-            ["$0", "extra for more team members"],
-          ].map(([n, label]) => (
-            <li key={label}>
-              <p className="text-3xl font-extrabold text-brand-700">{n}</p>
-              <p className="mt-1 text-sm text-slate-600">{label}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       {/* Platform */}
       <section id="features" className="scroll-mt-20 py-16">
         <div className="mx-auto max-w-7xl px-5">
