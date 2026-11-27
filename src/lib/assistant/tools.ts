@@ -258,8 +258,8 @@ export const TOOLS: Tool[] = [
     run: (s) =>
       rows(sql`
         select inv.number, c.name as customer, inv.total::text, coalesce(sum(p.amount),0)::text as paid,
-          (inv.total - coalesce(sum(p.amount),0))::text as balance, to_char(inv.due_date, 'YYYY-MM-DD') as due,
-          greatest(0, (now() at time zone ${currentZone()})::date - inv.due_date)::int as days_overdue
+          (inv.total - coalesce(sum(p.amount),0))::text as balance, inv.due_date as due,
+          greatest(0, (now() at time zone ${currentZone()})::date - inv.due_date::date)::int as days_overdue
         from invoices inv join customers c on c.id = inv.customer_id left join payments p on p.invoice_id = inv.id
         where inv.org_id = ${s.orgId} and inv.facility_id = ${s.facilityId}
         group by inv.id, c.name having inv.total - coalesce(sum(p.amount),0) > 0
