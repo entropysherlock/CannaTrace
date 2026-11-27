@@ -100,7 +100,7 @@ export async function terminalRewardsFind(saleId: string, phone: string): Promis
   });
 }
 
-export async function terminalRewardsJoin(input: { saleId: string; phone: string; firstName: string; birthday: string; agreed: boolean }): Promise<TerminalResult> {
+export async function terminalRewardsJoin(input: { saleId: string; phone: string; firstName: string; birthday: string; agreed: boolean; email?: string; emailOk?: boolean; smsOk?: boolean; referralCode?: string }): Promise<TerminalResult> {
   return run(async (actor) => {
     const joined = await joinRewards(actor, input);
     return { ok: `${joined.firstName} joined rewards with ${joined.points} welcome points` };

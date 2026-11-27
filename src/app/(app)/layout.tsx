@@ -79,6 +79,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         entry("manufacturing", "Manufacturing", tabs([["/manufacturing", "Manufacturing", can(session, "manufacturing.write") || can(session, "audit.view")]])),
         entry("distribution", "Distribution", tabs([["/distribution", "Distribution", can(session, "sales.view")]])),
         entry("register", "Register", tabs([["/pos", "Register", can(session, "pos.use") && hasRegister]])),
+        entry(
+          "marketing",
+          "Marketing",
+          tabs([
+            ["/marketing", "Overview", can(session, "pos.manage") && hasRegister],
+            ["/marketing/customers", "Customers", can(session, "pos.manage") && hasRegister],
+            ["/marketing/campaigns", "Campaigns", can(session, "pos.manage") && hasRegister],
+            ["/marketing/automations", "Automatic messages", can(session, "pos.manage") && hasRegister],
+            ["/marketing/loyalty", "Loyalty", can(session, "pos.manage") && hasRegister],
+            ["/marketing/brands", "Brand promotions", can(session, "pos.manage") && hasRegister],
+          ]),
+        ),
       ].filter((x): x is NavItem => Boolean(x)),
     },
     {

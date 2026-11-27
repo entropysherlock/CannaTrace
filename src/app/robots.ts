@@ -7,7 +7,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: ["/", "/pricing", "/privacy", "/terms", "/new-mexico-cannabis-seed-to-sale-software"],
-        disallow: ["/api/", "/dashboard", "/inventory", "/pos", "/settings", "/login", "/signup", "/setup", "/reset", "/invite/", "/link/", "/capture", "/demo", "/export", "/menu/"],
+        disallow: ["/api/", "/dashboard", "/inventory", "/pos", "/settings", "/login", "/signup", "/setup", "/reset", "/invite/", "/link/", "/capture", "/demo", "/export", "/menu/", "/card/"],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

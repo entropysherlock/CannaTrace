@@ -9,9 +9,12 @@ import { cartPromos } from "@/lib/promotions";
 import { cartLines, getRetailSettings, saleTotals, sellableByItem, storePack, waitingOnLabByItem } from "@/lib/pos";
 import { LIMIT_LABELS, limitUsage, quickCashAmounts } from "@/lib/pos-math";
 import { getProgram } from "@/lib/rewards";
-import { maskPhone, pointsFor, rewardsAvailable } from "@/lib/rewards-math";
+import { earnSpeedFor } from "@/lib/loyalty-earn";
+import { pointsAtSpeed } from "@/lib/loyalty-math";
+import { maskPhone, rewardsAvailable } from "@/lib/rewards-math";
 import { effectiveLimits } from "@/lib/rules";
 import { requirePagePermission } from "@/lib/session";
+import { facilityToday } from "@/lib/time";
 import { unitLabel } from "@/lib/units";
 import { shellInfo } from "../../shell-info";
 
@@ -63,6 +66,7 @@ export default async function CartPage({ params, searchParams }: { params: Promi
   const totals = saleTotals(lines, sale, settings, program, promos.total);
   const [member] =
     program.enabled && sale.rewardMemberId ? await db.select().from(rewardMembers).where(and(eq(rewardMembers.id, sale.rewardMemberId), eq(rewardMembers.orgId, session.orgId))) : [];
+  const speed = member ? await earnSpeedFor(db, session.orgId, member.id, await facilityToday(session.facilityId)) : null;
   const afterDiscount = totals.subtotal.sub(totals.promo).sub(totals.discount);
   const usage = limitUsage(lines);
   const { limits } = effectiveLimits(
@@ -140,7 +144,9 @@ export default async function CartPage({ params, searchParams }: { params: Promi
           used: member ? sale.rewardsUsed : 0,
           applied: member ? totals.rewardsApplied : 0,
           available: member ? rewardsAvailable(member.points, afterDiscount, program) : 0,
-          earnPreview: member ? pointsFor(totals.taxable, program.pointsPerDollar) : 0,
+          earnPreview: member ? pointsAtSpeed(totals.taxable, program.pointsPerDollar, speed?.percent ?? 100) : 0,
+          tierName: speed?.tier?.name ?? null,
+          boostActive: (speed?.boost ?? 100) > 100,
           idLookup: program.idLookup && Boolean(sale.customerKey),
           idLinked: Boolean(member?.idKey),
         }

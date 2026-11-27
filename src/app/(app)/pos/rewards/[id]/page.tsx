@@ -26,6 +26,7 @@ const KIND: Record<string, string> = {
   EXPIRE: "Expired",
   VOID: "Sale voided",
   RETURN: "Return",
+  REFERRAL: "Referral bonus",
 };
 
 export default async function RewardsMemberPage({ params }: { params: Promise<{ id: string }> }) {

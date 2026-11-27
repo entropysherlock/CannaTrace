@@ -68,7 +68,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
     listCustomerAccounts(),
     listSupportAdmins(),
     recentSupportVisits(15),
-    Promise.all([jobStatus("sync"), jobStatus("watch"), jobStatus("brief"), jobStatus("quickbooks")]),
+    Promise.all([jobStatus("sync"), jobStatus("watch"), jobStatus("brief"), jobStatus("quickbooks"), jobStatus("loyalty")]),
   ]);
   const jobTime = (d: Date) => d.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" });
   const shown = accounts.filter(

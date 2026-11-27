@@ -3,6 +3,8 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { rewardLedger, rewardMembers, rewardSettings, type sales } from "@/db/schema";
 import { db, type Tx } from "./db";
 import { InventoryError, audit, type Actor } from "./inventory";
+import { CONSENT_WORDING, earnSpeedFor, ensureCodes, findByReferralCode, getMarketingSettings, recordConsent } from "./loyalty-earn";
+import { normalizeCode, normalizeEmail, pointsAtSpeed } from "./loyalty-math";
 import {
   DEFAULT_PROGRAM,
   cleanProgram,
@@ -10,7 +12,6 @@ import {
   normalizePhone,
   parseBirthday,
   pointsExpired,
-  pointsFor,
   pointsToTakeBack,
   type RewardProgram,
 } from "./rewards-math";
@@ -110,7 +111,7 @@ export async function createMember(
   tx: Tx,
   actor: Actor,
   program: RewardProgram,
-  input: { phone: unknown; firstName: unknown; birthday?: unknown; agreed: unknown },
+  input: { phone: unknown; firstName: unknown; birthday?: unknown; agreed: unknown; email?: unknown; emailOk?: unknown; smsOk?: unknown; referralCode?: unknown },
   idKey?: string | null,
 ): Promise<Member> {
   const phone = normalizePhone(input.phone);
@@ -122,12 +123,27 @@ export async function createMember(
   if (!(input.agreed === true || input.agreed === "on" || input.agreed === "true"))
     throw new InventoryError("Ask the shopper if they want to join, then tick the box to say they agreed.");
   if (await findMemberByPhone(tx, actor.orgId, phone)) throw new InventoryError("That phone number is already in the rewards program. Look it up instead.");
+  const email = normalizeEmail(input.email);
+  if (email === null) throw new InventoryError("That email doesn't look right. Check it or leave it blank.");
+  const flag = (v: unknown) => v === true || v === "on" || v === "true";
+  if (flag(input.emailOk) && !email) throw new InventoryError("Type the shopper's email, or untick the email box.");
+  const code = normalizeCode(input.referralCode);
+  const referrer = code ? await findByReferralCode(tx, actor.orgId, code) : null;
+  if (code && !referrer) throw new InventoryError("That referral code isn't a member's code. Check it or leave it blank.");
   const [member] = await tx
     .insert(rewardMembers)
-    .values({ orgId: actor.orgId, phone, firstName, birthday: birthday === "none" ? null : birthday, idKey: idKey ?? null, joinedBy: actor.userName })
+    .values({ orgId: actor.orgId, phone, firstName, birthday: birthday === "none" ? null : birthday, idKey: idKey ?? null, joinedBy: actor.userName, email: email || null, referredById: referrer?.id ?? null })
     .returning();
+  await ensureCodes(tx, member);
+  if (flag(input.emailOk)) await recordConsent(tx, actor, { memberId: member.id, channel: "EMAIL", status: "OPTED_IN", method: "REGISTER", wording: CONSENT_WORDING.EMAIL });
+  if (flag(input.smsOk)) await recordConsent(tx, actor, { memberId: member.id, channel: "SMS", status: "OPTED_IN", method: "REGISTER", wording: CONSENT_WORDING.SMS });
   // No name or phone in the audit trail: it outlives the shopper if they later ask to be removed.
-  await audit(tx, actor, { entityType: "RewardsMember", entityId: member.id, action: "JOIN", after: { birthday: Boolean(member.birthday), agreed: true, idLinked: Boolean(idKey) } });
+  await audit(tx, actor, {
+    entityType: "RewardsMember",
+    entityId: member.id,
+    action: "JOIN",
+    after: { birthday: Boolean(member.birthday), agreed: true, idLinked: Boolean(idKey), email: Boolean(email), emailOk: flag(input.emailOk), smsOk: flag(input.smsOk), referred: Boolean(referrer) },
+  });
   return post(tx, actor, member, { kind: "SIGNUP", points: program.signupBonus });
 }
 
@@ -150,8 +166,19 @@ export async function settleSaleRewards(
   if (spend > member.points)
     throw new InventoryError(`${member.firstName} only has ${member.points} points now, not enough for ${input.applied} reward${input.applied === 1 ? "" : "s"}. Use fewer rewards and try again.`);
   if (spend > 0) member = await post(tx, actor, member, { kind: "REDEEM", points: -spend, saleId: sale.id, note: `Sale ${sale.number}: $${input.rewardDollars.toFixed(2)} off` });
-  const earned = pointsFor(input.paidBeforeTax, program.pointsPerDollar);
-  member = await post(tx, actor, member, { kind: "EARN", points: earned, saleId: sale.id, note: `Sale ${sale.number}` });
+  const speed = await earnSpeedFor(tx, actor.orgId, member.id, input.today);
+  const earned = pointsAtSpeed(input.paidBeforeTax, program.pointsPerDollar, speed.percent);
+  const [priorEarn] = await tx.select({ id: rewardLedger.id }).from(rewardLedger).where(and(eq(rewardLedger.memberId, member.id), eq(rewardLedger.kind, "EARN"))).limit(1);
+  const speedNote = speed.percent === 100 ? "" : ` (${speed.percent}% speed${speed.tier ? `, ${speed.tier.name}` : ""}${speed.boost > 100 ? ", bonus days" : ""})`;
+  member = await post(tx, actor, member, { kind: "EARN", points: earned, saleId: sale.id, note: `Sale ${sale.number}${speedNote}` });
+  // A referral pays the referrer once, on the new shopper's first purchase.
+  if (!priorEarn && member.referredById) {
+    const bonus = (await getMarketingSettings(tx, actor.orgId)).referralBonus;
+    if (bonus > 0) {
+      const referrer = await lockMember(tx, actor.orgId, member.referredById).catch(() => null);
+      if (referrer) await post(tx, actor, referrer, { kind: "REFERRAL", points: bonus, saleId: sale.id, note: `${member.firstName} made their first purchase with your referral code` });
+    }
+  }
   let birthday = 0;
   if (program.birthdayBonus > 0 && isBirthdayMonth(member.birthday, input.today)) {
     const year = input.today.slice(0, 4);
