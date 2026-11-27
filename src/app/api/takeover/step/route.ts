@@ -4,7 +4,7 @@ import { automationDecision, recordActivity } from "@/lib/automation";
 import { explainProviderError, markHealthy, markProblem, reserveUsage, resolveTally, settleUsage } from "@/lib/ai/connection";
 import { InventoryError } from "@/lib/inventory-math";
 import { currentSession } from "@/lib/session";
-import { MAX_ELEMENTS, MAX_STEPS, describeElements, parseAction, type PageElement } from "@/lib/takeover-math";
+import { MAX_ELEMENTS, MAX_OPTIONS, MAX_STEPS, describeElements, parseAction, type PageElement } from "@/lib/takeover-math";
 
 export const maxDuration = 60;
 
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     type: e.type ? clip(e.type, 20) : undefined,
     value: e.value ? clip(e.value, 80) : undefined,
     href: e.href ? clip(e.href, 120) : undefined,
-    options: Array.isArray(e.options) ? e.options.slice(0, 25).map((o) => clip(o, 60)) : undefined,
+    options: Array.isArray(e.options) ? e.options.slice(0, MAX_OPTIONS).map((o) => clip(o, 60)) : undefined,
     disabled: Boolean(e.disabled),
   }));
 

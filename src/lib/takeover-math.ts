@@ -6,6 +6,8 @@
 
 export const MAX_STEPS = 40;
 export const MAX_ELEMENTS = 160;
+/** Dropdowns like the room list can be long; the agent has to see all of them. */
+export const MAX_OPTIONS = 80;
 
 export type PageElement = {
   i: number;
@@ -99,7 +101,7 @@ export function describeElements(elements: PageElement[]): string {
     .map((e) => {
       const bits = [`[${e.i}] ${e.tag}${e.type && e.type !== "text" ? `(${e.type})` : ""}`, JSON.stringify(e.label.slice(0, 80))];
       if (e.value) bits.push(`value=${JSON.stringify(e.value.slice(0, 60))}`);
-      if (e.options?.length) bits.push(`options=${JSON.stringify(e.options.slice(0, 20))}`);
+      if (e.options?.length) bits.push(`options=${JSON.stringify(e.options.slice(0, MAX_OPTIONS))}`);
       if (e.href) bits.push(`-> ${e.href.slice(0, 80)}`);
       if (e.disabled) bits.push("(disabled)");
       return bits.join(" ");

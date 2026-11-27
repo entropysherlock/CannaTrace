@@ -51,6 +51,10 @@ describe("helpers", () => {
     expect(parseAction("click")).toBeNull();
     expect(parseAction({ type: "done" })).toEqual({ type: "done", message: "Done." });
   });
+  it("shows the agent long dropdowns in full", () => {
+    const options = Array.from({ length: 40 }, (_, n) => (n === 35 ? "Veg Room A" : `Room ${n}`));
+    expect(describeElements([{ i: 0, tag: "select", label: "Room", options }])).toContain("Veg Room A");
+  });
   it("describes elements compactly", () => {
     expect(describeElements(els.slice(0, 2))).toBe('[0] button "Play"\n[1] button "Remove"');
   });
