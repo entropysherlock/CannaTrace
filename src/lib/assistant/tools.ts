@@ -495,6 +495,64 @@ export const TOOLS: Tool[] = [
   },
   {
     kind: "read",
+    name: "start_of_day_brief",
+    label: "Putting together the morning brief",
+    permission: null,
+    description:
+      "The whole start-of-day picture in ONE call, read-only: headline numbers; holds and quarantine broken down by latest lab result with exact counts (no list limit); packages that failed a lab and can still be sold; active packages with no passing lab; state reporting waiting, failed, and to enter by hand, with the age of the oldest waiting report; who owes money (count, total, overdue); and what Tally Watch says needs attention. Use for 'morning brief', 'start of day', 'what do I need to know today', 'what should I fix first'. Prefer this over calling many tools.",
+    schema: obj({}),
+    run: async (s) => {
+      const scope = (alias: string) => sql`${sql.raw(alias)}.org_id = ${s.orgId} and ${sql.raw(alias)}.facility_id = ${s.facilityId}`;
+      const brief: Record<string, unknown> = {};
+      const overview = TOOLS.find((t) => t.name === "business_overview");
+      if (overview && overview.kind === "read") brief.overview = await overview.run(s, {});
+      if (can(s, "inventory.view")) {
+        brief.holds_by_lab_result = await rows(sql`
+          select status, lab, count(*)::int as packages from (
+            select p.status, coalesce((select lr.status from lab_results lr where lr.package_id = p.id order by lr.created_at desc limit 1)::text, 'NONE') as lab
+            from packages p where ${scope("p")} and p.status in ('ON_HOLD','QUARANTINE')) x
+          group by status, lab order by status, lab`);
+        const [labs] = await rows(sql`
+          select
+            count(*) filter (where lab = 'FAIL')::int as failed_lab_still_sellable,
+            count(*) filter (where not passed)::int as active_without_passing_lab
+          from (select (select lr.status from lab_results lr where lr.package_id = p.id order by lr.created_at desc limit 1)::text as lab,
+                  exists (select 1 from lab_results lr where lr.package_id = p.id and lr.status = 'PASS') as passed
+                from packages p where ${scope("p")} and p.status in ('ACTIVE','ALLOCATED')) x`);
+        brief.sellable_lab_problems = labs;
+        brief.failed_lab_held_packages = await rows(sql`
+          select p.tag, i.name as item, p.quantity::text, p.unit, p.status, l.name as location
+          from packages p join items i on i.id = p.item_id left join locations l on l.id = p.location_id
+          where ${scope("p")} and p.status in ('ON_HOLD','QUARANTINE')
+            and (select lr.status from lab_results lr where lr.package_id = p.id order by lr.created_at desc limit 1) = 'FAIL'
+          order by p.created_at desc limit 10`);
+      }
+      if (can(s, "compliance.view")) {
+        const [state] = await rows(sql`
+          select count(*) filter (where status = 'PENDING')::int as waiting,
+            count(*) filter (where status = 'FAILED')::int as failed,
+            count(*) filter (where status = 'MANUAL')::int as enter_by_hand,
+            count(*) filter (where status = 'SENT')::int as sent,
+            floor(extract(epoch from now() - min(created_at) filter (where status = 'PENDING')) / 3600)::int as oldest_waiting_hours
+          from sync_events se where ${scope("se")}`);
+        brief.state_reporting = state;
+      }
+      if (can(s, "sales.view")) {
+        const [owed] = await rows(sql`
+          select count(*)::int as unpaid_invoices, coalesce(sum(bal),0)::text as total_owed,
+            count(*) filter (where due_date::date < (now() at time zone ${currentZone()})::date)::int as overdue_invoices,
+            coalesce(sum(bal) filter (where due_date::date < (now() at time zone ${currentZone()})::date),0)::text as overdue_owed
+          from (select inv.due_date, inv.total - coalesce((select sum(pay.amount) from payments pay where pay.invoice_id = inv.id), 0) as bal
+                from invoices inv where ${scope("inv")}) x where bal > 0`);
+        brief.money_owed = owed;
+      }
+      await sweepIfStale(s);
+      brief.needs_attention = (await openFindings(s)).slice(0, 10).map((f) => ({ severity: f.severity, problem: f.title, detail: f.detail, page: f.href }));
+      return brief;
+    },
+  },
+  {
+    kind: "read",
     name: "recent_tally_changes",
     label: "Checking what Tally changed",
     permission: null,
