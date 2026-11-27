@@ -1,6 +1,6 @@
 "use client";
 
-import { Hand, Loader2, Square, X } from "lucide-react";
+import { Hand, Loader2, RotateCcw, Square, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_ELEMENTS, MAX_STEPS, checkAction, type Action, type PageElement } from "@/lib/takeover-math";
 
@@ -255,6 +255,14 @@ export function Takeover() {
     save(null);
   }
 
+  function reset() {
+    setGoal("");
+    setFinal(null);
+    setLog([]);
+    setPhase("idle");
+    save(null);
+  }
+
   function start() {
     const g = goal.trim();
     if (!g || busy.current) return;
@@ -286,7 +294,14 @@ export function Takeover() {
           {!running && (
             <>
               <textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={3} placeholder="Tell me what to do, like: make 2 batches of the gummies in the Finished room" className="mt-3 w-full rounded-lg border border-slate-300 p-2 text-sm" />
-              <button type="button" onClick={start} disabled={!goal.trim()} className="mt-2 w-full rounded-lg bg-brand-700 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50">Start</button>
+              <div className="mt-2 flex gap-2">
+                <button type="button" onClick={start} disabled={!goal.trim()} className="flex-1 rounded-lg bg-brand-700 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50">Start</button>
+                {goal || final || phase === "stopped" ? (
+                  <button type="button" onClick={reset} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50" title="Clear this and start a new task">
+                    <RotateCcw className="h-3.5 w-3.5" aria-hidden /> New task
+                  </button>
+                ) : null}
+              </div>
               <p className="mt-2 text-xs text-slate-500">I&apos;ll move the cursor and click and type for you. I stop and hand back anything that deletes, disconnects or moves money. Press Esc to stop me anytime.</p>
             </>
           )}
