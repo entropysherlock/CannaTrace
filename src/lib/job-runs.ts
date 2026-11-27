@@ -9,10 +9,10 @@ import { db } from "@/lib/db";
  * that isn't set up), and a record of every run: when it ran, whether it worked, and what it did.
  */
 
-export type JobName = "sync" | "watch" | "brief";
+export type JobName = "sync" | "watch" | "brief" | "quickbooks";
 
-const PATHS: Record<JobName, string> = { sync: "/api/sync/run", watch: "/api/watch/run", brief: "/api/brief/run" };
-export const JOB_LABEL: Record<JobName, string> = { sync: "State reporting and webhooks", watch: "Tally Watch check", brief: "Morning brief emails" };
+const PATHS: Record<JobName, string> = { sync: "/api/sync/run", watch: "/api/watch/run", brief: "/api/brief/run", quickbooks: "/api/quickbooks/run" };
+export const JOB_LABEL: Record<JobName, string> = { sync: "State reporting and webhooks", watch: "Tally Watch check", brief: "Morning brief emails", quickbooks: "QuickBooks sync" };
 
 /** The cron line for a job, or null when it isn't scheduled at all. */
 export function cronFor(job: JobName): string | null {

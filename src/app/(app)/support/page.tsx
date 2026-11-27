@@ -67,7 +67,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
     listCustomerAccounts(),
     listSupportAdmins(),
     recentSupportVisits(15),
-    Promise.all([jobStatus("sync"), jobStatus("watch"), jobStatus("brief")]),
+    Promise.all([jobStatus("sync"), jobStatus("watch"), jobStatus("brief"), jobStatus("quickbooks")]),
   ]);
   const jobTime = (d: Date) => d.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" });
   const shown = accounts.filter(
@@ -203,6 +203,12 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
                   {j.job === "brief" && j.lastRun?.summary ? (
                     <p className="text-slate-600">
                       Last result: {String(j.lastRun.summary.people ?? 0)} signed up, {String(j.lastRun.summary.sent ?? 0)} sent, {String(j.lastRun.summary.skipped ?? 0)} skipped,{" "}
+                      {String(j.lastRun.summary.failed ?? 0)} failed.{j.lastRun.summary.firstError ? ` ${String(j.lastRun.summary.firstError)}` : ""}
+                    </p>
+                  ) : null}
+                  {j.job === "quickbooks" && j.lastRun?.summary ? (
+                    <p className="text-slate-600">
+                      Last result: {String(j.lastRun.summary.businesses ?? 0)} connected, {String(j.lastRun.summary.invoices ?? 0)} invoices and {String(j.lastRun.summary.payments ?? 0)} payments sent,{" "}
                       {String(j.lastRun.summary.failed ?? 0)} failed.{j.lastRun.summary.firstError ? ` ${String(j.lastRun.summary.firstError)}` : ""}
                     </p>
                   ) : null}
