@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkAction, describeElements, isRiskyLabel, isSafePath, parseAction, type PageElement } from "@/lib/takeover-math";
+import { isStuck, checkAction, describeElements, isRiskyLabel, isSafePath, parseAction, type PageElement } from "@/lib/takeover-math";
 
 const els: PageElement[] = [
   { i: 0, tag: "button", label: "Play" },
@@ -35,6 +35,14 @@ describe("checkAction", () => {
   it("only navigates to safe in-app paths", () => {
     expect("action" in checkAction({ type: "navigate", path: "/manufacturing/recipes" }, els)).toBe(true);
     for (const bad of ["https://evil.com", "//evil.com", "/signout", "/api/x", "/account", "javascript:1"]) expect("stop" in checkAction({ type: "navigate", path: bad }, els)).toBe(true);
+  });
+});
+describe("isStuck", () => {
+  const click = (i: number) => ({ action: { type: "click" as const, i } });
+  it("spots the same action repeated", () => {
+    expect(isStuck([click(1), click(2), click(2), click(2)])).toBe(true);
+    expect(isStuck([click(2), click(2), click(3)])).toBe(false);
+    expect(isStuck([click(2), click(2)])).toBe(false);
   });
 });
 describe("helpers", () => {
