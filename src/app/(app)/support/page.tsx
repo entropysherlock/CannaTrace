@@ -38,7 +38,7 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
     listCustomerAccounts(),
     listSupportAdmins(),
     recentSupportVisits(15),
-    Promise.all([jobStatus("sync"), jobStatus("watch")]),
+    Promise.all([jobStatus("sync"), jobStatus("watch"), jobStatus("brief")]),
   ]);
   const jobTime = (d: Date) => d.toLocaleString("en-US", { timeZone: "America/Denver", dateStyle: "medium", timeStyle: "short" });
   const shown = accounts.filter(
@@ -207,6 +207,12 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
                     {j.lastRun?.error ? ` (${j.lastRun.error})` : ""}.
                     {j.lastOk && j.lastOk.id !== j.lastRun?.id ? ` Last success ${jobTime(j.lastOk.startedAt)}.` : ""}
                   </p>
+                  {j.job === "brief" && j.lastRun?.summary ? (
+                    <p className="text-slate-600">
+                      Last result: {String(j.lastRun.summary.people ?? 0)} signed up, {String(j.lastRun.summary.sent ?? 0)} sent, {String(j.lastRun.summary.skipped ?? 0)} skipped,{" "}
+                      {String(j.lastRun.summary.failed ?? 0)} failed.{j.lastRun.summary.firstError ? ` ${String(j.lastRun.summary.firstError)}` : ""}
+                    </p>
+                  ) : null}
                 </li>
               ))}
             </ul>
