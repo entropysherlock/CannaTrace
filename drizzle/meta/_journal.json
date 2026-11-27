@@ -393,6 +393,13 @@
       "when": 1795767548003,
       "tag": "0055_morning_brief",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795770920678,
+      "tag": "0056_quickbooks",
+      "breakpoints": true
     }
   ]
 }

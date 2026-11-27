@@ -69,6 +69,16 @@ export default async function SettingsPage() {
           </div>
         ) : null}
         <Card
+          title="QuickBooks"
+          action={
+            <Link href="/settings/quickbooks" className="text-sm font-semibold text-brand-700 hover:underline">
+              Open QuickBooks settings
+            </Link>
+          }
+        >
+          <p className="text-sm text-slate-600">Send invoices and the payments taken against them to QuickBooks Online, once a day or on demand.</p>
+        </Card>
+        <Card
           title="Facilities"
           action={
             <Link href="/settings/facilities" className="text-sm font-semibold text-brand-700 hover:underline">

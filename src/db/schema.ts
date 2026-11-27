@@ -1927,3 +1927,43 @@ export const scanReads = pgTable(
   (t) => [uniqueIndex("scan_reads_attachment_key").on(t.attachmentId), index("scan_reads_owner_idx").on(t.orgId, t.userId, t.createdAt)],
 );
 export type ScanRead = typeof scanReads.$inferSelect;
+
+/**
+ * A business's QuickBooks Online connection. Both tokens are stored only encrypted (lib/ai/secret-box).
+ * Intuit rotates the refresh token on every refresh, so the newest one is saved each time.
+ */
+export const quickbooksConnections = pgTable("quickbooks_connections", {
+  orgId: text("org_id")
+    .primaryKey()
+    .references(() => organizations.id),
+  realmId: text("realm_id").notNull(),
+  companyName: text("company_name"),
+  encryptedAccess: text("encrypted_access").notNull(),
+  encryptedRefresh: text("encrypted_refresh").notNull(),
+  accessExpiresAt: timestamp("access_expires_at", { withTimezone: true }).notNull(),
+  refreshExpiresAt: timestamp("refresh_expires_at", { withTimezone: true }).notNull(),
+  /** CONNECTED, or NEEDS_RECONNECT when Intuit no longer accepts the refresh token. */
+  status: text("status").notNull().default("CONNECTED"),
+  statusMessage: text("status_message"),
+  connectedByName: text("connected_by_name").notNull(),
+  connectedAt: timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+  lastSyncSummary: text("last_sync_summary"),
+});
+
+/** Which QuickBooks record each Leaf2Sale record became, so nothing is sent twice. */
+export const quickbooksLinks = pgTable(
+  "quickbooks_links",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    /** customer, invoice, or payment */
+    kind: text("kind").notNull(),
+    localId: text("local_id").notNull(),
+    qbId: text("qb_id").notNull(),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("quickbooks_links_key").on(t.orgId, t.kind, t.localId)],
+);
