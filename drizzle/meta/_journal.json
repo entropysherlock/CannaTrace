@@ -414,6 +414,13 @@
       "when": 1795775033948,
       "tag": "0058_production_costs",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795777574750,
+      "tag": "0059_automation",
+      "breakpoints": true
     }
   ]
 }
