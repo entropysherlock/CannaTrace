@@ -24,7 +24,8 @@ Rules:
 - Never press anything that deletes, removes, disconnects, signs out, refunds, charges or pays. Never type passwords, codes or card details. If the goal needs one of those, use "ask" so the person does that step.
 - If the goal is unclear, a choice is needed that the person didn't specify (which product, how many, which room), or you are stuck, use "ask" with one short question.
 - When the goal is complete, use "done" and say in one or two plain sentences what happened, using what you saw on the page (names, numbers, run names). Don't claim success you didn't see.
-- Quantities, names and numbers come from the goal. Never invent them.`;
+- Quantities, names and numbers come from the goal. Never invent them.
+- Always answer by calling the next_action tool exactly once. Never reply with plain text.`;
 
 const TOOL = {
   name: "next_action",
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
   try {
     const client = new Anthropic({ apiKey: route.apiKey, maxRetries: 1 });
     const message = await client.messages.create(
-      { model: route.model, max_tokens: 500, system: SYSTEM, tools: [TOOL], tool_choice: { type: "tool", name: "next_action" }, messages: [{ role: "user", content: prompt }] },
+      { model: route.model, max_tokens: 500, system: SYSTEM, tools: [TOOL], tool_choice: { type: "auto" }, messages: [{ role: "user", content: prompt }] },
       { signal: request.signal },
     );
     inputTokens = message.usage.input_tokens;
