@@ -6,6 +6,7 @@ import {
   items,
   packageLineage,
   packages,
+  productionCosts,
   productionInputs,
   productionRuns,
   type Package,
@@ -138,7 +139,7 @@ export async function startRun(
   });
 }
 
-async function lockOpenRun(tx: Tx, actor: Actor, runId: string): Promise<ProductionRun> {
+export async function lockOpenRun(tx: Tx, actor: Actor, runId: string): Promise<ProductionRun> {
   const [run] = await tx
     .select()
     .from(productionRuns)
@@ -273,8 +274,10 @@ export async function completeRun(
       throw new InventoryError(`Nothing has been recorded for ${missing.map((m) => m.itemName).join(", ")}. Add it, or use a different recipe.`);
     }
 
+    const itemized = await tx.select({ amount: productionCosts.amount }).from(productionCosts).where(eq(productionCosts.runId, run.id));
+    const extraTotal = itemized.reduce((sum, c) => sum.add(c.amount), extra);
     const cost = inputCost(inputs);
-    const perUnit = unitCost(cost, extra, actual);
+    const perUnit = unitCost(cost, extraTotal, actual);
     const lots = new Set(inputs.map((i) => i.lotNumber ?? ""));
     const lotNumber = lots.size === 1 && !lots.has("") ? [...lots][0] : run.name;
 
@@ -300,7 +303,7 @@ export async function completeRun(
         actualOutput: store(actual),
         outputPackageId: output.id,
         inputCost: cost ? store(cost) : null,
-        extraCost: store(extra),
+        extraCost: store(extraTotal),
         costPerUnit: perUnit ? storeCost(perUnit) : null,
         lossNote: input.lossNote?.trim().slice(0, 500) || null,
         completedAt: new Date(),

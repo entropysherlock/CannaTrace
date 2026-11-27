@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { field, toFormError, type FormState } from "@/lib/form";
 import type { Actor } from "@/lib/inventory";
 import { addRunInput, cancelRun, completeRun, createRecipe, removeRunInput, setRecipeActive, startChain, startRun } from "@/lib/manufacturing";
+import { addRunCost, removeRunCost } from "@/lib/run-costs";
 import { requirePermission } from "@/lib/session";
 
 async function maker(): Promise<Actor> {
@@ -113,6 +114,26 @@ export async function startChainAction(_state: FormState, formData: FormData): P
     const { runIds } = await startChain(await maker(), { recipeId: field(formData, "recipeId"), batches: field(formData, "batches"), baseName: field(formData, "baseName") });
     revalidatePath("/manufacturing", "layout");
     return { ok: `Started ${runIds.length} run${runIds.length === 1 ? "" : "s"}, earliest stage first. Find them under Runs.` };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function addRunCostAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await addRunCost(await maker(), { runId: field(formData, "runId"), kind: field(formData, "kind"), description: field(formData, "description"), amount: field(formData, "amount") });
+    revalidatePath("/manufacturing", "layout");
+    return { ok: "Cost added." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function removeRunCostAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await removeRunCost(await maker(), { costId: field(formData, "costId") });
+    revalidatePath("/manufacturing", "layout");
+    return { ok: "Cost removed." };
   } catch (error) {
     return toFormError(error);
   }
