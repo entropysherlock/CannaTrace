@@ -7,13 +7,14 @@ import { ActionForm } from "@/components/action-form";
 import { ManufacturingTabs } from "@/components/manufacturing-tabs";
 import { RunGuide } from "@/components/run-guide";
 import { Card, PageHeader } from "@/components/ui";
-import { bomLines, boms, items, locations, packages, productionInputs, productionRuns } from "@/db/schema";
+import { bomLines, boms, equipment, items, locations, packages, productionInputs, productionRunEquipment, productionRuns } from "@/db/schema";
 import { db } from "@/lib/db";
 import { inputCost, weightLoss, yieldPercent } from "@/lib/manufacturing-math";
 import { can } from "@/lib/rbac";
 import { requireAnyPagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
 import { removeInputAction } from "../../actions";
+import { runEquipmentAddAction, runEquipmentRemoveAction } from "../../equipment/actions";
 import { facilityZone } from "@/lib/time";
 
 const money = (value: Decimal.Value) => `$${new Decimal(value).toFixed(2)}`;
@@ -32,7 +33,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
   if (!row) notFound();
   const { run } = row;
 
-  const [lines, inputs, rooms, [output]] = await Promise.all([
+  const [lines, inputs, rooms, [output], usedEquipment, allEquipment] = await Promise.all([
     db
       .select({ itemId: bomLines.itemId, quantity: bomLines.quantity, itemName: items.name, unit: items.unit })
       .from(bomLines)
@@ -64,6 +65,17 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
     run.outputPackageId
       ? db.select({ id: packages.id, tag: packages.tag }).from(packages).where(eq(packages.id, run.outputPackageId))
       : Promise.resolve([]),
+    db
+      .select({ id: equipment.id, name: equipment.name, kind: equipment.kind })
+      .from(productionRunEquipment)
+      .innerJoin(equipment, eq(equipment.id, productionRunEquipment.equipmentId))
+      .where(eq(productionRunEquipment.runId, run.id))
+      .orderBy(asc(equipment.name)),
+    db
+      .select({ id: equipment.id, name: equipment.name, kind: equipment.kind })
+      .from(equipment)
+      .where(and(eq(equipment.orgId, session.orgId), eq(equipment.facilityId, session.facilityId), eq(equipment.status, "ACTIVE")))
+      .orderBy(asc(equipment.name)),
   ]);
 
   const open = run.status === "IN_PROGRESS";
@@ -199,6 +211,41 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
                 ))}
               </ul>
             )}
+          </Card>
+          <Card title="Equipment used">
+            {usedEquipment.length === 0 ? (
+              <p className="text-sm text-slate-600">None recorded.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100 text-sm">
+                {usedEquipment.map((eq2) => (
+                  <li key={eq2.id} className="flex items-center justify-between gap-3 py-2">
+                    <span>
+                      <span className="font-semibold">{eq2.name}</span> <span className="text-slate-600">· {eq2.kind}</span>
+                    </span>
+                    {canWrite ? (
+                      <ActionForm action={runEquipmentRemoveAction} submitLabel="Remove" quiet className="flex flex-col items-end gap-1">
+                        <input type="hidden" name="runId" value={run.id} />
+                        <input type="hidden" name="equipmentId" value={eq2.id} />
+                      </ActionForm>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canWrite && allEquipment.filter((a) => !usedEquipment.some((u) => u.id === a.id)).length > 0 ? (
+              <ActionForm action={runEquipmentAddAction} submitLabel="Add equipment" className="mt-3 flex flex-wrap items-end gap-2">
+                <input type="hidden" name="runId" value={run.id} />
+                <select name="equipmentId" aria-label="Equipment to add" className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm">
+                  {allEquipment
+                    .filter((a) => !usedEquipment.some((u) => u.id === a.id))
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.kind})
+                      </option>
+                    ))}
+                </select>
+              </ActionForm>
+            ) : null}
           </Card>
         </div>
 
