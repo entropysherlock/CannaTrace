@@ -153,6 +153,10 @@ export const users = pgTable(
     facilityIds: text("facility_ids").array(),
     /** Where they were last working, so signing in returns them there. */
     lastFacilityId: text("last_facility_id"),
+    /** Wants the morning brief by email each day. */
+    morningBrief: boolean("morning_brief").notNull().default(false),
+    /** The local date (YYYY-MM-DD) the brief was last emailed, so a retried run never sends it twice. */
+    morningBriefSentOn: text("morning_brief_sent_on"),
     /** Two-step sign-in: the authenticator secret, encrypted. Set while setting up; counts only once totpEnabledAt is set. */
     totpSecret: text("totp_secret"),
     /** When two-step sign-in was switched on. Null means it is off (or setup was never finished). */

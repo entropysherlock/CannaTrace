@@ -386,6 +386,13 @@
       "when": 1795722813350,
       "tag": "0054_two_factor_sign_in",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1795767548003,
+      "tag": "0055_morning_brief",
+      "breakpoints": true
     }
   ]
 }

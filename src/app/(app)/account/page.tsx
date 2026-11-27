@@ -1,16 +1,21 @@
+import { eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
 import { LinkPhoneCard } from "@/components/link-phone-card";
 import { TwoFactorCard } from "@/components/two-factor-card";
 import { Card, Field, inputClass, PageHeader } from "@/components/ui";
+import { users } from "@/db/schema";
+import { db } from "@/lib/db";
 import { listDevices } from "@/lib/devices";
+import { emailConfigured } from "@/lib/email";
 import { requireSession } from "@/lib/session";
 import { twoFactorStatus } from "@/lib/two-factor";
 import { facilityZone } from "@/lib/time";
-import { changePasswordAction, revokePhoneAction } from "./actions";
+import { changePasswordAction, revokePhoneAction, setMorningBriefAction } from "./actions";
 
 export default async function AccountPage() {
   const session = await requireSession();
   const [phones, zone, twoFactor] = await Promise.all([listDevices(session), facilityZone(session.facilityId), twoFactorStatus(session)]);
+  const [{ morningBrief }] = await db.select({ morningBrief: users.morningBrief }).from(users).where(eq(users.id, session.userId)).limit(1).then((r) => (r.length ? r : [{ morningBrief: false }]));
   const when = (d: Date | null) => (d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: zone }) : "never");
   return (
     <>
@@ -40,6 +45,25 @@ export default async function AccountPage() {
               ))}
             </ul>
           ) : null}
+        </Card>
+        <Card title="Morning brief">
+          {session.support || session.isDemo ? (
+            <p className="text-sm text-slate-600">The morning brief email isn&apos;t available here.</p>
+          ) : (
+            <>
+              <p className="mb-3 text-sm text-slate-600">
+                Get one email each morning with what needs a look: holds and failed labs, state reports waiting, who owes money, and anything Tally Watch flagged.
+                You can ask Claude or ChatGPT for the same thing any time.
+              </p>
+              {!emailConfigured() ? <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">Email sending isn&apos;t set up for this site yet, so nothing will arrive until it is.</p> : null}
+              <ActionForm action={setMorningBriefAction} submitLabel="Save" key={String(morningBrief)}>
+                <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+                  <input type="checkbox" name="on" defaultChecked={morningBrief} className="h-5 w-5" />
+                  Email me the morning brief
+                </label>
+              </ActionForm>
+            </>
+          )}
         </Card>
         <Card title="Two-step sign-in">
           {session.support ? (

@@ -1,8 +1,11 @@
 "use server";
 
+import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import QRCode from "qrcode";
+import { users } from "@/db/schema";
+import { db } from "@/lib/db";
 import { createPairing, revokeDevice } from "@/lib/devices";
 import { toFormError, type FormState } from "@/lib/form";
 import { createSession, requireSession } from "@/lib/session";
@@ -44,6 +47,20 @@ export async function revokePhoneAction(_state: FormState, formData: FormData): 
     await revokeDevice(await requireSession(), String(formData.get("id") ?? ""));
     revalidatePath("/account");
     return { ok: "Phone unlinked." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+/** Turns the daily morning-brief email on or off for the signed-in person. */
+export async function setMorningBriefAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const session = await requireSession();
+    if (session.support || session.isDemo) return { error: "The morning brief isn't available here." };
+    const on = formData.get("on") === "on";
+    await db.update(users).set({ morningBrief: on }).where(and(eq(users.id, session.userId), eq(users.orgId, session.orgId)));
+    revalidatePath("/account");
+    return { ok: on ? "Morning brief is on. It arrives by email each morning." : "Morning brief is off." };
   } catch (error) {
     return toFormError(error);
   }
