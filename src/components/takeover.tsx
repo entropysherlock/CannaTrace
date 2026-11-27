@@ -162,14 +162,12 @@ export function Takeover() {
         const want = action.value.toLowerCase();
         const opt = Array.from(sel.options).find((o) => o.text.toLowerCase() === want) ?? Array.from(sel.options).find((o) => o.text.toLowerCase().includes(want) || o.value.toLowerCase() === want);
         if (!opt) return `no option like "${action.value}"`;
-        setCursor((c) => (c ? { ...c, ripple: c.ripple + 1 } : c));
         await pause(300, 40);
         setNative(sel, opt.value);
         sel.dispatchEvent(new Event("change", { bubbles: true }));
         return `picked "${opt.text}"`;
       }
       const box = el as HTMLInputElement;
-      setCursor((c) => (c ? { ...c, ripple: c.ripple + 1 } : c));
       box.focus();
       setNative(box, "");
       box.dispatchEvent(new Event("input", { bubbles: true }));
@@ -360,7 +358,8 @@ export function Takeover() {
     <div data-takeover-ignore className="print:hidden">
       {cursor && (
         <div className="pointer-events-none fixed left-0 top-0 z-[100] transition-transform duration-700 ease-out" style={{ transform: `translate(${cursor.x}px, ${cursor.y}px)` }}>
-          <span key={cursor.ripple} className={`absolute -left-4 -top-4 h-8 w-8 rounded-full border-2 border-brand-500 ${cursor.ripple ? "animate-ping" : "opacity-0"}`} />
+          <style>{`@keyframes tk-click{0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.6);opacity:0}}`}</style>
+          <span key={cursor.ripple} className="absolute -left-4 -top-4 h-8 w-8 rounded-full border-2 border-brand-500 opacity-0" style={cursor.ripple ? { animation: "tk-click 450ms ease-out 1 forwards" } : undefined} />
           <svg width="26" height="26" viewBox="0 0 24 24" className="drop-shadow-md" aria-hidden>
             <path d="M3 2l7 19 3-8 8-3z" fill="#16a34a" stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" />
           </svg>
