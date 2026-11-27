@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { packagesWaitingOnLab, storePack } from "@/lib/pos";
 import { requiresLabBeforeRetail } from "@/lib/rules";
+import { isRetailStore } from "@/lib/store-setup";
 import { requirePagePermission } from "@/lib/session";
 import { formatQty } from "@/lib/units";
 
@@ -85,7 +86,7 @@ export default async function InventoryPage({
     : [];
   // In a state that needs a lab result before retail, offer to hold every package that doesn't have one yet (a fresh import has many).
   const waitingOnLab =
-    canWrite && requiresLabBeforeRetail(await storePack(db, session.facilityId))
+    canWrite && (await isRetailStore(session.orgId, session.facilityId)) && requiresLabBeforeRetail(await storePack(db, session.facilityId))
       ? (await packagesWaitingOnLab(db, session)).length
       : 0;
   const first = total ? (page - 1) * PAGE_SIZE + 1 : 0;

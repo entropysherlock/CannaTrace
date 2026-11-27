@@ -7,6 +7,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { packages } from "@/db/schema";
 import { db } from "@/lib/db";
 import { packagesWaitingOnLab } from "@/lib/pos";
+import { isRetailStore } from "@/lib/store-setup";
 import {
   COA_MAX_BYTES,
   InventoryError,
@@ -347,6 +348,7 @@ export async function holdWaitingOnLabAction(_state: FormState, _formData: FormD
   try {
     const session = await requirePermission("inventory.write");
     const actor = actorOf(session);
+    if (!(await isRetailStore(actor.orgId, actor.facilityId))) return { error: "This is only for stores that sell at a register. Packages at a grow or lab wait on results as a normal part of the process." };
     const ids = await packagesWaitingOnLab(db, actor);
     if (!ids.length) return { ok: "Nothing to hold. Every active package already has a passing lab result." };
     let changed = 0;
