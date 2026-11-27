@@ -98,7 +98,7 @@ export default async function RecipesPage({ searchParams }: { searchParams: Prom
       ) : null}
       {canWrite && activeRecipes.length > 0 ? (
         <div className="mb-6" data-testid="play-card">
-          <Card title="Play a recipe" action={<span className="text-sm text-slate-600">{playDecision.action === "BLOCKED" ? "Off" : "On"}</span>}>
+          <Card title="Make a batch" action={<span className="text-sm text-slate-600">{playDecision.action === "BLOCKED" ? "Off" : "On"}</span>}>
             {playDecision.action === "BLOCKED" ? (
               <p className="text-sm text-slate-700">
                 {playDecision.reason}{" "}
@@ -109,9 +109,9 @@ export default async function RecipesPage({ searchParams }: { searchParams: Prom
             ) : (
               <div className="space-y-3 text-sm">
                 <p className="text-slate-600">
-                  Pick a recipe and how many batches, then press Play. It uses the oldest packages first, starts the run, adds every input, and in a practice facility finishes it with the planned amount. At a real licensed facility it stops before finishing so you can enter the real weight. If anything goes wrong it undoes itself.
+                  Pick a recipe and how many batches, then press Make it. It uses the oldest packages first, starts the run, adds every input, and in a practice facility finishes it with the planned amount. At a real licensed facility it stops before finishing so you can enter the real weight. If anything goes wrong it undoes itself.
                 </p>
-                <ActionForm action={playAction} submitLabel="Play" className="flex flex-wrap items-end gap-3">
+                <ActionForm action={playAction} submitLabel="Make it" className="flex flex-wrap items-end gap-3">
                   <Field label="Recipe">
                     <select name="recipeId" className={inputClass}>
                       {activeRecipes.map((r) => (

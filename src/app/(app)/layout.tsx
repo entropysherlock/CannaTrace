@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AssistantPanel } from "@/components/assistant-panel";
-import { Takeover } from "@/components/takeover";
+import { Takeover, TakeoverButton } from "@/components/takeover";
 import { GlobalDrop } from "@/components/global-drop";
 import { PhoneHandoff } from "@/components/phone-handoff";
 import { WalkthroughProvider } from "@/components/walkthrough";
@@ -160,6 +160,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="order-last flex w-full min-w-0 md:order-none md:mr-auto md:w-auto">
             <FacilitySwitcher facilities={facilities} current={session.facilityId} action={switchFacility} />
           </div>
+          {tally.ready ? <TakeoverButton /> : null}
           <TopBarRight name={session.name} roleName={roleName} alerts={alerts} signOutAction={signOut} />
         </header>
         {automationPaused && can(session, "settings.manage") ? (
