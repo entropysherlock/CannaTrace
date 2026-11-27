@@ -67,3 +67,13 @@ describe("helpers", () => {
     expect(describeElements(els.slice(0, 2))).toBe('[0] button "Play"\n[1] button "Remove"');
   });
 });
+
+describe("isStuck page hopping", () => {
+  const nav = (path: string) => ({ action: { type: "navigate", path } as never });
+  it("flags navigating back and forth between two pages", () => {
+    expect(isStuck([nav("/inventory"), nav("/manufacturing/recipes"), nav("/inventory"), nav("/manufacturing/recipes")])).toBe(true);
+  });
+  it("lets real navigation through", () => {
+    expect(isStuck([nav("/a"), nav("/b"), nav("/c"), nav("/d")])).toBe(false);
+  });
+});
