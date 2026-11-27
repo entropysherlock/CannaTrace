@@ -33,3 +33,12 @@ describe("pickOptions", () => {
     expect(shown[0]).toBe("Empty 3.5 g Jar with Lid (ea)");
   });
 });
+
+describe("two-part jobs", () => {
+  it("receive-then-make shows both routes without the plain lookup", () => {
+    const text = playbooksFor("First receive 500 Empty 3.5 g Jar with Lid into inventory. Then make 500 Blue Mesa 3.5 g jars (5 batches)");
+    expect(text).toContain("/inventory/receive");
+    expect(text).toContain("/manufacturing/recipes");
+    expect(text).not.toContain("Find a package");
+  });
+});

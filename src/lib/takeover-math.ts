@@ -109,9 +109,19 @@ export function describeElements(elements: PageElement[]): string {
     .join("\n");
 }
 
-/** The same action over and over means the agent is stuck, not working. */
+/**
+ * The same action over and over, or only hopping between pages (navigate A, B, A, B), means the agent is stuck,
+ * not working. Real work clicks and types in between.
+ */
 export function isStuck(history: { action: Action }[], times = 3): boolean {
-  if (history.length < times) return false;
-  const last = JSON.stringify(history[history.length - 1].action);
-  return history.slice(-times).every((h) => JSON.stringify(h.action) === last);
+  if (history.length >= times) {
+    const last = JSON.stringify(history[history.length - 1].action);
+    if (history.slice(-times).every((h) => JSON.stringify(h.action) === last)) return true;
+  }
+  const tail = history.slice(-4);
+  if (tail.length === 4 && tail.every((h) => h.action.type === "navigate")) {
+    const paths = new Set(tail.map((h) => (h.action as { path: string }).path));
+    if (paths.size <= 2) return true;
+  }
+  return false;
 }

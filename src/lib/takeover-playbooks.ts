@@ -9,6 +9,8 @@ export type Playbook = {
   title: string;
   /** Matches the person's goal (lower-cased). */
   when: RegExp;
+  /** Skip this playbook when the goal also matches this (a bigger job that already covers it). */
+  unless?: RegExp;
   steps: string[];
 };
 
@@ -63,6 +65,7 @@ export const PLAYBOOKS: Playbook[] = [
     id: "inventory-lookup",
     title: "Find a package",
     when: /\b(find|look ?up|where is|quantity|how much|pkg-\d+|package|stock|inventory)\b/,
+    unless: /\b(receive|received|put away|make|produce|manufactur|batch(es)?)\b/,
     steps: [
       "Go to /inventory and use the Search box with the tag (like PKG-000165) or item name. Each row shows tag, item, quantity and location, which is usually enough; open the row only if you need history.",
     ],
@@ -102,7 +105,7 @@ export const PLAYBOOKS: Playbook[] = [
 /** The playbooks that apply to this goal, as text for the agent. Empty when none match. */
 export function playbooksFor(goal: string, max = 3): string {
   const text = goal.toLowerCase();
-  const hits = PLAYBOOKS.filter((p) => p.when.test(text)).slice(0, max);
+  const hits = PLAYBOOKS.filter((p) => p.when.test(text) && !(p.unless && p.unless.test(text))).slice(0, max);
   if (!hits.length) return "";
   return hits.map((p) => `• ${p.title}\n${p.steps.map((s, i) => `   ${i + 1}. ${s}`).join("\n")}`).join("\n");
 }
