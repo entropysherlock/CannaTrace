@@ -1968,6 +1968,25 @@ export const quickbooksLinks = pgTable(
   (t) => [uniqueIndex("quickbooks_links_key").on(t.orgId, t.kind, t.localId)],
 );
 
+/**
+ * Which QuickBooks income account each item category's sales post to. categoryKey is an item
+ * category id, or "*" for the default used by any category without its own row.
+ */
+export const quickbooksAccountMap = pgTable(
+  "quickbooks_account_map",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    categoryKey: text("category_key").notNull(),
+    accountId: text("account_id").notNull(),
+    accountName: text("account_name").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("quickbooks_account_map_key").on(t.orgId, t.categoryKey)],
+);
+
 /** Production equipment at a facility: extractors, presses, dryers, scales. */
 export const equipment = pgTable(
   "equipment",

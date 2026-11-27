@@ -1,18 +1,22 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { customers, invoices, orders, payments, quickbooksConnections, quickbooksLinks } from "@/db/schema";
+import Decimal from "decimal.js";
+import { customers, invoices, itemCategories, items, orderAllocations, orderLines, orders, payments, quickbooksAccountMap, quickbooksConnections, quickbooksLinks } from "@/db/schema";
 import { logAdminAction } from "./audit-log";
 import { db } from "./db";
 import { facilityZone } from "./time";
 import { InventoryError } from "./inventory-math";
-import { customerBody, displayName, invoiceBody, paymentBody, qbQuote } from "./quickbooks-map";
+import { lineTotal } from "./distribution-math";
+import { accountFor, customerBody, displayName, invoiceBody, itemBody, linesMatchTotal, paymentBody, qbQuote, type QbLineInput } from "./quickbooks-map";
 import { openSecret, sealSecret } from "./ai/secret-box";
 import type { Session } from "./session";
 
 /**
  * QuickBooks Online: one-click connect with Intuit's OAuth, then Leaf2Sale invoices and the payments
- * taken against them are copied into the books. It is one way (Leaf2Sale to QuickBooks) and idempotent:
+ * taken against them are copied into the books. Each shipped order line becomes its own invoice line
+ * against a QuickBooks product for that item, and each item category's sales post to the income account
+ * chosen for it on the settings page. It is one way (Leaf2Sale to QuickBooks) and idempotent:
  * every record that went over is remembered in quickbooks_links, so running it again sends only what is new.
  */
 
@@ -79,7 +83,10 @@ export async function completeConnect(session: Session, input: { code: string; r
   // A different company than before means the old links point at the wrong books.
   const [before] = await db.select({ realmId: quickbooksConnections.realmId }).from(quickbooksConnections).where(eq(quickbooksConnections.orgId, session.orgId));
   await db.transaction(async (tx) => {
-    if (before && before.realmId !== input.realmId) await tx.delete(quickbooksLinks).where(eq(quickbooksLinks.orgId, session.orgId));
+    if (before && before.realmId !== input.realmId) {
+      await tx.delete(quickbooksLinks).where(eq(quickbooksLinks.orgId, session.orgId));
+      await tx.delete(quickbooksAccountMap).where(eq(quickbooksAccountMap.orgId, session.orgId));
+    }
     await tx.insert(quickbooksConnections).values({ orgId: session.orgId, ...row }).onConflictDoUpdate({ target: quickbooksConnections.orgId, set: row });
     await logAdminAction(tx, { userId: session.userId, userName: session.name, orgId: session.orgId, facilityId: session.facilityId }, { entityType: "Quickbooks", entityId: input.realmId, action: "CREATE", after: { connected: true } });
   });
@@ -90,6 +97,7 @@ export async function completeConnect(session: Session, input: { code: string; r
 export async function disconnectQuickbooks(session: Session): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.delete(quickbooksLinks).where(eq(quickbooksLinks.orgId, session.orgId));
+    await tx.delete(quickbooksAccountMap).where(eq(quickbooksAccountMap.orgId, session.orgId));
     const gone = await tx.delete(quickbooksConnections).where(eq(quickbooksConnections.orgId, session.orgId)).returning({ realmId: quickbooksConnections.realmId });
     if (gone[0]) await logAdminAction(tx, { userId: session.userId, userName: session.name, orgId: session.orgId, facilityId: session.facilityId }, { entityType: "Quickbooks", entityId: gone[0].realmId, action: "DELETE", before: { connected: true } });
   });
@@ -171,7 +179,7 @@ const saveLink = (orgId: string, kind: string, localId: string, qbId: string) =>
 
 const ITEM_NAME = "Leaf2Sale wholesale sales";
 
-/** The one service item every invoice line uses, made on first use against the company's first income account. */
+/** The fallback service item, for an invoice whose shipped lines can't be itemized; made on first use against the company's first income account. */
 async function salesItem(orgId: string): Promise<string> {
   const found = await query<{ Id: string }>(orgId, `select Id from Item where Name = ${qbQuote(ITEM_NAME)}`, "Item");
   if (found[0]) return found[0].Id;
@@ -179,6 +187,142 @@ async function salesItem(orgId: string): Promise<string> {
   if (!accounts[0]) throw new QbError("This QuickBooks company has no income account to post sales to.");
   const made = (await qb(orgId, "POST", "/item", { Name: ITEM_NAME, Type: "Service", IncomeAccountRef: { value: accounts[0].Id } })) as { Item: { Id: string } };
   return made.Item.Id;
+}
+
+// ---------- Chart of accounts ----------
+
+export type QbAccount = { id: string; name: string };
+
+/** The company's active income accounts, for choosing where each category's sales post. */
+export async function listIncomeAccounts(orgId: string): Promise<QbAccount[]> {
+  const rows = await query<{ Id: string; FullyQualifiedName?: string; Name: string }>(
+    orgId,
+    "select Id, Name, FullyQualifiedName from Account where Classification = 'Revenue' and Active = true maxresults 1000",
+    "Account",
+  );
+  return rows.map((a) => ({ id: a.Id, name: a.FullyQualifiedName ?? a.Name })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** The saved choices: category id (or "*" for the default) to account. */
+export async function getAccountMap(orgId: string): Promise<{ categoryKey: string; accountId: string; accountName: string }[]> {
+  return db
+    .select({ categoryKey: quickbooksAccountMap.categoryKey, accountId: quickbooksAccountMap.accountId, accountName: quickbooksAccountMap.accountName })
+    .from(quickbooksAccountMap)
+    .where(eq(quickbooksAccountMap.orgId, orgId));
+}
+
+/**
+ * Save where each category's sales post. A blank choice removes the category's own row, so it falls back
+ * to the default. Every account is checked against the live chart of accounts first.
+ */
+export async function saveAccountMap(session: Session, choices: Record<string, string>): Promise<number> {
+  const accounts = new Map((await listIncomeAccounts(session.orgId)).map((a) => [a.id, a.name]));
+  const cats = new Set((await db.select({ id: itemCategories.id }).from(itemCategories).where(eq(itemCategories.orgId, session.orgId))).map((c) => c.id));
+  const entries = Object.entries(choices).filter(([key]) => key === "*" || cats.has(key));
+  for (const [, accountId] of entries) {
+    if (accountId && !accounts.has(accountId)) throw new InventoryError("One of the chosen accounts is no longer in QuickBooks. Reload the page and choose again.");
+  }
+  let saved = 0;
+  await db.transaction(async (tx) => {
+    for (const [categoryKey, accountId] of entries) {
+      if (!accountId) {
+        await tx.delete(quickbooksAccountMap).where(and(eq(quickbooksAccountMap.orgId, session.orgId), eq(quickbooksAccountMap.categoryKey, categoryKey)));
+        continue;
+      }
+      const row = { accountId, accountName: accounts.get(accountId)!, updatedAt: new Date() };
+      await tx
+        .insert(quickbooksAccountMap)
+        .values({ orgId: session.orgId, categoryKey, ...row })
+        .onConflictDoUpdate({ target: [quickbooksAccountMap.orgId, quickbooksAccountMap.categoryKey], set: row });
+      saved++;
+    }
+    await logAdminAction(
+      tx,
+      { userId: session.userId, userName: session.name, orgId: session.orgId, facilityId: session.facilityId },
+      { entityType: "Quickbooks", entityId: "account-map", action: "UPDATE", after: Object.fromEntries(entries.map(([k, v]) => [k, v ? accounts.get(v) : null])) },
+    );
+  });
+  return saved;
+}
+
+/** Everything one sync run looks up once: the account choices, the fallback income account, and items already resolved. */
+type RunCache = { map: Map<string, string>; firstIncome: string | null; items: Map<string, string> };
+
+async function runCache(orgId: string): Promise<RunCache> {
+  const map = new Map((await getAccountMap(orgId)).map((r) => [r.categoryKey, r.accountId]));
+  return { map, firstIncome: null, items: new Map() };
+}
+
+async function firstIncomeAccount(orgId: string, cache: RunCache): Promise<string> {
+  if (cache.firstIncome) return cache.firstIncome;
+  const accounts = await query<{ Id: string }>(orgId, "select Id from Account where AccountType = 'Income' and Active = true maxresults 1", "Account");
+  if (!accounts[0]) throw new QbError("This QuickBooks company has no income account to post sales to.");
+  cache.firstIncome = accounts[0].Id;
+  return cache.firstIncome;
+}
+
+/**
+ * The QuickBooks product for a Leaf2Sale item, posting to its category's account. A product already in
+ * QuickBooks with the same name is used as it is (its account is the bookkeeper's call). A product
+ * Leaf2Sale made is kept pointed at the chosen account, so changing a category's account applies to
+ * every invoice sent after that.
+ */
+async function itemQbId(orgId: string, it: { id: string; name: string; sku: string; categoryId: string | null }, cache: RunCache): Promise<string> {
+  const cached = cache.items.get(it.id);
+  if (cached) return cached;
+  const want = accountFor(it.categoryId, cache.map) ?? (await firstIncomeAccount(orgId, cache));
+  let qbId = await linkOf(orgId, "item", it.id);
+  if (qbId) {
+    const setTo = await linkOf(orgId, "item-account", it.id);
+    if (setTo && setTo !== want) {
+      const current = (await qb(orgId, "GET", `/item/${qbId}`)) as { Item: { SyncToken: string } };
+      await qb(orgId, "POST", "/item", { Id: qbId, SyncToken: current.Item.SyncToken, sparse: true, IncomeAccountRef: { value: want } });
+      await saveLink(orgId, "item-account", it.id, want);
+    }
+  } else {
+    const existing = await query<{ Id: string }>(orgId, `select Id from Item where Name = ${qbQuote(displayName(it.name))}`, "Item");
+    if (existing[0]) {
+      qbId = existing[0].Id;
+    } else {
+      const made = (await qb(orgId, "POST", "/item", itemBody(it, want))) as { Item: { Id: string } };
+      qbId = made.Item.Id;
+      await saveLink(orgId, "item-account", it.id, want);
+    }
+    await saveLink(orgId, "item", it.id, qbId);
+  }
+  cache.items.set(it.id, qbId);
+  return qbId;
+}
+
+/** What actually shipped on the invoice's order, one entry per order line, priced the way the invoice was. */
+async function invoiceLines(orgId: string, orderId: string, cache: RunCache): Promise<QbLineInput[]> {
+  const rows = await db
+    .select({
+      itemId: items.id,
+      name: items.name,
+      sku: items.sku,
+      categoryId: items.categoryId,
+      unitPrice: orderLines.unitPrice,
+      shipped: sql<string>`sum(${orderAllocations.quantity})`,
+    })
+    .from(orderLines)
+    .innerJoin(orderAllocations, eq(orderAllocations.orderLineId, orderLines.id))
+    .innerJoin(items, eq(items.id, orderLines.itemId))
+    .where(eq(orderLines.orderId, orderId))
+    .groupBy(items.id, items.name, items.sku, items.categoryId, orderLines.id, orderLines.unitPrice)
+    .orderBy(items.name);
+  const lines: QbLineInput[] = [];
+  for (const r of rows) {
+    if (new Decimal(r.shipped).isZero()) continue;
+    lines.push({
+      itemQbId: await itemQbId(orgId, { id: r.itemId, name: r.name, sku: r.sku, categoryId: r.categoryId }, cache),
+      name: r.name,
+      quantity: new Decimal(r.shipped).toString(),
+      unitPrice: new Decimal(r.unitPrice).toString(),
+      amount: lineTotal(r.shipped, r.unitPrice).toFixed(2),
+    });
+  }
+  return lines;
 }
 
 async function customerQbId(orgId: string, c: typeof customers.$inferSelect): Promise<string> {
@@ -204,7 +348,8 @@ export async function syncQuickbooks(orgId: string, limit = 60): Promise<SyncRes
     result.failed++;
     result.firstError ??= `${what}: ${e instanceof Error ? e.message : "unknown error"}`;
   };
-  const item = await salesItem(orgId);
+  const cache = await runCache(orgId);
+  let fallback: string | null = null;
 
   const sent = await db.select({ localId: quickbooksLinks.localId }).from(quickbooksLinks).where(and(eq(quickbooksLinks.orgId, orgId), eq(quickbooksLinks.kind, "invoice")));
   const sentIds = new Set(sent.map((s) => s.localId));
@@ -222,7 +367,10 @@ export async function syncQuickbooks(orgId: string, limit = 60): Promise<SyncRes
     try {
       const cust = await customerQbId(orgId, r.customer);
       const issuedOn = r.inv.createdAt.toLocaleDateString("en-CA", { timeZone: await facilityZone(r.inv.facilityId) });
-      const made = (await qb(orgId, "POST", "/invoice", invoiceBody({ number: r.inv.number, total: r.inv.total, dueDate: r.inv.dueDate, issuedOn, orderNumber: r.orderNumber }, cust, item))) as { Invoice: { Id: string } };
+      const lines = await invoiceLines(orgId, r.inv.orderId, cache);
+      const itemized = lines.length > 0 && linesMatchTotal(lines, r.inv.total);
+      if (!itemized) fallback ??= await salesItem(orgId);
+      const made = (await qb(orgId, "POST", "/invoice", invoiceBody({ number: r.inv.number, total: r.inv.total, dueDate: r.inv.dueDate, issuedOn, orderNumber: r.orderNumber }, cust, fallback ?? "", itemized ? lines : []))) as { Invoice: { Id: string } };
       await saveLink(orgId, "invoice", r.inv.id, made.Invoice.Id);
       result.invoices++;
     } catch (e) {
