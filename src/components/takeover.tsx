@@ -201,7 +201,8 @@ export function Takeover() {
             return;
           }
           if (isStuck([...state.history, { action: checked.action, result: "" }])) {
-            const msg = "I keep trying the same thing and it isn't working. Tell me what to do differently, or do this step yourself and press Start again.";
+            const last = state.history[state.history.length - 1]?.result;
+            const msg = `I keep trying the same thing and it isn't working${last ? ` (last step: ${last})` : ""}. Check the page for a red message, then tell me what to do differently or do this step yourself.`;
             setFinal({ tone: "ask", text: msg });
             await finish(state.goal, "BLOCKED", msg);
             return;
