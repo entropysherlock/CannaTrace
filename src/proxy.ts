@@ -41,8 +41,17 @@ export async function proxy(request: NextRequest) {
   }
   // A store's public menu and pickup reservations are for anyone, signed in or not.
   if (pathname.startsWith("/menu/")) return NextResponse.next();
-  // The REST API authenticates with API keys, not a sign-in cookie.
-  if (pathname.startsWith("/api/v1/")) return NextResponse.next();
+  // The REST API and the AI connector authenticate with API keys (or the OAuth sign-in that makes one), not a sign-in cookie.
+  if (pathname.startsWith("/api/v1/") || pathname === "/api/mcp") return NextResponse.next();
+  // AI apps find the sign-in details here and register and swap codes for keys without a cookie.
+  if (pathname.startsWith("/.well-known/oauth-") || pathname.startsWith("/api/oauth/")) return NextResponse.next();
+  // Connecting an AI app needs a signed-in person. Remember where they were headed so sign-in can bring them back.
+  if (pathname === "/oauth/authorize" && !(await isSignedIn(request))) {
+    const response = NextResponse.redirect(new URL("/login", request.url));
+    response.cookies.set("ct_after_login", `${pathname}${request.nextUrl.search}`.slice(0, 1500), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 900 });
+    return response;
+  }
+  if (pathname === "/oauth/authorize" || pathname.startsWith("/oauth/authorize/")) return NextResponse.next();
   // Clearing a stale sign-in must work whether or not the cookie looks valid.
   if (pathname === "/signout") return NextResponse.next();
   // Invite links must open even for someone already signed in on this browser (an owner testing one, say).
@@ -57,6 +66,13 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/pricing") return NextResponse.next();
   // The legal pages are public too, and must open for someone signed in (a link from inside the register, say).
   if (pathname === "/terms" || pathname === "/privacy" || pathname === "/data-agreement") return NextResponse.next();
+  // Right after signing in, finish the connection that sent them to sign in.
+  const after = request.cookies.get("ct_after_login")?.value;
+  if (pathname === "/dashboard" && after?.startsWith("/oauth/authorize?") && (await isSignedIn(request))) {
+    const response = NextResponse.redirect(new URL(after, request.url));
+    response.cookies.delete("ct_after_login");
+    return response;
+  }
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const signedIn = await isSignedIn(request);
   if (!signedIn && !isPublic) return NextResponse.redirect(new URL("/login", request.url));

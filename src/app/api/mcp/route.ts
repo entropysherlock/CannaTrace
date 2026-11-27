@@ -1,6 +1,7 @@
 import { API_REQUESTS_PER_MINUTE, takeApiRequest } from "@/lib/api";
 import { authenticateApiKey } from "@/lib/integrations";
 import { handleMcp } from "@/lib/mcp";
+import { SITE_URL } from "@/lib/site";
 
 /** MCP over HTTP (stateless). Sign in with an API key: Authorization: Bearer ct_... */
 const headers = { "Cache-Control": "no-store" };
@@ -9,7 +10,7 @@ const rpcError = (status: number, code: number, message: string, extra: Record<s
 
 export async function POST(request: Request) {
   const key = await authenticateApiKey(request.headers.get("authorization"));
-  if (!key) return rpcError(401, -32001, "Send a valid API key as: Authorization: Bearer ct_...", { "WWW-Authenticate": "Bearer" });
+  if (!key) return rpcError(401, -32001, "Sign in with OAuth, or send an API key as: Authorization: Bearer ct_...", { "WWW-Authenticate": `Bearer resource_metadata="${SITE_URL}/.well-known/oauth-protected-resource/api/mcp"` });
   if (!(await takeApiRequest(key.id)))
     return rpcError(429, -32002, `Each API key may make ${API_REQUESTS_PER_MINUTE} requests a minute; wait a moment and try again.`, { "Retry-After": "30" });
 
