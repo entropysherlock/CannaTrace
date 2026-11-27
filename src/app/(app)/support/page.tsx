@@ -30,6 +30,35 @@ const facilityMatches = (f: Facility, q: string) =>
   Boolean(q) &&
   (f.name.toLowerCase().includes(q) || f.licenseNumber.toLowerCase().includes(q) || f.state.toLowerCase() === q || stateName(f.state).toLowerCase().includes(q));
 
+const DAY = 86_400_000;
+/** The page is rendered fresh on every visit, so reading the clock here is intended. */
+const currentTime = () => Date.now();
+type Standing = "active" | "quiet" | "dormant" | "unused";
+const STANDING: Record<Standing, { label: string; tone: string }> = {
+  active: { label: "Active", tone: "bg-emerald-100 text-emerald-800" },
+  quiet: { label: "Quiet", tone: "bg-amber-100 text-amber-900" },
+  dormant: { label: "Dormant", tone: "bg-slate-200 text-slate-700" },
+  unused: { label: "Not used yet", tone: "bg-sky-100 text-sky-800" },
+};
+/** Active: used in the last 7 days. Quiet: 8 to 30 days. Dormant: longer. Not used yet: nobody has done anything. */
+const standingOf = (a: CustomerAccount, now: number): Standing => {
+  if (!a.lastActivity) return "unused";
+  const age = now - a.lastActivity.getTime();
+  return age <= 7 * DAY ? "active" : age <= 30 * DAY ? "quiet" : "dormant";
+};
+const ago = (d: Date | null, now: number): string => {
+  if (!d) return "never";
+  const mins = Math.max(0, Math.round((now - d.getTime()) / 60_000));
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  return days < 60 ? `${days} days ago` : `${Math.round(days / 30)} months ago`;
+};
+/** A facility that is sample, practice, or test data inside a real business. */
+const isPracticeFacility = (f: Facility) => /^(demo|sample|practice|test)/i.test(f.licenseNumber) || /\b(demo|sample|practice|test)\b/i.test(f.name);
+
 export default async function SupportConsolePage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const session = await requireSession();
   if (session.support || !(await isPlatformAdmin(session.userId))) redirect("/dashboard");
@@ -49,6 +78,11 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
       a.facilities.some((f) => facilityMatches(f, q)),
   );
   const real = accounts.filter((a) => !a.isDemo);
+  const now = currentTime();
+  const customers = shown.filter((a) => !a.isDemo);
+  const demos = shown.filter((a) => a.isDemo);
+  const counts = { active: 0, quiet: 0, dormant: 0, unused: 0 } satisfies Record<Standing, number>;
+  for (const a of real) counts[standingOf(a, now)]++;
 
   return (
     <>
@@ -106,85 +140,44 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
             </ActionForm>
           </Disclosure>
           {shown.length === 0 ? <p className="rounded-lg bg-white p-6 text-sm text-slate-600">No businesses match.</p> : null}
-          <ul className="space-y-3">
-            {shown.map((a) => (
-              <li key={a.id} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="text-lg font-bold text-slate-950">
-                      {a.name}
-                      {a.isDemo ? <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">live demo</span> : null}
-                    </h2>
-                    <p className="text-sm text-slate-600">
-                      {a.owners.length ? `Owner ${a.owners.join(", ")}` : "No active owner"} · {a.users} user{a.users === 1 ? "" : "s"} · {a.packages} package
-                      {a.packages === 1 ? "" : "s"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Joined {when(a.createdAt)} · last activity {when(a.lastActivity)}
-                    </p>
-                  </div>
-                  {a.isDemo ? null : (
-                    <div className="space-y-2 text-sm sm:max-w-xs sm:text-right" data-testid={`access-${a.id}`}>
-                      <p>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${ACCESS[a.access].tone}`}>{ACCESS[a.access].label}</span>
-                        <span className="mt-1 block text-xs text-slate-500">{ACCESS[a.access].note}</span>
-                      </p>
-                      {a.access === "suspended" || a.access === "none" ? (
-                        <ActionForm action={businessAccessAction} submitLabel={a.access === "suspended" ? "Restore access" : "Give access"} quiet>
-                          <input type="hidden" name="orgId" value={a.id} />
-                          <input type="hidden" name="access" value="approve" />
-                        </ActionForm>
-                      ) : a.id !== session.orgId ? (
-                        <Disclosure title="Suspend access">
-                          <ActionForm action={businessAccessAction} submitLabel="Suspend" quiet className="space-y-2 pt-2">
-                            <input type="hidden" name="orgId" value={a.id} />
-                            <input type="hidden" name="access" value="suspend" />
-                            <input
-                              name="reason"
-                              required
-                              maxLength={300}
-                              placeholder="Why? e.g. Unpaid since Dec 1"
-                              aria-label={`Reason for suspending ${a.name}`}
-                              className={inputClass}
-                            />
-                          </ActionForm>
-                        </Disclosure>
-                      ) : null}
-                    </div>
-                  )}
-
-                </div>
-                {a.facilities.length === 0 ? (
-                  <p className="mt-3 text-sm text-slate-500">No facilities yet, so there is nothing to open.</p>
-                ) : (
-                  <ul className="mt-3 divide-y divide-slate-100 rounded-lg ring-1 ring-slate-200" aria-label={`Facilities of ${a.name}`}>
-                    {a.facilities.map((f) => (
-                      <li key={f.id} className={`flex flex-wrap items-center justify-between gap-3 px-3 py-2 ${facilityMatches(f, q) ? "bg-amber-50" : ""}`}>
-                        <span className="min-w-0">
-                          <span className="font-semibold text-slate-900">{f.name}</span>
-                          <span className="block text-sm text-slate-600">
-                            {stateName(f.state)} · {f.licenseType.toLowerCase()} · license {f.licenseNumber}
-                          </span>
-                        </span>
-                        <ActionForm action={openAccountAction} submitLabel="Open" className="flex flex-wrap items-center gap-2">
-                          <input type="hidden" name="orgId" value={a.id} />
-                          <input type="hidden" name="facilityId" value={f.id} />
-                          <input
-                            name="reason"
-                            required
-                            maxLength={300}
-                            placeholder="Why? e.g. Label printing help"
-                            aria-label={`Reason for opening ${f.name}`}
-                            className={`${inputClass} sm:w-64`}
-                          />
-                        </ActionForm>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
+          {customers.length > 0 ? (
+            <section aria-label="Customers" className="space-y-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-lg font-bold text-slate-950">
+                  Customers <span className="text-sm font-semibold text-slate-500">{customers.length}</span>
+                </h2>
+                <p className="flex flex-wrap gap-1.5 text-xs font-semibold" aria-label="Customers by activity">
+                  {(Object.keys(STANDING) as Standing[]).map((k) => (
+                    <span key={k} className={`rounded-full px-2 py-0.5 ${STANDING[k].tone}`}>
+                      {counts[k]} {STANDING[k].label.toLowerCase()}
+                    </span>
+                  ))}
+                </p>
+              </div>
+              <ul className="space-y-2">
+                {customers.map((a) => (
+                  <AccountRow key={a.id} a={a} now={now} q={q} open={Boolean(q) || customers.length <= 3} ownOrgId={session.orgId} />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {demos.length > 0 ? (
+            <details open={Boolean(q)} className="group rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-bold text-slate-950">
+                <span>
+                  Demo accounts <span className="font-semibold text-slate-500">{demos.length}</span>
+                  <span className="block text-xs font-normal text-slate-500">Made automatically by the live demo. Nothing here is a customer.</span>
+                </span>
+                <span className="text-sm font-semibold text-brand-700 group-open:hidden">Show</span>
+                <span className="hidden text-sm font-semibold text-brand-700 group-open:inline">Hide</span>
+              </summary>
+              <ul className="space-y-2 border-t border-slate-100 p-3">
+                {demos.map((a) => (
+                  <AccountRow key={a.id} a={a} now={now} q={q} open={Boolean(q)} ownOrgId={session.orgId} />
+                ))}
+              </ul>
+            </details>
+          ) : null}
         </div>
 
         <div className="space-y-5">
@@ -319,5 +312,98 @@ export default async function SupportConsolePage({ searchParams }: { searchParam
         </div>
       </div>
     </>
+  );
+}
+
+function AccountRow({ a, now, q, open, ownOrgId }: { a: CustomerAccount; now: number; q: string; open: boolean; ownOrgId: string }) {
+  const standing = STANDING[standingOf(a, now)];
+  return (
+    <li>
+      <details open={open} className="group rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
+          <span className={`w-24 shrink-0 rounded-full px-2 py-0.5 text-center text-xs font-bold ${standing.tone}`}>{standing.label}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-bold text-slate-950">
+              {a.name}
+              {a.isDemo ? <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">live demo</span> : null}
+              {!a.isDemo && (a.access === "suspended" || a.access === "none") ? (
+                <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-bold ${ACCESS[a.access].tone}`}>{ACCESS[a.access].label}</span>
+              ) : null}
+              {a.access === "listed" ? <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-bold ${ACCESS.listed.tone}`}>Your business</span> : null}
+            </span>
+            <span className="block truncate text-xs text-slate-500">{a.owners.length ? a.owners.join(", ") : "No active owner"}</span>
+          </span>
+          <span className="shrink-0 text-right text-xs text-slate-600">
+            <span className="block font-semibold text-slate-800">{ago(a.lastActivity, now)}</span>
+            {a.users} user{a.users === 1 ? "" : "s"} · {a.packages.toLocaleString("en-US")} package{a.packages === 1 ? "" : "s"}
+          </span>
+          <span aria-hidden="true" className="text-slate-400 transition group-open:rotate-90">
+            ›
+          </span>
+        </summary>
+        <div className="space-y-3 border-t border-slate-100 p-4">
+          <p className="text-xs text-slate-500">
+            Joined {when(a.createdAt)} · last activity {when(a.lastActivity)}
+          </p>
+          {a.isDemo ? null : (
+            <div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm" data-testid={`access-${a.id}`}>
+              <p className="text-xs text-slate-600">{ACCESS[a.access].note}</p>
+              {a.access === "suspended" || a.access === "none" ? (
+                <ActionForm action={businessAccessAction} submitLabel={a.access === "suspended" ? "Restore access" : "Give access"} quiet>
+                  <input type="hidden" name="orgId" value={a.id} />
+                  <input type="hidden" name="access" value="approve" />
+                </ActionForm>
+              ) : a.id !== ownOrgId ? (
+                <Disclosure title="Suspend access">
+                  <ActionForm action={businessAccessAction} submitLabel="Suspend" quiet className="space-y-2 p-3 pt-0">
+                    <input type="hidden" name="orgId" value={a.id} />
+                    <input type="hidden" name="access" value="suspend" />
+                    <input
+                      name="reason"
+                      required
+                      maxLength={300}
+                      placeholder="Why? e.g. Unpaid since Dec 1"
+                      aria-label={`Reason for suspending ${a.name}`}
+                      className={inputClass}
+                    />
+                  </ActionForm>
+                </Disclosure>
+              ) : null}
+            </div>
+          )}
+          {a.facilities.length === 0 ? (
+            <p className="text-sm text-slate-500">No facilities yet, so there is nothing to open.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100 rounded-lg ring-1 ring-slate-200" aria-label={`Facilities of ${a.name}`}>
+              {a.facilities.map((f) => (
+                <li key={f.id} className={`grid gap-2 px-3 py-2 md:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] md:items-center ${facilityMatches(f, q) ? "bg-amber-50" : ""}`}>
+                  <span className="min-w-0">
+                    <span className="font-semibold text-slate-900">
+                      {f.name}
+                      {isPracticeFacility(f) ? <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs font-semibold text-slate-700">practice / test</span> : null}
+                    </span>
+                    <span className="block text-sm text-slate-600">
+                      {stateName(f.state)} · {f.licenseType.toLowerCase()} · license {f.licenseNumber}
+                    </span>
+                  </span>
+                  <ActionForm action={openAccountAction} submitLabel="Open" className="flex items-center gap-2">
+                    <input type="hidden" name="orgId" value={a.id} />
+                    <input type="hidden" name="facilityId" value={f.id} />
+                    <input
+                      name="reason"
+                      required
+                      maxLength={300}
+                      placeholder="Why? e.g. Label printing help"
+                      aria-label={`Reason for opening ${f.name}`}
+                      className={`${inputClass} min-w-0 flex-1`}
+                    />
+                  </ActionForm>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </details>
+    </li>
   );
 }
