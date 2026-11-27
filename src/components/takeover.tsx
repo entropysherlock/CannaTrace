@@ -33,7 +33,7 @@ function visible(el: HTMLElement) {
 }
 
 function snapshot(): PageElement[] {
-  const nodes = Array.from(document.querySelectorAll<HTMLElement>("a[href],button,input,select,textarea,summary,[role=button]")).filter((el) => !el.closest("[data-takeover-ignore]") && visible(el) && (el as HTMLInputElement).type !== "hidden");
+  const nodes = Array.from(document.querySelectorAll<HTMLElement>("a[href],button,input,select,textarea,summary,[role=button],[role=option]")).filter((el) => !el.closest("[data-takeover-ignore]") && visible(el) && (el as HTMLInputElement).type !== "hidden");
   const out: PageElement[] = [];
   nodes.slice(0, MAX_ELEMENTS).forEach((el, i) => {
     el.setAttribute("data-tk", String(i));
@@ -41,7 +41,7 @@ function snapshot(): PageElement[] {
     const tag = el.tagName.toLowerCase();
     out.push({
       i,
-      tag: tag === "div" ? "button" : tag,
+      tag: el.getAttribute("role") === "option" ? "option" : tag === "div" ? "button" : tag,
       label: labelOf(el).slice(0, 100),
       type: tag === "input" ? input.type : undefined,
       value: ["input", "textarea", "select"].includes(tag) && input.type !== "password" ? (tag === "select" ? (el as HTMLSelectElement).selectedOptions[0]?.text : input.value) || undefined : undefined,
@@ -109,6 +109,8 @@ export function Takeover() {
       if (action.type === "click") {
         setCursor((c) => (c ? { ...c, ripple: c.ripple + 1 } : c));
         await sleep(220);
+        // Pick-lists (like the strain search) choose on mouse-down, so send the whole press like a real mouse does.
+        for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
         el.click();
         return `clicked "${labelOf(el).slice(0, 40)}"`;
       }
