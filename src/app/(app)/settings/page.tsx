@@ -69,6 +69,16 @@ export default async function SettingsPage() {
           </div>
         ) : null}
         <Card
+          title="Automation"
+          action={
+            <Link href="/settings/automation" className="text-sm font-semibold text-brand-700 hover:underline">
+              Open automation settings
+            </Link>
+          }
+        >
+          <p className="text-sm text-slate-600">Choose what Leaf2Sale may do on its own, see what it has done, and pause everything with one switch.</p>
+        </Card>
+        <Card
           title="QuickBooks"
           action={
             <Link href="/settings/quickbooks" className="text-sm font-semibold text-brand-700 hover:underline">

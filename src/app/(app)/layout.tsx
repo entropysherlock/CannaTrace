@@ -16,6 +16,7 @@ import { facilities as facilitiesTable } from "@/db/schema";
 import { visibleFacilities } from "@/lib/facility-access";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
+import { isAutomationPaused } from "@/lib/automation";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 import { requireSession } from "@/lib/session";
 import { leaveDemo, signOut } from "../login/actions";
@@ -36,6 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // changed since the last look, so a fixed problem drops off without anyone dismissing it.
   await sweepIfStaleBriefly(session, 1500);
   const alerts = (await openFindings(session)).length;
+  const automationPaused = can(session, "settings.manage") ? await isAutomationPaused(session.orgId) : false;
   const facilities = visibleFacilities(
     await db
       .select({ id: facilitiesTable.id, name: facilitiesTable.name, licenseNumber: facilitiesTable.licenseNumber, licenseType: facilitiesTable.licenseType })
@@ -123,6 +125,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             ["/team", "Team", can(session, "users.manage")],
             ["/integrations", "Integrations", can(session, "integrations.manage")],
             ["/settings/ai", "Tally AI", can(session, "ai.manage")],
+            ["/settings/automation", "Automation", can(session, "settings.manage")],
           ]),
         ),
         entry("support", "Support Console", tabs([["/support", "Support Console", supportAdmin]])),
@@ -158,6 +161,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
           <TopBarRight name={session.name} roleName={roleName} alerts={alerts} signOutAction={signOut} />
         </header>
+        {automationPaused && can(session, "settings.manage") ? (
+          <div role="note" aria-label="Automation paused" className="bg-amber-100 px-4 py-2 text-center text-sm font-semibold text-amber-900 print:hidden">
+            Automation is paused, so nothing runs on its own.{" "}
+            <Link href="/settings/automation" className="underline">
+              Open automation settings
+            </Link>
+          </div>
+        ) : null}
         {session.supportVisit ? (
           <div role="note" aria-label="Support view" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-violet-700 px-4 py-2 text-center text-sm text-white print:hidden">
             <span>

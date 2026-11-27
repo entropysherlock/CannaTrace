@@ -1,0 +1,57 @@
+import { InventoryError } from "./inventory-math";
+
+export type AutomationMode = "OFF" | "ASK" | "AUTO";
+
+/**
+ * The kinds of work that can run on their own. `autoAllowed` is false for anything that changes
+ * stock, sends something to a customer, or moves money: those can be switched to Ask me, never Auto,
+ * until a person has watched them work for a while.
+ */
+export const AUTOMATION_KINDS = [
+  { kind: "LABELS", label: "Make labels", detail: "Creates package and product labels and queues them for printing.", autoAllowed: true },
+  { kind: "DRAFT_INVOICES", label: "Draft invoices", detail: "Prepares an invoice draft when an order is delivered. A person still reviews it.", autoAllowed: true },
+  { kind: "PRODUCTION", label: "Run production steps", detail: "Starts runs, adds inputs and finishes runs from a recipe.", autoAllowed: false },
+  { kind: "CUSTOMER_MESSAGES", label: "Message customers", detail: "Drafts reminders and follow-ups to customers.", autoAllowed: false },
+  { kind: "INVENTORY_CHANGES", label: "Change inventory", detail: "Adjusts, moves or writes off stock.", autoAllowed: false },
+] as const;
+export type AutomationKind = (typeof AUTOMATION_KINDS)[number]["kind"];
+
+export const kindInfo = (kind: string) => AUTOMATION_KINDS.find((k) => k.kind === kind);
+export const DEFAULT_CAP = 50;
+export const MAX_CAP = 1000;
+
+export function parseMode(raw: unknown): AutomationMode {
+  const mode = String(raw ?? "").trim();
+  if (mode !== "OFF" && mode !== "ASK" && mode !== "AUTO") throw new InventoryError("Pick Off, Ask me or Auto.");
+  return mode;
+}
+
+export function parseKind(raw: unknown): AutomationKind {
+  const info = kindInfo(String(raw ?? "").trim());
+  if (!info) throw new InventoryError("That kind of work is not one of the automation settings.");
+  return info.kind;
+}
+
+export function parseCap(raw: unknown): number {
+  const text = String(raw ?? "").trim();
+  if (text === "") return DEFAULT_CAP;
+  if (!/^\d+$/.test(text)) throw new InventoryError("The hourly limit must be a whole number.");
+  const n = Number(text);
+  if (n < 1 || n > MAX_CAP) throw new InventoryError(`The hourly limit must be between 1 and ${MAX_CAP}.`);
+  return n;
+}
+
+export type Decision = { action: "AUTO" | "ASK" | "BLOCKED"; reason: string };
+
+/** What an agent may do right now for a kind of work. Pause and Off always stop it; Auto needs room under the cap. */
+export function decide(input: { kind: string; paused: boolean; mode: AutomationMode | undefined; hourlyCap: number; doneLastHour: number }): Decision {
+  const info = kindInfo(input.kind);
+  if (!info) return { action: "BLOCKED", reason: "That kind of work is not set up for automation." };
+  if (input.paused) return { action: "BLOCKED", reason: "Automation is paused." };
+  const mode = input.mode ?? "OFF";
+  if (mode === "OFF") return { action: "BLOCKED", reason: `${info.label} is turned off.` };
+  if (mode === "ASK") return { action: "ASK", reason: "Waiting for a person to approve." };
+  if (!info.autoAllowed) return { action: "ASK", reason: `${info.label} can only be set to Ask me for now.` };
+  if (input.doneLastHour >= input.hourlyCap) return { action: "ASK", reason: `Hit the limit of ${input.hourlyCap} per hour, so a person needs to approve.` };
+  return { action: "AUTO", reason: "Set to Auto." };
+}

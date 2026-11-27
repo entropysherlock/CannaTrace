@@ -2045,3 +2045,47 @@ export const productionCosts = pgTable(
   },
   (t) => [index("production_costs_run_idx").on(t.runId)],
 );
+
+/** Automation: how much each kind of work may do on its own, an org-wide pause, and a log of what it did. */
+export const automationSettings = pgTable(
+  "automation_settings",
+  {
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    kind: text("kind").notNull(),
+    mode: text("mode").notNull().default("OFF"), // OFF | ASK | AUTO
+    hourlyCap: integer("hourly_cap").notNull().default(50),
+    updatedByName: text("updated_by_name"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.orgId, t.kind] })],
+);
+
+export const automationControl = pgTable("automation_control", {
+  orgId: text("org_id")
+    .primaryKey()
+    .references(() => organizations.id),
+  paused: boolean("paused").notNull().default(false),
+  pausedByName: text("paused_by_name"),
+  pausedAt: timestamp("paused_at", { withTimezone: true }),
+  reason: text("reason"),
+});
+
+export const automationActivity = pgTable(
+  "automation_activity",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    facilityId: text("facility_id").references(() => facilities.id),
+    kind: text("kind").notNull(),
+    outcome: text("outcome").notNull(), // DONE | PROPOSED | BLOCKED | FAILED
+    summary: text("summary").notNull(),
+    trigger: text("trigger"),
+    requestedBy: text("requested_by"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("automation_activity_org_idx").on(t.orgId, t.createdAt), index("automation_activity_kind_idx").on(t.orgId, t.kind, t.outcome, t.createdAt)],
+);
