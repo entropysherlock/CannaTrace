@@ -15,7 +15,14 @@ export async function GET(request: Request) {
     return Response.json({ error: "Not allowed." }, { status: 401 });
   }
   try {
-    return Response.json(await recordRun("brief", async () => ({ ...(await sendMorningBriefs()) })));
+    return Response.json(
+      await recordRun("brief", async () => {
+        const result = await sendMorningBriefs();
+        // Every attempt failing is a failed run, with the reason, so Support sees it instead of a quiet "ok".
+        if (result.failed > 0 && result.sent === 0) throw new Error(`No briefs were sent: ${result.firstError ?? "unknown error"}`);
+        return { ...result };
+      }),
+    );
   } catch {
     return Response.json({ error: "The run failed. It is recorded in job_runs." }, { status: 500 });
   }
