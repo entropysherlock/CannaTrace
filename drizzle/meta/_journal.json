@@ -421,6 +421,13 @@
       "when": 1795777574750,
       "tag": "0059_automation",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795805710091,
+      "tag": "0060_quickbooks_account_map",
+      "breakpoints": true
     }
   ]
 }
