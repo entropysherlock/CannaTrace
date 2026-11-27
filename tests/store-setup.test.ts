@@ -5,7 +5,7 @@ import { facilities, itemCategories, items, locations, organizations, packages, 
 import { db, pool } from "@/lib/db";
 import { addLabResult, receivePackage, setPackagesStatus, type Actor } from "@/lib/inventory";
 import { openDrawer, packagesWaitingOnLab, saveRetailSettings, setMenuItem, createDiscount } from "@/lib/pos";
-import { storeSetup } from "@/lib/store-setup";
+import { isRetailStore, storeSetup } from "@/lib/store-setup";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
@@ -45,6 +45,9 @@ describe.skipIf(!hasDb)("store setup checklist and lab hold", () => {
 
   it("is not shown for a store that isn't a retailer", async () => {
     expect(await storeSetup(farm)).toBeNull();
+    // The lab-hold banner follows the same rule: a grow's packages legitimately wait on labs, so it is never offered there.
+    expect(await isRetailStore(farm.orgId, farm.facilityId)).toBe(false);
+    expect(await isRetailStore(actor.orgId, actor.facilityId)).toBe(true);
   });
 
   it("starts with the required steps open and ticks them off as the store is set up", async () => {

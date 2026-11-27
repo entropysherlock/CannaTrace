@@ -6,6 +6,15 @@ import { packFor, requiresLabBeforeRetail } from "@/lib/rules";
 /** One step in getting a retail store ready to sell. `required` steps block selling; the rest are worth doing but optional. */
 export type SetupStep = { key: string; title: string; detail: string; href: string; done: boolean; required: boolean };
 
+/** A store that sells to customers at a register. Only these get retail prompts like the setup checklist and the lab-hold banner. */
+export async function isRetailStore(orgId: string, facilityId: string): Promise<boolean> {
+  const [facility] = await db
+    .select({ licenseType: facilities.licenseType })
+    .from(facilities)
+    .where(and(eq(facilities.id, facilityId), eq(facilities.orgId, orgId)));
+  return facility?.licenseType === "RETAIL" || facility?.licenseType === "MICROBUSINESS";
+}
+
 /**
  * Where a retail store stands on being ready for its first sale, in the order a new owner should do things.
  * Returns null for a store that isn't a retailer, so cultivators never see a register checklist.
