@@ -9,17 +9,19 @@ import { Plus, X } from "lucide-react";
 import { Card, Field, PageHeader, buttonLinkClass, inputClass } from "@/components/ui";
 import { InventoryError } from "@/lib/inventory-math";
 import { planFor } from "@/lib/manufacturing";
+import { automationDecision } from "@/lib/automation";
+import { buildPlay, type PlayPlan } from "@/lib/run-play";
 import { suggestRunName } from "@/lib/manufacturing-math";
-import { bomLines, boms, itemCategories, items } from "@/db/schema";
+import { bomLines, boms, itemCategories, items, locations } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requireAnyPagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
-import { recipeActiveAction, startChainAction } from "../actions";
+import { playAction, recipeActiveAction, startChainAction } from "../actions";
 
-export default async function RecipesPage({ searchParams }: { searchParams: Promise<{ new?: string; plan?: string; batches?: string }> }) {
+export default async function RecipesPage({ searchParams }: { searchParams: Promise<{ new?: string; plan?: string; batches?: string; play?: string; pb?: string; room?: string }> }) {
   const session = await requireAnyPagePermission("manufacturing.write", "audit.view");
-  const { new: adding, plan: planId, batches: planBatches } = await searchParams;
+  const { new: adding, plan: planId, batches: planBatches, play: playId, pb: playBatches, room: playRoom } = await searchParams;
   const [recipes, itemRows, categories] = await Promise.all([
     db
       .select({ id: boms.id, outputItemId: boms.outputItemId, name: boms.name, outputQuantity: boms.outputQuantity, active: boms.active, itemName: items.name, unit: items.unit })
@@ -57,6 +59,19 @@ export default async function RecipesPage({ searchParams }: { searchParams: Prom
     }
   }
   const activeRecipes = recipes.filter((r) => r.active);
+  const [rooms, playDecision] = await Promise.all([
+    db.select({ id: locations.id, name: locations.name }).from(locations).where(and(eq(locations.orgId, session.orgId), eq(locations.facilityId, session.facilityId))).orderBy(asc(locations.name)),
+    automationDecision(session.orgId, "PRODUCTION", session.facilityId),
+  ]);
+  let playPlan: PlayPlan | null = null;
+  let playProblem: string | null = null;
+  if (playId && playBatches) {
+    try {
+      playPlan = await buildPlay(actorForPlan, { recipeId: playId, batches: playBatches });
+    } catch (error) {
+      playProblem = error instanceof InventoryError ? error.message : "That could not be worked out.";
+    }
+  }
   const showForm = canWrite && (adding === "1" || recipes.length === 0);
 
   return (
@@ -88,6 +103,79 @@ export default async function RecipesPage({ searchParams }: { searchParams: Prom
             }
           >
             <RecipeForm items={itemRows.map((item) => ({ id: item.id, label: `${item.name} (${unitLabel(item.unit)})` }))} categories={categories.map((c) => c.name)} />
+          </Card>
+        </div>
+      ) : null}
+      {canWrite && activeRecipes.length > 0 ? (
+        <div className="mb-6" data-testid="play-card">
+          <Card title="Play a recipe" action={<span className="text-sm text-slate-600">{playDecision.action === "AUTO" ? "Auto" : playDecision.action === "ASK" ? "Ask me" : "Off"}</span>}>
+            {playDecision.action === "BLOCKED" ? (
+              <p className="text-sm text-slate-700">
+                {playDecision.reason}{" "}
+                <Link href="/settings/automation" className="font-semibold text-brand-700 hover:underline">
+                  Automation settings
+                </Link>
+              </p>
+            ) : (
+              <div className="space-y-4 text-sm">
+                <p className="text-slate-600">
+                  Pick a recipe and how many batches. It picks the oldest packages first, starts the run and adds every input.{" "}
+                  {playDecision.action === "AUTO" ? "Auto is on here, so it also finishes the run using the planned amount. This only happens in practice facilities." : "You will see the plan first, then press Go. You enter how much you made to finish."}
+                </p>
+                <form method="get" className="flex flex-wrap items-end gap-3">
+                  <Field label="Recipe">
+                    <select name="play" defaultValue={playId ?? activeRecipes[0].id} className={inputClass}>
+                      {activeRecipes.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Batches">
+                    <input name="pb" inputMode="decimal" defaultValue={playBatches ?? "1"} className={`${inputClass} w-24`} />
+                  </Field>
+                  <Field label="Finished product goes to">
+                    <select name="room" defaultValue={playRoom ?? rooms[0]?.id ?? ""} className={inputClass}>
+                      {rooms.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <button type="submit" className="min-h-11 rounded-lg border border-brand-300 bg-white px-4 font-bold text-brand-800 hover:bg-brand-50">
+                    Show the plan
+                  </button>
+                </form>
+                {playProblem ? <p role="alert" className="rounded-lg bg-red-50 p-3 font-semibold text-red-800">{playProblem}</p> : null}
+                {playPlan ? (
+                  <div className="space-y-3" data-testid="play-plan">
+                    <p className="font-semibold text-slate-900">
+                      {playPlan.recipeName} × {playPlan.batches.toString()} makes {playPlan.plannedOutput.toString()} {unitLabel(playPlan.outputUnit as Parameters<typeof unitLabel>[0])} of {playPlan.outputItemName}
+                    </p>
+                    <ul className="list-disc space-y-0.5 pl-5 text-slate-700">
+                      {playPlan.picks.map((p) => (
+                        <li key={`${p.packageId}`}>
+                          {p.quantity.toString()} {unitLabel(p.unit as Parameters<typeof unitLabel>[0])} of {p.itemName} from <span className="font-mono">{p.tag}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {playPlan.short.length > 0 ? (
+                      <p role="alert" className="rounded-lg bg-red-50 p-3 font-semibold text-red-800">
+                        Not enough stock: {playPlan.short.map((s) => `${s.itemName} is short by ${s.short.toString()}`).join(", ")}. Add stock or lower the batches.
+                      </p>
+                    ) : (
+                      <ActionForm action={playAction} submitLabel={playDecision.action === "AUTO" ? "Run it now (Auto)" : "Go: start the run and add inputs"} className="flex flex-wrap items-end gap-3">
+                        <input type="hidden" name="recipeId" value={playPlan.recipeId} />
+                        <input type="hidden" name="batches" value={playPlan.batches.toString()} />
+                        <input type="hidden" name="locationId" value={playRoom ?? rooms[0]?.id ?? ""} />
+                      </ActionForm>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
           </Card>
         </div>
       ) : null}

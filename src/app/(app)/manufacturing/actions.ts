@@ -6,6 +6,7 @@ import { field, toFormError, type FormState } from "@/lib/form";
 import type { Actor } from "@/lib/inventory";
 import { addRunInput, cancelRun, completeRun, createRecipe, removeRunInput, setRecipeActive, startChain, startRun } from "@/lib/manufacturing";
 import { addRunCost, removeRunCost } from "@/lib/run-costs";
+import { executePlay } from "@/lib/run-play";
 import { requirePermission } from "@/lib/session";
 
 async function maker(): Promise<Actor> {
@@ -137,4 +138,17 @@ export async function removeRunCostAction(_state: FormState, formData: FormData)
   } catch (error) {
     return toFormError(error);
   }
+}
+
+export async function playAction(_state: FormState, formData: FormData): Promise<FormState> {
+  let runId: string;
+  try {
+    const result = await executePlay(await maker(), { recipeId: field(formData, "recipeId"), batches: field(formData, "batches"), locationId: field(formData, "locationId") });
+    runId = result.runId;
+  } catch (error) {
+    return toFormError(error);
+  }
+  revalidatePath("/manufacturing", "layout");
+  revalidatePath("/inventory", "layout");
+  redirect(`/manufacturing/runs/${runId}`);
 }

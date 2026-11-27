@@ -1,5 +1,6 @@
 import { and, count, desc, eq, gte } from "drizzle-orm";
-import { automationActivity, automationControl, automationSettings } from "@/db/schema";
+import { automationActivity, automationControl, automationSettings, facilities } from "@/db/schema";
+import { isPracticeFacility } from "./facility-practice";
 import { logAdminAction } from "./audit-log";
 import { db } from "./db";
 import { DEFAULT_CAP, decide, parseCap, parseKind, parseMode, type AutomationMode, type Decision } from "./automation-math";
@@ -25,14 +26,19 @@ export async function isAutomationPaused(orgId: string): Promise<boolean> {
 }
 
 /** What an agent may do right now for this kind of work. Every agent asks this before it acts. */
-export async function automationDecision(orgId: string, kind: string): Promise<Decision> {
+export async function automationDecision(orgId: string, kind: string, facilityId?: string): Promise<Decision> {
+  let practice = false;
+  if (facilityId) {
+    const [f] = await db.select({ name: facilities.name, licenseNumber: facilities.licenseNumber }).from(facilities).where(and(eq(facilities.id, facilityId), eq(facilities.orgId, orgId)));
+    practice = f ? isPracticeFacility(f) : false;
+  }
   const state = await getAutomation(orgId);
   const setting = state.settings.get(kind);
   const [{ n }] = await db
     .select({ n: count() })
     .from(automationActivity)
     .where(and(eq(automationActivity.orgId, orgId), eq(automationActivity.kind, kind), eq(automationActivity.outcome, "DONE"), gte(automationActivity.createdAt, new Date(Date.now() - HOUR))));
-  return decide({ kind, paused: state.paused, mode: setting?.mode, hourlyCap: setting?.hourlyCap ?? DEFAULT_CAP, doneLastHour: n });
+  return decide({ kind, practice, paused: state.paused, mode: setting?.mode, hourlyCap: setting?.hourlyCap ?? DEFAULT_CAP, doneLastHour: n });
 }
 
 export async function recordActivity(input: { orgId: string; facilityId?: string | null; kind: string; outcome: "DONE" | "PROPOSED" | "BLOCKED" | "FAILED"; summary: string; trigger?: string; requestedBy?: string }): Promise<void> {

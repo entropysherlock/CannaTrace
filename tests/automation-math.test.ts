@@ -15,7 +15,13 @@ describe("decide", () => {
     expect(decide({ ...base, doneLastHour: 50 }).action).toBe("ASK");
   });
   it("never runs risky kinds on Auto, even if stored that way", () => {
-    for (const kind of ["PRODUCTION", "CUSTOMER_MESSAGES", "INVENTORY_CHANGES"]) expect(decide({ ...base, kind }).action).toBe("ASK");
+    for (const kind of ["CUSTOMER_MESSAGES", "INVENTORY_CHANGES"]) expect(decide({ ...base, kind }).action).toBe("ASK");
+  });
+  it("lets production run on Auto only in a practice facility", () => {
+    expect(decide({ ...base, kind: "PRODUCTION", practice: true }).action).toBe("AUTO");
+    expect(decide({ ...base, kind: "PRODUCTION", practice: false }).action).toBe("ASK");
+    expect(decide({ ...base, kind: "PRODUCTION" }).action).toBe("ASK");
+    expect(decide({ ...base, kind: "PRODUCTION", practice: true, paused: true }).action).toBe("BLOCKED");
   });
   it("blocks unknown kinds", () => expect(decide({ ...base, kind: "NOPE" }).action).toBe("BLOCKED"));
 });

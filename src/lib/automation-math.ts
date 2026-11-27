@@ -8,11 +8,11 @@ export type AutomationMode = "OFF" | "ASK" | "AUTO";
  * until a person has watched them work for a while.
  */
 export const AUTOMATION_KINDS = [
-  { kind: "LABELS", label: "Make labels", detail: "Creates package and product labels and queues them for printing.", autoAllowed: true },
-  { kind: "DRAFT_INVOICES", label: "Draft invoices", detail: "Prepares an invoice draft when an order is delivered. A person still reviews it.", autoAllowed: true },
-  { kind: "PRODUCTION", label: "Run production steps", detail: "Starts runs, adds inputs and finishes runs from a recipe.", autoAllowed: false },
-  { kind: "CUSTOMER_MESSAGES", label: "Message customers", detail: "Drafts reminders and follow-ups to customers.", autoAllowed: false },
-  { kind: "INVENTORY_CHANGES", label: "Change inventory", detail: "Adjusts, moves or writes off stock.", autoAllowed: false },
+  { kind: "LABELS", label: "Make labels", detail: "Creates package and product labels and queues them for printing.", autoAllowed: true, practiceOnly: false },
+  { kind: "DRAFT_INVOICES", label: "Draft invoices", detail: "Prepares an invoice draft when an order is delivered. A person still reviews it.", autoAllowed: true, practiceOnly: false },
+  { kind: "PRODUCTION", label: "Run production steps", detail: "Starts runs, adds inputs and finishes runs from a recipe. On Auto it only finishes runs, using the planned amount, in practice facilities; real facilities always wait for a person to enter the weight.", autoAllowed: true, practiceOnly: true },
+  { kind: "CUSTOMER_MESSAGES", label: "Message customers", detail: "Drafts reminders and follow-ups to customers.", autoAllowed: false, practiceOnly: false },
+  { kind: "INVENTORY_CHANGES", label: "Change inventory", detail: "Adjusts, moves or writes off stock.", autoAllowed: false, practiceOnly: false },
 ] as const;
 export type AutomationKind = (typeof AUTOMATION_KINDS)[number]["kind"];
 
@@ -44,13 +44,14 @@ export function parseCap(raw: unknown): number {
 export type Decision = { action: "AUTO" | "ASK" | "BLOCKED"; reason: string };
 
 /** What an agent may do right now for a kind of work. Pause and Off always stop it; Auto needs room under the cap. */
-export function decide(input: { kind: string; paused: boolean; mode: AutomationMode | undefined; hourlyCap: number; doneLastHour: number }): Decision {
+export function decide(input: { kind: string; practice?: boolean; paused: boolean; mode: AutomationMode | undefined; hourlyCap: number; doneLastHour: number }): Decision {
   const info = kindInfo(input.kind);
   if (!info) return { action: "BLOCKED", reason: "That kind of work is not set up for automation." };
   if (input.paused) return { action: "BLOCKED", reason: "Automation is paused." };
   const mode = input.mode ?? "OFF";
   if (mode === "OFF") return { action: "BLOCKED", reason: `${info.label} is turned off.` };
   if (mode === "ASK") return { action: "ASK", reason: "Waiting for a person to approve." };
+  if (info.practiceOnly && !input.practice) return { action: "ASK", reason: `${info.label} can only run on Auto in practice facilities, so a person approves here.` };
   if (!info.autoAllowed) return { action: "ASK", reason: `${info.label} can only be set to Ask me for now.` };
   if (input.doneLastHour >= input.hourlyCap) return { action: "ASK", reason: `Hit the limit of ${input.hourlyCap} per hour, so a person needs to approve.` };
   return { action: "AUTO", reason: "Set to Auto." };
