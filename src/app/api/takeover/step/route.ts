@@ -27,7 +27,8 @@ Rules:
 - Never press anything that deletes, removes, disconnects, signs out, refunds, charges or pays. Never type passwords, codes or card details. If the goal needs one of those, use "ask" so the person does that step.
 - If the goal is unclear, a choice is needed that the person didn't specify (which product, how many, which room), or you are stuck, use "ask" with one short question.
 - When the goal is complete, use "done" and say in one or two plain sentences what happened, using what you saw on the page (names, numbers, run names). Don't claim success you didn't see.
-- Quantities, names and numbers come from the goal. Never invent them.
+- Quantities, products, strains, rooms and money come from the goal. Never invent those. But if a required box only needs an ordinary label the goal doesn't give (a batch name, a note, a reference), fill it with a sensible plain default (for example the strain name and today's date), and mention what you used in your final message.
+- If a step result says the form refused (a required box is empty), fill that box, then press the button again.
 - Always answer by calling the next_action tool exactly once. Never reply with plain text.`;
 
 const TOOL = {

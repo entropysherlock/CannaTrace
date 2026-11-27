@@ -119,8 +119,13 @@ export function Takeover() {
         await sleep(220);
         // Pick-lists (like the strain search) choose on mouse-down, so send the whole press like a real mouse does.
         for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+        const form = el.closest("form");
         el.click();
-        return `clicked "${labelOf(el).slice(0, 40)}"`;
+        await sleep(350);
+        // The browser's own "Please fill out this field" bubble can't be seen from the page, so say what it complains about.
+        const bad = form ? Array.from(form.querySelectorAll<HTMLInputElement>(":invalid")).find((f) => f.validationMessage && visible(f)) : undefined;
+        const note = bad ? ` BUT the form refused: "${labelOf(bad).slice(0, 40)}" says "${bad.validationMessage.slice(0, 80)}"` : "";
+        return `clicked "${labelOf(el).slice(0, 40)}"${note}`;
       }
       if (action.type === "select") {
         const sel = el as HTMLSelectElement;
