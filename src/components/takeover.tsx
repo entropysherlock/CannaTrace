@@ -232,6 +232,12 @@ export function Takeover() {
   }, [loop]);
 
   useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener("takeover:open", onOpen);
+    return () => window.removeEventListener("takeover:open", onOpen);
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && busy.current) halt();
     };
@@ -269,13 +275,8 @@ export function Takeover() {
         </div>
       )}
       {running && <div className="pointer-events-none fixed inset-0 z-[90] ring-4 ring-inset ring-brand-500/60" />}
-      {!open && (
-        <button type="button" onClick={() => setOpen(true)} className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-4 z-30 flex h-12 items-center gap-2 rounded-full bg-white px-4 text-sm font-semibold text-brand-800 shadow-lg ring-1 ring-slate-200 hover:bg-brand-50 md:bottom-6">
-          <Hand className="h-4 w-4" /> Take over
-        </button>
-      )}
       {open && (
-        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-4 z-[95] w-[min(22rem,calc(100vw-2rem))] rounded-2xl bg-white p-4 shadow-2xl ring-1 ring-slate-200 md:bottom-6">
+        <div className="fixed right-4 top-16 z-[95] w-[min(22rem,calc(100vw-2rem))] rounded-2xl bg-white p-4 shadow-2xl ring-1 ring-slate-200">
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Hand className="h-4 w-4 text-brand-700" /> Take over</p>
             <button type="button" aria-label="Close" onClick={() => { if (running) halt(); setOpen(false); }} className="rounded p-1 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
@@ -300,5 +301,14 @@ export function Takeover() {
         </div>
       )}
     </div>
+  );
+}
+
+/** The button that lives in the top bar, at the far right. */
+export function TakeoverButton() {
+  return (
+    <button type="button" onClick={() => window.dispatchEvent(new Event("takeover:open"))} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-brand-800 ring-1 ring-slate-200 hover:bg-brand-50" title="Let Tally work the screens for you">
+      <Hand className="h-4 w-4" aria-hidden /> <span className="hidden sm:inline">Take over</span>
+    </button>
   );
 }
