@@ -132,7 +132,7 @@ export function TopBarRight({
           <p className="px-3 pt-1 text-sm font-bold text-slate-900">{name}</p>
           <p className="px-3 pb-2 text-xs text-slate-500">{roleName}</p>
           <Link href="/account" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-            Password and phones
+            Account and security
           </Link>
           <Link href="/inbox" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
             Phone inbox

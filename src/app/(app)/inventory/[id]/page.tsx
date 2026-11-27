@@ -171,6 +171,12 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
   ]);
   const locationName = new Map(locations.map((l) => [l.id, l.name]));
   const userName = new Map(users.map((u) => [u.id, u.name]));
+  // Someone not on this business's team who touched the package is Leaf2Sale support on a visit; name them the way the audit trail does.
+  const outsiderIds = [...new Set(transactions.map((t) => t.userId))].filter((id) => !userName.has(id));
+  if (outsiderIds.length) {
+    const outsiders = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(inArray(usersTable.id, outsiderIds));
+    for (const u of outsiders) userName.set(u.id, `${u.name} (Leaf2Sale support)`);
+  }
   const unit = pkg.unit;
   const num = (value: string) => new Decimal(value).toString();
   const editable = pkg.status !== "DESTROYED" && pkg.status !== "FINISHED";

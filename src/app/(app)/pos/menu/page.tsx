@@ -186,6 +186,7 @@ export default async function MenuPage() {
             </ActionForm>
           </Card>
 
+          <div id="store-rules" className="scroll-mt-4">
           <Card title="Store rules">
             <StoreRulesForm
               initial={{
@@ -204,6 +205,7 @@ export default async function MenuPage() {
               facilityState={facility?.state ?? ""}
             />
           </Card>
+          </div>
 
           <Card title="Add a discount">
             <ActionForm action={discountPresetAction} submitLabel="Add discount">

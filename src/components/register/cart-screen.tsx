@@ -19,6 +19,8 @@ export type MenuTile = {
   unitLabel: string;
   stock: string;
   outOfStock: boolean;
+  /** Out of stock only because the lab result isn't in yet (not because nothing is on the shelf). */
+  waitingOnLab: boolean;
   limitNote: string | null;
 };
 
@@ -263,7 +265,7 @@ export function CartScreen({ view }: { view: CartView }) {
                         {dollars(m.price)}
                         <span className="ml-1 font-sans text-xs font-medium text-slate-500">/{m.unitLabel}</span>
                       </span>
-                      <span className={`text-xs font-semibold ${m.outOfStock ? "text-red-700" : "text-slate-500"}`}>{m.outOfStock ? "Sold out" : `${m.stock} left`}</span>
+                      <span className={`text-xs font-semibold ${m.outOfStock ? "text-red-700" : "text-slate-500"}`}>{m.outOfStock ? (m.waitingOnLab ? "Waiting on lab result" : "Sold out") : `${m.stock} left`}</span>
                     </span>
                     {m.limitNote ? <span className="mt-1 text-[11px] font-medium text-slate-500">{m.limitNote}</span> : null}
                     {busyTile === m.id ? <span className="absolute inset-0 animate-pulse bg-brand-100/60" aria-hidden="true" /> : null}

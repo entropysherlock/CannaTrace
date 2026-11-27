@@ -290,9 +290,16 @@ export function HomeScreen({ view }: { view: HomeView }) {
           <h1 className="font-display text-3xl font-bold">The register is locked</h1>
           <p className="mt-2 text-lg text-slate-600">This store&apos;s purchase limits and tax rates have not been entered yet.</p>
           {view.canManage ? (
-            <Link href="/pos/menu" className={`${bigButton} mt-6`}>
-              Set store rules
-            </Link>
+            <>
+              <ol className="mx-auto mt-5 max-w-sm list-decimal space-y-1 pl-6 text-left text-base text-slate-700">
+                <li>Pick your state under &ldquo;Fill in from state rules&rdquo; to load the purchase limits.</li>
+                <li>Type your excise and sales tax rates from your latest tax filing.</li>
+                <li>Press Save store rules, then add at least one item to the menu with its shelf price.</li>
+              </ol>
+              <Link href="/pos/menu#store-rules" className={`${bigButton} mt-6`}>
+                Set store rules
+              </Link>
+            </>
           ) : (
             <p className="mt-4 font-semibold">Ask a manager to set the store rules.</p>
           )}

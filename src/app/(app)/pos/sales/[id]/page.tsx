@@ -6,7 +6,7 @@ import { RegisterShell } from "@/components/register/shell";
 import { discountPresets, itemCategories, items, retailPrices, rewardMembers, sales } from "@/db/schema";
 import { db } from "@/lib/db";
 import { cartPromos } from "@/lib/promotions";
-import { cartLines, getRetailSettings, saleTotals, sellableByItem, storePack } from "@/lib/pos";
+import { cartLines, getRetailSettings, saleTotals, sellableByItem, storePack, waitingOnLabByItem } from "@/lib/pos";
 import { LIMIT_LABELS, limitUsage, quickCashAmounts } from "@/lib/pos-math";
 import { getProgram } from "@/lib/rewards";
 import { maskPhone, pointsFor, rewardsAvailable } from "@/lib/rewards-math";
@@ -57,6 +57,7 @@ export default async function CartPage({ params, searchParams }: { params: Promi
   ]);
 
   const sellable = await sellableByItem(db, session, pack);
+  const waitingOnLab = await waitingOnLabByItem(db, session, pack);
   const program = await getProgram(db, session.orgId);
   const promos = await cartPromos(db, session, lines);
   const totals = saleTotals(lines, sale, settings, program, promos.total);
@@ -98,6 +99,7 @@ export default async function CartPage({ params, searchParams }: { params: Promi
         unitLabel: unitLabel(m.unit),
         stock: num(stock),
         outOfStock: stock.lte(0),
+        waitingOnLab: stock.lte(0) && waitingOnLab.has(m.id),
         limitNote: limit,
       };
     }),
