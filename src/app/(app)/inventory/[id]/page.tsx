@@ -9,6 +9,7 @@ import { ActionForm } from "@/components/action-form";
 import { ScanInput } from "@/components/scan-input";
 import { Card, Field, PageHeader, StatusBadge, inputClass } from "@/components/ui";
 import {
+  apiKeys,
   auditLogs,
   facilities,
   inventoryTransactions,
@@ -173,6 +174,12 @@ export default async function PackagePage({ params }: { params: Promise<{ id: st
   const userName = new Map(users.map((u) => [u.id, u.name]));
   // Someone not on this business's team who touched the package is Leaf2Sale support on a visit; name them the way the audit trail does.
   const outsiderIds = [...new Set(transactions.map((t) => t.userId))].filter((id) => !userName.has(id));
+  // Changes made through an API key or a connected AI app are recorded as "api:<key id>"; show the key's name.
+  const keyIds = outsiderIds.filter((id) => id.startsWith("api:")).map((id) => id.slice(4));
+  if (keyIds.length) {
+    const keys = await db.select({ id: apiKeys.id, name: apiKeys.name }).from(apiKeys).where(and(eq(apiKeys.orgId, session.orgId), inArray(apiKeys.id, keyIds)));
+    for (const k of keys) userName.set(`api:${k.id}`, `API key "${k.name}"`);
+  }
   if (outsiderIds.length) {
     const outsiders = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(inArray(usersTable.id, outsiderIds));
     for (const u of outsiders) userName.set(u.id, `${u.name} (Leaf2Sale support)`);
