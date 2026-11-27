@@ -7,6 +7,8 @@ describe("playbooksFor", () => {
     expect(playbooksFor("start a batch of strain X with 5 plants in Veg Room A")).toContain("/cultivation");
     expect(playbooksFor("Find package PKG-000165")).toContain("/inventory");
     expect(playbooksFor("receive 50 jars")).toContain("/inventory/receive");
+    expect(playbooksFor("Harvest the newest flowering batch: record 500 g wet weight")).toContain("Grow guide");
+    expect(playbooksFor("Record the dry weight for the harvest")).toContain("Dry weight");
   });
   it("gives nothing for unrelated goals and caps the length", () => {
     expect(playbooksFor("say hello")).toBe("");
