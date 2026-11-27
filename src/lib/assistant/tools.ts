@@ -1,7 +1,7 @@
 import "server-only";
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { ADJUST_REASONS, adjustPackage, movePackage, setPackageStatus, type Actor } from "@/lib/inventory";
+import { addLabResult, ADJUST_REASONS, adjustPackage, BULK_LIMIT, movePackage, setPackageStatus, type Actor } from "@/lib/inventory";
 import { InventoryError } from "@/lib/inventory-math";
 import { can, type Permission } from "@/lib/rbac";
 import { ENFORCEMENT } from "@/lib/rules";
@@ -430,6 +430,127 @@ export const TOOLS: Tool[] = [
     execute: async (actor, a) => {
       const pkg = await setPackageStatus(actor, { packageId: a.packageId, status: a.status, reason: a.reason });
       return `Package ${pkg.tag} is now ${pkg.status.replace("_", " ").toLowerCase()}.`;
+    },
+  },
+  {
+    kind: "action",
+    name: "record_lab_result",
+    label: "Preparing a lab result",
+    permission: "inventory.write",
+    description:
+      "Propose recording a lab test result (PASS, FAIL, or PENDING) for one package, several packages, or every open package in a lot. A FAIL quarantines the packages automatically. With release_on_pass, a PASS also releases packages that are on hold. Nothing changes until the user presses Confirm. The COA file itself is attached on the package's page.",
+    schema: obj(
+      {
+        tag: text("One package's tag."),
+        tags: { type: "array", items: { type: "string" }, description: "Several package tags the same test covers." },
+        lot: text("A lot number: records the result for every open package in that lot."),
+        status: { type: "string", enum: ["PASS", "FAIL", "PENDING"] },
+        lab_name: text("Name of the testing lab."),
+        sample_date: text("Date the lab took the sample, YYYY-MM-DD. Optional."),
+        thc_percent: text("Total THC %, optional."),
+        cbd_percent: text("CBD %, optional."),
+        notes: text("Optional notes, for example the COA number."),
+        release_on_pass: { type: "boolean", description: "On a PASS, also release packages that are on hold. Default false." },
+      },
+      ["status", "lab_name"],
+    ),
+    propose: async (s, input) => {
+      const status = str(input.status);
+      if (!["PASS", "FAIL", "PENDING"].includes(status)) throw new InventoryError("Status must be PASS, FAIL, or PENDING.");
+      const labName = str(input.lab_name, 120);
+      if (!labName) throw new InventoryError("Give the name of the testing lab.");
+      const sampleDate = str(input.sample_date, 10);
+      if (sampleDate && !DATE.test(sampleDate)) throw new InventoryError("Sample date must look like 2026-11-27.");
+      for (const [k, label] of [["thc_percent", "THC %"], ["cbd_percent", "CBD %"]] as const) {
+        const v = str(input[k], 12);
+        if (v && !(/^\d+(\.\d+)?$/.test(v) && Number(v) <= 100)) throw new InventoryError(`${label} must be a number from 0 to 100.`);
+      }
+
+      type Pkg = { id: string; tag: string; item: string; status: string };
+      const found: Pkg[] = [];
+      const tagList = [str(input.tag, 60), ...(Array.isArray(input.tags) ? input.tags.map((t) => str(t, 60)) : [])].filter(Boolean);
+      for (const t of tagList) found.push(await packageByTag(s, t));
+      const lot = str(input.lot, 100);
+      if (lot) {
+        const inLot = (await rows(sql`
+          select p.id, p.tag, p.status, i.name as item from packages p join items i on i.id = p.item_id
+          where p.org_id = ${s.orgId} and p.facility_id = ${s.facilityId} and lower(p.lot_number) = lower(${lot})
+            and p.status not in ('FINISHED', 'DESTROYED')
+          order by p.tag limit ${BULK_LIMIT + 1}`)) as Pkg[];
+        if (!inLot.length) throw new InventoryError(`No open package at this facility is in lot ${lot}.`);
+        found.push(...inLot);
+      }
+      if (!found.length) throw new InventoryError("Give a package tag, several tags, or a lot number.");
+      const pkgs = [...new Map(found.map((p) => [p.id, p])).values()];
+      if (pkgs.length > BULK_LIMIT) throw new InventoryError(`Record one result for at most ${BULK_LIMIT} packages at a time.`);
+      const closed = pkgs.find((p) => p.status === "FINISHED" || p.status === "DESTROYED");
+      if (closed) throw new InventoryError(`${closed.tag} is ${closed.status.toLowerCase()}, so it can't get a lab result.`);
+
+      const release = status === "PASS" && input.release_on_pass === true;
+      const releasing = release ? pkgs.filter((p) => p.status === "ON_HOLD") : [];
+      const shown = pkgs.slice(0, 8).map((p) => `${p.tag} · ${p.item}`).join("\n") + (pkgs.length > 8 ? `\n…and ${pkgs.length - 8} more` : "");
+      const effect =
+        status === "FAIL"
+          ? "Active or on-hold packages go to quarantine, and anything already made from them is held too"
+          : release
+            ? releasing.length
+              ? `${releasing.length} on-hold package${releasing.length === 1 ? "" : "s"} will be released to active`
+              : "No packages are on hold, so none are released"
+            : "Statuses stay as they are";
+      return {
+        title: pkgs.length === 1 ? "Record lab result" : `Record lab result for ${pkgs.length} packages`,
+        details: [
+          { label: pkgs.length === 1 ? "Package" : "Packages", value: shown },
+          { label: "Result", value: status },
+          { label: "Lab", value: labName },
+          ...(sampleDate ? [{ label: "Sample date", value: sampleDate }] : []),
+          ...(str(input.thc_percent) || str(input.cbd_percent)
+            ? [{ label: "Potency", value: [str(input.thc_percent) && `THC ${str(input.thc_percent)}%`, str(input.cbd_percent) && `CBD ${str(input.cbd_percent)}%`].filter(Boolean).join(" · ") }]
+            : []),
+          ...(str(input.notes) ? [{ label: "Notes", value: str(input.notes, 300) }] : []),
+          { label: "What happens", value: effect },
+        ],
+        action: {
+          tool: "record_lab_result",
+          args: {
+            packageIds: pkgs.map((p) => p.id).join(","),
+            status,
+            labName,
+            sampleDate,
+            thcPercent: str(input.thc_percent, 12),
+            cbdPercent: str(input.cbd_percent, 12),
+            notes: str(input.notes, 300),
+            release: release ? "1" : "",
+          },
+        },
+      };
+    },
+    execute: async (actor, a) => {
+      const ids = a.packageIds.split(",").filter(Boolean);
+      if (!ids.length) throw new InventoryError("No packages to record a result for.");
+      const result = await addLabResult(actor, {
+        packageId: ids[0],
+        alsoPackageIds: ids.slice(1),
+        labName: a.labName,
+        status: a.status,
+        sampleDate: a.sampleDate || null,
+        thcPercent: a.thcPercent || null,
+        cbdPercent: a.cbdPercent || null,
+        notes: a.notes || null,
+      });
+      let released = 0;
+      if (a.release && a.status === "PASS") {
+        const held = await rows(sql`select id from packages where org_id = ${actor.orgId} and facility_id = ${actor.facilityId} and status = 'ON_HOLD' and id in (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`);
+        for (const h of held) {
+          await setPackageStatus(actor, { packageId: String(h.id), status: "ACTIVE", reason: `Passed lab test at ${a.labName}` });
+          released++;
+        }
+      }
+      const n = result.recorded;
+      const parts = [`Recorded ${a.status} from ${a.labName} for ${n} package${n === 1 ? "" : "s"}.`];
+      if (result.quarantinedCount) parts.push(`${result.quarantinedCount} quarantined.`);
+      if (released) parts.push(`${released} released to active.`);
+      return parts.join(" ");
     },
   },
   {
