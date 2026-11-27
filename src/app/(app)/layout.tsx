@@ -70,6 +70,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           tabs([
             ["/inventory", "Packages", can(session, "inventory.view")],
             ["/inventory/receive", "Receive", can(session, "inventory.write")],
+            ["/purchasing", "Purchase orders", can(session, "inventory.write")],
             ["/counts", "Counts", can(session, "inventory.adjust")],
             ["/catalog", "Items", can(session, "catalog.manage")],
             ["/locations", "Locations", can(session, "catalog.manage")],

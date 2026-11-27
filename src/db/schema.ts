@@ -1203,6 +1203,74 @@ export const payments = pgTable(
   (t) => [index("payments_invoice_idx").on(t.invoiceId)],
 );
 
+// ---------- Purchasing ----------
+
+export const purchaseOrderStatusEnum = pgEnum("purchase_order_status", ["DRAFT", "SENT", "PARTIAL", "RECEIVED", "CANCELLED"]);
+
+/** What this facility ordered from a vendor (a business it buys from), received against as it arrives. */
+export const purchaseOrders = pgTable(
+  "purchase_orders",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facilities.id),
+    number: text("number").notNull(),
+    vendorId: text("vendor_id")
+      .notNull()
+      .references(() => customers.id),
+    status: purchaseOrderStatusEnum("status").notNull().default("DRAFT"),
+    /** When the vendor said it will arrive, YYYY-MM-DD. */
+    expectedOn: text("expected_on"),
+    notes: text("notes"),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    /** When it was fully received or cancelled. */
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("purchase_orders_facility_number_key").on(t.facilityId, t.number), index("purchase_orders_scope_idx").on(t.orgId, t.facilityId, t.status)],
+);
+
+export const purchaseOrderLines = pgTable(
+  "purchase_order_lines",
+  {
+    id: id(),
+    purchaseOrderId: text("purchase_order_id")
+      .notNull()
+      .references(() => purchaseOrders.id),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id),
+    quantity: qty("quantity").notNull(),
+    quantityReceived: qty("quantity_received").notNull().default("0"),
+    /** Agreed cost per unit; received packages carry it as their cost. */
+    unitCost: cost("unit_cost"),
+  },
+  (t) => [uniqueIndex("purchase_order_lines_po_item_key").on(t.purchaseOrderId, t.itemId)],
+);
+
+/** Each package made by receiving against a purchase order line. */
+export const purchaseOrderReceipts = pgTable(
+  "purchase_order_receipts",
+  {
+    id: id(),
+    purchaseOrderLineId: text("purchase_order_line_id")
+      .notNull()
+      .references(() => purchaseOrderLines.id),
+    packageId: text("package_id")
+      .notNull()
+      .references(() => packages.id),
+    quantity: qty("quantity").notNull(),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("purchase_order_receipts_package_key").on(t.packageId), index("purchase_order_receipts_line_idx").on(t.purchaseOrderLineId)],
+);
+
+export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
+
 export const saleStatusEnum = pgEnum("sale_status", ["OPEN", "COMPLETED", "CANCELLED", "VOIDED"]);
 export const customerTypeEnum = pgEnum("customer_type", ["ADULT_USE", "MEDICAL"]);
 export const drawerStatusEnum = pgEnum("drawer_status", ["OPEN", "CLOSED"]);
