@@ -112,7 +112,11 @@ export async function POST(request: Request) {
     const block = message.content.find((b) => b.type === "tool_use");
     const action = block && block.type === "tool_use" ? parseAction(block.input) : null;
     if (route.kind === "customer") await markHealthy(session.orgId);
-    if (!action) return NextResponse.json({ action: { type: "ask", message: "I couldn't work out the next step. Can you tell me more about what to do?" } });
+    if (!action) {
+      // The model answered in words instead of calling the tool: show what it said rather than a generic line.
+      const said = message.content.flatMap((b) => (b.type === "text" ? [b.text.trim()] : [])).join(" ").trim().slice(0, 400);
+      return NextResponse.json({ action: { type: "ask", message: said || "I couldn't work out the next step. Can you tell me more about what to do?" } });
+    }
     return NextResponse.json({ action });
   } catch (error) {
     outcome = request.signal.aborted ? "ABORTED" : "ERROR";
