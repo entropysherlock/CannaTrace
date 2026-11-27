@@ -39,6 +39,17 @@ function visible(el: HTMLElement) {
 }
 
 /** A popup that is open right now. While one is open, only its controls can be used, like for a person. */
+/** What the app is saying right now: error and "saved" banners the forms show. */
+function pageMessages(root: ParentNode = document): string {
+  return Array.from(root.querySelectorAll<HTMLElement>("[role=alert], [role=status]"))
+    .filter((e) => visible(e) && !e.closest("[data-takeover-ignore]"))
+    .map((e) => (e.textContent ?? "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" | ")
+    .slice(0, 300);
+}
+
 function openPopup(): HTMLElement | null {
   const found = Array.from(document.querySelectorAll<HTMLElement>("dialog[open], [aria-modal=true]")).find((d) => !d.closest("[data-takeover-ignore]") && visible(d));
   return found ?? null;
@@ -126,11 +137,24 @@ export function Takeover() {
         // Pick-lists (like the strain search) choose on mouse-down, so send the whole press like a real mouse does.
         for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
         const form = el.closest("form");
+        const isSubmit = !!form && el.matches("button:not([type]), button[type=submit], input[type=submit]");
+        const before = form ? pageMessages(form) : "";
         el.click();
         await pause(350, 120);
         // The browser's own "Please fill out this field" bubble can't be seen from the page, so say what it complains about.
-        const bad = form ? Array.from(form.querySelectorAll<HTMLInputElement>(":invalid")).find((f) => f.validationMessage && visible(f)) : undefined;
-        const note = bad ? ` BUT the form refused: "${labelOf(bad).slice(0, 40)}" says "${bad.validationMessage.slice(0, 80)}"` : "";
+        const bad = isSubmit && form ? Array.from(form.querySelectorAll<HTMLInputElement>(":invalid")).find((f) => f.validationMessage && visible(f)) : undefined;
+        let note = bad ? ` BUT the form refused: "${labelOf(bad).slice(0, 40)}" says "${bad.validationMessage.slice(0, 80)}"` : "";
+        // A saved or error banner shows up a moment after pressing; read it so the result says what really happened.
+        if (isSubmit && form && !bad) {
+          for (let i = 0; i < 12 && !stop.current; i++) {
+            const now = pageMessages(form);
+            if (now && now !== before) {
+              note = ` The page says: "${now}"`;
+              break;
+            }
+            await pause(250, 100);
+          }
+        }
         return `clicked "${labelOf(el).slice(0, 40)}"${note}`;
       }
       if (action.type === "select") {
@@ -208,7 +232,7 @@ export function Takeover() {
             method: "POST",
             signal: abort.current.signal,
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ goal: state.goal, history: state.history.slice(-30), page: { url: location.pathname + location.search, title: document.title, popup: popup ? (popup.textContent ?? "").replace(/\s+/g, " ").slice(0, 300) : undefined, text: (document.querySelector("main")?.textContent ?? "").replace(/\s+/g, " ").slice(0, 1500), elements } }),
+            body: JSON.stringify({ goal: state.goal, history: state.history.slice(-30), page: { url: location.pathname + location.search, title: document.title, popup: popup ? (popup.textContent ?? "").replace(/\s+/g, " ").slice(0, 300) : undefined, text: (document.querySelector("main")?.textContent ?? "").replace(/\s+/g, " ").slice(0, 1500), messages: pageMessages(), elements } }),
           }).catch(() => null);
           if (stop.current) break;
           const data = res ? await res.json().catch(() => ({})) : {};

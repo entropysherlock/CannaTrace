@@ -77,3 +77,13 @@ describe("isStuck page hopping", () => {
     expect(isStuck([nav("/a"), nav("/b"), nav("/c"), nav("/d")])).toBe(false);
   });
 });
+
+describe("isStuck cycling", () => {
+  const a = (t: string) => ({ action: { type: "type", i: 1, text: t, submit: false } as never });
+  it("flags cycling through the same few actions", () => {
+    expect(isStuck([a("x"), a("y"), a("x"), a("y"), a("x"), a("y")])).toBe(true);
+  });
+  it("lets six different steps through", () => {
+    expect(isStuck([a("1"), a("2"), a("3"), a("4"), a("5"), a("6")])).toBe(false);
+  });
+});

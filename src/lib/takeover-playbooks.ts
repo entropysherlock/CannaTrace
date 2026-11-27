@@ -67,7 +67,8 @@ export const PLAYBOOKS: Playbook[] = [
     when: /\b(find|look ?up|where is|quantity|how much|pkg-\d+|package|stock|inventory)\b/,
     unless: /\b(receive|received|put away|make|produce|manufactur|batch(es)?)\b/,
     steps: [
-      "Go to /inventory and use the Search box with the tag (like PKG-000165) or item name. Each row shows tag, item, quantity and location, which is usually enough; open the row only if you need history.",
+      "Fastest: navigate straight to /inventory?q=<words from the item or tag>&status=active (like /inventory?q=Blue+Mesa+Flower&status=active). Read the rows: each shows tag, item, quantity and location. For a total, add up the rows' quantities.",
+      "Don't click a row unless you need its history, and don't re-type the same search: the first result list is the answer.",
     ],
   },
   {
@@ -91,6 +92,7 @@ export const PLAYBOOKS: Playbook[] = [
     when: /\b(wholesale|order|ship to|deliver|invoice|customer)\b/,
     steps: [
       "Go to /distribution. \"Start an order\" needs Ship to (a vendor or destination) and optional notes; press \"Start order\", then add lines on the order page.",
+      "Add a line: Item (type part of the name, then click the exact option), Quantity, and Unit price. If the page says the item isn't on the customer's price list, a Unit price is required: use the one in the goal, otherwise \"ask\" for it. A \"Line added.\" notice means it worked.",
       "Never send, deliver or cancel an order unless the goal says to; read statuses from the list instead.",
     ],
   },
