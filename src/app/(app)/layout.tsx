@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AssistantPanel } from "@/components/assistant-panel";
+import { Takeover } from "@/components/takeover";
 import { GlobalDrop } from "@/components/global-drop";
 import { PhoneHandoff } from "@/components/phone-handoff";
 import { WalkthroughProvider } from "@/components/walkthrough";
@@ -214,6 +215,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <PhoneHandoff />
         </>
       ) : null}
+      {tally.ready ? <Takeover /> : null}
       <AssistantPanel
         enabled={tally.ready}
         offReason={tally.reason}
