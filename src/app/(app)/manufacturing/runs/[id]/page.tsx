@@ -7,13 +7,14 @@ import { ActionForm } from "@/components/action-form";
 import { ManufacturingTabs } from "@/components/manufacturing-tabs";
 import { RunGuide } from "@/components/run-guide";
 import { Card, PageHeader } from "@/components/ui";
-import { bomLines, boms, equipment, items, locations, packages, productionInputs, productionRunEquipment, productionRuns } from "@/db/schema";
+import { bomLines, boms, equipment, itemCategories, items, locations, packages, productionCosts, productionInputs, productionRunEquipment, productionRuns } from "@/db/schema";
 import { db } from "@/lib/db";
 import { inputCost, weightLoss, yieldPercent } from "@/lib/manufacturing-math";
 import { can } from "@/lib/rbac";
 import { requireAnyPagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
-import { removeInputAction } from "../../actions";
+import { addRunCostAction, removeInputAction, removeRunCostAction } from "../../actions";
+import { COST_KINDS, COST_KIND_LABEL, costBreakdown } from "@/lib/run-costs-math";
 import { runEquipmentAddAction, runEquipmentRemoveAction } from "../../equipment/actions";
 import { facilityZone } from "@/lib/time";
 
@@ -33,7 +34,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
   if (!row) notFound();
   const { run } = row;
 
-  const [lines, inputs, rooms, [output], usedEquipment, allEquipment] = await Promise.all([
+  const [lines, inputs, rooms, [output], usedEquipment, allEquipment, costLines, inputCats] = await Promise.all([
     db
       .select({ itemId: bomLines.itemId, quantity: bomLines.quantity, itemName: items.name, unit: items.unit })
       .from(bomLines)
@@ -76,6 +77,12 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
       .from(equipment)
       .where(and(eq(equipment.orgId, session.orgId), eq(equipment.facilityId, session.facilityId), eq(equipment.status, "ACTIVE")))
       .orderBy(asc(equipment.name)),
+    db.select().from(productionCosts).where(eq(productionCosts.runId, run.id)).orderBy(asc(productionCosts.createdAt)),
+    db
+      .select({ itemId: items.id, category: itemCategories.name })
+      .from(items)
+      .innerJoin(itemCategories, eq(itemCategories.id, items.categoryId))
+      .where(eq(items.orgId, session.orgId)),
   ]);
 
   const open = run.status === "IN_PROGRESS";
@@ -93,6 +100,8 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
   const canWrite = open && can(session, "manufacturing.write");
   const used = (itemId: string) => inputs.filter((i) => i.itemId === itemId).reduce((sum, i) => sum.add(i.quantity), new Decimal(0));
   const costSoFar = inputCost(inputs);
+  const catOf = new Map(inputCats.map((c) => [c.itemId, c.category]));
+  const breakdown = costBreakdown(inputs.map((i) => ({ category: catOf.get(i.itemId) ?? "Other", quantity: i.quantity, costPerUnit: i.costPerUnit })), costLines);
   const yieldPct = run.actualOutput ? yieldPercent(run.actualOutput, run.plannedOutput) : null;
   const loss = run.actualOutput ? weightLoss(inputs, { quantity: run.actualOutput, unit: row.unit }) : null;
 
@@ -246,6 +255,63 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
                 </select>
               </ActionForm>
             ) : null}
+          </Card>
+          <Card title="Other costs" action={<span className="text-sm text-slate-600">{costLines.length ? money(costLines.reduce((t, c) => t.add(c.amount), new Decimal(0))) : ""}</span>}>
+            {costLines.length === 0 ? (
+              <p className="text-sm text-slate-600">No labor, packaging or overhead recorded.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100 text-sm">
+                {costLines.map((c) => (
+                  <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
+                    <span>
+                      <span className="font-semibold">{c.description}</span> <span className="text-slate-600">· {COST_KIND_LABEL[c.kind] ?? c.kind} · {c.userName}</span>
+                    </span>
+                    <span className="flex items-center gap-3">
+                      <span className="font-semibold">{money(c.amount)}</span>
+                      {canWrite ? (
+                        <ActionForm action={removeRunCostAction} submitLabel="Remove" quiet className="flex flex-col items-end gap-1">
+                          <input type="hidden" name="costId" value={c.id} />
+                        </ActionForm>
+                      ) : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canWrite ? (
+              <ActionForm action={addRunCostAction} submitLabel="Add cost" className="mt-3 flex flex-wrap items-end gap-2">
+                <input type="hidden" name="runId" value={run.id} />
+                <select name="kind" aria-label="Kind of cost" defaultValue="LABOR" className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm">
+                  {COST_KINDS.map((k) => (
+                    <option key={k.value} value={k.value}>
+                      {k.label}
+                    </option>
+                  ))}
+                </select>
+                <input name="description" aria-label="What it was for" placeholder="What it was for" maxLength={200} required className="min-h-11 min-w-40 flex-1 rounded-lg border border-slate-300 px-3 text-sm" />
+                <input name="amount" aria-label="Amount in dollars" inputMode="decimal" placeholder="$" required className="min-h-11 w-28 rounded-lg border border-slate-300 px-3 text-sm" />
+              </ActionForm>
+            ) : null}
+          </Card>
+
+          <Card title="Where the cost comes from" action={<span className="text-sm text-slate-600">{breakdown.uncosted ? "partial" : money(breakdown.total)}</span>}>
+            {breakdown.rows.length === 0 ? (
+              <p className="text-sm text-slate-600">Nothing costed yet.</p>
+            ) : (
+              <table className="w-full text-left text-sm" data-testid="cost-breakdown">
+                <tbody className="divide-y divide-slate-100">
+                  {breakdown.rows.map((r) => (
+                    <tr key={`${r.group}-${r.label}`}>
+                      <td className="py-1 pr-3 font-medium">{r.label}</td>
+                      <td className="py-1 pr-3 text-slate-500">{r.group === "inputs" ? "inputs" : "other"}</td>
+                      <td className="py-1 pr-3 text-right font-semibold">{money(r.amount)}</td>
+                      <td className="py-1 text-right text-slate-500">{r.share ? `${r.share.toString()}%` : ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {breakdown.uncosted ? <p className="mt-2 text-sm font-semibold text-amber-800">{breakdown.uncosted} input{breakdown.uncosted === 1 ? " has" : "s have"} no cost on record, so the real total is higher than shown.</p> : null}
           </Card>
         </div>
 

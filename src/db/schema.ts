@@ -2028,3 +2028,20 @@ export const productionRunEquipment = pgTable(
   },
   (t) => [primaryKey({ columns: [t.runId, t.equipmentId] })],
 );
+
+/** Itemized costs of a production run beyond its inputs: labor, packaging and supplies, overhead. */
+export const productionCosts = pgTable(
+  "production_costs",
+  {
+    id: id(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => productionRuns.id),
+    kind: text("kind").notNull(), // LABOR | PACKAGING | OVERHEAD | OTHER
+    description: text("description").notNull(),
+    amount: qty("amount").notNull(),
+    userName: text("user_name").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("production_costs_run_idx").on(t.runId)],
+);
