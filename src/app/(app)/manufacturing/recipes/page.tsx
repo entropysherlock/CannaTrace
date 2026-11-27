@@ -1,24 +1,28 @@
 import Decimal from "decimal.js";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { ActionForm } from "@/components/action-form";
 import { ManufacturingTabs } from "@/components/manufacturing-tabs";
 import { RecipeForm } from "@/components/recipe-form";
 import Link from "next/link";
 import { Plus, X } from "lucide-react";
-import { Card, PageHeader, buttonLinkClass } from "@/components/ui";
+import { Card, Field, PageHeader, buttonLinkClass, inputClass } from "@/components/ui";
+import { InventoryError } from "@/lib/inventory-math";
+import { planFor } from "@/lib/manufacturing";
+import { suggestRunName } from "@/lib/manufacturing-math";
 import { bomLines, boms, itemCategories, items } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { requireAnyPagePermission } from "@/lib/session";
 import { unitLabel } from "@/lib/units";
-import { recipeActiveAction } from "../actions";
+import { recipeActiveAction, startChainAction } from "../actions";
 
-export default async function RecipesPage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
+export default async function RecipesPage({ searchParams }: { searchParams: Promise<{ new?: string; plan?: string; batches?: string }> }) {
   const session = await requireAnyPagePermission("manufacturing.write", "audit.view");
-  const { new: adding } = await searchParams;
+  const { new: adding, plan: planId, batches: planBatches } = await searchParams;
   const [recipes, itemRows, categories] = await Promise.all([
     db
-      .select({ id: boms.id, name: boms.name, outputQuantity: boms.outputQuantity, active: boms.active, itemName: items.name, unit: items.unit })
+      .select({ id: boms.id, outputItemId: boms.outputItemId, name: boms.name, outputQuantity: boms.outputQuantity, active: boms.active, itemName: items.name, unit: items.unit })
       .from(boms)
       .innerJoin(items, eq(items.id, boms.outputItemId))
       .where(eq(boms.orgId, session.orgId))
@@ -33,13 +37,26 @@ export default async function RecipesPage({ searchParams }: { searchParams: Prom
   const inputItem = alias(items, "input_item");
   const lines = recipes.length
     ? await db
-        .select({ bomId: bomLines.bomId, quantity: bomLines.quantity, itemName: inputItem.name, unit: inputItem.unit })
+        .select({ bomId: bomLines.bomId, itemId: bomLines.itemId, quantity: bomLines.quantity, itemName: inputItem.name, unit: inputItem.unit })
         .from(bomLines)
         .innerJoin(inputItem, eq(inputItem.id, bomLines.itemId))
         .where(inArray(bomLines.bomId, recipes.map((r) => r.id)))
         .orderBy(asc(inputItem.name))
     : [];
   const canWrite = can(session, "manufacturing.write");
+  const makers = new Set(recipes.filter((r) => r.active).map((r) => r.outputItemId));
+  const itemById = new Map(itemRows.map((i) => [i.id, i]));
+  let plan: Awaited<ReturnType<typeof planFor>> | null = null;
+  let planProblem: string | null = null;
+  const actorForPlan = { userId: session.userId, userName: session.name, orgId: session.orgId, facilityId: session.facilityId };
+  if (planId && planBatches) {
+    try {
+      plan = await planFor(actorForPlan, { recipeId: planId, batches: planBatches });
+    } catch (error) {
+      planProblem = error instanceof InventoryError ? error.message : "That plan could not be worked out.";
+    }
+  }
+  const activeRecipes = recipes.filter((r) => r.active);
   const showForm = canWrite && (adding === "1" || recipes.length === 0);
 
   return (
@@ -71,6 +88,111 @@ export default async function RecipesPage({ searchParams }: { searchParams: Prom
             }
           >
             <RecipeForm items={itemRows.map((item) => ({ id: item.id, label: `${item.name} (${unitLabel(item.unit)})` }))} categories={categories.map((c) => c.name)} />
+          </Card>
+        </div>
+      ) : null}
+      {activeRecipes.length > 0 ? (
+        <div className="mb-6">
+          <Card title="Plan a multi-stage run">
+            <p className="mb-3 text-sm text-slate-600">
+              Pick the finished product and how many batches. Where one recipe uses another recipe&apos;s output (cones into boxed pre-rolls, say), this works out every stage, uses what you already have first, and adds up the raw materials.
+            </p>
+            <form method="get" className="flex flex-wrap items-end gap-3">
+              <Field label="Finished recipe">
+                <select name="plan" defaultValue={planId ?? activeRecipes[0].id} className={inputClass}>
+                  {activeRecipes.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Batches">
+                <input name="batches" inputMode="decimal" defaultValue={planBatches ?? "1"} className={`${inputClass} w-28`} />
+              </Field>
+              <button type="submit" className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-semibold hover:bg-slate-50">
+                Show plan
+              </button>
+            </form>
+            {planProblem ? (
+              <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-800">
+                {planProblem}
+              </p>
+            ) : null}
+            {plan ? (
+              <div className="mt-4 space-y-4 text-sm" data-testid="chain-plan">
+                {plan.stages.length === 0 ? (
+                  <p className="rounded-lg bg-emerald-50 p-3 font-semibold text-emerald-900">Nothing to make: what you have in stock already covers it.</p>
+                ) : (
+                  <ol className="space-y-2">
+                    {plan.stages.map((st, i) => {
+                      const out = itemById.get(st.outputItemId);
+                      return (
+                        <li key={st.recipeId} className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
+                          <p className="font-semibold text-slate-900">
+                            Stage {i + 1}: {st.name}, {st.batches.toString()} batch{st.batches.eq(1) ? "" : "es"} → {st.plannedOutput.toString()} {out ? unitLabel(out.unit) : ""} of {out?.name ?? "output"}
+                          </p>
+                          <ul className="mt-1 list-disc pl-5 text-slate-700">
+                            {st.inputs.map((inp) => {
+                              const it = itemById.get(inp.itemId);
+                              return (
+                                <li key={inp.itemId}>
+                                  {inp.quantity.toString()} {it ? unitLabel(it.unit) : ""} of {it?.name ?? "item"}
+                                  {inp.fromStage ? <span className="ml-2 rounded bg-sky-100 px-1.5 py-0.5 text-xs font-semibold text-sky-800">made in an earlier stage</span> : null}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+                {plan.usedFromStock.length > 0 ? (
+                  <p className="text-slate-700">
+                    Already in stock and used first:{" "}
+                    {plan.usedFromStock.map((u) => `${u.quantity.toString()} ${itemById.get(u.itemId) ? unitLabel(itemById.get(u.itemId)!.unit) : ""} of ${itemById.get(u.itemId)?.name ?? "item"}`).join(", ")}.
+                  </p>
+                ) : null}
+                {plan.raw.length > 0 ? (
+                  <div>
+                    <h3 className="font-bold text-slate-900">Raw materials</h3>
+                    <table className="mt-1 w-full text-left">
+                      <thead className="text-xs uppercase text-slate-500">
+                        <tr>
+                          <th className="py-1 pr-3">Item</th>
+                          <th className="py-1 pr-3">Needed</th>
+                          <th className="py-1 pr-3">On hand</th>
+                          <th className="py-1">Short</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {plan.raw.map((r) => {
+                          const it = itemById.get(r.itemId);
+                          return (
+                            <tr key={r.itemId}>
+                              <td className="py-1 pr-3 font-medium">{it?.name ?? "item"}</td>
+                              <td className="py-1 pr-3">{r.needed.toString()} {it ? unitLabel(it.unit) : ""}</td>
+                              <td className="py-1 pr-3">{r.onHand.toString()}</td>
+                              <td className={`py-1 font-semibold ${r.short.gt(0) ? "text-red-700" : "text-emerald-700"}`}>{r.short.gt(0) ? r.short.toString() : "none"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {canWrite && plan.stages.length > 0 ? (
+                  <ActionForm action={startChainAction} submitLabel={`Start all ${plan.stages.length} stage${plan.stages.length === 1 ? "" : "s"}`} className="flex flex-wrap items-end gap-3">
+                    <input type="hidden" name="recipeId" value={planId} />
+                    <input type="hidden" name="batches" value={planBatches} />
+                    <Field label="Base name for the runs">
+                      <input name="baseName" required maxLength={70} defaultValue={suggestRunName([], new Date()).replace(/-\d+$/, "")} className={inputClass} />
+                    </Field>
+                  </ActionForm>
+                ) : null}
+              </div>
+            ) : null}
           </Card>
         </div>
       ) : null}
@@ -107,6 +229,7 @@ export default async function RecipesPage({ searchParams }: { searchParams: Prom
                     .map((line) => (
                       <li key={line.itemName}>
                         {new Decimal(line.quantity).toString()} {unitLabel(line.unit)} of {line.itemName}
+                        {makers.has(line.itemId) && line.itemId !== recipe.outputItemId ? <span className="ml-2 rounded bg-sky-100 px-1.5 py-0.5 text-xs font-semibold text-sky-800">made by another recipe</span> : null}
                       </li>
                     ))}
                 </ul>

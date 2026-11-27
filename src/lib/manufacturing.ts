@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   bomLines,
   boms,
@@ -12,6 +12,7 @@ import {
   type ProductionRun,
 } from "@/db/schema";
 import { db, type Tx } from "./db";
+import { findLoop, planChain, type ChainPlan, type ChainRecipe } from "./bom-tree";
 import {
   InventoryError,
   audit,
@@ -74,6 +75,9 @@ export async function createRecipe(
       .returning({ id: boms.id });
     if (!recipe) throw new InventoryError(`There is already a recipe called ${name}.`);
     await tx.insert(bomLines).values(lines.map((l) => ({ bomId: recipe.id, itemId: l.itemId, quantity: store(l.quantity) })));
+    // A recipe that feeds itself through other recipes can never be made. Throwing rolls the save back.
+    const loop = findLoop(await loadChainRecipes(actor.orgId, tx));
+    if (loop) throw new InventoryError(`This recipe would make a circle with your other recipes (${loop.join(" → ")}). One of them has to start from something that is not made by the others.`);
     await audit(tx, actor, {
       entityType: "Recipe",
       entityId: recipe.id,
@@ -331,4 +335,53 @@ export async function cancelRun(actor: Actor, input: { runId: string }): Promise
     await tx.update(productionRuns).set({ status: "CANCELLED", completedAt: new Date() }).where(eq(productionRuns.id, run.id));
     await audit(tx, actor, { entityType: "ProductionRun", entityId: run.id, action: "CANCEL" });
   });
+}
+
+/** Every active recipe with its inputs, in the shape the chain planner uses. */
+export async function loadChainRecipes(orgId: string, reader: Pick<Tx, "select"> = db): Promise<ChainRecipe[]> {
+  const recipes = await reader.select().from(boms).where(and(eq(boms.orgId, orgId), eq(boms.active, true))).orderBy(asc(boms.name));
+  if (recipes.length === 0) return [];
+  const lines = await reader.select().from(bomLines).where(inArray(bomLines.bomId, recipes.map((r) => r.id)));
+  return recipes.map((r) => ({
+    id: r.id,
+    name: r.name,
+    outputItemId: r.outputItemId,
+    outputQuantity: r.outputQuantity,
+    lines: lines.filter((l) => l.bomId === r.id).map((l) => ({ itemId: l.itemId, quantity: l.quantity })),
+  }));
+}
+
+/** What is on hand at a facility, by item: active packages only, in each item's own unit. */
+export async function onHandByItem(orgId: string, facilityId: string): Promise<Map<string, Decimal>> {
+  const rows = await db
+    .select({ itemId: packages.itemId, total: sql<string>`sum(${packages.quantity})` })
+    .from(packages)
+    .where(and(eq(packages.orgId, orgId), eq(packages.facilityId, facilityId), eq(packages.status, "ACTIVE")))
+    .groupBy(packages.itemId);
+  return new Map(rows.map((r) => [r.itemId, new Decimal(r.total)]));
+}
+
+export async function planFor(actor: Actor, input: { recipeId: string; batches: unknown }): Promise<ChainPlan> {
+  const batches = parseBatches(input.batches);
+  return planChain(await loadChainRecipes(actor.orgId), input.recipeId, batches, await onHandByItem(actor.orgId, actor.facilityId));
+}
+
+/**
+ * Start every stage of a multi-stage plan, earliest first, named BASE-1, BASE-2, ... If one stage can't
+ * start, the ones already started are cancelled so nothing is left half set up.
+ */
+export async function startChain(actor: Actor, input: { recipeId: string; batches: unknown; baseName: string }): Promise<{ runIds: string[] }> {
+  const baseName = requireText(input.baseName, "Give the runs a base name, for example RUN-1116.");
+  const plan = await planFor(actor, input);
+  if (plan.stages.length === 0) throw new InventoryError("Nothing needs to be made: what you have in stock already covers it.");
+  const started: ProductionRun[] = [];
+  try {
+    for (const [i, stage] of plan.stages.entries()) {
+      started.push(await startRun(actor, { name: `${baseName}-${i + 1}`, recipeId: stage.recipeId, batches: stage.batches.toString() }));
+    }
+  } catch (error) {
+    for (const run of started) await cancelRun(actor, { runId: run.id }).catch(() => undefined);
+    throw error;
+  }
+  return { runIds: started.map((r) => r.id) };
 }
