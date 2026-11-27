@@ -104,7 +104,7 @@ export async function POST(request: Request) {
   try {
     const client = new Anthropic({ apiKey: route.apiKey, maxRetries: 1 });
     const message = await client.messages.create(
-      { model: route.model, max_tokens: 500, system: SYSTEM, tools: [TOOL], tool_choice: { type: "auto" }, messages: [{ role: "user", content: prompt }] },
+      { model: route.model, max_tokens: 2000, system: SYSTEM, tools: [TOOL], tool_choice: { type: "auto" }, messages: [{ role: "user", content: prompt }] },
       { signal: request.signal },
     );
     inputTokens = message.usage.input_tokens;
@@ -115,7 +115,10 @@ export async function POST(request: Request) {
     if (!action) {
       // The model answered in words instead of calling the tool: show what it said rather than a generic line.
       const said = message.content.flatMap((b) => (b.type === "text" ? [b.text.trim()] : [])).join(" ").trim().slice(0, 400);
-      return NextResponse.json({ action: { type: "ask", message: said || "I couldn't work out the next step. Can you tell me more about what to do?" } });
+      const kinds = message.content.map((b) => b.type).join(",") || "none";
+      const raw = block && block.type === "tool_use" ? JSON.stringify(block.input).slice(0, 120) : "";
+      console.error("takeover: no usable action", message.stop_reason, kinds, raw);
+      return NextResponse.json({ action: { type: "ask", message: `${said || "I couldn't work out the next step. Can you tell me more about what to do?"} (stop: ${message.stop_reason}, got: ${kinds}${raw ? ` ${raw}` : ""})` } });
     }
     return NextResponse.json({ action });
   } catch (error) {
