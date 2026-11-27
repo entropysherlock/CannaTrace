@@ -42,6 +42,7 @@ import { can } from "@/lib/rbac";
 import { requireSession } from "@/lib/session";
 import { facilityToday, facilityZone } from "@/lib/time";
 import { todayList, type TodayItem } from "@/lib/today";
+import { storeSetup } from "@/lib/store-setup";
 import { ADAPTERS } from "@/lib/sync";
 import { SYSTEM_LABELS, type SystemName } from "@/lib/sync-math";
 import { sweepIfStaleBriefly } from "@/lib/watch";
@@ -117,6 +118,51 @@ const SEVERITY = {
 };
 
 const mayCompliance = (session: Parameters<typeof can>[0]) => can(session, "compliance.view");
+
+
+/** The to-do list for a new retail store: what to do before the first sale, in order, with what's done ticked off. */
+function SetupPanel({ steps }: { steps: Awaited<ReturnType<typeof import("@/lib/store-setup").storeSetup>> }) {
+  if (!steps) return null;
+  const todo = steps.filter((s) => !s.done);
+  if (!todo.length) return null;
+  const requiredLeft = steps.filter((s) => s.required && !s.done).length;
+  const required = steps.filter((s) => s.required);
+  return (
+    <section className="mb-4 rounded-2xl border border-brand-200 bg-brand-50/40 p-4 shadow-sm sm:p-5" data-testid="store-setup">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-base font-bold text-slate-950">
+          <ListChecks className="h-5 w-5 text-brand-600" aria-hidden="true" />
+          {requiredLeft ? "Get your store ready to sell" : "Your store is ready to sell. A couple of extras:"}
+        </h2>
+        {requiredLeft ? (
+          <p className="text-xs font-medium text-slate-600">
+            {required.length - requiredLeft} of {required.length} required steps done
+          </p>
+        ) : null}
+      </div>
+      <ol className="mt-3 space-y-1.5">
+        {steps.map((s) => (
+          <li key={s.key}>
+            <Link
+              href={s.href}
+              className={`flex items-start gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-white ${s.done ? "text-slate-500" : "text-slate-900"}`}
+            >
+              {s.done ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" aria-label="Done" />
+              ) : (
+                <Circle className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-label="Not done yet" />
+              )}
+              <span className="min-w-0">
+                <span className={`font-semibold ${s.done ? "line-through decoration-slate-300" : ""}`}>{s.title}</span>
+                {s.done ? null : <span className="block text-xs text-slate-600">{s.detail}</span>}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
 
 /** The short list of things to do today, most urgent first. */
 function TodayPanel({ items }: { items: TodayItem[] }) {
@@ -283,6 +329,10 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
       </div>
 
       {empty && scope === "one" && can(session, "inventory.write") && can(session, "catalog.manage") ? <SwitchBanner /> : null}
+
+      {scope === "one" && can(session, "inventory.write") && can(session, "catalog.manage") ? (
+        <SetupPanel steps={await storeSetup({ orgId: session.orgId, facilityId: session.facilityId })} />
+      ) : null}
 
       <TodayPanel items={todo} />
 

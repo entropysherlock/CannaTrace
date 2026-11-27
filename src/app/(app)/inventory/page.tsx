@@ -2,13 +2,15 @@ import Link from "next/link";
 import { CheckedLabelLink } from "@/components/labels/checked-label-link";
 import { ActionForm } from "@/components/action-form";
 import { PackageBulkFields } from "@/components/package-bulk-fields";
-import { packageBulkAction } from "./actions";
+import { holdWaitingOnLabAction, packageBulkAction } from "./actions";
 import { and, asc, count, desc, eq, ilike, or } from "drizzle-orm";
 import { ScanInput } from "@/components/scan-input";
 import { buttonLinkClass, inputBase, PageHeader, ScrollBox, StatusBadge } from "@/components/ui";
 import { itemCategories, items, locations, packages, type PackageStatus } from "@/db/schema";
 import { db } from "@/lib/db";
 import { can } from "@/lib/rbac";
+import { packagesWaitingOnLab, storePack } from "@/lib/pos";
+import { requiresLabBeforeRetail } from "@/lib/rules";
 import { requirePagePermission } from "@/lib/session";
 import { formatQty } from "@/lib/units";
 
@@ -81,6 +83,11 @@ export default async function InventoryPage({
         .where(and(eq(locations.orgId, session.orgId), eq(locations.facilityId, session.facilityId)))
         .orderBy(asc(locations.name))
     : [];
+  // In a state that needs a lab result before retail, offer to hold every package that doesn't have one yet (a fresh import has many).
+  const waitingOnLab =
+    canWrite && requiresLabBeforeRetail(await storePack(db, session.facilityId))
+      ? (await packagesWaitingOnLab(db, session)).length
+      : 0;
   const first = total ? (page - 1) * PAGE_SIZE + 1 : 0;
   const last = (page - 1) * PAGE_SIZE + rows.length;
   const pageHref = (n: number) => {
@@ -130,6 +137,21 @@ export default async function InventoryPage({
           Search
         </button>
       </form>
+
+      {waitingOnLab > 0 ? (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-950">
+            {waitingOnLab} active package{waitingOnLab === 1 ? " has" : "s have"} no passing lab result
+          </p>
+          <p className="mt-1 text-sm text-amber-900">
+            This state requires one before retail, so the register can&apos;t sell {waitingOnLab === 1 ? "it" : "them"} yet. Hold {waitingOnLab === 1 ? "it" : "them all"} until the result is in,
+            so nothing is sold or counted as ready by mistake.
+          </p>
+          <ActionForm action={holdWaitingOnLabAction} submitLabel={`Hold ${waitingOnLab} package${waitingOnLab === 1 ? "" : "s"} until labs are in`} className="mt-3 space-y-2" quiet>
+            <span className="sr-only">Puts every active package with no passing lab result on hold.</span>
+          </ActionForm>
+        </div>
+      ) : null}
 
       {rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
