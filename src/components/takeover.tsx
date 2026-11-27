@@ -3,7 +3,8 @@
 import { Hand, Loader2, RotateCcw, Square, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MAX_ELEMENTS, MAX_STEPS, checkAction, isStuck, type Action, type PageElement } from "@/lib/takeover-math";
+import { pickOptions } from "@/lib/takeover-playbooks";
+import { MAX_ELEMENTS, MAX_OPTIONS, MAX_STEPS, checkAction, isStuck, type Action, type PageElement } from "@/lib/takeover-math";
 
 const KEY = "leaf2sale-takeover";
 type Saved = { goal: string; history: { action: Action; result: string }[]; running: boolean };
@@ -39,7 +40,7 @@ function openPopup(): HTMLElement | null {
   return found ?? null;
 }
 
-function snapshot(): PageElement[] {
+function snapshot(goal: string): PageElement[] {
   const popup = openPopup();
   const nodes = Array.from((popup ?? document).querySelectorAll<HTMLElement>("a[href],button,input,select,textarea,summary,[role=button],[role=option]")).filter((el) => !el.closest("[data-takeover-ignore]") && visible(el) && (el as HTMLInputElement).type !== "hidden");
   const out: PageElement[] = [];
@@ -54,7 +55,7 @@ function snapshot(): PageElement[] {
       type: tag === "input" ? input.type : undefined,
       value: ["input", "textarea", "select"].includes(tag) && input.type !== "password" ? (tag === "select" ? (el as HTMLSelectElement).selectedOptions[0]?.text : input.value) || undefined : undefined,
       href: tag === "a" ? (el as HTMLAnchorElement).getAttribute("href") ?? undefined : undefined,
-      options: tag === "select" ? Array.from((el as HTMLSelectElement).options).map((o) => o.text) : undefined,
+      options: tag === "select" ? pickOptions(Array.from((el as HTMLSelectElement).options).map((o) => o.text), goal, MAX_OPTIONS) : undefined,
       disabled: input.disabled || el.getAttribute("aria-disabled") === "true",
     });
   });
@@ -195,7 +196,7 @@ export function Takeover() {
           }
           setPhase("thinking");
           await sleep(500); // let the page settle
-          const elements = snapshot();
+          const elements = snapshot(state.goal);
           const popup = openPopup();
           abort.current = new AbortController();
           const res = await fetch("/api/takeover/step", {
