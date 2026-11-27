@@ -33,8 +33,15 @@ function visible(el: HTMLElement) {
   return s.visibility !== "hidden" && s.display !== "none";
 }
 
+/** A popup that is open right now. While one is open, only its controls can be used, like for a person. */
+function openPopup(): HTMLElement | null {
+  const found = Array.from(document.querySelectorAll<HTMLElement>("dialog[open], [aria-modal=true]")).find((d) => !d.closest("[data-takeover-ignore]") && visible(d));
+  return found ?? null;
+}
+
 function snapshot(): PageElement[] {
-  const nodes = Array.from(document.querySelectorAll<HTMLElement>("a[href],button,input,select,textarea,summary,[role=button],[role=option]")).filter((el) => !el.closest("[data-takeover-ignore]") && visible(el) && (el as HTMLInputElement).type !== "hidden");
+  const popup = openPopup();
+  const nodes = Array.from((popup ?? document).querySelectorAll<HTMLElement>("a[href],button,input,select,textarea,summary,[role=button],[role=option]")).filter((el) => !el.closest("[data-takeover-ignore]") && visible(el) && (el as HTMLInputElement).type !== "hidden");
   const out: PageElement[] = [];
   nodes.slice(0, MAX_ELEMENTS).forEach((el, i) => {
     el.setAttribute("data-tk", String(i));
@@ -169,12 +176,13 @@ export function Takeover() {
           setPhase("thinking");
           await sleep(500); // let the page settle
           const elements = snapshot();
+          const popup = openPopup();
           abort.current = new AbortController();
           const res = await fetch("/api/takeover/step", {
             method: "POST",
             signal: abort.current.signal,
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ goal: state.goal, history: state.history.slice(-30), page: { url: location.pathname + location.search, title: document.title, text: (document.querySelector("main")?.textContent ?? "").replace(/\s+/g, " ").slice(0, 1500), elements } }),
+            body: JSON.stringify({ goal: state.goal, history: state.history.slice(-30), page: { url: location.pathname + location.search, title: document.title, popup: popup ? (popup.textContent ?? "").replace(/\s+/g, " ").slice(0, 300) : undefined, text: (document.querySelector("main")?.textContent ?? "").replace(/\s+/g, " ").slice(0, 1500), elements } }),
           }).catch(() => null);
           if (stop.current) break;
           const data = res ? await res.json().catch(() => ({})) : {};
