@@ -47,6 +47,17 @@ export const PLAYBOOKS: Playbook[] = [
     ],
   },
   {
+    id: "harvest",
+    title: "Harvest, dry weight and package",
+    when: /\b(harvest|harvesting|wet weight|dry weight|dried|drying)/,
+    steps: [
+      "Harvests are recorded in the Grow guide at /cultivation, NOT from the Harvests list (that list has no start button).",
+      "In the step bar click \"Harvest\" (step 4). Tick the flowering plant group(s) to cut, enter the Wet weight, pick the \"Dry in room\", then press \"Record harvest\". If it says no flowering plants, the plants must be moved to Flowering first (the Move step).",
+      "To weigh after drying click \"Dry\", pick the harvest, enter the Dry weight, press \"Save dry weight\". To package click \"Package\", pick the harvest, item and weight, press its button.",
+      "The Harvests list at /cultivation/harvests only shows the result, open it to confirm the new harvest appears.",
+    ],
+  },
+  {
     id: "plants-lookup",
     title: "Count or find plants",
     when: /\b(how many plants?|plants? in|count (the )?plants?|which plants?)\b/,
