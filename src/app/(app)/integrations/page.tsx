@@ -1,6 +1,7 @@
-import { Info } from "lucide-react";
+import { ExternalLink, Info } from "lucide-react";
 import { and, desc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
+import { CopyText } from "@/components/copy-text";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { apiKeys, webhookDeliveries, webhooks } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -8,6 +9,11 @@ import { WEBHOOK_EVENTS } from "@/lib/integrations";
 import { requirePagePermission } from "@/lib/session";
 import { createKeyAction, createWebhookAction, revokeKeyAction, toggleWebhookAction } from "./actions";
 import { facilityZone } from "@/lib/time";
+import { SITE_URL } from "@/lib/site";
+
+const CONNECTOR_URL = `${SITE_URL}/api/mcp`;
+/** Opens Claude's "Add custom connector" box with the name and address already filled in. */
+const CLAUDE_INSTALL = `https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Leaf2Sale&connectorUrl=${encodeURIComponent(CONNECTOR_URL)}`;
 
 const ENDPOINTS = [
   ["GET", "/api/v1/packages", "Packages at the key's facility. Filters: status, limit (up to 500), offset."],
@@ -39,6 +45,26 @@ export default async function IntegrationsPage() {
       <PageHeader title="Integrations" subtitle="Connect accounting, ecommerce, or your own tools to this facility." />
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="space-y-5">
+          <Card title="Connect an AI app">
+            <p className="text-sm text-slate-700">Ask Claude, ChatGPT, or another AI app about this facility&apos;s inventory, sales, orders, and state reporting, and have it make changes for you. Try: &ldquo;What&apos;s on hold and why?&rdquo;</p>
+            <a
+              href={CLAUDE_INSTALL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-700 px-5 text-sm font-bold text-white hover:bg-brand-800"
+            >
+              Connect to Claude <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </a>
+            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-700">
+              <li>Click the button. Claude opens with the name and address filled in.</li>
+              <li>Click Add, then Connect.</li>
+              <li>Come back here to Approve. Tick &ldquo;Also allow changes&rdquo; if you want it to make changes too.</li>
+            </ol>
+            <p className="mt-3 text-sm font-semibold text-slate-800">Another AI app, such as ChatGPT?</p>
+            <p className="mb-2 text-sm text-slate-600">Add a custom connector there and paste this address. It will send you here to approve.</p>
+            <CopyText value={CONNECTOR_URL} label="Leaf2Sale connector address" />
+            <p className="mt-3 text-xs text-slate-500">Each connection works for this facility only and shows up below in API keys as &ldquo;(AI connector)&rdquo;. Revoke it there any time. On a Claude Team or Enterprise plan, an owner adds the connector under Admin settings → Connectors using the same address.</p>
+          </Card>
           <Card title="API keys">
             {keys.length === 0 ? (
               <p className="text-sm text-slate-600">No keys yet.</p>
