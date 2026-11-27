@@ -72,6 +72,18 @@ export function CartScreen({ view }: { view: CartView }) {
   const [paying, setPaying] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const search = useRef<HTMLInputElement>(null);
+  /**
+   * Keep the cursor in the product box so a USB scanner that types into a focused field lands there, as the ID
+   * box does on the check-in screen. Never steals focus from another box being typed in, and skips touch screens
+   * so the on-screen keyboard does not pop up by itself.
+   */
+  const focusSearch = useCallback(() => {
+    const el = search.current;
+    if (!el || typeof window === "undefined" || !window.matchMedia("(pointer: fine)").matches) return;
+    const active = document.activeElement;
+    const typing = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active instanceof HTMLSelectElement;
+    if (!typing || active === el) el.focus();
+  }, []);
   const [noticeOpen, setNoticeOpen] = useState(true);
 
   const colorOf = useMemo(() => {
@@ -102,6 +114,7 @@ export function CartScreen({ view }: { view: CartView }) {
     start(async () => {
       report(await work(), okText);
       setBusyTile(null);
+      focusSearch();
     });
   };
 
@@ -109,11 +122,15 @@ export function CartScreen({ view }: { view: CartView }) {
     (code: string) => {
       start(async () => {
         report(await terminalScan(view.saleId, code.trim()));
+        focusSearch();
       });
     },
-    [report, view.saleId],
+    [report, view.saleId, focusSearch],
   );
   useScanner(scan, { enabled: !paying });
+  useEffect(() => {
+    if (!paying) focusSearch();
+  }, [paying, focusSearch]);
 
   const shown = view.menu.filter((m) => {
     if (category !== "All" && m.category !== category) return false;
