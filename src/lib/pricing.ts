@@ -1,51 +1,31 @@
 /**
- * Leaf2Sale pricing, in one place: one plan with every feature, priced by how many facilities
- * (licenses) a business runs. The pricing page reads these, and the sales sheet, demo script,
- * and partner agreement quote the same numbers.
+ * Leaf2Sale pricing, in one place: one plan with every feature, one price per facility (license),
+ * unlimited users. No tiers, no multi-facility discounts, no trials or founder offers. The landing
+ * page, the pricing page, and their search-engine data all read from here.
  */
 
-export type Price = {
-  facilities: number;
-  /** US dollars a month. */
-  price: number;
-  /** The founding-customer price, for life: $100 off. */
-  founderPrice: number;
-};
+/** US dollars a month, for each facility. */
+export const PRICE_PER_FACILITY = 299;
 
-export const PRICES: Price[] = [
-  { facilities: 1, price: 299, founderPrice: 199 },
-  { facilities: 2, price: 499, founderPrice: 399 },
-];
-
-/** Founding offer is paused: flip to true to bring it back on the landing, pricing, and state pages. */
-export const SHOW_FOUNDING_OFFER = false;
-
-export const FOUNDING = {
-  spots: 5,
-  freeDays: 60,
-  perks: ["60 days free", "$100 off every month, for life", "We set it up and bring your inventory over for you"],
-};
-
-/** Everything comes with every plan. */
+/** Everything comes with every facility. */
 export const FEATURES = [
   "Plants, batches, and harvests, with IDs made for you",
   "Inventory, lab results, counts, and audit trail",
+  "Purchase orders, received in one click",
   "SmartLabel AI: New Mexico product and package labels",
   "Manufacturing: recipes, runs, yield, and cost per unit",
   "Wholesale: orders, picking, manifests, and invoices",
+  "QuickBooks Online: itemized invoices and payments",
   "Register for retail sales, with purchase limits",
-  "Tally, the built-in assistant, and Tally Watch",
+  "Tally, the built-in assistant, Tally Watch, and Take over mode",
   "Show me how guided walkthroughs",
   "Switch from NMS2S, Dutchie, or Flourish",
-  "Unlimited team members",
+  "Unlimited users",
 ];
 
 export const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
-export const facilitiesLabel = (n: number) => `${n} ${n === 1 ? "facility" : "facilities"}`;
 
-/** The prices in one sentence, for the homepage FAQ and the pricing page's description: always from PRICES. */
+/** The price in one sentence, for the homepage FAQ and the pricing page's description. */
 export function priceSentence(): string {
-  const [one, two] = PRICES;
-  const off = one.price - one.founderPrice;
-  return `${usd(one.price)} a month for ${facilitiesLabel(one.facilities)}, or ${usd(two.price)} a month for ${facilitiesLabel(two.facilities)}, with every feature and unlimited team members.${SHOW_FOUNDING_OFFER ? ` Founding customers pay ${usd(off)} less every month, for life.` : ""}`;
+  return `${usd(PRICE_PER_FACILITY)} a month per facility, with every feature and unlimited users. No contract; pay month to month.`;
 }

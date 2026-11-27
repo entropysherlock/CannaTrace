@@ -1,19 +1,18 @@
-import { Check, Gift, MapPin } from "lucide-react";
+import { Check, MapPin } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { JsonLd, faqSchema } from "@/components/json-ld";
 import { mailto } from "@/lib/contact";
 import { liveDemoOn } from "@/lib/access";
-import { FEATURES, FOUNDING, PRICES, SHOW_FOUNDING_OFFER, facilitiesLabel, usd } from "@/lib/pricing";
+import { FEATURES, PRICE_PER_FACILITY, priceSentence, usd } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Pricing · Leaf2Sale",
-  description: `${usd(PRICES[0].price)} a month for 1 facility, ${usd(PRICES[1].price)} for 2, every feature included.${SHOW_FOUNDING_OFFER ? ` Founding customers get ${FOUNDING.freeDays} days free and ${usd(PRICES[0].price - PRICES[0].founderPrice)} off every month for life.` : ""}`,
+  description: priceSentence(),
   alternates: { canonical: "/pricing" },
 };
 
-const FOUNDER_LINK = mailto("Leaf2Sale founding customer");
 const DEMO_LINK = mailto("Leaf2Sale demo request");
 
 const QUESTIONS: [string, string][] = [
@@ -37,7 +36,7 @@ const QUESTIONS: [string, string][] = [
     "What does Tally cost?",
     "Tally runs on your business's own Claude account, so you pay Anthropic directly for what you use. Everything else is in the monthly price.",
   ],
-  ["What about 3 or more facilities?", "Email us and we'll price it with you."],
+  ["What if I run more than one facility?", `Each licensed facility is ${usd(PRICE_PER_FACILITY)} a month, with unlimited users at every one. Two facilities is ${usd(PRICE_PER_FACILITY * 2)} a month, three is ${usd(PRICE_PER_FACILITY * 3)}, and so on.`],
 ];
 
 export default function PricingPage() {
@@ -67,58 +66,28 @@ export default function PricingPage() {
             Built in Albuquerque for New Mexico
           </p>
           <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-brand-950 sm:text-5xl">Simple pricing. No contracts.</h1>
-          <p className="mt-4 text-lg text-slate-600">One plan with every feature. You pay by how many facilities you run.</p>
+          <p className="mt-4 text-lg text-slate-600">One plan with every feature and unlimited users. {usd(PRICE_PER_FACILITY)} a month for each facility you run.</p>
         </div>
 
-        {SHOW_FOUNDING_OFFER && (
-        <section aria-labelledby="founding" className="mx-auto mt-10 max-w-3xl rounded-2xl border-2 border-amber-300 bg-amber-50 p-6 sm:p-8" data-testid="founding-offer">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h2 id="founding" className="flex items-center gap-2 text-xl font-extrabold text-amber-950">
-                <Gift className="h-5 w-5" aria-hidden="true" />
-                Founding customers: first {FOUNDING.spots} businesses
-              </h2>
-              <ul className="mt-3 space-y-1.5 text-amber-950">
-                {FOUNDING.perks.map((perk) => (
-                  <li key={perk} className="flex items-start gap-2">
-                    <Check className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
-                    {perk}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <a href={FOUNDER_LINK} className="inline-flex min-h-11 items-center rounded-lg bg-amber-500 px-5 text-sm font-bold text-amber-950 shadow-sm hover:bg-amber-400">
-              Claim a founding spot
+        <section aria-label="Price" className="mx-auto mt-10 max-w-md">
+          <div data-testid="price-per-facility" className="rounded-2xl border border-brand-500 bg-white p-6 text-center shadow-sm ring-2 ring-brand-500 sm:p-8">
+            <h2 className="text-xl font-extrabold text-brand-950">Per facility</h2>
+            <p className="mt-3">
+              <span className="text-5xl font-extrabold tracking-tight text-slate-950">{usd(PRICE_PER_FACILITY)}</span>
+              <span className="text-slate-600"> /month</span>
+            </p>
+            <p className="mt-2 text-sm text-slate-600">Every feature. Unlimited users. No contract.</p>
+            <a
+              href={mailto("Leaf2Sale: getting started")}
+              className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-700 px-5 text-sm font-bold text-white shadow-sm hover:bg-brand-800"
+            >
+              Get started
             </a>
           </div>
         </section>
-        )}
-
-        <section aria-label="Prices" className="mx-auto mt-10 grid max-w-3xl gap-6 sm:grid-cols-2">
-          {PRICES.map((p) => (
-            <div key={p.facilities} data-testid={`price-${p.facilities}`} className={`rounded-2xl border bg-white p-6 text-center shadow-sm sm:p-8 ${p.facilities === 2 ? "border-brand-500 ring-2 ring-brand-500" : "border-slate-200"}`}>
-              <h2 className="text-xl font-extrabold text-brand-950">{facilitiesLabel(p.facilities)}</h2>
-              <p className="mt-3">
-                <span className="text-5xl font-extrabold tracking-tight text-slate-950">{usd(p.price)}</span>
-                <span className="text-slate-600"> /month</span>
-              </p>
-              {SHOW_FOUNDING_OFFER && (
-                <p className="mt-2 text-sm font-semibold text-amber-800">
-                  Founding customers: {usd(p.founderPrice)}/month for life, after {FOUNDING.freeDays} days free
-                </p>
-              )}
-              <a
-                href={mailto(`Leaf2Sale for ${facilitiesLabel(p.facilities)}`)}
-                className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-700 px-5 text-sm font-bold text-white shadow-sm hover:bg-brand-800"
-              >
-                Get started
-              </a>
-            </div>
-          ))}
-        </section>
 
         <section aria-labelledby="included" className="mx-auto mt-10 max-w-3xl rounded-2xl border border-slate-200 p-6 sm:p-8" data-testid="included">
-          <h2 id="included" className="text-xl font-extrabold text-brand-950">Everything included, at either price</h2>
+          <h2 id="included" className="text-xl font-extrabold text-brand-950">Everything included</h2>
           <ul className="mt-4 grid gap-x-8 gap-y-2.5 text-[15px] sm:grid-cols-2">
             {FEATURES.map((f) => (
               <li key={f} className="flex items-start gap-2">

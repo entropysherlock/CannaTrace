@@ -35,7 +35,7 @@ import { TallyVideo } from "@/components/tally-video";
 import { LeafMark, Logo } from "@/components/logo";
 import { liveDemoOn, signupsOpen } from "@/lib/access";
 import { mailto } from "@/lib/contact";
-import { FOUNDING, PRICES, SHOW_FOUNDING_OFFER, facilitiesLabel, priceSentence, usd } from "@/lib/pricing";
+import { PRICE_PER_FACILITY, priceSentence, usd } from "@/lib/pricing";
 import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -324,7 +324,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               description: "Seed-to-sale inventory, compliance, labels, manufacturing, distribution, and retail software for licensed cannabis operators, built in New Mexico.",
               url: SITE_URL,
               publisher: { "@id": `${SITE_URL}/#org` },
-              offers: PRICES.map((p) => ({ "@type": "Offer", name: `${facilitiesLabel(p.facilities)}`, price: p.price, priceCurrency: "USD", priceSpecification: { "@type": "UnitPriceSpecification", price: p.price, priceCurrency: "USD", unitText: "MONTH" } })),
+              offers: [{ "@type": "Offer", name: "Per facility", price: PRICE_PER_FACILITY, priceCurrency: "USD", priceSpecification: { "@type": "UnitPriceSpecification", price: PRICE_PER_FACILITY, priceCurrency: "USD", unitText: "MONTH" } }],
             },
           ],
         }}
@@ -696,21 +696,16 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <h2 id="pricing-heading" className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
             Simple pricing, every feature included
           </h2>
-          <p className="mt-2 text-slate-600">No contracts and no per-user charges. Pay month to month.</p>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            {PRICES.map((plan) => (
-              <div key={plan.facilities} className="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm">
-                <p className="font-bold text-slate-900">{facilitiesLabel(plan.facilities)}</p>
-                <p className="mt-2 text-4xl font-extrabold text-slate-950">
-                  {usd(plan.price)}
-                  <span className="text-base font-semibold text-slate-500">/month</span>
-                </p>
-                {SHOW_FOUNDING_OFFER && <p className="mt-1 text-sm font-semibold text-brand-700">Founding customers: {usd(plan.founderPrice)}/month for life</p>}
-              </div>
-            ))}
+          <p className="mt-2 text-slate-600">One price per facility. Unlimited users. No contracts; pay month to month.</p>
+          <div className="mx-auto mt-8 max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm">
+            <p className="font-bold text-slate-900">Per facility</p>
+            <p className="mt-2 text-4xl font-extrabold text-slate-950">
+              {usd(PRICE_PER_FACILITY)}
+              <span className="text-base font-semibold text-slate-500">/month</span>
+            </p>
+            <p className="mt-1 text-sm text-slate-600">Every feature and unlimited users, for each licensed facility you run.</p>
           </div>
           <p className="mt-4 text-sm text-slate-600">
-            {SHOW_FOUNDING_OFFER && <>The first {FOUNDING.spots} founding customers also get {FOUNDING.freeDays} days free and we bring their inventory over for them.{" "}</>}
             <Link href="/pricing" className="font-semibold text-brand-700 underline hover:no-underline">
               See full pricing
             </Link>

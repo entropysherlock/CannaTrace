@@ -57,7 +57,7 @@ const SECTIONS: LegalSection[] = [
   {
     heading: "Prices and payment",
     paragraphs: [
-      "Prices are listed on the Pricing page. Unless we agree otherwise in writing, billing is month to month with no long-term contract, and you can stop at any time. Founding-customer terms, where offered, are as stated on the Pricing page when you sign up. If we change a price, we will give you at least 30 days' notice before it applies to you. We may invoice you rather than charge a card.",
+      "Prices are listed on the Pricing page. Unless we agree otherwise in writing, billing is month to month with no long-term contract, and you can stop at any time. If we change a price, we will give you at least 30 days' notice before it applies to you. We may invoice you rather than charge a card.",
     ],
   },
   {
