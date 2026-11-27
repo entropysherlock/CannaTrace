@@ -69,7 +69,7 @@ export async function POST(request: Request) {
   const decision = await automationDecision(session.orgId, "BROWSER", session.facilityId);
   if (decision.action === "BLOCKED") return NextResponse.json({ error: `${decision.reason} Change it under Settings → Automation.` }, { status: 403 });
 
-  const goal = clip(body.goal, 800).trim();
+  const goal = clip(body.goal, 6000).trim();
   const history = Array.isArray(body.history) ? body.history.slice(-MAX_STEPS) : [];
   if (!goal) return NextResponse.json({ error: "Tell me what to do first." }, { status: 400 });
   if (history.length >= MAX_STEPS) return NextResponse.json({ action: { type: "ask", message: "I've taken a lot of steps without finishing. Tell me how to continue, or stop here." } });

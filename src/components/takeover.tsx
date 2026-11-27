@@ -293,7 +293,7 @@ export function Takeover() {
           </div>
           {!running && (
             <>
-              <textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={3} placeholder="Tell me what to do, like: make 2 batches of the gummies in the Finished room" className="mt-3 w-full rounded-lg border border-slate-300 p-2 text-sm" />
+              <textarea value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={6000} rows={4} placeholder="Tell me what to do, like: make 2 batches of the gummies in the Finished room" className="mt-3 w-full rounded-lg border border-slate-300 p-2 text-sm" />
               <div className="mt-2 flex gap-2">
                 <button type="button" onClick={start} disabled={!goal.trim()} className="flex-1 rounded-lg bg-brand-700 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50">Start</button>
                 {goal || final || phase === "stopped" ? (
