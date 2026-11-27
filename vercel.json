@@ -4,6 +4,7 @@
     { "path": "/api/sync/run", "schedule": "17 13 * * *" },
     { "path": "/api/watch/run", "schedule": "41 11 * * *" },
     { "path": "/api/brief/run", "schedule": "35 13 * * *" },
-    { "path": "/api/quickbooks/run", "schedule": "50 13 * * *" }
+    { "path": "/api/quickbooks/run", "schedule": "50 13 * * *" },
+    { "path": "/api/loyalty/run", "schedule": "30 17 * * *" }
   ]
 }

@@ -1402,9 +1402,18 @@ export const rewardMembers = pgTable(
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
     joinedBy: text("joined_by").notNull(),
     lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
+    /** CRM profile: an email for email marketing (only with consent), the shopper's private card link, their referral code, who referred them, and staff notes and tags. */
+    email: text("email"),
+    cardToken: text("card_token"),
+    referralCode: text("referral_code"),
+    referredById: text("referred_by_id"),
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+    notes: text("notes"),
   },
   (t) => [
     uniqueIndex("reward_members_org_phone_key").on(t.orgId, t.phone),
+    uniqueIndex("reward_members_card_token_key").on(t.cardToken).where(sql`${t.cardToken} is not null`),
+    uniqueIndex("reward_members_org_referral_key").on(t.orgId, t.referralCode).where(sql`${t.referralCode} is not null`),
     uniqueIndex("reward_members_org_id_key").on(t.orgId, t.idKey).where(sql`${t.idKey} is not null`),
   ],
 );
@@ -1447,6 +1456,166 @@ export const rewardLedger = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("reward_ledger_member_idx").on(t.memberId, t.createdAt), index("reward_ledger_sale_idx").on(t.saleId)],
+);
+
+/**
+ * What a shopper agreed to hear about, per channel. Append-only: each row is one agreement or one withdrawal, with how it
+ * happened and the exact words they saw. A shopper's current choice is their newest row for the channel.
+ */
+export const memberConsents = pgTable(
+  "member_consents",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => rewardMembers.id, { onDelete: "cascade" }),
+    /** EMAIL, SMS */
+    channel: text("channel").notNull(),
+    /** OPTED_IN or OPTED_OUT */
+    status: text("status").notNull(),
+    /** REGISTER, CARD (their own card page), STOP_REPLY, UNSUBSCRIBE (email link), MANAGER */
+    method: text("method").notNull(),
+    /** The words shown to the shopper when they agreed. */
+    wording: text("wording"),
+    recordedBy: text("recorded_by").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("member_consents_member_idx").on(t.memberId, t.channel, t.createdAt)],
+);
+
+/** Loyalty tiers: reached by spending at least this much in the last 12 months. A higher tier earns points faster. */
+export const rewardTiers = pgTable(
+  "reward_tiers",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    minSpend: money("min_spend").notNull().default("0"),
+    /** 100 = normal speed, 125 = 25% more points. */
+    earnPercent: integer("earn_percent").notNull().default(100),
+    perk: text("perk"),
+  },
+  (t) => [uniqueIndex("reward_tiers_org_name_key").on(t.orgId, t.name)],
+);
+
+/** Bonus-points days: between two dates, every member earns points at this speed. */
+export const rewardBoosts = pgTable("reward_boosts", {
+  id: id(),
+  orgId: text("org_id")
+    .notNull()
+    .references(() => organizations.id),
+  name: text("name").notNull(),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
+  /** 200 = double points. */
+  earnPercent: integer("earn_percent").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: createdAt(),
+});
+
+/** How this business markets: its required statement, quiet hours, how often one person may be messaged, the referral bonus and the tier window. */
+export const marketingSettings = pgTable("marketing_settings", {
+  orgId: text("org_id")
+    .primaryKey()
+    .references(() => organizations.id),
+  /** The statement every marketing message must carry. */
+  disclaimer: text("disclaimer").notNull().default("Please Consume Responsibly."),
+  /** Local hours (HH:MM, in the facility's time zone) when texts are not sent. */
+  quietStart: text("quiet_start").notNull().default("21:00"),
+  quietEnd: text("quiet_end").notNull().default("08:00"),
+  /** The most marketing messages one shopper gets in 7 days, across campaigns and automations. */
+  maxPerWeek: integer("max_per_week").notNull().default(3),
+  /** Points the referrer gets when the person they referred makes their first purchase. */
+  referralBonus: integer("referral_bonus").notNull().default(50),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** A message sent to a group of shoppers at once. Starts as a draft; sending is a manager's choice. */
+export const marketingCampaigns = pgTable(
+  "marketing_campaigns",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    /** EMAIL or SMS */
+    channel: text("channel").notNull(),
+    subject: text("subject"),
+    body: text("body").notNull(),
+    /** Which shoppers: ALL, NEW, REGULAR, VIP, AT_RISK, LAPSED, BIRTHDAY, or FAVORITE:<categoryId> */
+    segment: text("segment").notNull(),
+    /** DRAFT, SENT */
+    status: text("status").notNull().default("DRAFT"),
+    createdBy: text("created_by").notNull(),
+    createdAt: createdAt(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    sentBy: text("sent_by"),
+    recipientCount: integer("recipient_count").notNull().default(0),
+  },
+  (t) => [index("marketing_campaigns_org_idx").on(t.orgId, t.createdAt)],
+);
+
+/** One message to one shopper, kept so results can be counted and nobody is messaged twice. */
+export const campaignMessages = pgTable(
+  "campaign_messages",
+  {
+    id: id(),
+    orgId: text("org_id").notNull(),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => rewardMembers.id, { onDelete: "cascade" }),
+    campaignId: text("campaign_id").references(() => marketingCampaigns.id, { onDelete: "cascade" }),
+    /** Set for automatic messages: WELCOME, SECOND_VISIT, BIRTHDAY, WIN_BACK_30, WIN_BACK_60, WIN_BACK_90 */
+    automationKind: text("automation_kind"),
+    channel: text("channel").notNull(),
+    /** SENT, SKIPPED, FAILED */
+    status: text("status").notNull(),
+    reason: text("reason"),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("campaign_messages_member_idx").on(t.memberId, t.sentAt), index("campaign_messages_campaign_idx").on(t.campaignId)],
+);
+
+/** Messages that send themselves when something happens (a first purchase, a birthday, 60 days away). One row per kind per business. */
+export const marketingAutomations = pgTable(
+  "marketing_automations",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    kind: text("kind").notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+    channel: text("channel").notNull().default("EMAIL"),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("marketing_automations_org_kind_key").on(t.orgId, t.kind)],
+);
+
+/** A brand that pays part of a promotion's discount. The shop keeps the books on what the brand owes. */
+export const brandSponsorships = pgTable(
+  "brand_sponsorships",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    promoId: text("promo_id")
+      .notNull()
+      .references(() => promotions.id, { onDelete: "cascade" }),
+    brandName: text("brand_name").notNull(),
+    /** The share of the promotion's discount the brand pays, 1 to 100. */
+    fundedPercent: integer("funded_percent").notNull(),
+    note: text("note"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("brand_sponsorships_promo_key").on(t.promoId)],
 );
 
 /** One till shift: opened with a float, closed with a count. */
@@ -1534,6 +1703,8 @@ export const sales = pgTable(
     // Dashboards, reports and the daily check read sales by store and date; without these they scan every sale ever made (Apex: ~3 s at one million sales).
     index("sales_facility_completed_idx").on(t.facilityId, t.completedAt),
     index("sales_org_completed_idx").on(t.orgId, t.completedAt),
+    // The CRM reads each shopper's sales.
+    index("sales_reward_member_idx").on(t.rewardMemberId, t.completedAt),
     // The manager review queue and its badge look only at the few offline sales with a note.
     index("sales_review_idx").on(t.facilityId, t.reviewedAt).where(sql`${t.reviewNote} is not null`),
   ],

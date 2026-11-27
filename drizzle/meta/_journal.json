@@ -435,6 +435,13 @@
       "when": 1795807302022,
       "tag": "0061_purchase_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1795811808369,
+      "tag": "0062_loyalty_crm",
+      "breakpoints": true
     }
   ]
 }

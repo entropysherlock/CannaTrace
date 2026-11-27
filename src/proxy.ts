@@ -27,7 +27,7 @@ export async function proxy(request: NextRequest) {
     });
   }
   // Scheduled sync runs authenticate with their own secret, not a sign-in cookie.
-  if (pathname.startsWith("/api/sync/") || pathname === "/api/watch/run" || pathname === "/api/brief/run" || pathname === "/api/quickbooks/run") return NextResponse.next();
+  if (pathname.startsWith("/api/sync/") || pathname === "/api/watch/run" || pathname === "/api/brief/run" || pathname === "/api/quickbooks/run" || pathname === "/api/loyalty/run" || pathname === "/api/sms/inbound") return NextResponse.next();
   // Uptime monitors can't sign in; the health check reveals nothing but "up" or "down".
   if (pathname === "/api/health") return NextResponse.next();
   // The offline register's service worker must load whatever the sign-in state.
@@ -41,6 +41,8 @@ export async function proxy(request: NextRequest) {
   }
   // A store's public menu and pickup reservations are for anyone, signed in or not.
   if (pathname.startsWith("/menu/")) return NextResponse.next();
+  // A shopper's own rewards card (an unguessable link they were sent) opens without signing in.
+  if (pathname.startsWith("/card/")) return NextResponse.next();
   // The REST API and the AI connector authenticate with API keys (or the OAuth sign-in that makes one), not a sign-in cookie.
   if (pathname.startsWith("/api/v1/") || pathname === "/api/mcp") return NextResponse.next();
   // AI apps find the sign-in details here and register and swap codes for keys without a cookie.

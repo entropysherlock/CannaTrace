@@ -13,6 +13,7 @@ import { previewUndo, recentChanges, undoChange } from "./changes";
 import { openFindings, sweepIfStale } from "@/lib/watch";
 import { JOB_TOOLS, permissionsFor, type JobStep } from "./jobs";
 import { LABEL_TOOLS } from "./label-tools";
+import { LOYALTY_TOOLS } from "./loyalty-tools";
 import { PURCHASING_TOOLS } from "./purchasing-tools";
 import { currentZone } from "@/lib/time";
 
@@ -594,6 +595,7 @@ export const TOOLS: Tool[] = [
   },
   ...LABEL_TOOLS,
   ...PURCHASING_TOOLS,
+  ...LOYALTY_TOOLS,
   ...BULK_TOOLS,
   ...ATTACHMENT_TOOLS,
   {

@@ -851,7 +851,7 @@ export async function attachRewardsMember(actor: Actor, input: { saleId: string;
 /** Sign a shopper up at the counter (with their agreement) and put them on this cart. */
 export async function joinRewards(
   actor: Actor,
-  input: { saleId: string; phone: string; firstName: string; birthday?: string; agreed: unknown },
+  input: { saleId: string; phone: string; firstName: string; birthday?: string; agreed: unknown; email?: string; emailOk?: unknown; smsOk?: unknown; referralCode?: string },
 ): Promise<{ firstName: string; points: number }> {
   return db.transaction(async (tx) => {
     const program = await getProgram(tx, actor.orgId);

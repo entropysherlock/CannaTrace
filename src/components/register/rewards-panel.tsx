@@ -15,6 +15,8 @@ export type RewardsView = {
   /** The most this shopper could use on this cart now (their points and the cap). */
   available: number;
   earnPreview: number;
+  tierName: string | null;
+  boostActive: boolean;
   /** This cart has an ID scan and the business recognizes shoppers by it. */
   idLookup: boolean;
   /** The shopper on the cart already has an ID linked. */
@@ -44,6 +46,10 @@ export function RewardsPanel({
   const [firstName, setFirstName] = useState("");
   const [birthday, setBirthday] = useState("");
   const [agreed, setAgreed] = useState(false);
+  const [email, setEmail] = useState("");
+  const [emailOk, setEmailOk] = useState(false);
+  const [smsOk, setSmsOk] = useState(false);
+  const [referral, setReferral] = useState("");
   const phoneBox = useRef<HTMLInputElement>(null);
   const each = Number(view.redeemDollars);
 
@@ -130,7 +136,7 @@ export function RewardsPanel({
             : view.available === 0
               ? `Rewards can pay for up to ${view.maxSharePercent}% of a cart (no free cannabis in New Mexico). `
               : ""}
-          {view.earnPreview > 0 ? `Earns ${view.earnPreview} points on this sale.` : ""}
+          {view.earnPreview > 0 ? `Earns ${view.earnPreview} points on this sale${view.tierName ? ` (${view.tierName} member${view.boostActive ? ", bonus points day" : ""})` : view.boostActive ? " (bonus points day)" : ""}.` : ""}
         </p>
       </section>
     );
@@ -172,7 +178,7 @@ export function RewardsPanel({
           onSubmit={(e) => {
             e.preventDefault();
             act(
-              () => terminalRewardsJoin({ saleId, phone, firstName, birthday, agreed }),
+              () => terminalRewardsJoin({ saleId, phone, firstName, birthday, agreed, email, emailOk, smsOk, referralCode: referral }),
               undefined,
               (r) => {
                 if (!r.error) {
@@ -181,6 +187,10 @@ export function RewardsPanel({
                   setFirstName("");
                   setBirthday("");
                   setAgreed(false);
+                  setEmail("");
+                  setEmailOk(false);
+                  setSmsOk(false);
+                  setReferral("");
                 }
               },
             );
@@ -200,6 +210,24 @@ export function RewardsPanel({
           <label className="flex items-start gap-2 text-sm text-slate-800">
             <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-5 w-5 accent-brand-700" />
             The shopper agreed to join rewards (their phone number and first name are saved to earn points{view.idLookup ? ", and their ID scan can find their account next time" : ""}).
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-semibold text-slate-700">
+              Email (optional)
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} autoComplete="off" className="mt-1 h-9 w-full rounded-lg border border-slate-300 px-2 text-sm font-normal" />
+            </label>
+            <label className="text-xs font-semibold text-slate-700">
+              Referral code (optional)
+              <input value={referral} onChange={(e) => setReferral(e.target.value.toUpperCase())} maxLength={8} autoComplete="off" className="mt-1 h-9 w-full rounded-lg border border-slate-300 px-2 text-sm font-normal uppercase" />
+            </label>
+          </div>
+          <label className="flex items-start gap-2 text-xs text-slate-700">
+            <input type="checkbox" checked={emailOk} onChange={(e) => setEmailOk(e.target.checked)} disabled={!email.trim()} className="mt-0.5 h-4 w-4 accent-brand-700" />
+            The shopper agreed to marketing emails. They can unsubscribe any time.
+          </label>
+          <label className="flex items-start gap-2 text-xs text-slate-700">
+            <input type="checkbox" checked={smsOk} onChange={(e) => setSmsOk(e.target.checked)} className="mt-0.5 h-4 w-4 accent-brand-700" />
+            The shopper agreed to recurring marketing texts at this number. Message and data rates may apply. Reply STOP to cancel. (Leave unticked if they didn&apos;t say yes.)
           </label>
           <p className="text-xs text-slate-500">
             <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-700 underline">
