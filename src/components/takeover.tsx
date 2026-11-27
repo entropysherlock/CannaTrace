@@ -1,8 +1,9 @@
 "use client";
 
 import { Hand, Loader2, RotateCcw, Square, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MAX_ELEMENTS, MAX_STEPS, checkAction, type Action, type PageElement } from "@/lib/takeover-math";
+import { MAX_ELEMENTS, MAX_STEPS, checkAction, isStuck, type Action, type PageElement } from "@/lib/takeover-math";
 
 const KEY = "leaf2sale-takeover";
 type Saved = { goal: string; history: { action: Action; result: string }[]; running: boolean };
@@ -59,6 +60,7 @@ function setNative(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElemen
 }
 
 export function Takeover() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [goal, setGoal] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -97,8 +99,7 @@ export function Takeover() {
         return "scrolled";
       }
       if (action.type === "navigate") {
-        window.history.pushState(null, "", action.path);
-        window.location.assign(action.path);
+        router.push(action.path);
         await sleep(1500);
         return `went to ${action.path}`;
       }
@@ -142,7 +143,7 @@ export function Takeover() {
       if (action.submit) box.form?.requestSubmit();
       return `typed "${typed.slice(0, 40)}"`;
     },
-    [moveTo],
+    [moveTo, router],
   );
 
   const finish = useCallback(async (g: string, outcome: "DONE" | "BLOCKED" | "FAILED", summary: string) => {
@@ -197,6 +198,12 @@ export function Takeover() {
           if ("stop" in checked) {
             setFinal({ tone: "ask", text: checked.stop });
             await finish(state.goal, "BLOCKED", checked.stop);
+            return;
+          }
+          if (isStuck([...state.history, { action: checked.action, result: "" }])) {
+            const msg = "I keep trying the same thing and it isn't working. Tell me what to do differently, or do this step yourself and press Start again.";
+            setFinal({ tone: "ask", text: msg });
+            await finish(state.goal, "BLOCKED", msg);
             return;
           }
           setPhase("acting");
