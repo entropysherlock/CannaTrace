@@ -274,7 +274,7 @@ export const TOOLS: Tool[] = [
     schema: obj({ search: text("Part of a name or license number.") }),
     run: (s, input) => {
       const search = str(input.search);
-      return rows(sql`select name, license_number, license_type, to_char(license_expires, 'YYYY-MM-DD') as license_expires, contact_name, phone, email, payment_terms_days, active
+      return rows(sql`select name, license_number, license_type, license_expires, contact_name, phone, email, payment_terms_days, active
         from customers where org_id = ${s.orgId} ${search ? sql`and (name ilike ${like(search)} or license_number ilike ${like(search)})` : sql``}
         order by name limit 50`);
     },
