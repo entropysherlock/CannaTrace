@@ -11,7 +11,7 @@ export const MAX_OPTIONS = 80;
 
 export type PageElement = {
   i: number;
-  tag: string; // a, button, input, select, textarea, summary
+  tag: string; // a, button, input, select, textarea, summary, option (an entry in a search pick-list)
   label: string;
   type?: string; // input type
   value?: string;
