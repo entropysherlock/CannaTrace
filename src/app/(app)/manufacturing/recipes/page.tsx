@@ -125,7 +125,7 @@ export default async function RecipesPage({ searchParams }: { searchParams: Prom
                     <input name="batches" inputMode="decimal" defaultValue="1" className={`${inputClass} w-24`} />
                   </Field>
                   <Field label="Finished product goes to">
-                    <select name="locationId" defaultValue={rooms.find((r) => /finished|vault|stock/i.test(r.name))?.id ?? ""} className={inputClass}>
+                    <select name="locationId" defaultValue={(rooms.find((r) => /finished/i.test(r.name)) ?? rooms.find((r) => /vault/i.test(r.name)))?.id ?? ""} className={inputClass}>
                       <option value="">Choose a room</option>
                       {rooms.map((r) => (
                         <option key={r.id} value={r.id}>
