@@ -5,9 +5,11 @@ const base = { kind: "LABELS", paused: false, mode: "AUTO" as const, hourlyCap: 
 describe("decide", () => {
   it("runs on its own when set to Auto and under the cap", () => expect(decide(base).action).toBe("AUTO"));
   it("is blocked by the pause switch whatever the setting", () => expect(decide({ ...base, paused: true }).action).toBe("BLOCKED"));
-  it("is blocked when off or never set", () => {
-    expect(decide({ ...base, mode: "OFF" }).action).toBe("BLOCKED");
-    expect(decide({ ...base, mode: undefined }).action).toBe("BLOCKED");
+  it("is blocked when switched off", () => expect(decide({ ...base, mode: "OFF" }).action).toBe("BLOCKED"));
+  it("uses each kind's default when nothing has been set", () => {
+    expect(decide({ ...base, mode: undefined }).action).toBe("AUTO"); // labels default to on
+    expect(decide({ ...base, kind: "PRODUCTION", mode: undefined, practice: true }).action).toBe("AUTO");
+    expect(decide({ ...base, kind: "INVENTORY_CHANGES", mode: undefined }).action).toBe("ASK");
   });
   it("asks when set to Ask me", () => expect(decide({ ...base, mode: "ASK" }).action).toBe("ASK"));
   it("falls back to asking once the hourly cap is reached", () => {

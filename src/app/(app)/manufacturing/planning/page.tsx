@@ -98,8 +98,8 @@ export default async function PlanningPage({ searchParams }: { searchParams: Pro
                     <tr key={r.itemId}>
                       <td className="py-1 pr-3 font-medium">{name(r.itemId)}</td>
                       <td className="py-1 pr-3">{r.needed.toString()} {unit(r.itemId)}</td>
-                      <td className="py-1 pr-3">{r.onHand.toString()}</td>
-                      <td className={`py-1 font-semibold ${r.short.gt(0) ? "text-red-700" : "text-emerald-700"}`}>{r.short.gt(0) ? r.short.toString() : "none"}</td>
+                      <td className="py-1 pr-3">{r.onHand.toString()} {unit(r.itemId)}</td>
+                      <td className={`py-1 font-semibold ${r.short.gt(0) ? "text-red-700" : "text-emerald-700"}`}>{r.short.gt(0) ? `${r.short.toString()} ${unit(r.itemId)}` : "none"}</td>
                     </tr>
                   ))}
                 </tbody>

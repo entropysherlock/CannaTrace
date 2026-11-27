@@ -8,11 +8,11 @@ export type AutomationMode = "OFF" | "ASK" | "AUTO";
  * until a person has watched them work for a while.
  */
 export const AUTOMATION_KINDS = [
-  { kind: "LABELS", label: "Make labels", detail: "Creates package and product labels and queues them for printing.", autoAllowed: true, practiceOnly: false },
-  { kind: "DRAFT_INVOICES", label: "Draft invoices", detail: "Prepares an invoice draft when an order is delivered. A person still reviews it.", autoAllowed: true, practiceOnly: false },
-  { kind: "PRODUCTION", label: "Run production steps", detail: "Starts runs, adds inputs and finishes runs from a recipe. On Auto it only finishes runs, using the planned amount, in practice facilities; real facilities always wait for a person to enter the weight.", autoAllowed: true, practiceOnly: true },
-  { kind: "CUSTOMER_MESSAGES", label: "Message customers", detail: "Drafts reminders and follow-ups to customers.", autoAllowed: false, practiceOnly: false },
-  { kind: "INVENTORY_CHANGES", label: "Change inventory", detail: "Adjusts, moves or writes off stock.", autoAllowed: false, practiceOnly: false },
+  { kind: "LABELS", label: "Make labels", detail: "Creates package and product labels and queues them for printing.", autoAllowed: true, practiceOnly: false, defaultMode: "AUTO" as AutomationMode },
+  { kind: "DRAFT_INVOICES", label: "Draft invoices", detail: "Prepares an invoice draft when an order is delivered. A person still reviews it.", autoAllowed: true, practiceOnly: false, defaultMode: "AUTO" as AutomationMode },
+  { kind: "PRODUCTION", label: "Run production steps", detail: "Starts runs, adds inputs and finishes runs from a recipe. On Auto it only finishes runs, using the planned amount, in practice facilities; real facilities always wait for a person to enter the weight.", autoAllowed: true, practiceOnly: true, defaultMode: "AUTO" as AutomationMode },
+  { kind: "CUSTOMER_MESSAGES", label: "Message customers", detail: "Drafts reminders and follow-ups to customers.", autoAllowed: false, practiceOnly: false, defaultMode: "ASK" as AutomationMode },
+  { kind: "INVENTORY_CHANGES", label: "Change inventory", detail: "Adjusts, moves or writes off stock.", autoAllowed: false, practiceOnly: false, defaultMode: "ASK" as AutomationMode },
 ] as const;
 export type AutomationKind = (typeof AUTOMATION_KINDS)[number]["kind"];
 
@@ -48,7 +48,7 @@ export function decide(input: { kind: string; practice?: boolean; paused: boolea
   const info = kindInfo(input.kind);
   if (!info) return { action: "BLOCKED", reason: "That kind of work is not set up for automation." };
   if (input.paused) return { action: "BLOCKED", reason: "Automation is paused." };
-  const mode = input.mode ?? "OFF";
+  const mode = input.mode ?? info.defaultMode;
   if (mode === "OFF") return { action: "BLOCKED", reason: `${info.label} is turned off.` };
   if (mode === "ASK") return { action: "ASK", reason: "Waiting for a person to approve." };
   if (info.practiceOnly && !input.practice) return { action: "ASK", reason: `${info.label} can only run on Auto in practice facilities, so a person approves here.` };

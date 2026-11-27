@@ -43,30 +43,35 @@ export default async function AutomationPage() {
           </ActionForm>
         </div>
       </Card>
-      <Card title="What may run on its own">
+      <Card title="What runs by itself">
         <p className="mb-4 text-sm text-slate-600">
-          <strong>Off:</strong> never. <strong>Ask me:</strong> it prepares the work and waits for a person to approve. <strong>Auto:</strong> it just does it and logs it below. Anything that changes stock or messages customers can only be Ask me for now, and production can be Auto only in practice facilities.
+          Turn a kind of work <strong>On</strong> and it just happens, with everything it does listed below. Turn it <strong>Off</strong> and it won&apos;t. Anything that changes stock or messages customers always waits for a person to approve.
         </p>
         <ul className="divide-y divide-slate-100">
           {AUTOMATION_KINDS.map((k) => {
             const s = state.settings.get(k.kind);
+            const mode = s?.mode ?? k.defaultMode;
             return (
               <li key={k.kind} className="py-3" data-testid={`automation-${k.kind}`}>
                 <p className="font-semibold text-slate-900">{k.label}</p>
                 <p className="mb-2 text-sm text-slate-600">{k.detail}</p>
-                <ActionForm action={automationModeAction} submitLabel="Save" className="flex flex-wrap items-end gap-3">
-                  <input type="hidden" name="kind" value={k.kind} />
-                  <Field label="Setting">
-                    <select name="mode" defaultValue={s?.mode ?? "OFF"} className={inputClass}>
-                      <option value="OFF">Off</option>
-                      <option value="ASK">Ask me</option>
-                      {k.autoAllowed ? <option value="AUTO">Auto</option> : null}
-                    </select>
-                  </Field>
-                  <Field label="Most per hour">
-                    <input name="hourlyCap" inputMode="numeric" defaultValue={s?.hourlyCap ?? DEFAULT_CAP} className={`${inputClass} w-24`} />
-                  </Field>
-                </ActionForm>
+                {k.autoAllowed ? (
+                  <ActionForm key={`${k.kind}-${mode}-${s?.hourlyCap ?? DEFAULT_CAP}`} action={automationModeAction} submitLabel="Save" className="flex flex-wrap items-end gap-3">
+                    <input type="hidden" name="kind" value={k.kind} />
+                    <Field label="Runs by itself">
+                      <select name="mode" defaultValue={mode} className={inputClass}>
+                        <option value="AUTO">On</option>
+                        <option value="OFF">Off</option>
+                        {mode === "ASK" ? <option value="ASK">Ask first (older setting)</option> : null}
+                      </select>
+                    </Field>
+                    <Field label="Most per hour">
+                      <input name="hourlyCap" inputMode="numeric" defaultValue={s?.hourlyCap ?? DEFAULT_CAP} className={`${inputClass} w-24`} />
+                    </Field>
+                  </ActionForm>
+                ) : (
+                  <p className="text-sm font-semibold text-slate-700">Always asks a person first. Not built yet.</p>
+                )}
               </li>
             );
           })}
