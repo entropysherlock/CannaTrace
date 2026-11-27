@@ -118,6 +118,9 @@ export function isStuck(history: { action: Action }[], times = 3): boolean {
     const last = JSON.stringify(history[history.length - 1].action);
     if (history.slice(-times).every((h) => JSON.stringify(h.action) === last)) return true;
   }
+  // Cycling through the same two or three things without getting anywhere.
+  const six = history.slice(-6).map((h) => JSON.stringify(h.action));
+  if (six.length === 6 && new Set(six).size <= 3) return true;
   const tail = history.slice(-4);
   if (tail.length === 4 && tail.every((h) => h.action.type === "navigate")) {
     const paths = new Set(tail.map((h) => (h.action as { path: string }).path));
