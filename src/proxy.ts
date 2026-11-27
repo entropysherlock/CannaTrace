@@ -27,7 +27,7 @@ export async function proxy(request: NextRequest) {
     });
   }
   // Scheduled sync runs authenticate with their own secret, not a sign-in cookie.
-  if (pathname.startsWith("/api/sync/") || pathname === "/api/watch/run") return NextResponse.next();
+  if (pathname.startsWith("/api/sync/") || pathname === "/api/watch/run" || pathname === "/api/brief/run") return NextResponse.next();
   // Uptime monitors can't sign in; the health check reveals nothing but "up" or "down".
   if (pathname === "/api/health") return NextResponse.next();
   // The offline register's service worker must load whatever the sign-in state.
