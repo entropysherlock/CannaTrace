@@ -147,6 +147,21 @@ export function Takeover() {
         await sleep(45);
       }
       box.dispatchEvent(new Event("change", { bubbles: true }));
+      // A search-and-pick box only counts once a suggestion is chosen, so pick the one that matches what was typed.
+      if (box.getAttribute("role") === "combobox" && typed) {
+        await sleep(350);
+        const want = typed.trim().toLowerCase();
+        const list = document.getElementById(box.getAttribute("aria-controls") ?? "");
+        const entries = Array.from((list ?? document).querySelectorAll<HTMLElement>("[role=option]"));
+        const match = entries.find((o) => (o.textContent ?? "").trim().toLowerCase() === want) ?? (entries.length === 1 ? entries[0] : undefined);
+        if (match) {
+          await moveTo(match);
+          for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) match.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+          match.click();
+          return `typed "${typed.slice(0, 40)}" and picked "${(match.textContent ?? "").trim().slice(0, 40)}"`;
+        }
+        return `typed "${typed.slice(0, 40)}" but nothing in the list matched; pick an option from the list`;
+      }
       if (action.submit) box.form?.requestSubmit();
       return `typed "${typed.slice(0, 40)}"`;
     },
