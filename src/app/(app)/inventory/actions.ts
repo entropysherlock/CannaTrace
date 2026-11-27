@@ -6,6 +6,7 @@ import { field, toFormError, type FormState } from "@/lib/form";
 import { and, eq, inArray } from "drizzle-orm";
 import { packages } from "@/db/schema";
 import { db } from "@/lib/db";
+import { packagesWaitingOnLab } from "@/lib/pos";
 import {
   COA_MAX_BYTES,
   InventoryError,
@@ -336,6 +337,30 @@ export async function packageBulkAction(_state: FormState, formData: FormData): 
     }
     revalidatePath("/inventory", "layout");
     return { ok: message };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+/** One click on Inventory: put every package that has no passing lab result on hold until its result is recorded. */
+export async function holdWaitingOnLabAction(_state: FormState, _formData: FormData): Promise<FormState> {
+  try {
+    const session = await requirePermission("inventory.write");
+    const actor = actorOf(session);
+    const ids = await packagesWaitingOnLab(db, actor);
+    if (!ids.length) return { ok: "Nothing to hold. Every active package already has a passing lab result." };
+    let changed = 0;
+    // The bulk hold takes at most BULK_LIMIT at a time, so a big import goes through in batches.
+    for (let i = 0; i < ids.length; i += 200) {
+      const r = await setPackagesStatus(actor, {
+        packageIds: ids.slice(i, i + 200),
+        status: "ON_HOLD",
+        reason: "Held until a passing lab result is recorded",
+      });
+      changed += r.changed;
+    }
+    revalidatePath("/inventory", "layout");
+    return { ok: `${changed} package${changed === 1 ? "" : "s"} put on hold. Add each lab result, then release it.` };
   } catch (error) {
     return toFormError(error);
   }

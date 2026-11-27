@@ -599,6 +599,20 @@ export async function sellableByItem(tx: Tx | typeof db, actor: Pick<Actor, "org
 }
 
 /** Items with stock that exists but can't be sold yet because the state wants a passing lab result first. Lets the register say why a tile is greyed out. */
+/**
+ * Active packages in this store with no passing lab result (none yet, or only a pending one). In a state that requires a lab
+ * result before retail these can't be sold, so the inventory page offers to hold them all at once. Failed ones are left alone:
+ * a failed package is already blocked and belongs to a different process.
+ */
+export async function packagesWaitingOnLab(tx: Tx | typeof db, actor: Pick<Actor, "orgId" | "facilityId">): Promise<string[]> {
+  const rows = await tx
+    .select({ id: packages.id })
+    .from(packages)
+    .where(and(eq(packages.orgId, actor.orgId), eq(packages.facilityId, actor.facilityId), eq(packages.status, "ACTIVE"), notFailedLab, sql`not coalesce(${passedLab}, false)`))
+    .orderBy(asc(packages.id));
+  return rows.map((r) => r.id);
+}
+
 export async function waitingOnLabByItem(tx: Tx | typeof db, actor: Pick<Actor, "orgId" | "facilityId">, pack: StatePack | null): Promise<Set<string>> {
   if (!requiresLabBeforeRetail(pack)) return new Set();
   const rows = await tx
