@@ -160,8 +160,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="order-last flex w-full min-w-0 md:order-none md:mr-auto md:w-auto">
             <FacilitySwitcher facilities={facilities} current={session.facilityId} action={switchFacility} />
           </div>
-          {tally.ready ? <TakeoverButton /> : null}
           <TopBarRight name={session.name} roleName={roleName} alerts={alerts} signOutAction={signOut} />
+          {tally.ready ? <TakeoverButton /> : null}
         </header>
         {automationPaused && can(session, "settings.manage") ? (
           <div role="note" aria-label="Automation paused" className="bg-amber-100 px-4 py-2 text-center text-sm font-semibold text-amber-900 print:hidden">
