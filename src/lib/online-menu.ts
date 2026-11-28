@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { pricedOnly } from "@/lib/menu-price";
+import { menuImageFor } from "@/lib/menu-images";
 import { facilities, itemCategories, items, onlineMenus, organizations, reservationLines, reservations, retailPrices } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError, audit, type Actor } from "./inventory";
@@ -70,7 +71,7 @@ export async function saveMenuSettings(actor: Actor, input: { enabled: boolean; 
 }
 
 /** thc and cbd are percents from the newest passing lab test on stock that's for sale here, when there is one. */
-export type PublicMenuItem = { id: string; name: string; strain: string | null; unit: string; unitLabel: string; price: string; whole: boolean; thc: string | null; cbd: string | null };
+export type PublicMenuItem = { id: string; name: string; strain: string | null; unit: string; unitLabel: string; price: string; whole: boolean; thc: string | null; cbd: string | null; image: string | null };
 export type PublicMenu = {
   slug: string;
   storeName: string;
@@ -106,7 +107,7 @@ export async function publicMenu(slug: string): Promise<PublicMenu | null> {
   for (const r of rows) {
     if (!(stock.get(r.id) ?? new Decimal(0)).gt(0)) continue;
     const list = byCategory.get(r.category) ?? [];
-    list.push({ id: r.id, name: r.name, strain: r.strain, unit: r.unit, unitLabel: unitLabel(r.unit), price: new Decimal(r.price).toFixed(2), whole: r.unit === "EACH", thc: potency.get(r.id)?.thc ?? null, cbd: potency.get(r.id)?.cbd ?? null });
+    list.push({ id: r.id, name: r.name, strain: r.strain, unit: r.unit, unitLabel: unitLabel(r.unit), price: new Decimal(r.price).toFixed(2), whole: r.unit === "EACH", thc: potency.get(r.id)?.thc ?? null, cbd: potency.get(r.id)?.cbd ?? null, image: menuImageFor(r.name) });
     byCategory.set(r.category, list);
   }
   return {
