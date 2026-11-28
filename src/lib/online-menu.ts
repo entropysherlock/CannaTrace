@@ -69,7 +69,8 @@ export async function saveMenuSettings(actor: Actor, input: { enabled: boolean; 
   });
 }
 
-export type PublicMenuItem = { id: string; name: string; strain: string | null; unit: string; unitLabel: string; price: string; whole: boolean };
+/** thc and cbd are percents from the newest passing lab test on stock that's for sale here, when there is one. */
+export type PublicMenuItem = { id: string; name: string; strain: string | null; unit: string; unitLabel: string; price: string; whole: boolean; thc: string | null; cbd: string | null };
 export type PublicMenu = {
   slug: string;
   storeName: string;
@@ -100,11 +101,12 @@ export async function publicMenu(slug: string): Promise<PublicMenu | null> {
     .innerJoin(itemCategories, eq(itemCategories.id, items.categoryId))
     .where(and(eq(retailPrices.facilityId, menu.facilityId), eq(items.active, true), pricedOnly()))
     .orderBy(asc(itemCategories.name), asc(items.name));
+  const potency = await potencyByItem(menu.orgId, menu.facilityId);
   const byCategory = new Map<string, PublicMenuItem[]>();
   for (const r of rows) {
     if (!(stock.get(r.id) ?? new Decimal(0)).gt(0)) continue;
     const list = byCategory.get(r.category) ?? [];
-    list.push({ id: r.id, name: r.name, strain: r.strain, unit: r.unit, unitLabel: unitLabel(r.unit), price: new Decimal(r.price).toFixed(2), whole: r.unit === "EACH" });
+    list.push({ id: r.id, name: r.name, strain: r.strain, unit: r.unit, unitLabel: unitLabel(r.unit), price: new Decimal(r.price).toFixed(2), whole: r.unit === "EACH", thc: potency.get(r.id)?.thc ?? null, cbd: potency.get(r.id)?.cbd ?? null });
     byCategory.set(r.category, list);
   }
   return {
@@ -116,6 +118,19 @@ export async function publicMenu(slug: string): Promise<PublicMenu | null> {
     takeReservations: menu.takeReservations,
     categories: [...byCategory].map(([name, list]) => ({ name, items: list })),
   };
+}
+
+/** Per item: the newest passing lab result's THC and CBD percents among its in-stock packages at this store. */
+async function potencyByItem(orgId: string, facilityId: string): Promise<Map<string, { thc: string | null; cbd: string | null }>> {
+  const result = await db.execute<{ item_id: string; thc: string | null; cbd: string | null }>(sql`
+    select distinct on (p.item_id) p.item_id as item_id, lr.thc_percent as thc, lr.cbd_percent as cbd
+    from packages p
+    join lab_results lr on lr.package_id = p.id and lr.status = 'PASS'
+    where p.org_id = ${orgId} and p.facility_id = ${facilityId} and p.status = 'ACTIVE' and p.quantity > 0
+    order by p.item_id, lr.created_at desc`);
+  const rows = result.rows;
+  const pct = (v: string | null) => (v === null || v === undefined || !new Decimal(v).gt(0) ? null : new Decimal(v).toDecimalPlaces(1).toString());
+  return new Map(rows.map((row) => [row.item_id, { thc: pct(row.thc), cbd: pct(row.cbd) }]));
 }
 
 export function cleanPhone(input: unknown): string {
