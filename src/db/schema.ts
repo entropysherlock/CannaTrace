@@ -1472,7 +1472,7 @@ export const memberConsents = pgTable(
       .references(() => rewardMembers.id, { onDelete: "cascade" }),
     /** EMAIL, SMS */
     channel: text("channel").notNull(),
-    /** OPTED_IN or OPTED_OUT */
+    /** OPTED_IN, OPTED_OUT, or PENDING (said yes, but hasn't confirmed yet under double opt-in) */
     status: text("status").notNull(),
     /** REGISTER, CARD (their own card page), STOP_REPLY, UNSUBSCRIBE (email link), MANAGER */
     method: text("method").notNull(),
@@ -1530,8 +1530,28 @@ export const marketingSettings = pgTable("marketing_settings", {
   maxPerWeek: integer("max_per_week").notNull().default(3),
   /** Points the referrer gets when the person they referred makes their first purchase. */
   referralBonus: integer("referral_bonus").notNull().default(50),
+  /** When a tier and a bonus-points day both apply: MULTIPLY them, or give only the BEST of the two. */
+  stackMode: text("stack_mode").notNull().default("MULTIPLY"),
+  /** On: a shopper's "yes" at the register is only pending until they confirm by email link or by replying YES. */
+  doubleOptIn: boolean("double_opt_in").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Categories or items that don't earn points and can't be paid for with rewards, to protect thin margins. */
+export const rewardExclusions = pgTable(
+  "reward_exclusions",
+  {
+    id: id(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    /** CATEGORY or ITEM */
+    kind: text("kind").notNull(),
+    refId: text("ref_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("reward_exclusions_key").on(t.orgId, t.kind, t.refId)],
+);
 
 /** A message sent to a group of shoppers at once. Starts as a draft; sending is a manager's choice. */
 export const marketingCampaigns = pgTable(

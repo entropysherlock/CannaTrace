@@ -26,11 +26,13 @@ export function CampaignFields({ values = {}, categories }: { values?: CampaignV
               </option>
             ))}
             <option value="BIRTHDAY">Birthday this month</option>
-            {categories.map((c) => (
-              <option key={c.id} value={`FAVORITE:${c.id}`}>
-                Bought {c.name} in the last year
-              </option>
-            ))}
+            {categories.flatMap((c) =>
+              [30, 90, 365].map((days) => (
+                <option key={`${c.id}:${days}`} value={days === 365 ? `FAVORITE:${c.id}` : `FAVORITE:${c.id}:${days}`}>
+                  Bought {c.name} in the last {days === 365 ? "year" : `${days} days`}
+                </option>
+              )),
+            )}
           </select>
         </Field>
       </div>

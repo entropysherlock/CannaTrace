@@ -135,8 +135,10 @@ export async function createMember(
     .values({ orgId: actor.orgId, phone, firstName, birthday: birthday === "none" ? null : birthday, idKey: idKey ?? null, joinedBy: actor.userName, email: email || null, referredById: referrer?.id ?? null })
     .returning();
   await ensureCodes(tx, member);
-  if (flag(input.emailOk)) await recordConsent(tx, actor, { memberId: member.id, channel: "EMAIL", status: "OPTED_IN", method: "REGISTER", wording: CONSENT_WORDING.EMAIL });
-  if (flag(input.smsOk)) await recordConsent(tx, actor, { memberId: member.id, channel: "SMS", status: "OPTED_IN", method: "REGISTER", wording: CONSENT_WORDING.SMS });
+  // With double opt-in on, "yes" at the register is only pending until the shopper confirms by email link or by replying YES.
+  const status = (await getMarketingSettings(tx, actor.orgId)).doubleOptIn ? "PENDING" : "OPTED_IN";
+  if (flag(input.emailOk)) await recordConsent(tx, actor, { memberId: member.id, channel: "EMAIL", status, method: "REGISTER", wording: CONSENT_WORDING.EMAIL });
+  if (flag(input.smsOk)) await recordConsent(tx, actor, { memberId: member.id, channel: "SMS", status, method: "REGISTER", wording: CONSENT_WORDING.SMS });
   // No name or phone in the audit trail: it outlives the shopper if they later ask to be removed.
   await audit(tx, actor, {
     entityType: "RewardsMember",

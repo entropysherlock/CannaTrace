@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { field, toFormError, type FormState } from "@/lib/form";
 import type { Actor } from "@/lib/inventory";
-import { deleteBoost, deleteTier, saveBoost, saveMarketingSettings, saveTier, setShopperConsent, updateShopperProfile } from "@/lib/loyalty";
+import { addExclusion, removeExclusion, deleteBoost, deleteTier, saveBoost, saveMarketingSettings, saveTier, setShopperConsent, updateShopperProfile } from "@/lib/loyalty";
 import { createCampaign, deleteCampaign, removeSponsorship, saveAutomation, saveSponsorship, sendCampaign, updateCampaign } from "@/lib/marketing";
 import { requirePermission } from "@/lib/session";
 
@@ -153,6 +153,28 @@ export async function sponsorshipRemoveAction(_state: FormState, formData: FormD
     await removeSponsorship(await manager(), { promoId: field(formData, "promoId") });
     refresh();
     return { ok: "Removed." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function exclusionAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const pick = field(formData, "pick");
+    const [kind, refId] = pick.split(":");
+    await addExclusion(await manager(), { kind, refId: refId ?? "" });
+    refresh();
+    return { ok: "Left out of points and rewards." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function exclusionRemoveAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    await removeExclusion(await manager(), { exclusionId: field(formData, "exclusionId") });
+    refresh();
+    return { ok: "Back in the program." };
   } catch (error) {
     return toFormError(error);
   }

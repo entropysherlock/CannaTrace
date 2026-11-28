@@ -4,15 +4,19 @@ import { campaignMessages, facilities, itemCategories, items, locations, marketi
 import { db, pool } from "@/lib/db";
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { addLabResult, receivePackage as receiveRaw, type Actor } from "@/lib/inventory";
-import { cardByToken, cardConsent, deleteBoost, deleteTier, listShoppers, saveBoost, saveMarketingSettings, saveTier, setShopperConsent, shopperProfile, updateShopperProfile } from "@/lib/loyalty";
+import { addExclusion, cardByToken, cardConsent, deleteBoost, deleteTier, listExclusions, listShoppers, removeExclusion, saveBoost, saveMarketingSettings, saveTier, setShopperConsent, shopperProfile, updateShopperProfile } from "@/lib/loyalty";
 import { currentConsents } from "@/lib/loyalty-earn";
-import { campaignResults, createCampaign, getCampaign, previewCampaign, runAutomations, saveAutomation, sendCampaign } from "@/lib/marketing";
-import { stopTexting } from "@/lib/marketing-inbound";
-import { addToCart, checkInCustomer, completeSale, joinRewards, attachRewardsMember, openDrawer, saveRetailSettings, setMenuItem } from "@/lib/pos";
+import { automationResults, audienceFor, campaignResults, createCampaign, getCampaign, previewCampaign, runAutomations, saveAutomation, sendCampaign } from "@/lib/marketing";
+import { confirmTexting, stopTexting } from "@/lib/marketing-inbound";
+import { addToCart, checkInCustomer, completeSale, joinRewards, attachRewardsMember, openDrawer, saveRetailSettings, setMenuItem, setRewardsUsed } from "@/lib/pos";
 import { saveProgram } from "@/lib/rewards";
 
 /** The CRM and loyalty extras through the real register: tiers, bonus days, referrals, what shoppers agreed to, and messages that follow the rules. */
 const hasDb = Boolean(process.env.DATABASE_URL);
+// Reply handling matches a phone number across every business, so these two numbers are unique to each run.
+const uniq = String(Date.now()).slice(-7);
+const idaPhone = `505${uniq}`;
+const joPhone = `506${uniq}`;
 const run = `LY${Date.now().toString(36).toUpperCase()}`;
 const today = todayIn();
 const adult = { birthDate: "1990-05-05", idExpires: addDays(today, 400), customerType: "ADULT_USE" };
@@ -250,5 +254,112 @@ describe.skipIf(!hasDb)("loyalty and CRM (database)", () => {
     expect(card).toMatchObject({ shop: `Loyalty Org ${run}` });
     expect(card!.member.firstName).toBe("Eve");
     expect(await cardByToken(`${eve.cardToken}x`)).toBeNull();
+  });
+
+  it("leaves excluded items out of points, and out of what rewards can pay for", async () => {
+    const eve = await member("5055550305");
+    const [cat] = await db.select({ id: itemCategories.id }).from(itemCategories).where(eq(itemCategories.orgId, actor.orgId));
+    await addExclusion(actor, { kind: "CATEGORY", refId: cat.id });
+    expect(await buy("5055550305")).toBe(0);
+    const { rows } = await listExclusions(actor.orgId);
+    expect(rows).toHaveLength(1);
+    // Rewards can't pay for an excluded cart at all.
+    await db.update(rewardMembers).set({ points: 500 }).where(eq(rewardMembers.id, eve.id));
+    const s = await checkInCustomer(actor, adult);
+    await addToCart(actor, { saleId: s.id, itemId: jar, quantity: "1" });
+    await attachRewardsMember(actor, { saleId: s.id, phone: "5055550305" });
+    await expect(setRewardsUsed(actor, { saleId: s.id, count: 1 })).rejects.toThrow(/excluded/);
+    await completeSale(actor, { saleId: s.id, paymentMethod: "DEBIT" });
+    await removeExclusion(actor, { exclusionId: rows[0].id });
+    expect(await buy("5055550305")).toBe(40);
+    await expect(addExclusion(actor, { kind: "ITEM", refId: "nope" })).rejects.toThrow(/not found/);
+  });
+
+  it("can stop tier speed and bonus days from stacking", async () => {
+    await signUp("5055550308", "Hal");
+    await saveTier(actor, { name: "Fast", minSpend: "0", earnPercent: "150" });
+    await saveBoost(actor, { name: "Double", startDate: today, endDate: today, earnPercent: "200" });
+    expect(await buy("5055550308")).toBe(120);
+    await saveMarketingSettings(actor, { disclaimer: "Please Consume Responsibly.", quietStart: "21:00", quietEnd: "08:00", maxPerWeek: "3", referralBonus: "50", stackMode: "BEST" });
+    expect(await buy("5055550308")).toBe(80);
+    await saveMarketingSettings(actor, { disclaimer: "Please Consume Responsibly.", quietStart: "21:00", quietEnd: "08:00", maxPerWeek: "3", referralBonus: "50" });
+    for (const t of (await db.execute<{ id: string }>(sql`select id from reward_tiers where org_id = ${actor.orgId}`)).rows) await deleteTier(actor, { tierId: t.id });
+    for (const b of (await db.execute<{ id: string }>(sql`select id from reward_boosts where org_id = ${actor.orgId}`)).rows) await deleteBoost(actor, { boostId: b.id });
+  });
+
+  it("targets shoppers who bought a category recently, with a time window", async () => {
+    const eve = await member("5055550305");
+    const [cat] = await db.select({ id: itemCategories.id }).from(itemCategories).where(eq(itemCategories.orgId, actor.orgId));
+    const names = (rows: { firstName: string }[]) => rows.map((r) => r.firstName);
+    expect(names(await audienceFor(actor.orgId, `FAVORITE:${cat.id}:30`, "America/Denver"))).toContain("Eve");
+    await db.update(sales).set({ completedAt: sql`now() - interval '100 days'` }).where(eq(sales.rewardMemberId, eve.id));
+    expect(names(await audienceFor(actor.orgId, `FAVORITE:${cat.id}:30`, "America/Denver"))).not.toContain("Eve");
+    expect(names(await audienceFor(actor.orgId, `FAVORITE:${cat.id}:180`, "America/Denver"))).toContain("Eve");
+    expect(names(await audienceFor(actor.orgId, `FAVORITE:${cat.id}`, "America/Denver"))).toContain("Eve");
+    await db.update(sales).set({ completedAt: sql`now() - interval '3 days'` }).where(eq(sales.rewardMemberId, eve.id));
+  });
+
+  it("with double opt-in, a yes at the register is pending until confirmed, and nothing is sent before", async () => {
+    await saveMarketingSettings(actor, { disclaimer: "Please Consume Responsibly.", quietStart: "21:00", quietEnd: "08:00", maxPerWeek: "3", referralBonus: "50", doubleOptIn: "on" });
+    process.env.RESEND_API_KEY = "test";
+    process.env.MAIL_FROM = "Shop <shop@test.invalid>";
+    process.env.SMS_WEBHOOK_URL = "https://sms.test.invalid/send";
+    process.env.SMS_WEBHOOK_SECRET = "s";
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const ida = await signUp(idaPhone, "Ida", { email: "ida@example.com", emailOk: true, smsOk: true });
+    expect((await currentConsents(db, actor.orgId, [ida.id])).get(ida.id)).toEqual({ EMAIL: false, SMS: false });
+    // One confirmation email and one confirmation text went out, and neither is marketing.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const bodies = fetchMock.mock.calls.map((c) => String((c as unknown as [string, { body: string }])[1].body));
+    expect(bodies.some((b) => /confirm/i.test(b) && b.includes("/card/"))).toBe(true);
+    expect(bodies.some((b) => /Reply YES/.test(b))).toBe(true);
+
+    // A campaign skips them while pending.
+    const camp = await createCampaign(actor, { name: "Pending", channel: "EMAIL", subject: "Hi", body: "Offer for adults 21+.", segment: "ALL" });
+    await sendCampaign(actor, camp.id);
+    expect((await sentTo(ida.id)).filter((m) => m.status === "SENT")).toHaveLength(0);
+
+    // Their own card shows it as waiting, and one tap confirms email.
+    const card = await cardByToken(ida.cardToken!);
+    expect(card!.pending).toEqual({ EMAIL: true, SMS: true });
+    expect(await cardConsent(ida.cardToken!, { channel: "EMAIL", agreed: true, method: "CARD" })).toBe(true);
+    expect((await currentConsents(db, actor.orgId, [ida.id])).get(ida.id)).toEqual({ EMAIL: true, SMS: false });
+
+    // Replying YES confirms texting; STOP while pending cancels it.
+    expect(await confirmTexting(idaPhone)).toBe(1);
+    expect((await currentConsents(db, actor.orgId, [ida.id])).get(ida.id)).toEqual({ EMAIL: true, SMS: true });
+    expect(await confirmTexting(idaPhone)).toBe(0);
+    const log = await db.select().from(memberConsents).where(and(eq(memberConsents.memberId, ida.id), eq(memberConsents.channel, "SMS")));
+    expect(log.map((c) => `${c.status}:${c.method}`)).toEqual(expect.arrayContaining(["PENDING:REGISTER", "OPTED_IN:CONFIRM_REPLY"]));
+
+    const jo = await signUp(joPhone, "Jo", { smsOk: true });
+    expect(await stopTexting(joPhone)).toBe(1);
+    expect((await currentConsents(db, actor.orgId, [jo.id])).get(jo.id)).toEqual({ EMAIL: false, SMS: false });
+    expect(await confirmTexting(joPhone)).toBe(0);
+
+    // A manager marking someone as agreed is also pending, and sends a confirmation.
+    fetchMock.mockClear();
+    await setShopperConsent(actor, { memberId: ida.id, channel: "SMS", agreed: false });
+    await setShopperConsent(actor, { memberId: ida.id, channel: "SMS", agreed: true });
+    expect((await currentConsents(db, actor.orgId, [ida.id])).get(ida.id)).toEqual({ EMAIL: true, SMS: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await saveMarketingSettings(actor, { disclaimer: "Please Consume Responsibly.", quietStart: "21:00", quietEnd: "08:00", maxPerWeek: "3", referralBonus: "50" });
+    delete process.env.SMS_WEBHOOK_URL;
+    delete process.env.SMS_WEBHOOK_SECRET;
+  });
+
+  it("shows how each automatic message is doing: sent, and who bought within a week", async () => {
+    const results = await automationResults(actor.orgId);
+    const welcome = results.get("WELCOME");
+    expect(welcome).toBeDefined();
+    expect(welcome!.sent).toBeGreaterThanOrEqual(1);
+    expect(welcome!.buyers).toBeLessThanOrEqual(welcome!.sent);
+    // Fay (welcomed earlier in this run) buys: she counts as a buyer with revenue.
+    await buy("5055550306");
+    const after = (await automationResults(actor.orgId)).get("WELCOME")!;
+    expect(after.buyers).toBeGreaterThanOrEqual(1);
+    expect(Number(after.revenue)).toBeGreaterThan(0);
+    expect(results.get("BIRTHDAY")).toBeUndefined();
   });
 });

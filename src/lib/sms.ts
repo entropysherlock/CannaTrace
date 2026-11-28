@@ -30,3 +30,6 @@ export async function sendSms(input: { phone: string; body: string }): Promise<{
 export const STOP_WORDS = ["stop", "stopall", "unsubscribe", "cancel", "end", "quit"];
 
 export const isStopMessage = (body: string): boolean => STOP_WORDS.includes(body.trim().toLowerCase().replace(/[^a-z]/g, ""));
+
+/** A shopper confirming a text sign-up (double opt-in) by replying YES. */
+export const isYesMessage = (body: string): boolean => ["yes", "y"].includes(body.trim().toLowerCase().replace(/[^a-z]/g, ""));

@@ -1,3 +1,5 @@
+import { getExclusions, pendingConsents } from "./loyalty-earn";
+import { eligibleShare } from "./loyalty-math";
 import { createHmac } from "node:crypto";
 import Decimal from "decimal.js";
 import { inArray, and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
@@ -504,6 +506,7 @@ export type CartRow = {
   limitCategory: LimitCategory;
   limitPerUnit: string | null;
   returnable?: boolean;
+  categoryId?: string | null;
 };
 
 export async function cartLines(tx: Tx | typeof db, saleId: string): Promise<CartRow[]> {
@@ -518,6 +521,7 @@ export async function cartLines(tx: Tx | typeof db, saleId: string): Promise<Car
       limitCategory: items.limitCategory,
       limitPerUnit: items.limitPerUnit,
       returnable: items.returnable,
+      categoryId: items.categoryId,
     })
     .from(saleLines)
     .innerJoin(items, eq(items.id, saleLines.itemId))
@@ -531,6 +535,8 @@ export function saleTotals(
   settings: Awaited<ReturnType<typeof getRetailSettings>>,
   program?: RewardProgram | null,
   promoDiscount?: Decimal.Value,
+  /** The share (0 to 1) of the cart that can be paid for with rewards, after leaving out excluded categories and items. */
+  eligible: Decimal.Value = 1,
 ): Totals & { rewardsApplied: number } {
   const options = {
     discountPercent: sale.discountPercent,
@@ -542,7 +548,7 @@ export function saleTotals(
   const before = cartTotals(lines, options);
   // Rewards the shopper chose, cut down to what fits this cart right now (a cart that shrank uses fewer).
   const rewardsApplied =
-    program?.enabled && sale.rewardMemberId && (sale.rewardsUsed ?? 0) > 0 && !lines.some((l) => l.returnable) ? rewardsThatFit(sale.rewardsUsed ?? 0, before.subtotal.sub(before.promo).sub(before.discount), program) : 0;
+    program?.enabled && sale.rewardMemberId && (sale.rewardsUsed ?? 0) > 0 && !lines.some((l) => l.returnable) ? rewardsThatFit(sale.rewardsUsed ?? 0, before.subtotal.sub(before.promo).sub(before.discount).mul(eligible), program) : 0;
   if (!rewardsApplied) return { ...before, rewardsApplied: 0 };
   return { ...cartTotals(lines, { ...options, rewardDiscount: new Decimal(program!.redeemDollars).mul(rewardsApplied) }), rewardsApplied };
 }
@@ -853,7 +859,7 @@ export async function joinRewards(
   actor: Actor,
   input: { saleId: string; phone: string; firstName: string; birthday?: string; agreed: unknown; email?: string; emailOk?: unknown; smsOk?: unknown; referralCode?: string },
 ): Promise<{ firstName: string; points: number }> {
-  return db.transaction(async (tx) => {
+  const joined = await db.transaction(async (tx) => {
     const program = await getProgram(tx, actor.orgId);
     if (!program.enabled) throw new InventoryError("The rewards program is off. A manager can turn it on in Menu and store rules.");
     const sale = await lockSale(tx, actor, input.saleId, ["OPEN"], "changed");
@@ -862,8 +868,12 @@ export async function joinRewards(
     const member = await createMember(tx, actor, program, input, idKey);
     await tx.update(sales).set({ rewardMemberId: member.id, rewardsUsed: 0 }).where(eq(sales.id, sale.id));
     await audit(tx, actor, { entityType: "Sale", entityId: sale.id, action: "REWARDS_ATTACHED", after: { number: sale.number, memberId: member.id, joined: true, idLinked: Boolean(idKey) } });
-    return { firstName: member.firstName, points: member.points };
+    const pending = await pendingConsents(tx, actor.orgId, [member.id]);
+    return { firstName: member.firstName, points: member.points, memberId: member.id, pending: (["EMAIL", "SMS"] as const).filter((c) => pending.has(`${member.id}:${c}`)) };
   });
+  // Double opt-in: ask them to confirm once the sign-up has saved. A failed message never undoes the sign-up.
+  if (joined.pending.length > 0) await import("./marketing-inbound").then((m) => m.askToConfirm(joined.memberId, joined.pending)).catch(() => null);
+  return { firstName: joined.firstName, points: joined.points };
 }
 
 /** With the shopper's agreement, remember this cart's ID for the shopper on it, so their next ID scan finds their account. */
@@ -911,11 +921,14 @@ export async function setRewardsUsed(actor: Actor, input: { saleId: string; coun
       const settings = await getRetailSettings(tx, actor.facilityId);
       const promos = await cartPromos(tx, actor, lines);
       const before = saleTotals(lines, sale, settings, null, promos.total);
-      const fit = rewardsThatFit(count, before.subtotal.sub(before.promo).sub(before.discount), program);
+      const share = eligibleShare(lines, await getExclusions(tx, actor.orgId));
+      const fit = rewardsThatFit(count, before.subtotal.sub(before.promo).sub(before.discount).mul(share), program);
       if (fit < count)
         throw new InventoryError(
           fit === 0
-            ? `Rewards can pay for at most ${program.maxSharePercent}% of a cart, and New Mexico doesn't allow free cannabis. Add more to the cart to use a reward.`
+            ? share.lt(1)
+              ? `Rewards can't pay for enough of this cart. Some items are excluded from rewards, and rewards can pay for at most ${program.maxSharePercent}% of the rest.`
+              : `Rewards can pay for at most ${program.maxSharePercent}% of a cart, and New Mexico doesn't allow free cannabis. Add more to the cart to use a reward.`
             : `Only ${fit} reward${fit === 1 ? "" : "s"} fit this cart: rewards can pay for at most ${program.maxSharePercent}% of it.`,
         );
     }
@@ -998,7 +1011,9 @@ export async function completeSale(
 
     const program = sale.rewardMemberId ? await getProgram(tx, actor.orgId) : null;
     const promos = await cartPromos(tx, actor, lines);
-    const totals = saleTotals(lines, sale, settings, program, promos.total);
+    const exclusions = await getExclusions(tx, actor.orgId);
+    const eligible = eligibleShare(lines, exclusions);
+    const totals = saleTotals(lines, sale, settings, program, promos.total, eligible);
     // Each discount layer is capped on its own, but they stack: promotion, cart discount and rewards together must still
     // leave the customer paying at least a tenth of the price, because New Mexico does not allow giving cannabis away (APEX-35).
     if (totals.subtotal.gt(0) && totals.taxable.lt(totals.subtotal.mul(100 - MAX_PROMO_PERCENT).div(100))) {
@@ -1019,7 +1034,7 @@ export async function completeSale(
     const points = await settleSaleRewards(tx, actor, sale, {
       applied: totals.rewardsApplied,
       rewardDollars: totals.reward,
-      paidBeforeTax: totals.taxable,
+      paidBeforeTax: totals.taxable.mul(eligible),
       today: await facilityToday(actor.facilityId, tx),
     });
 

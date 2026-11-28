@@ -1,7 +1,8 @@
 import { ActionForm } from "@/components/action-form";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { MERGE_FIELDS } from "@/lib/loyalty-math";
-import { listAutomations } from "@/lib/marketing";
+import { usd } from "@/components/distribution-ui";
+import { automationResults, listAutomations } from "@/lib/marketing";
 import { requirePagePermission } from "@/lib/session";
 import { automationAction } from "../actions";
 
@@ -9,7 +10,7 @@ export const metadata = { title: "Automatic messages · Leaf2Sale" };
 
 export default async function AutomationsPage() {
   const session = await requirePagePermission("pos.manage");
-  const automations = await listAutomations(session.orgId);
+  const [automations, results] = await Promise.all([listAutomations(session.orgId), automationResults(session.orgId)]);
   return (
     <>
       <PageHeader title="Automatic messages" subtitle="Messages that send themselves once a day when something happens. They follow the same rules as campaigns: only people who agreed, quiet hours, and the weekly limit." />
@@ -17,6 +18,11 @@ export default async function AutomationsPage() {
         {automations.map((a) => (
           <Card key={a.kind} title={a.label}>
             <p className="mb-3 text-sm text-slate-600">{a.when}</p>
+            {results.get(a.kind) ? (
+              <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700" data-testid={`results-${a.kind}`}>
+                Sent {results.get(a.kind)!.sent} · {results.get(a.kind)!.buyers} came back and bought within 7 days · {usd(results.get(a.kind)!.revenue)} in sales
+              </p>
+            ) : null}
             <ActionForm action={automationAction} submitLabel="Save">
               <input type="hidden" name="kind" value={a.kind} />
               <label className="flex items-start gap-3 text-sm">
