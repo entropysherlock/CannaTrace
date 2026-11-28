@@ -8,6 +8,7 @@ import { beep } from "./feedback";
 import { PayPanel, money } from "./pay-panel";
 import { RewardsLine, type RewardsView } from "./rewards-panel";
 import { Toasts, useToasts } from "./shell";
+import { BURST_DONE_MS, isScannedCode, nextBurstCount } from "@/lib/scan-buffer";
 import { useScanner } from "./use-scanner";
 
 export type MenuTile = {
@@ -72,6 +73,8 @@ export function CartScreen({ view }: { view: CartView }) {
   const [paying, setPaying] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const search = useRef<HTMLInputElement>(null);
+  // A scanner not set to press Enter after a code types the whole code in a burst and stops. Spot that and submit it ourselves.
+  const burst = useRef({ last: 0, fast: 0, timer: null as ReturnType<typeof setTimeout> | null });
   /**
    * Keep the cursor in the product box so a USB scanner that types into a focused field lands there, as the ID
    * box does on the check-in screen. Never steals focus from another box being typed in, and skips touch screens
@@ -138,8 +141,10 @@ export function CartScreen({ view }: { view: CartView }) {
     return !q || m.name.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q);
   });
 
-  const submitSearch = () => {
-    const q = query.trim();
+  const submitSearch = (typed?: string) => {
+    if (burst.current.timer) clearTimeout(burst.current.timer);
+    burst.current.fast = 0;
+    const q = (typed ?? query).trim();
     if (!q) return;
     const exact = view.menu.filter((m) => !m.outOfStock && (m.name.toLowerCase() === q.toLowerCase() || m.sku.toLowerCase() === q.toLowerCase()));
     const only = shown.filter((m) => !m.outOfStock);
@@ -212,9 +217,19 @@ export function CartScreen({ view }: { view: CartView }) {
             <input
               ref={search}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search products, or scan a tag or SKU"
-              aria-label="Search products, or scan a tag or SKU"
+              onChange={(e) => {
+                const value = e.target.value;
+                setQuery(value);
+                const b = burst.current;
+                const now = performance.now();
+                b.fast = nextBurstCount(b.fast, now - b.last, value.length);
+                b.last = now;
+                if (b.timer) clearTimeout(b.timer);
+                // Eight or more characters arriving 50 ms apart is a scanner, not a person. When the burst stops, ring it up.
+                if (isScannedCode(value, b.fast)) b.timer = setTimeout(() => submitSearch(value), BURST_DONE_MS);
+              }}
+              placeholder="Search products, or scan a tag, barcode or SKU"
+              aria-label="Search products, or scan a tag, barcode or SKU"
               autoComplete="off"
               className="h-12 min-w-0 flex-1 bg-transparent text-lg outline-none placeholder:text-slate-400"
             />
@@ -262,7 +277,7 @@ export function CartScreen({ view }: { view: CartView }) {
           {view.menu.length === 0 ? (
             <p className="rounded-2xl bg-white p-6 text-lg text-slate-600">Nothing is on this store&apos;s menu yet. A manager can add items under Menu.</p>
           ) : shown.length === 0 ? (
-            <p className="rounded-2xl bg-white p-6 text-lg text-slate-600">No products match. Press Enter to look it up as a tag or SKU.</p>
+            <p className="rounded-2xl bg-white p-6 text-lg text-slate-600">No products match. Press Enter to look it up as a tag, barcode or SKU.</p>
           ) : (
             <ul className="grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] gap-3">
               {shown.map((m) => (

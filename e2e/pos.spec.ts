@@ -78,7 +78,7 @@ test("a full shift on the touch register: ID scan, barcode scan, limits, discoun
   await page.getByRole("button", { name: "Start sale" }).click();
   await expect(page.getByRole("heading", { name: /^Cart S-\d{5}$/ })).toBeVisible();
   // The cursor moves from the ID box to the product scan box by itself, so a USB scanner types straight into it
-  await expect(page.getByLabel("Search products, or scan a tag or SKU")).toBeFocused();
+  await expect(page.getByLabel("Search products, or scan a tag, barcode or SKU")).toBeFocused();
 
   // A barcode scan by SKU adds one
   await scan(page, "FLW-BM-35\n");
