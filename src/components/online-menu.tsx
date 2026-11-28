@@ -301,9 +301,14 @@ export function OnlineMenu({ menu }: { menu: PublicMenu }) {
 function ProductCard({ item, category, reserving, quantity, onChange }: { item: PublicMenuItem; category: string; reserving: boolean; quantity: number; onChange: (delta: number) => void }) {
   return (
     <li className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" data-testid="menu-item">
-      <div className={`relative flex h-28 items-center justify-center bg-gradient-to-br ${swatch(category)}`}>
-        <Leaf className="h-14 w-14 text-white/80 transition group-hover:scale-110" />
-        <span className="absolute left-3 top-3 rounded-full bg-black/25 px-2.5 py-1 text-xs font-semibold text-white">{category}</span>
+      <div className={item.image ? "relative flex h-48 items-center justify-center bg-white" : `relative flex h-28 items-center justify-center bg-gradient-to-br ${swatch(category)}`}>
+        {item.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={item.image} alt={item.name} width={600} height={600} loading="lazy" className="h-full w-full object-contain p-2 transition group-hover:scale-105" />
+        ) : (
+          <Leaf className="h-14 w-14 text-white/80 transition group-hover:scale-110" />
+        )}
+        <span className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold ${item.image ? "bg-slate-900/70 text-white" : "bg-black/25 text-white"}`}>{category}</span>
         {quantity > 0 ? <span className="absolute right-3 top-3 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-brand-900">{quantity} in order</span> : null}
       </div>
       <div className="flex flex-1 flex-col p-4">
