@@ -53,6 +53,9 @@ export function ItemFields({ categories, units, context }: { categories: string[
       <Field label="SKU (blank to generate)" hint="Leave blank and Leaf2Sale makes one from the category, like FLO-0007.">
         <input name="sku" autoCapitalize="characters" placeholder="Blank = generated" className={inputClass} />
       </Field>
+      <Field label="Barcode (optional)" hint="Click here and scan the product's own barcode, so the register rings it up when scanned.">
+        <input name="barcode" inputMode="numeric" autoComplete="off" maxLength={48} placeholder="Scan or type" className={`${inputClass} font-mono`} />
+      </Field>
       <Field label="Strain (optional)">
         <input name="strain" maxLength={80} className={inputClass} />
       </Field>

@@ -171,6 +171,9 @@ export default async function MenuPage() {
               <Field label="Shelf price per unit, in dollars" hint="Before tax.">
                 <input name="price" inputMode="decimal" required className={inputClass} />
               </Field>
+              <Field label="Barcode (optional)" hint="Click here, then scan the product's barcode with your scanner (or type the numbers). The register will ring this item up when it's scanned. Leave blank to keep the barcode it has now.">
+                <input name="barcode" inputMode="numeric" autoComplete="off" maxLength={48} placeholder="Scan the barcode here" className={`${inputClass} font-mono`} />
+              </Field>
               <Field label="Counts toward which purchase limit" hint="Changing only the price? Leave this on Keep, so the item's purchase limit stays as it is.">
                 <select name="limitCategory" defaultValue="KEEP" className={inputClass}>
                   <option value="KEEP">Keep what the item counts toward now</option>

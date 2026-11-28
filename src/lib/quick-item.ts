@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { auditLogs, itemCategories, items, unitEnum } from "@/db/schema";
 import { db } from "./db";
 import { generateSku, normalizeSku } from "./ids";
+import { checkBarcode } from "./item-barcode";
 import { InventoryError } from "./inventory-math";
 import type { Actor } from "./inventory";
 
@@ -55,7 +56,7 @@ export async function findItemByName(orgId: string, name: string): Promise<{ id:
  */
 export async function quickAddItem(
   actor: Actor,
-  input: { name: string; unit: string; category: string; sku?: string; strain?: string },
+  input: { name: string; unit: string; category: string; sku?: string; strain?: string; barcode?: string },
 ): Promise<{ id: string; name: string; unit: Unit }> {
   const name = input.name.trim().replace(/\s+/g, " ").slice(0, 120);
   if (!name) throw new InventoryError("Give the new item a name.");
@@ -79,12 +80,13 @@ export async function quickAddItem(
       await tx.insert(itemCategories).values({ orgId: actor.orgId, name: categoryName }).onConflictDoNothing();
       [category] = await findCategory();
     }
+    const barcode = await checkBarcode(tx, actor.orgId, input.barcode);
     for (let attempt = 0; attempt < 5; attempt++) {
       // A typed SKU is used as is; otherwise a new unique one from the category (FLO-0007).
       const sku = input.sku?.trim() ? normalizeSku(input.sku) : await generateSku(tx, actor.orgId, category.name);
       const [item] = await tx
         .insert(items)
-        .values({ orgId: actor.orgId, name, sku, unit, categoryId: category.id, strain: input.strain?.trim().slice(0, 80) || null })
+        .values({ orgId: actor.orgId, name, sku, unit, categoryId: category.id, strain: input.strain?.trim().slice(0, 80) || null, barcode })
         .onConflictDoNothing({ target: [items.orgId, items.sku] })
         .returning({ id: items.id });
       if (item) {

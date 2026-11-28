@@ -160,6 +160,7 @@ export async function renameItemAction(_state: FormState, formData: FormData): P
     const result = await renameItem({ orgId: session.orgId, userId: session.userId, userName: session.name }, itemId, {
       name: field(formData, "name"),
       sku: field(formData, "sku"),
+      barcode: field(formData, "barcode"),
     });
     revalidatePath("/catalog");
     revalidatePath(`/catalog/${itemId}`);

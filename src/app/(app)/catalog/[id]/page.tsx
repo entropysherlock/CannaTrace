@@ -36,8 +36,8 @@ export default async function ItemDetailsPage({ params }: { params: Promise<{ id
         </Link>
       </p>
       <div className="mb-5 max-w-2xl">
-        <Card title="Name and SKU">
-          <ActionForm action={renameItemAction} submitLabel="Save name and SKU">
+        <Card title="Name, SKU and barcode">
+          <ActionForm action={renameItemAction} submitLabel="Save">
             <input type="hidden" name="itemId" value={item.id} />
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Name">
@@ -45,6 +45,9 @@ export default async function ItemDetailsPage({ params }: { params: Promise<{ id
               </Field>
               <Field label="SKU" hint="Generated when the item was added. Change it if you need to match your own numbering; it must be unique.">
                 <input name="sku" required maxLength={40} autoCapitalize="characters" defaultValue={item.sku} className={`${inputClass} font-mono`} />
+              </Field>
+              <Field label="Barcode" hint="The product's own barcode. Click here and scan it, and the register will ring this item up when it's scanned. Clear it to remove.">
+                <input name="barcode" inputMode="numeric" autoComplete="off" maxLength={48} defaultValue={item.barcode ?? ""} className={`${inputClass} font-mono`} />
               </Field>
             </div>
           </ActionForm>

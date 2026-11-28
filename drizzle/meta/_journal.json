@@ -449,6 +449,13 @@
       "when": 1795826013921,
       "tag": "0063_loyalty_margin_optin",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1795827132680,
+      "tag": "0064_item_barcode",
+      "breakpoints": true
     }
   ]
 }

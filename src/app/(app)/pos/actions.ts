@@ -98,6 +98,7 @@ export async function menuItemAction(_state: FormState, formData: FormData): Pro
       price: field(formData, "price"),
       limitCategory: field(formData, "limitCategory"),
       limitPerUnit: field(formData, "limitPerUnit"),
+      barcode: field(formData, "barcode"),
     });
     refresh();
     return { ok: "Menu item saved." };
