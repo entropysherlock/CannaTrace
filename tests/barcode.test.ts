@@ -6,7 +6,8 @@ import { db, pool } from "@/lib/db";
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { addLabResult, receivePackage as receiveRaw, type Actor } from "@/lib/inventory";
 import { renameItem } from "@/lib/item-details";
-import { addSellableToMenu, startingPrice } from "@/lib/menu-bulk";
+import { addSellableToMenu } from "@/lib/menu-bulk";
+import { isPriced } from "@/lib/menu-price";
 import { quickAddItem } from "@/lib/quick-item";
 import { addScannedCode, cartLines, checkInCustomer, openDrawer, saveRetailSettings, removeMenuItem, setMenuItem } from "@/lib/pos";
 
@@ -139,15 +140,18 @@ describe.skipIf(!hasDb)("scanning a product barcode at the register (database)",
     const onMenu = (await db.select({ id: retailPrices.itemId }).from(retailPrices).where(eq(retailPrices.facilityId, actor.facilityId))).map((r) => r.id);
     expect(onMenu).toContain(withStock.id);
     expect(onMenu).not.toContain(noStock.id);
+    const [row] = await db.select({ price: retailPrices.price }).from(retailPrices).where(and(eq(retailPrices.facilityId, actor.facilityId), eq(retailPrices.itemId, withStock.id)));
+    expect(isPriced(row.price)).toBe(false);
     expect((await addSellableToMenu(actor)).added).toEqual([]);
   });
 });
 
-describe("starting shelf price", () => {
-  it("is 2.5 times the dearest cost, at least $1, or $10 with no cost", () => {
-    expect(startingPrice(["8.00000000", "6"]).toString()).toBe("20");
-    expect(startingPrice(["0.10"]).toString()).toBe("1");
-    expect(startingPrice([null]).toString()).toBe("10");
-    expect(startingPrice([]).toString()).toBe("10");
+describe("menu items waiting for a price", () => {
+  it("counts only a price above zero as a real shelf price", () => {
+    expect(isPriced("0")).toBe(false);
+    expect(isPriced("0.0000")).toBe(false);
+    expect(isPriced(null)).toBe(false);
+    expect(isPriced("0.01")).toBe(true);
+    expect(isPriced("20")).toBe(true);
   });
 });

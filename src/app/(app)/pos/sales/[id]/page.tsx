@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { and, asc, eq } from "drizzle-orm";
+import { pricedOnly } from "@/lib/menu-price";
 import { notFound, redirect } from "next/navigation";
 import { CartScreen, type CartView } from "@/components/register/cart-screen";
 import { RegisterShell } from "@/components/register/shell";
@@ -52,7 +53,7 @@ export default async function CartPage({ params, searchParams }: { params: Promi
       .from(retailPrices)
       .innerJoin(items, eq(items.id, retailPrices.itemId))
       .leftJoin(itemCategories, eq(itemCategories.id, items.categoryId))
-      .where(and(eq(retailPrices.facilityId, session.facilityId), eq(items.active, true)))
+      .where(and(eq(retailPrices.facilityId, session.facilityId), eq(items.active, true), pricedOnly()))
       .orderBy(asc(itemCategories.name), asc(items.name)),
     db
       .select()

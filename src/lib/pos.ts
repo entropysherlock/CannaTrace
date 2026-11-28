@@ -4,6 +4,7 @@ import { eligibleShare } from "./loyalty-math";
 import { createHmac } from "node:crypto";
 import Decimal from "decimal.js";
 import { inArray, and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { isPriced } from "./menu-price";
 import {
   discountPresets,
   drawerSessions,
@@ -736,6 +737,7 @@ export async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, item
     .innerJoin(retailPrices, and(eq(retailPrices.itemId, items.id), eq(retailPrices.facilityId, actor.facilityId)))
     .where(and(eq(items.id, itemId), eq(items.orgId, actor.orgId), eq(items.active, true)));
   if (!item) throw new InventoryError("That item is not on this store's menu.");
+  if (!isPriced(item.price) && newQuantity.gt(0)) throw new InventoryError(`${item.name} needs a shelf price before it can be sold. A manager can set it under Register → Menu.`);
   assertWholeForUnit(item.unit, newQuantity);
   const before = await cartLines(tx, sale.id);
   const existing = before.find((line) => line.itemId === item.id);
@@ -767,7 +769,7 @@ export async function setItemQuantityInTx(tx: Tx, actor: Actor, sale: Sale, item
   await tx.execute(sql`
     update sale_lines sl set unit_price = rp.price
     from retail_prices rp
-    where sl.sale_id = ${sale.id} and rp.item_id = sl.item_id and rp.facility_id = ${actor.facilityId} and sl.unit_price <> rp.price`);
+    where sl.sale_id = ${sale.id} and rp.item_id = sl.item_id and rp.facility_id = ${actor.facilityId} and rp.price > 0 and sl.unit_price <> rp.price`);
   const settings = await getRetailSettings(tx, actor.facilityId);
   const problem = limitCheck(await cartLines(tx, sale.id), settings, pack, sale.customerType, await earlierToday(tx, sale));
   if (problem) throw new InventoryError(problem);

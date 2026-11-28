@@ -4,11 +4,10 @@ import { and, asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
 import { CreatableSelect } from "@/components/contextual-create";
 import { ItemFields } from "@/components/item-fields";
-import { unitPrice } from "@/components/distribution-ui";
 import { PosTabs } from "@/components/pos-tabs";
 import { reviewCount } from "@/lib/offline-sales";
 import { waitingCount } from "@/lib/online-menu";
-import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { Card, Field, PageHeader, inputBase, inputClass } from "@/components/ui";
 import { discountPresets, facilities, items, retailPrices } from "@/db/schema";
 import { labelPackFor } from "@/lib/labels/jurisdictions";
 import { PACKS, rulesOf } from "@/lib/rules";
@@ -22,6 +21,7 @@ import { requirePagePermission } from "@/lib/session";
 import { quickItemAction } from "../../quick-create-actions";
 import { unitLabel } from "@/lib/units";
 import { getMenuSettings } from "@/lib/online-menu";
+import { isPriced } from "@/lib/menu-price";
 import { addSellableToMenuAction, discountPresetAction, menuItemAction, onlineMenuAction, removeDiscountAction, removeMenuItemAction } from "../actions";
 
 export default async function MenuPage() {
@@ -49,6 +49,9 @@ export default async function MenuPage() {
       .orderBy(asc(discountPresets.name)),
   ]);
   const online = await getMenuSettings(session.facilityId);
+  // Items added by "Add everything with stock" wait at the top until someone prices them.
+  const needsPrice = menu.filter((item) => !isPriced(item.price));
+  const sortedMenu = [...needsPrice, ...menu.filter((item) => isPriced(item.price))];
   const num = (value: Decimal.Value) => new Decimal(value).toString();
   const prefills: StatePrefill[] = Object.values(PACKS)
     .map((pack) => {
@@ -78,7 +81,7 @@ export default async function MenuPage() {
       <PosTabs current="/pos/menu" canManage pickups={await waitingCount(session.facilityId)} review={await reviewCount(session.facilityId)} />
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
-          <Card title={`On the menu (${menu.length})`}>
+          <Card title={`On the menu (${menu.length})${needsPrice.length ? ` · ${needsPrice.length} need a price` : ""}`}>
             <div className="mb-3 flex flex-wrap items-start gap-3">
               <ActionForm action={addSellableToMenuAction} submitLabel="Add everything with stock" quiet className="flex items-start">
                 <input type="hidden" name="all" value="1" />
@@ -87,27 +90,49 @@ export default async function MenuPage() {
                 Print barcode sheet
               </Link>
             </div>
-            <p className="mb-3 text-xs text-slate-500">&quot;Add everything with stock&quot; puts each item that can be sold right now on the menu at 2.5 times its cost. Change any price below.</p>
+            <p className="mb-3 text-xs text-slate-500">
+              &quot;Add everything with stock&quot; puts each item that can be sold right now on the menu marked <strong>Needs a price</strong>. The register won&apos;t sell it until you type its
+              price in its box below and press Save price. To change any price, do the same.
+            </p>
             {menu.length === 0 ? (
               <p className="text-sm text-slate-600">Nothing yet. Add an item with its shelf price.</p>
             ) : (
               <ul className="divide-y divide-slate-100 text-sm">
-                {menu.map((item) => (
+                {sortedMenu.map((item) => (
                   <li key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2">
                     <span className="font-medium text-slate-900">
                       {item.name}
+                      {isPriced(item.price) ? null : (
+                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-900" data-testid="needs-price">
+                          Needs a price
+                        </span>
+                      )}
                       <span className="block font-mono text-xs font-normal text-slate-500" data-testid="menu-codes">
                         SKU {item.sku} · {item.barcode ? `Barcode ${item.barcode}` : "no barcode saved yet"}
                       </span>
                     </span>
-                    <ActionForm action={removeMenuItemAction} submitLabel="Remove" submitAriaLabel={`Remove ${item.name} from the menu`} quiet className="row-span-2 flex items-start">
+                    <ActionForm action={removeMenuItemAction} submitLabel="Remove" submitAriaLabel={`Remove ${item.name} from the menu`} quiet className="row-span-3 flex items-start">
                       <input type="hidden" name="itemId" value={item.id} />
                     </ActionForm>
                     <span className="text-slate-600">
-                      <span className="font-semibold text-slate-900">
-                        {unitPrice(item.price)} per {unitLabel(item.unit)}
-                      </span>
-                      {" · "}
+                      <ActionForm action={menuItemAction} submitLabel="Save price" submitAriaLabel={`Save price for ${item.name}`} quiet className="flex flex-wrap items-center gap-2">
+                        <input type="hidden" name="itemId" value={item.id} />
+                        <input type="hidden" name="limitCategory" value="KEEP" />
+                        <label className="flex items-center gap-1 font-semibold text-slate-900">
+                          $
+                          <input
+                            name="price"
+                            inputMode="decimal"
+                            required
+                            defaultValue={isPriced(item.price) ? new Decimal(item.price).toFixed(2) : ""}
+                            placeholder="0.00"
+                            aria-label={`Shelf price for ${item.name}`}
+                            data-testid="menu-row-price"
+                            className={`${inputBase} w-24 tabular-nums`}
+                          />
+                          <span className="font-normal text-slate-600">per {unitLabel(item.unit)}</span>
+                        </label>
+                      </ActionForm>
                       {item.limitCategory === "NONE"
                         ? "not limited"
                         : `counts ${num(item.limitPerUnit ?? 0)} ${LIMIT_LABELS[item.limitCategory].unit} of ${LIMIT_LABELS[item.limitCategory].name.toLowerCase()} each`}

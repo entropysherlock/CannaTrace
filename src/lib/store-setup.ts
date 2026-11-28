@@ -1,4 +1,5 @@
 import { and, count, eq, sql } from "drizzle-orm";
+import { pricedOnly } from "@/lib/menu-price";
 import { discountPresets, drawerSessions, facilities, locations, packages, retailPrices, retailSettings, rewardSettings } from "@/db/schema";
 import { db } from "@/lib/db";
 import { packFor, requiresLabBeforeRetail } from "@/lib/rules";
@@ -39,7 +40,7 @@ export async function storeSetup(input: { orgId: string; facilityId: string }): 
           .from(packages)
           .where(and(eq(packages.orgId, orgId), eq(packages.facilityId, facilityId), eq(packages.status, "ACTIVE"), sql`coalesce(${passedLab}, false)`))
       : Promise.resolve([{ n: 1 }]),
-    db.select({ n: count() }).from(retailPrices).where(eq(retailPrices.facilityId, facilityId)),
+    db.select({ n: count() }).from(retailPrices).where(and(eq(retailPrices.facilityId, facilityId), pricedOnly())),
     db.select().from(retailSettings).where(eq(retailSettings.facilityId, facilityId)),
     db.select({ enabled: rewardSettings.enabled }).from(rewardSettings).where(eq(rewardSettings.orgId, orgId)),
     db.select({ n: count() }).from(discountPresets).where(eq(discountPresets.orgId, orgId)),

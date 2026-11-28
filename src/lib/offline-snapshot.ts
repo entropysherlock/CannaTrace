@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { and, asc, eq } from "drizzle-orm";
+import { pricedOnly } from "@/lib/menu-price";
 import { discountPresets, facilities, itemCategories, items, retailPrices } from "@/db/schema";
 import { db } from "./db";
 import type { Actor } from "./inventory";
@@ -32,7 +33,7 @@ export async function buildOfflineSnapshot(actor: Actor): Promise<OfflineSnapsho
     .from(retailPrices)
     .innerJoin(items, eq(items.id, retailPrices.itemId))
     .leftJoin(itemCategories, eq(itemCategories.id, items.categoryId))
-    .where(and(eq(retailPrices.facilityId, actor.facilityId), eq(items.active, true)))
+    .where(and(eq(retailPrices.facilityId, actor.facilityId), eq(items.active, true), pricedOnly()))
     .orderBy(asc(itemCategories.name), asc(items.name));
   const presets = await db
     .select({ id: discountPresets.id, name: discountPresets.name, percent: discountPresets.percent })
