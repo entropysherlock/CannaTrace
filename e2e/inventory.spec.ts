@@ -195,8 +195,8 @@ test("merge two packages, add an item, add a location", async ({ page }) => {
   await expect(page.getByText(new RegExp(`Added Auto Rosin ${run} \\(SKU CON-\\d{4}\\)\\.`))).toBeVisible();
   await page.locator("li", { hasText: `Auto Rosin ${run}` }).getByRole("link", { name: "Label details" }).click();
   await expect(page.getByRole("heading", { name: `Auto Rosin ${run}` })).toBeVisible();
-  await page.locator('form:has(button:text("Save name and SKU")) input[name="sku"]').fill(`MY-${run}`);
-  await page.getByRole("button", { name: "Save name and SKU" }).click();
+  await page.locator('form:has(button:text-is("Save")) input[name="sku"]').fill(`MY-${run}`);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(`Saved. Auto Rosin ${run} · SKU MY-${run}.`)).toBeVisible();
 
   // Received with no tag: it gets a new unique package ID
