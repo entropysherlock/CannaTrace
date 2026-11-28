@@ -4,11 +4,10 @@ import { and, asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
 import { CreatableSelect } from "@/components/contextual-create";
 import { ItemFields } from "@/components/item-fields";
-import { unitPrice } from "@/components/distribution-ui";
 import { PosTabs } from "@/components/pos-tabs";
 import { reviewCount } from "@/lib/offline-sales";
 import { waitingCount } from "@/lib/online-menu";
-import { Card, Field, PageHeader, inputClass } from "@/components/ui";
+import { Card, Field, PageHeader, inputBase, inputClass } from "@/components/ui";
 import { discountPresets, facilities, items, retailPrices } from "@/db/schema";
 import { labelPackFor } from "@/lib/labels/jurisdictions";
 import { PACKS, rulesOf } from "@/lib/rules";
@@ -87,7 +86,7 @@ export default async function MenuPage() {
                 Print barcode sheet
               </Link>
             </div>
-            <p className="mb-3 text-xs text-slate-500">&quot;Add everything with stock&quot; puts each item that can be sold right now on the menu at 2.5 times its cost. Change any price below.</p>
+            <p className="mb-3 text-xs text-slate-500">&quot;Add everything with stock&quot; puts each item that can be sold right now on the menu at 2.5 times its cost. To change a price, type the new one in its box below and press Save price.</p>
             {menu.length === 0 ? (
               <p className="text-sm text-slate-600">Nothing yet. Add an item with its shelf price.</p>
             ) : (
@@ -100,14 +99,27 @@ export default async function MenuPage() {
                         SKU {item.sku} · {item.barcode ? `Barcode ${item.barcode}` : "no barcode saved yet"}
                       </span>
                     </span>
-                    <ActionForm action={removeMenuItemAction} submitLabel="Remove" submitAriaLabel={`Remove ${item.name} from the menu`} quiet className="row-span-2 flex items-start">
+                    <ActionForm action={removeMenuItemAction} submitLabel="Remove" submitAriaLabel={`Remove ${item.name} from the menu`} quiet className="row-span-3 flex items-start">
                       <input type="hidden" name="itemId" value={item.id} />
                     </ActionForm>
                     <span className="text-slate-600">
-                      <span className="font-semibold text-slate-900">
-                        {unitPrice(item.price)} per {unitLabel(item.unit)}
-                      </span>
-                      {" · "}
+                      <ActionForm action={menuItemAction} submitLabel="Save price" submitAriaLabel={`Save price for ${item.name}`} quiet className="flex flex-wrap items-center gap-2">
+                        <input type="hidden" name="itemId" value={item.id} />
+                        <input type="hidden" name="limitCategory" value="KEEP" />
+                        <label className="flex items-center gap-1 font-semibold text-slate-900">
+                          $
+                          <input
+                            name="price"
+                            inputMode="decimal"
+                            required
+                            defaultValue={new Decimal(item.price).toFixed(2)}
+                            aria-label={`Shelf price for ${item.name}`}
+                            data-testid="menu-row-price"
+                            className={`${inputBase} w-24 tabular-nums`}
+                          />
+                          <span className="font-normal text-slate-600">per {unitLabel(item.unit)}</span>
+                        </label>
+                      </ActionForm>
                       {item.limitCategory === "NONE"
                         ? "not limited"
                         : `counts ${num(item.limitPerUnit ?? 0)} ${LIMIT_LABELS[item.limitCategory].unit} of ${LIMIT_LABELS[item.limitCategory].name.toLowerCase()} each`}
