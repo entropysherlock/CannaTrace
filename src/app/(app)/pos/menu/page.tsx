@@ -21,6 +21,7 @@ import { requirePagePermission } from "@/lib/session";
 import { quickItemAction } from "../../quick-create-actions";
 import { unitLabel } from "@/lib/units";
 import { getMenuSettings } from "@/lib/online-menu";
+import { isPriced } from "@/lib/menu-price";
 import { addSellableToMenuAction, discountPresetAction, menuItemAction, onlineMenuAction, removeDiscountAction, removeMenuItemAction } from "../actions";
 
 export default async function MenuPage() {
@@ -48,6 +49,9 @@ export default async function MenuPage() {
       .orderBy(asc(discountPresets.name)),
   ]);
   const online = await getMenuSettings(session.facilityId);
+  // Items added by "Add everything with stock" wait at the top until someone prices them.
+  const needsPrice = menu.filter((item) => !isPriced(item.price));
+  const sortedMenu = [...needsPrice, ...menu.filter((item) => isPriced(item.price))];
   const num = (value: Decimal.Value) => new Decimal(value).toString();
   const prefills: StatePrefill[] = Object.values(PACKS)
     .map((pack) => {
@@ -77,7 +81,7 @@ export default async function MenuPage() {
       <PosTabs current="/pos/menu" canManage pickups={await waitingCount(session.facilityId)} review={await reviewCount(session.facilityId)} />
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
-          <Card title={`On the menu (${menu.length})`}>
+          <Card title={`On the menu (${menu.length})${needsPrice.length ? ` · ${needsPrice.length} need a price` : ""}`}>
             <div className="mb-3 flex flex-wrap items-start gap-3">
               <ActionForm action={addSellableToMenuAction} submitLabel="Add everything with stock" quiet className="flex items-start">
                 <input type="hidden" name="all" value="1" />
@@ -86,15 +90,23 @@ export default async function MenuPage() {
                 Print barcode sheet
               </Link>
             </div>
-            <p className="mb-3 text-xs text-slate-500">&quot;Add everything with stock&quot; puts each item that can be sold right now on the menu at 2.5 times its cost. To change a price, type the new one in its box below and press Save price.</p>
+            <p className="mb-3 text-xs text-slate-500">
+              &quot;Add everything with stock&quot; puts each item that can be sold right now on the menu marked <strong>Needs a price</strong>. The register won&apos;t sell it until you type its
+              price in its box below and press Save price. To change any price, do the same.
+            </p>
             {menu.length === 0 ? (
               <p className="text-sm text-slate-600">Nothing yet. Add an item with its shelf price.</p>
             ) : (
               <ul className="divide-y divide-slate-100 text-sm">
-                {menu.map((item) => (
+                {sortedMenu.map((item) => (
                   <li key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2">
                     <span className="font-medium text-slate-900">
                       {item.name}
+                      {isPriced(item.price) ? null : (
+                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-900" data-testid="needs-price">
+                          Needs a price
+                        </span>
+                      )}
                       <span className="block font-mono text-xs font-normal text-slate-500" data-testid="menu-codes">
                         SKU {item.sku} · {item.barcode ? `Barcode ${item.barcode}` : "no barcode saved yet"}
                       </span>
@@ -112,7 +124,8 @@ export default async function MenuPage() {
                             name="price"
                             inputMode="decimal"
                             required
-                            defaultValue={new Decimal(item.price).toFixed(2)}
+                            defaultValue={isPriced(item.price) ? new Decimal(item.price).toFixed(2) : ""}
+                            placeholder="0.00"
                             aria-label={`Shelf price for ${item.name}`}
                             data-testid="menu-row-price"
                             className={`${inputBase} w-24 tabular-nums`}

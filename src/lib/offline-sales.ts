@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { pricedOnly } from "@/lib/menu-price";
 import { discountPresets, drawerSessions, items, retailPrices, saleLines, sales, users } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError, audit, type Actor } from "./inventory";
@@ -162,7 +163,7 @@ async function recordOfflineSaleOnce(actor: Actor, input: OfflineSale): Promise<
     const found = await tx
       .select({ id: items.id, name: items.name, unit: items.unit, active: items.active, limitCategory: items.limitCategory, limitPerUnit: items.limitPerUnit, menuPrice: retailPrices.price })
       .from(items)
-      .leftJoin(retailPrices, and(eq(retailPrices.itemId, items.id), eq(retailPrices.facilityId, actor.facilityId)))
+      .leftJoin(retailPrices, and(eq(retailPrices.itemId, items.id), eq(retailPrices.facilityId, actor.facilityId), pricedOnly()))
       .where(and(eq(items.orgId, actor.orgId), inArray(items.id, ids)));
     const byId = new Map(found.map((f) => [f.id, f]));
     for (const id of ids) if (!byId.has(id)) throw new InventoryError("That offline sale has an item that does not exist in this business.");

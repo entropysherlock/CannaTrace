@@ -114,7 +114,7 @@ export async function addSellableToMenuAction(_state: FormState, _formData: Form
     const { added, more } = await addSellableToMenu(await manager());
     refresh();
     if (added.length === 0) return { ok: "Everything with stock is already on the menu." };
-    return { ok: `Added ${added.length} item${added.length === 1 ? "" : "s"} with stock to the menu${more ? `. ${more} more are waiting; press the button again` : ""}.` };
+    return { ok: `Added ${added.length} item${added.length === 1 ? "" : "s"} with stock to the menu${more ? `. ${more} more are waiting; press the button again` : ""}. Each needs a price before the register can sell it.` };
   } catch (error) {
     return toFormError(error);
   }

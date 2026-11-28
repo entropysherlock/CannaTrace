@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { pricedOnly } from "@/lib/menu-price";
 import { facilities, itemCategories, items, onlineMenus, organizations, reservationLines, reservations, retailPrices } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError, audit, type Actor } from "./inventory";
@@ -97,7 +98,7 @@ export async function publicMenu(slug: string): Promise<PublicMenu | null> {
     .from(retailPrices)
     .innerJoin(items, eq(items.id, retailPrices.itemId))
     .innerJoin(itemCategories, eq(itemCategories.id, items.categoryId))
-    .where(and(eq(retailPrices.facilityId, menu.facilityId), eq(items.active, true)))
+    .where(and(eq(retailPrices.facilityId, menu.facilityId), eq(items.active, true), pricedOnly()))
     .orderBy(asc(itemCategories.name), asc(items.name));
   const byCategory = new Map<string, PublicMenuItem[]>();
   for (const r of rows) {
@@ -168,7 +169,7 @@ export async function createReservation(
       .select({ id: items.id, name: items.name, unit: items.unit, price: retailPrices.price })
       .from(retailPrices)
       .innerJoin(items, eq(items.id, retailPrices.itemId))
-      .where(and(eq(retailPrices.facilityId, menu.facilityId), eq(items.active, true), inArray(items.id, ids)));
+      .where(and(eq(retailPrices.facilityId, menu.facilityId), eq(items.active, true), pricedOnly(), inArray(items.id, ids)));
     const byId = new Map(priced.map((p) => [p.id, p]));
     for (const [itemId, qty] of wanted) {
       const item = byId.get(itemId);
