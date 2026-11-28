@@ -8,6 +8,7 @@ import {
   closeDrawer,
   createDiscount,
   removeDiscount,
+  removeMenuItem,
   saveRetailSettings,
   setMenuItem,
   voidSale,
@@ -102,6 +103,16 @@ export async function menuItemAction(_state: FormState, formData: FormData): Pro
     });
     refresh();
     return { ok: "Menu item saved." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function removeMenuItemAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const name = await removeMenuItem(await manager(), { itemId: field(formData, "itemId") });
+    refresh();
+    return { ok: `Removed ${name} from the menu.` };
   } catch (error) {
     return toFormError(error);
   }

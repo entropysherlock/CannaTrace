@@ -7,7 +7,7 @@ import { addDays, todayIn } from "@/lib/distribution-math";
 import { addLabResult, receivePackage as receiveRaw, type Actor } from "@/lib/inventory";
 import { renameItem } from "@/lib/item-details";
 import { quickAddItem } from "@/lib/quick-item";
-import { addScannedCode, cartLines, checkInCustomer, openDrawer, saveRetailSettings, setMenuItem } from "@/lib/pos";
+import { addScannedCode, cartLines, checkInCustomer, openDrawer, saveRetailSettings, removeMenuItem, setMenuItem } from "@/lib/pos";
 
 const fail = (m: string): never => {
   throw new Error(m);
@@ -111,5 +111,13 @@ describe.skipIf(!hasDb)("scanning a product barcode at the register (database)",
   it("still finds an item by SKU and by package tag", async () => {
     const sale = await checkInCustomer(actor, adult);
     expect((await addScannedCode(actor, { saleId: sale.id, code: `${run}J`.toLowerCase() })).itemName).toBe("Jar 3.5");
+  });
+
+  it("takes an item off the menu without touching the item, and it can be added back", async () => {
+    await removeMenuItem(actor, { itemId: vapeId });
+    await expect(removeMenuItem(actor, { itemId: vapeId })).rejects.toThrow(/not on the menu/);
+    const [still] = await db.select({ id: items.id }).from(items).where(eq(items.id, vapeId));
+    expect(still.id).toBe(vapeId);
+    await setMenuItem(actor, { itemId: vapeId, price: "40", limitCategory: "KEEP" });
   });
 });

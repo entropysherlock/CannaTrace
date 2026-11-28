@@ -21,7 +21,7 @@ import { requirePagePermission } from "@/lib/session";
 import { quickItemAction } from "../../quick-create-actions";
 import { unitLabel } from "@/lib/units";
 import { getMenuSettings } from "@/lib/online-menu";
-import { discountPresetAction, menuItemAction, onlineMenuAction, removeDiscountAction } from "../actions";
+import { discountPresetAction, menuItemAction, onlineMenuAction, removeDiscountAction, removeMenuItemAction } from "../actions";
 
 export default async function MenuPage() {
   const session = await requirePagePermission("pos.manage");
@@ -83,14 +83,17 @@ export default async function MenuPage() {
             ) : (
               <ul className="divide-y divide-slate-100 text-sm">
                 {menu.map((item) => (
-                  <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <li key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2">
                     <span className="font-medium text-slate-900">
                       {item.name}
                       <span className="block font-mono text-xs font-normal text-slate-500" data-testid="menu-codes">
                         SKU {item.sku} · {item.barcode ? `Barcode ${item.barcode}` : "no barcode saved yet"}
                       </span>
                     </span>
-                    <span className="text-right text-slate-600">
+                    <ActionForm action={removeMenuItemAction} submitLabel="Remove" submitAriaLabel={`Remove ${item.name} from the menu`} quiet className="row-span-2 flex items-start">
+                      <input type="hidden" name="itemId" value={item.id} />
+                    </ActionForm>
+                    <span className="text-slate-600">
                       <span className="font-semibold text-slate-900">
                         {unitPrice(item.price)} per {unitLabel(item.unit)}
                       </span>
