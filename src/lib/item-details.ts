@@ -115,7 +115,8 @@ export async function renameItem(actor: Actor, itemId: string, input: { name: st
       if (taken) throw new InventoryError(`SKU ${sku} is already used by another item.`);
     }
     // No two active items may share a name (capitals and spaces ignored), the same rule as adding one.
-    if (before.active) {
+    // Only checked when the name changes, so an item that already has a same-name twin can still get a new SKU.
+    if (before.active && name !== before.name) {
       const [twin] = await tx
         .select({ name: items.name })
         .from(items)
