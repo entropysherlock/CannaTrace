@@ -1,5 +1,6 @@
 "use server";
 
+import { addSellableToMenu } from "@/lib/menu-bulk";
 import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { field, toFormError, type FormState } from "@/lib/form";
@@ -8,6 +9,7 @@ import {
   closeDrawer,
   createDiscount,
   removeDiscount,
+  removeMenuItem,
   saveRetailSettings,
   setMenuItem,
   voidSale,
@@ -102,6 +104,27 @@ export async function menuItemAction(_state: FormState, formData: FormData): Pro
     });
     refresh();
     return { ok: "Menu item saved." };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function addSellableToMenuAction(_state: FormState, _formData: FormData): Promise<FormState> {
+  try {
+    const { added, more } = await addSellableToMenu(await manager());
+    refresh();
+    if (added.length === 0) return { ok: "Everything with stock is already on the menu." };
+    return { ok: `Added ${added.length} item${added.length === 1 ? "" : "s"} with stock to the menu${more ? `. ${more} more are waiting; press the button again` : ""}.` };
+  } catch (error) {
+    return toFormError(error);
+  }
+}
+
+export async function removeMenuItemAction(_state: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const name = await removeMenuItem(await manager(), { itemId: field(formData, "itemId") });
+    refresh();
+    return { ok: `Removed ${name} from the menu.` };
   } catch (error) {
     return toFormError(error);
   }

@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+import Link from "next/link";
 import { and, asc, eq } from "drizzle-orm";
 import { ActionForm } from "@/components/action-form";
 import { CreatableSelect } from "@/components/contextual-create";
@@ -21,7 +22,7 @@ import { requirePagePermission } from "@/lib/session";
 import { quickItemAction } from "../../quick-create-actions";
 import { unitLabel } from "@/lib/units";
 import { getMenuSettings } from "@/lib/online-menu";
-import { discountPresetAction, menuItemAction, onlineMenuAction, removeDiscountAction } from "../actions";
+import { addSellableToMenuAction, discountPresetAction, menuItemAction, onlineMenuAction, removeDiscountAction, removeMenuItemAction } from "../actions";
 
 export default async function MenuPage() {
   const session = await requirePagePermission("pos.manage");
@@ -78,19 +79,31 @@ export default async function MenuPage() {
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card title={`On the menu (${menu.length})`}>
+            <div className="mb-3 flex flex-wrap items-start gap-3">
+              <ActionForm action={addSellableToMenuAction} submitLabel="Add everything with stock" quiet className="flex items-start">
+                <input type="hidden" name="all" value="1" />
+              </ActionForm>
+              <Link href="/pos/menu/barcodes" className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-brand-700 underline">
+                Print barcode sheet
+              </Link>
+            </div>
+            <p className="mb-3 text-xs text-slate-500">&quot;Add everything with stock&quot; puts each item that can be sold right now on the menu at 2.5 times its cost. Change any price below.</p>
             {menu.length === 0 ? (
               <p className="text-sm text-slate-600">Nothing yet. Add an item with its shelf price.</p>
             ) : (
               <ul className="divide-y divide-slate-100 text-sm">
                 {menu.map((item) => (
-                  <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <li key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-2">
                     <span className="font-medium text-slate-900">
                       {item.name}
                       <span className="block font-mono text-xs font-normal text-slate-500" data-testid="menu-codes">
                         SKU {item.sku} · {item.barcode ? `Barcode ${item.barcode}` : "no barcode saved yet"}
                       </span>
                     </span>
-                    <span className="text-right text-slate-600">
+                    <ActionForm action={removeMenuItemAction} submitLabel="Remove" submitAriaLabel={`Remove ${item.name} from the menu`} quiet className="row-span-2 flex items-start">
+                      <input type="hidden" name="itemId" value={item.id} />
+                    </ActionForm>
+                    <span className="text-slate-600">
                       <span className="font-semibold text-slate-900">
                         {unitPrice(item.price)} per {unitLabel(item.unit)}
                       </span>

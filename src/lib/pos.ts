@@ -168,6 +168,24 @@ export async function setMenuItem(
   });
 }
 
+/**
+ * Take an item off this store's menu. The item itself, its inventory, its barcode and every past sale stay as they are;
+ * it just stops appearing at the register and online until someone adds it back with a price.
+ */
+export async function removeMenuItem(actor: Actor, input: { itemId: string }): Promise<string> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ name: items.name, price: retailPrices.price })
+      .from(retailPrices)
+      .innerJoin(items, eq(items.id, retailPrices.itemId))
+      .where(and(eq(retailPrices.facilityId, actor.facilityId), eq(retailPrices.itemId, input.itemId), eq(items.orgId, actor.orgId)));
+    if (!row) throw new InventoryError("That item is not on the menu. It may already be removed.");
+    await tx.delete(retailPrices).where(and(eq(retailPrices.facilityId, actor.facilityId), eq(retailPrices.itemId, input.itemId)));
+    await audit(tx, actor, { entityType: "MenuItem", entityId: input.itemId, action: "REMOVE", before: { item: row.name, price: row.price } });
+    return row.name;
+  });
+}
+
 export async function createDiscount(actor: Actor, input: { name: string; percent: unknown }): Promise<void> {
   const name = input.name.trim().slice(0, 60);
   if (!name) throw new InventoryError("Give the discount a name, for example Veteran 10%.");

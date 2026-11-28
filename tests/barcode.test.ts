@@ -1,13 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { facilities, itemCategories, items, locations, organizations, users } from "@/db/schema";
+import { retailPrices, facilities, itemCategories, items, locations, organizations, users } from "@/db/schema";
 import { barcodeKey, cleanBarcode } from "@/lib/barcode";
 import { db, pool } from "@/lib/db";
 import { addDays, todayIn } from "@/lib/distribution-math";
 import { addLabResult, receivePackage as receiveRaw, type Actor } from "@/lib/inventory";
 import { renameItem } from "@/lib/item-details";
+import { addSellableToMenu, startingPrice } from "@/lib/menu-bulk";
 import { quickAddItem } from "@/lib/quick-item";
-import { addScannedCode, cartLines, checkInCustomer, openDrawer, saveRetailSettings, setMenuItem } from "@/lib/pos";
+import { addScannedCode, cartLines, checkInCustomer, openDrawer, saveRetailSettings, removeMenuItem, setMenuItem } from "@/lib/pos";
 
 const fail = (m: string): never => {
   throw new Error(m);
@@ -111,5 +112,42 @@ describe.skipIf(!hasDb)("scanning a product barcode at the register (database)",
   it("still finds an item by SKU and by package tag", async () => {
     const sale = await checkInCustomer(actor, adult);
     expect((await addScannedCode(actor, { saleId: sale.id, code: `${run}J`.toLowerCase() })).itemName).toBe("Jar 3.5");
+  });
+
+  it("takes an item off the menu without touching the item, and it can be added back", async () => {
+    await removeMenuItem(actor, { itemId: vapeId });
+    await expect(removeMenuItem(actor, { itemId: vapeId })).rejects.toThrow(/not on the menu/);
+    const [still] = await db.select({ id: items.id }).from(items).where(eq(items.id, vapeId));
+    expect(still.id).toBe(vapeId);
+    await setMenuItem(actor, { itemId: vapeId, price: "40", limitCategory: "KEEP" });
+  });
+
+  it("adds only items that have sellable stock to the menu, once", async () => {
+    const [loc] = await db.select({ id: locations.id }).from(locations).where(eq(locations.orgId, actor.orgId));
+    const [cat] = await db.select({ id: itemCategories.id }).from(itemCategories).where(eq(itemCategories.orgId, actor.orgId));
+    const [withStock, noStock] = await db
+      .insert(items)
+      .values([
+        { orgId: actor.orgId, name: "Stocked Newcomer", sku: `${run}N1`, categoryId: cat.id, unit: "EACH" as const },
+        { orgId: actor.orgId, name: "Empty Newcomer", sku: `${run}N2`, categoryId: cat.id, unit: "EACH" as const },
+      ])
+      .returning();
+    const pkg = await receiveRaw(actor, { tag: tag(), itemId: withStock.id, quantity: "9", locationId: loc.id });
+    await addLabResult(actor, { packageId: pkg.id, labName: "Test Lab", status: "PASS", thcPercent: "20" });
+    const first = await addSellableToMenu(actor);
+    expect(first.added).toEqual(["Stocked Newcomer"]);
+    const onMenu = (await db.select({ id: retailPrices.itemId }).from(retailPrices).where(eq(retailPrices.facilityId, actor.facilityId))).map((r) => r.id);
+    expect(onMenu).toContain(withStock.id);
+    expect(onMenu).not.toContain(noStock.id);
+    expect((await addSellableToMenu(actor)).added).toEqual([]);
+  });
+});
+
+describe("starting shelf price", () => {
+  it("is 2.5 times the dearest cost, at least $1, or $10 with no cost", () => {
+    expect(startingPrice(["8.00000000", "6"]).toString()).toBe("20");
+    expect(startingPrice(["0.10"]).toString()).toBe("1");
+    expect(startingPrice([null]).toString()).toBe("10");
+    expect(startingPrice([]).toString()).toBe("10");
   });
 });
