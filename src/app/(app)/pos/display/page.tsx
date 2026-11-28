@@ -1,3 +1,5 @@
+import { getExclusions } from "@/lib/loyalty-earn";
+import { eligibleShare } from "@/lib/loyalty-math";
 import Decimal from "decimal.js";
 import { and, desc, eq, gt } from "drizzle-orm";
 import { CustomerDisplay, type DisplayView } from "@/components/register/customer-display";
@@ -35,7 +37,7 @@ export default async function CustomerDisplayPage() {
     } else if (open) {
       const [lines, settings, program] = await Promise.all([cartLines(db, open.id), getRetailSettings(db, session.facilityId), getProgram(db, session.orgId)]);
       const promos = await cartPromos(db, session, lines);
-      const totals = saleTotals(lines, open, settings, program, promos.total);
+      const totals = saleTotals(lines, open, settings, program, promos.total, eligibleShare(lines, await getExclusions(db, session.orgId)));
       // The customer sees one "savings" line: the percent discount and any rewards together.
       const off = totals.promo.add(totals.discount).add(totals.reward);
       view = {

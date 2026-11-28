@@ -7,7 +7,7 @@ import { emailConfigured, sendEmail } from "./email";
 import { InventoryError, audit, type Actor } from "./inventory";
 import { currentConsents, ensureCodes, getMarketingSettings, type Channel, type MarketingSettings } from "./loyalty-earn";
 import { shopperRows, type Shopper } from "./loyalty";
-import { AUTOMATIONS, automationInfo, brandOwes, isQuietTime, renderTemplate, type AutomationKind } from "./loyalty-math";
+import { AUTOMATIONS, automationInfo, brandOwes, isQuietTime, parseFavorite, renderTemplate, type AutomationKind } from "./loyalty-math";
 import { checkMessage, hasBlock, prepareBody, type Problem } from "./marketing-rules";
 import { SITE_URL } from "./site";
 import { sendSms, smsConfigured } from "./sms";
@@ -40,7 +40,8 @@ const localParts = (now: Date, zone: string) => {
 export function segmentLabelFor(segment: string, categories: Map<string, string>): string {
   if (segment === "ALL") return "Everyone";
   if (segment === "BIRTHDAY") return "Birthday this month";
-  if (segment.startsWith("FAVORITE:")) return `Buys ${categories.get(segment.slice(9)) ?? "a category"}`;
+  const fav = parseFavorite(segment);
+  if (fav) return `Bought ${categories.get(fav.categoryId) ?? "a category"} in the last ${fav.days === 365 ? "year" : `${fav.days} days`}`;
   return { NEW: "New shoppers", REGULAR: "Regulars", VIP: "VIPs", AT_RISK: "At risk", LAPSED: "Lapsed" }[segment] ?? segment;
 }
 
@@ -51,11 +52,12 @@ export async function audienceFor(orgId: string, segment: string, zone: string, 
     const month = localParts(now, zone).date.slice(5, 7);
     return rows.filter((r) => r.birthday?.slice(0, 2) === month);
   }
-  if (segment.startsWith("FAVORITE:")) {
-    const categoryId = segment.slice(9);
+  const favorite = parseFavorite(segment);
+  if (favorite) {
+    const { categoryId, days } = favorite;
     const bought = await db.execute<{ id: string }>(sql`
       select distinct s.reward_member_id as id from sales s join sale_lines l on l.sale_id = s.id join items i on i.id = l.item_id
-      where s.org_id = ${orgId} and s.status = 'COMPLETED' and s.completed_at > now() - interval '12 months' and s.reward_member_id is not null and i.category_id = ${categoryId}`);
+      where s.org_id = ${orgId} and s.status = 'COMPLETED' and s.completed_at > now() - (${days} * interval '1 day') and s.reward_member_id is not null and i.category_id = ${categoryId}`);
     const ids = new Set(bought.rows.map((r) => r.id));
     return rows.filter((r) => ids.has(r.id));
   }
@@ -137,7 +139,7 @@ function cleanCampaign(input: Record<string, unknown>) {
   const body = String(input.body ?? "").replace(/\r\n/g, "\n").trim().slice(0, 4000);
   if (!body) throw new InventoryError("Write the message.");
   const segment = String(input.segment ?? "ALL");
-  if (!CAMPAIGN_SEGMENTS.includes(segment) && !/^FAVORITE:[\w-]{1,60}$/.test(segment)) throw new InventoryError("Pick who the message goes to.");
+  if (!CAMPAIGN_SEGMENTS.includes(segment) && !parseFavorite(segment)) throw new InventoryError("Pick who the message goes to.");
   return { name, channel, subject: channel === "EMAIL" ? subject : null, body, segment };
 }
 
@@ -265,6 +267,17 @@ export async function campaignResults(orgId: string, campaignId: string) {
     rate: sent ? Math.round((buyers / sent) * 100) : 0,
     skipReasons: skips.rows,
   };
+}
+
+/** How each automatic message is doing: sent, and who bought within 7 days of getting it (and what they spent). */
+export async function automationResults(orgId: string): Promise<Map<string, { sent: number; buyers: number; revenue: string }>> {
+  const result = await db.execute<{ kind: string; sent: number; buyers: number; revenue: string | null }>(sql`
+    with sent as (select automation_kind as kind, member_id, sent_at from campaign_messages where org_id = ${orgId} and automation_kind is not null and status = 'SENT')
+    select sent.kind, count(distinct (sent.member_id, sent.sent_at))::int as sent,
+      count(distinct s.reward_member_id)::int as buyers, sum(s.total)::text as revenue
+    from sent left join sales s on s.reward_member_id = sent.member_id and s.status = 'COMPLETED' and s.completed_at >= sent.sent_at and s.completed_at < sent.sent_at + interval '7 days'
+    group by sent.kind`);
+  return new Map(result.rows.map((r) => [r.kind, { sent: Number(r.sent), buyers: Number(r.buyers), revenue: new Decimal(r.revenue ?? 0).toFixed(2) }]));
 }
 
 // ---------- Messages that send themselves ----------

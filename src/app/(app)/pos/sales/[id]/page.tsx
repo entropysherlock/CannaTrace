@@ -9,7 +9,8 @@ import { cartPromos } from "@/lib/promotions";
 import { cartLines, getRetailSettings, saleTotals, sellableByItem, storePack, waitingOnLabByItem } from "@/lib/pos";
 import { LIMIT_LABELS, limitUsage, quickCashAmounts } from "@/lib/pos-math";
 import { getProgram } from "@/lib/rewards";
-import { earnSpeedFor } from "@/lib/loyalty-earn";
+import { earnSpeedFor, getExclusions } from "@/lib/loyalty-earn";
+import { eligibleShare } from "@/lib/loyalty-math";
 import { pointsAtSpeed } from "@/lib/loyalty-math";
 import { maskPhone, rewardsAvailable } from "@/lib/rewards-math";
 import { effectiveLimits } from "@/lib/rules";
@@ -63,11 +64,13 @@ export default async function CartPage({ params, searchParams }: { params: Promi
   const waitingOnLab = await waitingOnLabByItem(db, session, pack);
   const program = await getProgram(db, session.orgId);
   const promos = await cartPromos(db, session, lines);
-  const totals = saleTotals(lines, sale, settings, program, promos.total);
+  const exclusions = await getExclusions(db, session.orgId);
+  const share = eligibleShare(lines, exclusions);
+  const totals = saleTotals(lines, sale, settings, program, promos.total, share);
   const [member] =
     program.enabled && sale.rewardMemberId ? await db.select().from(rewardMembers).where(and(eq(rewardMembers.id, sale.rewardMemberId), eq(rewardMembers.orgId, session.orgId))) : [];
   const speed = member ? await earnSpeedFor(db, session.orgId, member.id, await facilityToday(session.facilityId)) : null;
-  const afterDiscount = totals.subtotal.sub(totals.promo).sub(totals.discount);
+  const afterDiscount = totals.subtotal.sub(totals.promo).sub(totals.discount).mul(share);
   const usage = limitUsage(lines);
   const { limits } = effectiveLimits(
     { FLOWER: new Decimal(settings.flowerLimitGrams), CONCENTRATE: new Decimal(settings.concentrateLimitGrams), EDIBLE: new Decimal(settings.edibleLimitMg) },
@@ -144,7 +147,7 @@ export default async function CartPage({ params, searchParams }: { params: Promi
           used: member ? sale.rewardsUsed : 0,
           applied: member ? totals.rewardsApplied : 0,
           available: member ? rewardsAvailable(member.points, afterDiscount, program) : 0,
-          earnPreview: member ? pointsAtSpeed(totals.taxable, program.pointsPerDollar, speed?.percent ?? 100) : 0,
+          earnPreview: member ? pointsAtSpeed(totals.taxable.mul(share), program.pointsPerDollar, speed?.percent ?? 100) : 0,
           tierName: speed?.tier?.name ?? null,
           boostActive: (speed?.boost ?? 100) > 100,
           idLookup: program.idLookup && Boolean(sale.customerKey),

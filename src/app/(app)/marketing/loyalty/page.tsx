@@ -4,16 +4,16 @@ import { usd } from "@/components/distribution-ui";
 import { Card, Field, PageHeader, inputClass } from "@/components/ui";
 import { db } from "@/lib/db";
 import { getBoosts, getMarketingSettings } from "@/lib/loyalty-earn";
-import { tierSummary } from "@/lib/loyalty";
+import { listExclusions, tierSummary } from "@/lib/loyalty";
 import { requirePagePermission } from "@/lib/session";
 import { facilityToday } from "@/lib/time";
-import { boostAction, boostDeleteAction, marketingSettingsAction, tierAction, tierDeleteAction } from "../actions";
+import { boostAction, boostDeleteAction, exclusionAction, exclusionRemoveAction, marketingSettingsAction, tierAction, tierDeleteAction } from "../actions";
 
 export const metadata = { title: "Loyalty · Leaf2Sale" };
 
 export default async function LoyaltyPage() {
   const session = await requirePagePermission("pos.manage");
-  const [tiers, boosts, settings, today] = await Promise.all([tierSummary(session.orgId), getBoosts(db, session.orgId), getMarketingSettings(db, session.orgId), facilityToday(session.facilityId)]);
+  const [tiers, boosts, settings, today, exclusions] = await Promise.all([tierSummary(session.orgId), getBoosts(db, session.orgId), getMarketingSettings(db, session.orgId), facilityToday(session.facilityId), listExclusions(session.orgId)]);
   return (
     <>
       <PageHeader title="Loyalty" subtitle="Tiers, bonus-points days, referrals and your marketing rules. The basics (points per dollar, reward size, expiry) are on the Rewards page." />
@@ -62,7 +62,7 @@ export default async function LoyaltyPage() {
           </ActionForm>
         </Card>
         <Card title="Bonus-points days">
-          <p className="mb-3 text-sm text-slate-600">Between two dates, everyone earns points faster. It stacks with tier speed.</p>
+          <p className="mb-3 text-sm text-slate-600">Between two dates, everyone earns points faster. Whether it stacks with tier speed is your choice under Margin protection below.</p>
           {boosts.length > 0 ? (
             <ul className="mb-4 divide-y divide-slate-100 text-sm" data-testid="boosts">
               {boosts.map((b) => (
@@ -98,6 +98,50 @@ export default async function LoyaltyPage() {
             </div>
           </ActionForm>
         </Card>
+        <Card title="Margin protection" className="lg:col-span-2">
+          <p className="mb-3 text-sm text-slate-600">
+            Items and categories listed here don&apos;t earn points, and rewards can&apos;t pay for them. Use it for thin-margin products. Rewards still can&apos;t pay for more than your Rewards page share of what&apos;s left.
+          </p>
+          {exclusions.rows.length > 0 ? (
+            <ul className="mb-4 divide-y divide-slate-100 text-sm" data-testid="exclusions">
+              {exclusions.rows.map((e) => (
+                <li key={e.id} className="flex items-center justify-between gap-3 py-2">
+                  <span>
+                    <span className="font-semibold">{e.name}</span> <span className="text-xs text-slate-600">· {e.kind === "CATEGORY" ? "whole category" : "single item"}</span>
+                  </span>
+                  <ActionForm action={exclusionRemoveAction} submitLabel="Remove" quiet submitAriaLabel={`Include ${e.name} again`} className="shrink-0">
+                    <input type="hidden" name="exclusionId" value={e.id} />
+                  </ActionForm>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mb-4 text-sm text-slate-600">Nothing is left out right now.</p>
+          )}
+          <ActionForm action={exclusionAction} submitLabel="Leave out">
+            <Field label="Leave out of points and rewards">
+              <select name="pick" required defaultValue="" className={inputClass}>
+                <option value="" disabled>
+                  Pick a category or an item
+                </option>
+                <optgroup label="Categories">
+                  {exclusions.categories.map((c) => (
+                    <option key={c.id} value={`CATEGORY:${c.id}`}>
+                      {c.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Items">
+                  {exclusions.items.map((i) => (
+                    <option key={i.id} value={`ITEM:${i.id}`}>
+                      {i.name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </Field>
+          </ActionForm>
+        </Card>
         <Card title="Marketing rules" className="lg:col-span-2">
           <ActionForm action={marketingSettingsAction} submitLabel="Save rules">
             <Field label="Required statement" hint="New Mexico requires cannabis marketing to carry a statement such as Please Consume Responsibly (16.8.3.8 NMAC). It is added to every message that lacks it. Check the full required wording with the Cannabis Control Division or your lawyer.">
@@ -116,6 +160,20 @@ export default async function LoyaltyPage() {
               <Field label="Referral bonus (points)" hint="The referrer gets this when the person they referred makes a first purchase. 0 turns referrals off.">
                 <input name="referralBonus" required inputMode="numeric" defaultValue={settings.referralBonus} className={inputClass} />
               </Field>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Tier speed and bonus days" hint="Multiply: a Gold shopper on a double-points day earns both. Best of the two: they earn whichever is higher, never both, which protects margin.">
+                <select name="stackMode" defaultValue={settings.stackMode} className={inputClass}>
+                  <option value="MULTIPLY">Multiply together</option>
+                  <option value="BEST">Only the better one</option>
+                </select>
+              </Field>
+              <label className="flex items-start gap-2 text-sm text-slate-800 sm:mt-6">
+                <input type="checkbox" name="doubleOptIn" defaultChecked={settings.doubleOptIn} className="mt-1" />
+                <span>
+                  <strong>Double opt-in.</strong> A &quot;yes&quot; at the register only counts after the shopper confirms: an email link, or replying YES to a text. Nothing marketing is sent until then.
+                </span>
+              </label>
             </div>
           </ActionForm>
         </Card>

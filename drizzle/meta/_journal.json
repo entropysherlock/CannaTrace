@@ -442,6 +442,13 @@
       "when": 1795811808369,
       "tag": "0062_loyalty_crm",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1795826013921,
+      "tag": "0063_loyalty_margin_optin",
+      "breakpoints": true
     }
   ]
 }

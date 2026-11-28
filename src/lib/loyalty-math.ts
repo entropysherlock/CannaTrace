@@ -103,6 +103,40 @@ export function combinedPercent(...percents: number[]): number {
   return Math.min(total.round().toNumber(), 1000);
 }
 
+export type StackMode = "MULTIPLY" | "BEST";
+
+/** Tier and bonus-day speed under the shop's rule: multiplied together, or only the better of the two (never both). */
+export function speedFor(tierPercent: number, boostPercent: number, mode: StackMode): number {
+  return mode === "BEST" ? Math.min(Math.max(tierPercent, boostPercent), 1000) : combinedPercent(tierPercent, boostPercent);
+}
+
+export type Exclusions = { categories: ReadonlySet<string>; items: ReadonlySet<string> };
+export const NO_EXCLUSIONS: Exclusions = { categories: new Set(), items: new Set() };
+
+/**
+ * The share (0 to 1) of a cart's value that is eligible for points and rewards, after leaving out excluded categories and items.
+ * Discounts are spread evenly across lines, so the same share applies to what is actually paid.
+ */
+export function eligibleShare(lines: { itemId: string; categoryId?: string | null; quantity: Decimal.Value; unitPrice: Decimal.Value }[], excluded: Exclusions): Decimal {
+  let total = new Decimal(0);
+  let eligible = new Decimal(0);
+  for (const l of lines) {
+    const value = new Decimal(l.unitPrice).mul(l.quantity);
+    total = total.add(value);
+    if (!(excluded.items.has(l.itemId) || (l.categoryId && excluded.categories.has(l.categoryId)))) eligible = eligible.add(value);
+  }
+  return total.lte(0) ? new Decimal(1) : eligible.div(total);
+}
+
+/** A campaign group like FAVORITE:<categoryId> (last 12 months) or FAVORITE:<categoryId>:30 (last 30 days). */
+export const FAVORITE_WINDOWS = [30, 90, 180, 365] as const;
+export function parseFavorite(segment: string): { categoryId: string; days: number } | null {
+  const m = /^FAVORITE:([\w-]{1,60})(?::(\d{1,3}))?$/.exec(segment);
+  if (!m) return null;
+  const days = m[2] ? Number(m[2]) : 365;
+  return days >= 1 && days <= 365 ? { categoryId: m[1], days } : null;
+}
+
 /** Points a sale earns at a speed: whole points on what was paid after discounts, before tax. 100% matches pointsFor. */
 export function pointsAtSpeed(paidBeforeTax: Decimal.Value, pointsPerDollar: number, percent: number): number {
   const paid = new Decimal(paidBeforeTax);

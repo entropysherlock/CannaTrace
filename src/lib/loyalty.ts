@@ -1,7 +1,7 @@
 import "server-only";
 import Decimal from "decimal.js";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { campaignMessages, marketingSettings, memberConsents, organizations, rewardBoosts, rewardMembers, rewardTiers } from "@/db/schema";
+import { campaignMessages, itemCategories, items, marketingSettings, memberConsents, organizations, rewardBoosts, rewardExclusions, rewardMembers, rewardTiers } from "@/db/schema";
 import { db } from "./db";
 import { InventoryError, audit, type Actor } from "./inventory";
 import {
@@ -11,6 +11,7 @@ import {
   getBoosts,
   getMarketingSettings,
   getTiers,
+  pendingConsents,
   recordConsent,
   spend12m,
   type Channel,
@@ -28,6 +29,7 @@ import {
   type Segment,
   type Tier,
 } from "./loyalty-math";
+import { askToConfirm } from "./marketing-inbound";
 import { getProgram } from "./rewards";
 import { memberHistory } from "./rewards";
 
@@ -197,8 +199,12 @@ export async function setShopperConsent(actor: Actor, input: { memberId: string;
     if (input.agreed && input.channel === "EMAIL" && !member.email) throw new InventoryError("Add the shopper's email before recording that they agreed to emails.");
     const current = (await currentConsents(tx, actor.orgId, [member.id])).get(member.id);
     if (Boolean(current?.[input.channel]) === input.agreed) return;
-    await recordConsent(tx, actor, { memberId: member.id, channel: input.channel, status: input.agreed ? "OPTED_IN" : "OPTED_OUT", method: "MANAGER", wording: input.agreed ? `${CONSENT_WORDING[input.channel]} (recorded by ${actor.userName})` : null });
-    await audit(tx, actor, { entityType: "RewardsMember", entityId: member.id, action: input.agreed ? "CONSENT_IN" : "CONSENT_OUT", after: { channel: input.channel } });
+    const needsConfirm = input.agreed && (await getMarketingSettings(tx, actor.orgId)).doubleOptIn;
+    await recordConsent(tx, actor, { memberId: member.id, channel: input.channel, status: !input.agreed ? "OPTED_OUT" : needsConfirm ? "PENDING" : "OPTED_IN", method: "MANAGER", wording: input.agreed ? `${CONSENT_WORDING[input.channel]} (recorded by ${actor.userName})` : null });
+    await audit(tx, actor, { entityType: "RewardsMember", entityId: member.id, action: input.agreed ? (needsConfirm ? "CONSENT_PENDING" : "CONSENT_IN") : "CONSENT_OUT", after: { channel: input.channel } });
+    return needsConfirm ? member.id : null;
+  }).then(async (pendingId) => {
+    if (pendingId) await askToConfirm(pendingId, [input.channel]).catch(() => null);
   });
 }
 
@@ -246,6 +252,46 @@ export async function deleteBoost(actor: Actor, input: { boostId: string }): Pro
   });
 }
 
+// ---------- Margin protection ----------
+
+export async function listExclusions(orgId: string) {
+  const [rows, categories, itemRows] = await Promise.all([
+    db.select().from(rewardExclusions).where(eq(rewardExclusions.orgId, orgId)),
+    db.select({ id: itemCategories.id, name: itemCategories.name }).from(itemCategories).where(eq(itemCategories.orgId, orgId)),
+    db.select({ id: items.id, name: items.name }).from(items).where(eq(items.orgId, orgId)),
+  ]);
+  const catName = new Map(categories.map((c) => [c.id, c.name]));
+  const itemName = new Map(itemRows.map((i) => [i.id, i.name]));
+  return {
+    rows: rows.map((r) => ({ id: r.id, kind: r.kind as "CATEGORY" | "ITEM", refId: r.refId, name: (r.kind === "CATEGORY" ? catName.get(r.refId) : itemName.get(r.refId)) ?? "(removed)" })).sort((a, b) => a.name.localeCompare(b.name)),
+    categories: categories.sort((a, b) => a.name.localeCompare(b.name)),
+    items: itemRows.sort((a, b) => a.name.localeCompare(b.name)),
+  };
+}
+
+export async function addExclusion(actor: Actor, input: { kind: string; refId: string }): Promise<void> {
+  const kind = input.kind === "ITEM" ? "ITEM" : input.kind === "CATEGORY" ? "CATEGORY" : null;
+  if (!kind || !input.refId) throw new InventoryError("Pick a category or an item to leave out.");
+  await db.transaction(async (tx) => {
+    const [exists] =
+      kind === "CATEGORY"
+        ? await tx.select({ id: itemCategories.id }).from(itemCategories).where(and(eq(itemCategories.id, input.refId), eq(itemCategories.orgId, actor.orgId)))
+        : await tx.select({ id: items.id }).from(items).where(and(eq(items.id, input.refId), eq(items.orgId, actor.orgId)));
+    if (!exists) throw new InventoryError("That category or item was not found.");
+    await tx.insert(rewardExclusions).values({ orgId: actor.orgId, kind, refId: input.refId }).onConflictDoNothing();
+    await audit(tx, actor, { entityType: "RewardsExclusion", entityId: input.refId, action: "CREATE", after: { kind } });
+  });
+}
+
+export async function removeExclusion(actor: Actor, input: { exclusionId: string }): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [row] = await tx.select().from(rewardExclusions).where(and(eq(rewardExclusions.id, input.exclusionId), eq(rewardExclusions.orgId, actor.orgId)));
+    if (!row) throw new InventoryError("That exclusion was not found.");
+    await tx.delete(rewardExclusions).where(eq(rewardExclusions.id, row.id));
+    await audit(tx, actor, { entityType: "RewardsExclusion", entityId: row.refId, action: "DELETE", before: { kind: row.kind } });
+  });
+}
+
 export async function tierSummary(orgId: string) {
   const [tiers, rows] = await Promise.all([getTiers(db, orgId), shopperRows(orgId)]);
   return tiers.map((t) => ({ ...t, members: rows.filter((r) => r.tier?.id === t.id).length }));
@@ -266,7 +312,9 @@ export async function saveMarketingSettings(actor: Actor, input: Record<string, 
   };
   const maxPerWeek = whole(input.maxPerWeek, "Most messages per shopper per week", 1, 14);
   const referralBonus = whole(input.referralBonus, "Referral bonus (points)", 0, 10000);
-  const values = { disclaimer, quietStart, quietEnd, maxPerWeek, referralBonus, updatedAt: new Date() };
+  const stackMode = input.stackMode === "BEST" ? "BEST" : "MULTIPLY";
+  const doubleOptIn = input.doubleOptIn === "on" || input.doubleOptIn === true || input.doubleOptIn === "true";
+  const values = { disclaimer, quietStart, quietEnd, maxPerWeek, referralBonus, stackMode, doubleOptIn, updatedAt: new Date() };
   await db.transaction(async (tx) => {
     const before = await getMarketingSettings(tx, actor.orgId);
     await tx.insert(marketingSettings).values({ orgId: actor.orgId, ...values }).onConflictDoUpdate({ target: marketingSettings.orgId, set: values });
@@ -340,6 +388,7 @@ export async function cardByToken(token: string) {
     db.execute<{ slug: string }>(sql`select slug from online_menus where org_id = ${member.orgId} and enabled limit 1`),
   ]);
   const spend = await spend12m(db, member.id);
+  const pend = await pendingConsents(db, member.orgId, [member.id]);
   return {
     member,
     shop: org?.name ?? "the store",
@@ -350,6 +399,7 @@ export async function cardByToken(token: string) {
     redeemPoints: program.redeemPoints,
     redeemDollars: program.redeemDollars,
     consent: consents.get(member.id) ?? { EMAIL: false, SMS: false },
+    pending: { EMAIL: pend.has(`${member.id}:EMAIL`), SMS: pend.has(`${member.id}:SMS`) },
     history,
     referralBonus: settings.referralBonus,
     menuSlug: menu.rows[0]?.slug ?? null,

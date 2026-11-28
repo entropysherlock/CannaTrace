@@ -58,12 +58,12 @@ export default async function CardPage({ params }: { params: Promise<{ token: st
           {(["EMAIL", "SMS"] as const).map((channel) => (
             <div key={channel} className="mt-3 border-t border-slate-100 pt-3 first:border-0 first:pt-0">
               <p className="text-sm text-slate-800">
-                {channel === "EMAIL" ? "Emails" : "Text messages"}: <strong>{c.consent[channel] ? "on" : "off"}</strong>
+                {channel === "EMAIL" ? "Emails" : "Text messages"}: <strong>{c.consent[channel] ? "on" : c.pending[channel] ? "waiting for your confirmation" : "off"}</strong>
               </p>
               {channel === "EMAIL" && !c.member.email && !c.consent.EMAIL ? (
                 <p className="text-xs text-slate-600">Ask the store to add your email if you want these.</p>
               ) : (
-                <ActionForm action={cardConsentAction} submitLabel={c.consent[channel] ? "Turn off" : "Turn on"} quiet={c.consent[channel]}>
+                <ActionForm action={cardConsentAction} submitLabel={c.consent[channel] ? "Turn off" : c.pending[channel] ? "Yes, confirm" : "Turn on"} quiet={c.consent[channel]}>
                   <input type="hidden" name="token" value={token} />
                   <input type="hidden" name="channel" value={channel} />
                   <input type="hidden" name="agreed" value={c.consent[channel] ? "no" : "yes"} />

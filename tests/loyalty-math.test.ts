@@ -197,3 +197,34 @@ describe("who is due an automatic message", () => {
     expect(dueFor("WIN_BACK_90", shopper({ lastPurchaseAt: null, visits: 0 }), "2026-11-27", now)).toBe(false);
   });
 });
+
+import { eligibleShare, NO_EXCLUSIONS, parseFavorite, speedFor } from "@/lib/loyalty-math";
+
+describe("margin protection and stacking", () => {
+  it("stacks by multiplying, or takes only the better one", () => {
+    expect(speedFor(125, 200, "MULTIPLY")).toBe(250);
+    expect(speedFor(125, 200, "BEST")).toBe(200);
+    expect(speedFor(150, 100, "BEST")).toBe(150);
+    expect(speedFor(100, 100, "BEST")).toBe(100);
+    expect(speedFor(900, 900, "MULTIPLY")).toBe(1000);
+  });
+  it("works out the share of a cart that is eligible", () => {
+    const lines = [
+      { itemId: "a", categoryId: "flower", quantity: "1", unitPrice: "40" },
+      { itemId: "b", categoryId: "vape", quantity: "2", unitPrice: "30" },
+      { itemId: "c", categoryId: "edible", quantity: "1", unitPrice: "20" },
+    ];
+    expect(eligibleShare(lines, NO_EXCLUSIONS).toString()).toBe("1");
+    expect(eligibleShare(lines, { categories: new Set(["vape"]), items: new Set() }).toString()).toBe("0.5");
+    expect(eligibleShare(lines, { categories: new Set(), items: new Set(["c"]) }).toFixed(4)).toBe("0.8333");
+    expect(eligibleShare(lines, { categories: new Set(["flower", "vape", "edible"]), items: new Set() }).toString()).toBe("0");
+    expect(eligibleShare([], NO_EXCLUSIONS).toString()).toBe("1");
+  });
+  it("reads category-buyer groups with a time window", () => {
+    expect(parseFavorite("FAVORITE:abc-123")).toEqual({ categoryId: "abc-123", days: 365 });
+    expect(parseFavorite("FAVORITE:abc-123:30")).toEqual({ categoryId: "abc-123", days: 30 });
+    expect(parseFavorite("FAVORITE:abc:0")).toBeNull();
+    expect(parseFavorite("FAVORITE:abc:999")).toBeNull();
+    expect(parseFavorite("VIP")).toBeNull();
+  });
+});
