@@ -4,6 +4,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { auditLogs, items } from "@/db/schema";
 import { db } from "./db";
 import { normalizeSku } from "./ids";
+import { checkBarcode } from "./item-barcode";
 import { InventoryError } from "./inventory-math";
 import { nameKey } from "./quick-item";
 
@@ -99,14 +100,16 @@ export async function saveItemDetails(actor: Actor, itemId: string, input: ItemD
  * Change an item's name or SKU. A SKU must stay unique in the business. Packages keep pointing at the
  * same item, so nothing else changes; labels printed from now on show the new values.
  */
-export async function renameItem(actor: Actor, itemId: string, input: { name: string; sku: string }) {
+export async function renameItem(actor: Actor, itemId: string, input: { name: string; sku: string; barcode?: string }) {
   const name = input.name.trim().replace(/\s+/g, " ").slice(0, 120);
   if (!name) throw new InventoryError("Enter the item's name.");
   const sku = normalizeSku(input.sku);
   return db.transaction(async (tx) => {
     const [before] = await tx.select().from(items).where(and(eq(items.id, itemId), eq(items.orgId, actor.orgId)));
     if (!before) throw new InventoryError("That item was not found.");
-    if (before.name === name && before.sku === sku) return { name, sku, changed: false };
+    // Barcode: undefined leaves it alone; a blank clears it; anything else must be a usable barcode no other item has.
+    const barcode = input.barcode === undefined ? before.barcode : await checkBarcode(tx, actor.orgId, input.barcode, itemId);
+    if (before.name === name && before.sku === sku && (before.barcode ?? null) === (barcode ?? null)) return { name, sku, changed: false };
     if (sku !== before.sku) {
       const [taken] = await tx.select({ id: items.id }).from(items).where(and(eq(items.orgId, actor.orgId), eq(items.sku, sku)));
       if (taken) throw new InventoryError(`SKU ${sku} is already used by another item.`);
@@ -119,7 +122,7 @@ export async function renameItem(actor: Actor, itemId: string, input: { name: st
         .where(and(eq(items.orgId, actor.orgId), eq(items.active, true), ne(items.id, itemId), sql`${nameKey(items.name)} = ${nameKey(name)}`));
       if (twin) throw new InventoryError(`You already have an item called ${twin.name}.`);
     }
-    await tx.update(items).set({ name, sku }).where(eq(items.id, itemId));
+    await tx.update(items).set({ name, sku, barcode }).where(eq(items.id, itemId));
     await tx.insert(auditLogs).values({
       orgId: actor.orgId,
       userId: actor.userId,
@@ -127,9 +130,9 @@ export async function renameItem(actor: Actor, itemId: string, input: { name: st
       entityType: "Item",
       entityId: itemId,
       action: "UPDATE",
-      reason: "Name or SKU changed",
-      before: { name: before.name, sku: before.sku },
-      after: { name, sku },
+      reason: "Name, SKU or barcode changed",
+      before: { name: before.name, sku: before.sku, barcode: before.barcode },
+      after: { name, sku, barcode },
     });
     return { name, sku, changed: true };
   });

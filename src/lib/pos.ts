@@ -1,3 +1,4 @@
+import { checkBarcode, itemIdByBarcode } from "./item-barcode";
 import { getExclusions, pendingConsents } from "./loyalty-earn";
 import { eligibleShare } from "./loyalty-math";
 import { createHmac } from "node:crypto";
@@ -127,7 +128,7 @@ const MAX_SHELF_PRICE = 100_000;
 /** Put an item on this store's menu (or change it): its shelf price and how it counts toward purchase limits. */
 export async function setMenuItem(
   actor: Actor,
-  input: { itemId: string; price: unknown; limitCategory: string; limitPerUnit?: unknown },
+  input: { itemId: string; price: unknown; limitCategory: string; limitPerUnit?: unknown; barcode?: unknown },
 ): Promise<void> {
   const price = parsePrice(input.price, "Shelf price");
   if (price.lte(0)) throw new InventoryError("Shelf price must be more than zero.");
@@ -150,6 +151,9 @@ export async function setMenuItem(
         ? null
         : store(parsePositiveQty(input.limitPerUnit, limitCategory === "EDIBLE" ? "Milligrams of THC per unit" : "Grams per unit"));
     if (!keep) await tx.update(items).set({ limitCategory, limitPerUnit }).where(eq(items.id, current.id));
+    // A barcode typed or scanned here is saved on the item. Left blank, the item keeps the barcode it has.
+    const barcode = await checkBarcode(tx, actor.orgId, input.barcode, current.id);
+    if (barcode) await tx.update(items).set({ barcode }).where(eq(items.id, current.id));
     const item = current;
     await tx
       .insert(retailPrices)
@@ -159,7 +163,7 @@ export async function setMenuItem(
       entityType: "MenuItem",
       entityId: item.id,
       action: "SAVE",
-      after: { item: item.name, price: price.toString(), limitCategory, limitPerUnit },
+      after: { item: item.name, price: price.toString(), limitCategory, limitPerUnit, ...(barcode ? { barcode } : {}) },
     });
   });
 }
@@ -790,13 +794,14 @@ export async function addScannedCode(actor: Actor, input: { saleId: string; code
       .select({ itemId: packages.itemId })
       .from(packages)
       .where(and(eq(packages.orgId, actor.orgId), eq(packages.facilityId, actor.facilityId), sql`upper(${packages.tag}) = upper(${code})`));
-    const [bySku] = byTag
-      ? [byTag]
-      : await tx
-          .select({ itemId: items.id })
-          .from(items)
-          .where(and(eq(items.orgId, actor.orgId), eq(items.active, true), sql`upper(${items.sku}) = upper(${code})`));
-    if (!bySku) throw new InventoryError(`Nothing at this store matches "${code.slice(0, 40)}". Check the label, or search the menu by name.`);
+    // Package tag first, then the product's own barcode (UPC or EAN), then the item's SKU.
+    let bySku: { itemId: string } | undefined = byTag;
+    if (!bySku) {
+      const barcodeId = await itemIdByBarcode(tx, actor.orgId, code);
+      if (barcodeId) bySku = { itemId: barcodeId };
+    }
+    if (!bySku) [bySku] = await tx.select({ itemId: items.id }).from(items).where(and(eq(items.orgId, actor.orgId), eq(items.active, true), sql`upper(${items.sku}) = upper(${code})`));
+    if (!bySku) throw new InventoryError(`Nothing at this store matches "${code.slice(0, 40)}". If this is the product's own barcode, add it under Register > Menu > Add or change a menu item. Otherwise check the label, or search the menu by name.`);
     const [existing] = await tx
       .select({ quantity: saleLines.quantity })
       .from(saleLines)

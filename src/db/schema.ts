@@ -504,6 +504,8 @@ export const items = pgTable(
       .references(() => organizations.id),
     name: text("name").notNull(),
     sku: text("sku").notNull(),
+    /** The product's own barcode (UPC or EAN) as printed on its package, so a scanner at the register finds it. Optional. */
+    barcode: text("barcode"),
     categoryId: text("category_id")
       .notNull()
       .references(() => itemCategories.id),
@@ -533,7 +535,7 @@ export const items = pgTable(
     /** Days from the date packaged to the expiration date printed on labels. */
     shelfLifeDays: integer("shelf_life_days"),
   },
-  (t) => [uniqueIndex("items_org_sku_key").on(t.orgId, t.sku)],
+  (t) => [uniqueIndex("items_org_sku_key").on(t.orgId, t.sku), uniqueIndex("items_org_barcode_key").on(t.orgId, t.barcode).where(sql`${t.barcode} is not null`)],
 );
 
 export const packages = pgTable(

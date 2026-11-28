@@ -101,6 +101,7 @@ export async function quickItemAction(formData: FormData): Promise<CreateResult>
       category: field(formData, "category"),
       sku: field(formData, "sku") || undefined,
       strain: field(formData, "strain") || undefined,
+      barcode: field(formData, "barcode") || undefined,
     });
     revalidatePath("/", "layout");
     return { created: { id: item.id, label: `${item.name} (${unitLabel(item.unit)})` } };
