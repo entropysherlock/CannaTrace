@@ -94,3 +94,20 @@ describe("license text that arrives in lower case", () => {
     expect(parseIdBarcode(LICENSE.toLowerCase())).toMatchObject({ birthDate: "1988-03-14", idExpires: "2028-03-14" });
   });
 });
+
+import { isScannedCode, nextBurstCount } from "@/lib/scan-buffer";
+
+describe("scanner bursts typed into the product box (scanners that send no Enter)", () => {
+  it("counts fast characters in a row, and resets when someone types slowly", () => {
+    let fast = 0;
+    for (let i = 2; i <= 9; i++) fast = nextBurstCount(fast, 4, i);
+    expect(fast).toBe(8);
+    expect(nextBurstCount(fast, 300, 10)).toBe(0);
+    expect(nextBurstCount(0, 4, 1)).toBe(0);
+  });
+  it("treats a long fast run of code characters as a scan, and not a person or a name", () => {
+    expect(isScannedCode("012345678905", 11)).toBe(true);
+    expect(isScannedCode("0123456", 6)).toBe(false);
+    expect(isScannedCode("blue mesa jar", 12)).toBe(false);
+  });
+});

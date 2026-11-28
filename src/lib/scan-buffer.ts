@@ -94,3 +94,18 @@ export class ScanBuffer {
     return { prevent: prevent || nowId, flush: null, armIdTimer: nowId };
   }
 }
+
+/** Characters arriving closer together than this (ms) are a scanner, not a person typing. */
+export const BURST_GAP_MS = 50;
+/** This many fast characters in a row means a scanner is typing a code into a box. */
+export const BURST_MIN_KEYS = 7;
+/** Quiet time (ms) after a burst before the code is treated as finished, for scanners that send no Enter key. */
+export const BURST_DONE_MS = 180;
+
+/** Count of fast characters in a row, given the gap since the last change and how long the box text is now. */
+export function nextBurstCount(fastSoFar: number, gapMs: number, valueLength: number): number {
+  return gapMs < BURST_GAP_MS && valueLength > 1 ? fastSoFar + 1 : 0;
+}
+
+/** True when the text, typed in a scanner burst, looks like a code to ring up (no spaces or odd characters). */
+export const isScannedCode = (value: string, fast: number): boolean => fast >= BURST_MIN_KEYS && /^[A-Za-z0-9._-]+$/.test(value);

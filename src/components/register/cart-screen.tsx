@@ -8,12 +8,19 @@ import { beep } from "./feedback";
 import { PayPanel, money } from "./pay-panel";
 import { RewardsLine, type RewardsView } from "./rewards-panel";
 import { Toasts, useToasts } from "./shell";
+import { barcodeKey } from "@/lib/barcode";
+import { BURST_DONE_MS, isScannedCode, nextBurstCount } from "@/lib/scan-buffer";
 import { useScanner } from "./use-scanner";
+
+/** The typed or scanned text is this item's barcode (leading zeros ignored, so UPC-A and EAN-13 agree). */
+const sameBarcode = (barcode: string | null, typed: string) => Boolean(barcode) && barcodeKey(typed).length >= 4 && barcodeKey(barcode!) === barcodeKey(typed);
 
 export type MenuTile = {
   id: string;
   name: string;
   sku: string;
+  /** The product's own barcode, when one is saved on the item. */
+  barcode: string | null;
   category: string;
   price: string;
   unitLabel: string;
@@ -72,6 +79,8 @@ export function CartScreen({ view }: { view: CartView }) {
   const [paying, setPaying] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const search = useRef<HTMLInputElement>(null);
+  // A scanner not set to press Enter after a code types the whole code in a burst and stops. Spot that and submit it ourselves.
+  const burst = useRef({ last: 0, fast: 0, timer: null as ReturnType<typeof setTimeout> | null });
   /**
    * Keep the cursor in the product box so a USB scanner that types into a focused field lands there, as the ID
    * box does on the check-in screen. Never steals focus from another box being typed in, and skips touch screens
@@ -135,13 +144,15 @@ export function CartScreen({ view }: { view: CartView }) {
   const shown = view.menu.filter((m) => {
     if (category !== "All" && m.category !== category) return false;
     const q = query.trim().toLowerCase();
-    return !q || m.name.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q);
+    return !q || m.name.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q) || sameBarcode(m.barcode, q);
   });
 
-  const submitSearch = () => {
-    const q = query.trim();
+  const submitSearch = (typed?: string) => {
+    if (burst.current.timer) clearTimeout(burst.current.timer);
+    burst.current.fast = 0;
+    const q = (typed ?? query).trim();
     if (!q) return;
-    const exact = view.menu.filter((m) => !m.outOfStock && (m.name.toLowerCase() === q.toLowerCase() || m.sku.toLowerCase() === q.toLowerCase()));
+    const exact = view.menu.filter((m) => !m.outOfStock && (m.name.toLowerCase() === q.toLowerCase() || m.sku.toLowerCase() === q.toLowerCase() || sameBarcode(m.barcode, q)));
     const only = shown.filter((m) => !m.outOfStock);
     const pick = exact.length === 1 ? exact[0] : only.length === 1 ? only[0] : null;
     setQuery("");
@@ -212,9 +223,19 @@ export function CartScreen({ view }: { view: CartView }) {
             <input
               ref={search}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search products, or scan a tag or SKU"
-              aria-label="Search products, or scan a tag or SKU"
+              onChange={(e) => {
+                const value = e.target.value;
+                setQuery(value);
+                const b = burst.current;
+                const now = performance.now();
+                b.fast = nextBurstCount(b.fast, now - b.last, value.length);
+                b.last = now;
+                if (b.timer) clearTimeout(b.timer);
+                // Eight or more characters arriving 50 ms apart is a scanner, not a person. When the burst stops, ring it up.
+                if (isScannedCode(value, b.fast)) b.timer = setTimeout(() => submitSearch(value), BURST_DONE_MS);
+              }}
+              placeholder="Search products, or scan a tag, barcode or SKU"
+              aria-label="Search products, or scan a tag, barcode or SKU"
               autoComplete="off"
               className="h-12 min-w-0 flex-1 bg-transparent text-lg outline-none placeholder:text-slate-400"
             />
@@ -262,7 +283,7 @@ export function CartScreen({ view }: { view: CartView }) {
           {view.menu.length === 0 ? (
             <p className="rounded-2xl bg-white p-6 text-lg text-slate-600">Nothing is on this store&apos;s menu yet. A manager can add items under Menu.</p>
           ) : shown.length === 0 ? (
-            <p className="rounded-2xl bg-white p-6 text-lg text-slate-600">No products match. Press Enter to look it up as a tag or SKU.</p>
+            <p className="rounded-2xl bg-white p-6 text-lg text-slate-600">No products match. Press Enter to look it up as a tag, barcode or SKU.</p>
           ) : (
             <ul className="grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] gap-3">
               {shown.map((m) => (
@@ -272,11 +293,15 @@ export function CartScreen({ view }: { view: CartView }) {
                     disabled={m.outOfStock || pending}
                     onClick={() => act(() => terminalAdd(view.saleId, m.id), `Added ${m.name}`, m.id)}
                     aria-label={`Add ${m.name}, ${dollars(m.price)}`}
-                    className="group relative flex h-36 w-full flex-col overflow-hidden rounded-2xl bg-white p-3 pl-4 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-2 hover:ring-brand-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:ring-slate-200"
+                    className="group relative flex h-40 w-full flex-col overflow-hidden rounded-2xl bg-white p-3 pl-4 text-left shadow-sm ring-1 ring-slate-200 transition hover:ring-2 hover:ring-brand-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:ring-slate-200"
                   >
                     <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: colorOf(m.category) }} aria-hidden="true" />
                     <span className="line-clamp-2 text-base font-bold leading-snug text-slate-950">{m.name}</span>
                     <span className="mt-0.5 text-xs font-medium text-slate-500">{m.category}</span>
+                    <span className="font-mono text-[11px] text-slate-400" data-testid="tile-codes">
+                      {m.sku}
+                      {m.barcode ? ` · ${m.barcode}` : ""}
+                    </span>
                     <span className="mt-auto flex items-end justify-between gap-2">
                       <span className="font-display text-2xl font-bold tabular-nums text-slate-950">
                         {dollars(m.price)}
