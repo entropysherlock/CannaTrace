@@ -31,7 +31,7 @@ export default async function MenuPage() {
     db.select({ state: facilities.state }).from(facilities).where(eq(facilities.id, session.facilityId)),
     getRetailSettings(db, session.facilityId),
     db
-      .select({ id: items.id, name: items.name, unit: items.unit, price: retailPrices.price, limitCategory: items.limitCategory, limitPerUnit: items.limitPerUnit })
+      .select({ id: items.id, name: items.name, sku: items.sku, barcode: items.barcode, unit: items.unit, price: retailPrices.price, limitCategory: items.limitCategory, limitPerUnit: items.limitPerUnit })
       .from(retailPrices)
       .innerJoin(items, eq(items.id, retailPrices.itemId))
       .where(eq(retailPrices.facilityId, session.facilityId))
@@ -84,7 +84,12 @@ export default async function MenuPage() {
               <ul className="divide-y divide-slate-100 text-sm">
                 {menu.map((item) => (
                   <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                    <span className="font-medium text-slate-900">{item.name}</span>
+                    <span className="font-medium text-slate-900">
+                      {item.name}
+                      <span className="block font-mono text-xs font-normal text-slate-500" data-testid="menu-codes">
+                        SKU {item.sku} · {item.barcode ? `Barcode ${item.barcode}` : "no barcode saved yet"}
+                      </span>
+                    </span>
                     <span className="text-right text-slate-600">
                       <span className="font-semibold text-slate-900">
                         {unitPrice(item.price)} per {unitLabel(item.unit)}
