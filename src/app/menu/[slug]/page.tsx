@@ -13,18 +13,21 @@ export default async function MenuPage({ params }: { params: Promise<{ slug: str
   const menu = await publicMenu((await params).slug);
   if (!menu) notFound();
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-5xl px-5 py-5">
-          <h1 className="text-2xl font-extrabold text-brand-950 sm:text-3xl">{menu.storeName}</h1>
-          <p className="text-sm text-slate-600">{menu.businessName}</p>
-          {menu.welcome ? <p className="mt-2 max-w-2xl whitespace-pre-line text-slate-700">{menu.welcome}</p> : null}
+    <div className="min-h-screen scroll-smooth bg-slate-50 text-slate-900">
+      <OnlineMenu menu={menu} />
+      <footer className="bg-brand-950 text-brand-100">
+        <div className="mx-auto grid max-w-6xl gap-6 px-5 py-10 pb-24 sm:grid-cols-2 lg:pb-10">
+          <div>
+            <p className="text-lg font-extrabold text-white">{menu.storeName}</p>
+            <p className="text-sm text-brand-200">{menu.businessName}</p>
+          </div>
+          <div className="text-sm sm:text-right">
+            <p className="font-semibold text-white">For adults 21 and older. Please consume responsibly.</p>
+            <p className="mt-1 text-brand-200">Prices before tax. Bring a valid ID; you pay in the store.</p>
+            <p className="mt-4 text-xs text-brand-300">Menu by Leaf2Sale</p>
+          </div>
         </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-5 py-8">
-        <OnlineMenu menu={menu} />
-      </main>
-      <footer className="mx-auto max-w-5xl px-5 pb-10 text-xs text-slate-500">For adults 21 and older. Please consume responsibly.</footer>
+      </footer>
     </div>
   );
 }
