@@ -193,7 +193,7 @@ export function OnlineMenu({ menu }: { menu: PublicMenu }) {
 
       <main id="menu" className="mx-auto max-w-6xl scroll-mt-32 px-5 py-10">
         <div className={reserving ? "grid gap-10 lg:grid-cols-[1fr_22rem]" : ""}>
-          <div className="space-y-12">
+          <div className="min-w-0 space-y-12">
             {menu.categories.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-700">Nothing is on the menu right now. Please check back soon.</p>
             ) : null}
@@ -300,7 +300,7 @@ export function OnlineMenu({ menu }: { menu: PublicMenu }) {
 
 function ProductCard({ item, category, reserving, quantity, onChange }: { item: PublicMenuItem; category: string; reserving: boolean; quantity: number; onChange: (delta: number) => void }) {
   return (
-    <li className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" data-testid="menu-item">
+    <li className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" data-testid="menu-item">
       <div className={item.image ? "relative flex h-48 items-center justify-center bg-white" : `relative flex h-28 items-center justify-center bg-gradient-to-br ${swatch(category)}`}>
         {item.image ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -320,8 +320,8 @@ function ProductCard({ item, category, reserving, quantity, onChange }: { item: 
             {item.cbd ? <span className="rounded-md bg-sky-50 px-2 py-1 text-sky-800 ring-1 ring-sky-200">CBD {item.cbd}%</span> : null}
           </div>
         ) : null}
-        <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-          <p>
+        <div className="mt-auto flex flex-wrap items-end justify-between gap-x-3 gap-y-3 pt-4">
+          <p className="min-w-0">
             <span className="text-xl font-extrabold text-slate-900 tabular-nums">{usd(Number(item.price))}</span>
             <span className="ml-1 text-sm text-slate-500">{item.whole ? "each" : `/ ${item.unitLabel}`}</span>
           </p>
